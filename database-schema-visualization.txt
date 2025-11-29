@@ -1,0 +1,575 @@
+                    📚 ELMS Database Schema Visualization (Complete)
+    
+    ┌─────────────────┐         ┌─────────────────┐         ┌─────────────────┐
+    │      USERS      │         │    STUDENTS     │         │    TEACHERS     │
+    ├─────────────────┤         ├─────────────────┤         ├─────────────────┤
+    │ • id            │────────▶│ • id            │         │ • id            │
+    │ • name          │         │ • user_id (FK)  │         │ • user_id (FK)  │◀──┐
+    │ • email         │         │ • student_number│         │ • employee_num  │   │
+    │ • password      │         │ • first_name    │         │ • first_name    │   │
+    │ • role          │         │ • last_name     │         │ • last_name     │   │
+    │   - head_teacher│         │ • middle_name   │         │ • department    │   │
+    │   - registrar   │         │ • birth_date    │         │ • specialization│   │
+    │   - teacher     │         │ • address       │         │ • hire_date     │   │
+    │   - student     │         │ • phone         │         │ • status        │   │
+    │ • is_active     │         │ • year_level    │         └─────────────────┘   │
+    │ • created_at    │         │ • program       │                               │
+    │ • updated_at    │         │ • parent_contact│                               │
+    └─────────────────┘         │ • student_type  │                               │
+              │                 │   - regular     │                               │
+              │                 │   - irregular   │                               │
+              │                 │ • status        │                               │
+              │                 │ • enrolled_date │                               │
+              │                 └─────────────────┘                               │
+              │                           │                                       │
+              │    ┌─────────────────┐    │         ┌─────────────────┐           │
+              │    │    COURSES      │    │         │ TEACHER_        │           │
+              │    ├─────────────────┤    │         │ ASSIGNMENTS     │           │
+              │    │ • id            │    │         ├─────────────────┤           │
+              │    │ • subject_name  │────┼────────▶│ • id            │           │
+              │    │ • course_code   │    │         │ • teacher_id(FK)│───────────┘
+              │    │ • description   │    │         │ • section_id(FK)│◀─┐
+              │    │ • units         │    │         │ • assigned_date │  │
+              │    │ • academic_year │    │         │ • assigned_by   │  │
+              │    │ • semester      │    │         │ • status        │  │
+              │    │ • status        │    │         └─────────────────┘  │
+              │    └─────────────────┘    │                   │          │
+              │              │            │                   │          │
+              │              ▼            │                   │          │
+              │    ┌─────────────────┐    │         ┌─────────────────┐  │
+              │    │    SECTIONS     │    │         │ CLASS_          │  │
+              │    ├─────────────────┤    │         │ SCHEDULES       │  │
+              │    │ • id            │    │         ├─────────────────┤  │
+              │    │ • course_id (FK)│◀───┘         │ • id            │  │
+              │    │ • section_name  │              │ • section_id(FK)│◀─┘
+              │    │ • room          │              │ • day_of_week   │
+              │    │ • status        │              │ • start_time    │
+              │    └─────────────────┘              │ • end_time      │
+              │              │                      │ • room          │
+              │              │                      │ • created_by    │
+              │              │                      └─────────────────┘
+              │              ▼
+              │    ┌─────────────────┐    
+              │    │ STUDENT_        │    
+              │    │ ENROLLMENTS     │    
+              │    ├─────────────────┤    
+              │    │ • id            │    
+              │    │ • student_id(FK)│◀────────────────────────────────┐
+              │    │ • section_id(FK)│◀─────────────────────────────┐   │
+              │    │ • enrollment_dt │                              │   │
+              │    │ • enrolled_by   │                              │   │
+              │    │ • status        │                              │   │
+              │    │   - active      │                              │   │
+              │    │   - transferred │                              │   │
+              │    │   - dropped     │                              │   │
+              │    │ • transfer_date │                              │   │
+              │    │ • transfer_to   │                              │   │
+              │    │ • academic_year │ ⭐ NEW                       │   │
+              │    │ • semester      │                              │   │
+              │    └─────────────────┘                              │   │
+              │              │                                      │   │
+              │              ▼                                      │   │
+              │    ┌─────────────────┐                              │   │
+              │    │ STUDENT_        │ ⭐ NEW                       │   │
+              │    │ SEMESTER_       │                              │   │
+              │    │ PAYMENTS        │                              │   │
+              │    ├─────────────────┤                              │   │
+              │    │ • id            │                              │   │
+              │    │ • student_id(FK)│◀─────────────────────────────┘   │
+              │    │ • academic_year │                                  │
+              │    │ • semester      │                                  │
+              │    │ • prelim_amount │                                  │
+              │    │ • prelim_paid   │                                  │
+              │    │ • prelim_pay_dt │                                  │
+              │    │ • midterm_amount│                                  │
+              │    │ • midterm_paid  │                                  │
+              │    │ • midterm_pay_dt│                                  │
+              │    │ • prefinal_amt  │                                  │
+              │    │ • prefinal_paid │                                  │
+              │    │ • prefinal_pay_dt                                  │
+              │    │ • final_amount  │                                  │
+              │    │ • final_paid    │                                  │
+              │    │ • final_pay_dt  │                                  │
+              │    │ • total_sem_fee │                                  │
+              │    │ • total_paid    │                                  │
+              │    │ • balance       │                                  │
+              │    └─────────────────┘                                  │
+              │              │                                          │
+              │              ▼                                          │
+              │    ┌─────────────────┐                              │   │
+              │    │ STUDENT_GRADES  │ ⭐ NEW                       │   │
+              │    ├─────────────────┤                              │   │
+              │    │ • id            │                              │   │
+              │    │ • student_      │                              │   │
+              │    │   enrollment_   │                              │   │
+              │    │   id (FK)       │◀─────────────────────────────┘   │
+              │    │ • teacher_id(FK)│──────────────────────────────────┘
+              │    │ • prelim_grade  │
+              │    │ • midterm_grade │
+              │    │ • prefinal_grade│
+              │    │ • final_grade   │
+              │    │ • semester_grade│
+              │    │ • overall_status│
+              │    │ • teacher_      │
+              │    │   remarks       │
+              │    └─────────────────┘
+              │              │
+              │              ▼
+              │    ┌─────────────────┐
+              │    │ STUDENT_        │
+              │    │ ACADEMIC_       │ ⭐ NEW
+              │    │ TRANSCRIPTS     │
+              │    ├─────────────────┤
+              │    │ • id            │
+              │    │ • student_id(FK)│◀─────────────────────────────────┐
+              │    │ • enrollment_id │                                  │
+              │    │   (FK)          │                                  │
+              │    │ • academic_year │                                  │
+              │    │ • semester      │                                  │
+              │    │ • year_level    │                                  │
+              │    │ • course_code   │                                  │
+              │    │ • subject_name  │                                  │
+              │    │ • teacher_name  │                                  │
+              │    │ • section_name  │                                  │
+              │    │ • all_grades    │                                  │
+              │    │ • completion_   │                                  │
+              │    │   status        │                                  │
+              │    │ • attempt_num   │                                  │
+              │    │ • grade_points  │                                  │
+              │    │ • quality_points│                                  │
+              │    └─────────────────┘                                  │
+              │              │                                          │
+              │              ▼                                          │
+              │    ┌─────────────────┐                                  │
+              │    │ STUDENT_GRADE_  │ ⭐ NEW                           │
+              │    │ SUMMARIES       │                                  │
+              │    ├─────────────────┤                                  │
+              │    │ • id            │                                  │
+              │    │ • student_id(FK)│◀─────────────────────────────────┘
+              │    │ • academic_year │
+              │    │ • semester      │
+              │    │ • year_level    │
+              │    │ • semester_gpa  │
+              │    │ • cumulative_gpa│
+              │    │ • total_units   │
+              │    │ • total_subjects│
+              │    │ • academic_     │
+              │    │   standing      │
+              │    │ • honors_       │
+              │    │   eligibility   │
+              │    │ • semester_     │
+              │    │   completed     │
+              │    └─────────────────┘
+              │              │
+              │              ▼
+              └────────▶ ┌─────────────────┐
+                         │ ANNOUNCEMENTS   │ ⭐ NEW FEATURE
+                         ├─────────────────┤
+                         │ • id            │
+                         │ • title         │
+                         │ • content       │
+                         │ • created_by(FK)│◀─────────┐
+                         │ • visibility    │          │
+                         │   - teachers_only          │
+                         │   - all_users   │          │
+                         │   - students_only          │
+                         │ • priority      │          │
+                         │   - low/med/high           │
+                         │   - urgent      │          │
+                         │ • is_published  │          │
+                         │ • published_at  │          │
+                         │ • expires_at    │          │
+                         │ • is_archived   │          │
+                         │ • rich_content  │          │
+                         └─────────────────┘          │
+                                   │                  │
+                                   ▼                  │
+                         ┌─────────────────┐          │
+                         │ ANNOUNCEMENT_   │          │
+                         │ ATTACHMENTS     │ ⭐ NEW   │
+                         ├─────────────────┤          │
+                         │ • id            │          │
+                         │ • announcement_ │          │
+                         │   id (FK)       │          │
+                         │ • file_name     │          │
+                         │ • file_path     │          │
+                         │ • file_type     │          │
+                         │ • file_size     │          │
+                         │ • original_name │          │
+                         │ • download_count│          │
+                         └─────────────────┘          │
+                                                      │
+         ┌─────────────────┐         ┌─────────────────┐
+         │ COURSE_         │         │ ANNOUNCEMENT_   │ ⭐ NEW
+         │ MATERIALS       │ ⭐ NEW  │ READ_STATUS     │
+         ├─────────────────┤         ├─────────────────┤
+         │ • id            │         │ • id            │
+         │ • section_id(FK)│         │ • announcement_ │
+         │ • teacher_id(FK)│─────────│   id (FK)       │
+         │ • title         │         │ • user_id (FK)  │◀─┘
+         │ • description   │         │ • read_at       │
+         │ • file_name     │         │ • is_read       │
+         │ • file_path     │         └─────────────────┘
+         │ • file_type     │
+         │ • file_size     │         ┌─────────────────┐
+         │ • original_name │         │ USER_           │ ⭐ NEW
+         │ • category      │         │ PREFERENCES     │
+         │   - lecture     │         ├─────────────────┤
+         │   - assignment  │         │ • id            │
+         │   - reading     │         │ • user_id (FK)  │◀──┘
+         │   - exam        │         │ • show_archived │
+         │   - other       │         │ • default_      │
+         │ • visibility    │         │   priority      │
+         │   - all_students│         │ • theme         │
+         │   - specific    │         │   preferences   │
+         │ • is_active     │         └─────────────────┘
+         │ • upload_date   │
+         │ • download_count│
+         │ • version_num   │
+         └─────────────────┘
+                   │
+                   ▼
+         ┌─────────────────┐
+         │ MATERIAL_ACCESS_│
+         │ LOGS            │ ⭐ NEW
+         ├─────────────────┤
+         │ • id            │
+         │ • student_id(FK)│
+         │ • material_id   │
+         │   (FK)          │
+         │ • accessed_at   │
+         │ • download_     │
+         │   completed     │
+         │ • ip_address    │
+         └─────────────────┘
+
+    🔗 RELATIONSHIPS:
+    ═══════════════════════════════════════════════════════════════════
+
+    👨‍💼 USERS (1) ──────── (1) STUDENTS
+    👨‍💼 USERS (1) ──────── (1) TEACHERS
+    👨‍💼 USERS (1) ──────── (Many) ANNOUNCEMENTS (Head Teacher creates)
+    👨‍💼 USERS (1) ──────── (Many) ANNOUNCEMENT_READ_STATUS (In-app tracking)
+
+    👨‍🎓 STUDENTS (1) ──────── (1 or Many) STUDENT_ENROLLMENTS 
+         │                              │
+         │    ★ REGULAR: 1 Section      │
+         │    ★ IRREGULAR: Multiple     │
+         │                              │
+         └─────────────── STUDENT_ENROLLMENTS (1) ──────── (1) STUDENT_GRADES ⭐ NEW
+         └─────────────── STUDENTS (1) ──────── (Many) STUDENT_ACADEMIC_TRANSCRIPTS ⭐ NEW
+         └─────────────── STUDENTS (1) ──────── (Many) STUDENT_GRADE_SUMMARIES ⭐ NEW
+
+    👨‍🏫 TEACHERS (1) ──────── (Many) TEACHER_ASSIGNMENTS (Multiple Sections)
+    👨‍🏫 TEACHERS (1) ──────── (Many) COURSE_MATERIALS (Upload files)
+    👨‍🏫 TEACHERS (1) ──────── (Many) STUDENT_GRADES (Grade submissions) ⭐ NEW
+    👨‍🏫 TEACHERS (1) ──────── (Many) STUDENT_ACADEMIC_TRANSCRIPTS ⭐ NEW
+
+    📚 COURSES (1) ─────── (Many) SECTIONS
+    📚 SECTIONS (1) ─────── (Many) TEACHER_ASSIGNMENTS 
+    📚 SECTIONS (1) ─────── (Many) STUDENT_ENROLLMENTS
+    📚 SECTIONS (1) ─────── (Many) CLASS_SCHEDULES
+    📚 SECTIONS (1) ─────── (Many) COURSE_MATERIALS
+
+    📢 ANNOUNCEMENTS (1) ─────── (Many) ANNOUNCEMENT_ATTACHMENTS
+    📢 ANNOUNCEMENTS (1) ─────── (Many) ANNOUNCEMENT_READ_STATUS
+
+    ⚡ NEW FEATURES ADDED:
+    ═══════════════════════════════════════════════════════════════════
+
+    📊 COMPREHENSIVE GRADING SYSTEM: ⭐ NEW
+       └─ 5 grade components: prelim, midterm, prefinals, finals
+       └─ Automatic semester grade calculation (average)
+       └─ Grade submission tracking with timestamps
+       └─ Teacher remarks and overall status
+       └─ Students can view all 5 grade components
+
+    📚 COMPLETE ACADEMIC HISTORY: ⭐ NEW
+       └─ View all subjects taken across all academic years
+       └─ Complete grade history even after moving to next year
+       └─ Subject-wise grade tracking with attempt numbers
+       └─ Comprehensive transcript generation
+       └─ GPA calculation per semester and cumulative
+       └─ Academic standing tracking (Dean's List, Probation, etc.)
+       └─ All grades preserved for historical reference
+
+    💰 ENHANCED PAYMENT TRACKING: ⭐ NEW
+       └─ ONE payment record per student per semester (regardless of regular/irregular)
+       └─ Academic year and semester context for payments
+       └─ Regular students: Standard fee for enrolled section subjects
+       └─ Irregular students: Higher fees due to multiple section enrollments
+       └─ Payment history with dates per grading period
+       └─ Balance tracking and payment verification before grade access
+
+    📢 ANNOUNCEMENT SYSTEM (In-App Only):
+       └─ Head Teacher creates announcements
+       └─ Visibility: teachers_only, all_users, students_only
+       └─ Rich text content with HTML support
+       └─ Priority levels: low, medium, high, urgent
+       └─ Expiration dates and archive functionality
+       └─ File attachments support
+       └─ Read status tracking (no email notifications)
+
+    📚 COURSE MATERIALS:
+       └─ Teachers upload PDFs, Word docs, PowerPoints
+       └─ Categorized by type: lecture, assignment, reading, exam
+       └─ Access control and download tracking
+       └─ Version management
+
+    📱 IN-APP NOTIFICATION SYSTEM:
+       └─ Read/unread status for announcements
+       └─ User preferences for display settings
+       └─ No email notifications - page-based only
+       └─ Archive viewing preferences
+
+    🔐 ACCESS TRACKING:
+       └─ Log student access to materials
+       └─ Download completion tracking
+       └─ IP address logging for security
+
+    🎯 STUDENT ACADEMIC PORTAL FEATURES:
+       └─ Complete subject list with all enrolled courses
+       └─ Historical grade viewing across all academic years
+       └─ Transcript generation with GPA calculations
+       └─ Payment status tracking by academic period
+       └─ Academic standing and honors tracking
+       └─ Progress monitoring for degree completion
+
+    🔄 SYSTEM WORKFLOWS & BUSINESS PROCESSES:
+    ═══════════════════════════════════════════════════════════════════
+
+    👨‍💼 ADMIN/HEAD TEACHER WORKFLOW:
+    ──────────────────────────────────────────────────────────────────
+    1. 📝 INITIAL SYSTEM SETUP
+       ├─ Create user accounts for teachers, registrar, students
+       ├─ Set up academic year and semester periods
+       ├─ Define courses with subject codes and units
+       ├─ Create sections and assign rooms
+       └─ Configure class schedules (day, time, room)
+
+    2. 👨‍🏫 TEACHER MANAGEMENT
+       ├─ Assign teachers to specific sections
+       ├─ Track teacher specializations and departments
+       ├─ Monitor teaching loads and assignments
+       └─ Manage teacher status and employment records
+
+    3. 📢 ANNOUNCEMENT SYSTEM
+       ├─ Create announcements with priority levels
+       ├─ Set visibility (teachers_only, all_users, students_only)
+       ├─ Attach files (documents, images, PDFs)
+       ├─ Schedule publication and expiration dates
+       ├─ Archive old announcements
+       └─ Monitor read status and engagement
+
+    4. 📊 ACADEMIC OVERSIGHT
+       ├─ Monitor overall grade distributions
+       ├─ Review academic standing reports
+       ├─ Generate institutional analytics
+       ├─ Track graduation requirements progress
+       └─ Oversee transcript generation
+
+    👩‍🏫 TEACHER WORKFLOW:
+    ──────────────────────────────────────────────────────────────────
+    1. 📚 COURSE MANAGEMENT
+       ├─ View assigned sections and class schedules
+       ├─ Access student rosters for each section
+       ├─ Upload course materials by category:
+       │  ├─ Lecture notes and presentations
+       │  ├─ Assignments and projects
+       │  ├─ Reading materials and references
+       │  └─ Exam schedules and guidelines
+       └─ Track material download statistics
+
+    2. 📝 GRADING PROCESS (5-Component System)
+       ├─ **PRELIM PERIOD** (Week 1-6):
+       │  ├─ Record prelim grades for enrolled students
+       │  ├─ Add teacher remarks and feedback
+       │  └─ Submit prelim grades with timestamp
+       │
+       ├─ **MIDTERM PERIOD** (Week 7-12):
+       │  ├─ Record midterm grades
+       │  ├─ Review student progress from prelim
+       │  └─ Submit midterm grades with timestamp
+       │
+       ├─ **PREFINALS PERIOD** (Week 13-16):
+       │  ├─ Record prefinal grades
+       │  ├─ Assess overall semester performance
+       │  └─ Submit prefinal grades with timestamp
+       │
+       ├─ **FINALS PERIOD** (Week 17-18):
+       │  ├─ Conduct final examinations
+       │  ├─ Record final grades
+       │  └─ Submit final grades with timestamp
+       │
+       └─ **SEMESTER GRADE CALCULATION**:
+          ├─ System auto-calculates: (Prelim + Midterm + Prefinals + Finals) ÷ 4
+          ├─ Teacher reviews and confirms semester grade
+          ├─ Set overall completion status (Passed/Failed/Incomplete)
+          └─ Final submission triggers transcript entry
+
+    3. 👀 STUDENT MONITORING
+       ├─ Track student attendance and participation
+       ├─ Monitor payment status before grade submission
+       ├─ Identify struggling students for intervention
+       ├─ Generate progress reports per grading period
+       └─ Communicate with parents/guardians as needed
+
+    👩‍💼 REGISTRAR WORKFLOW:
+    ──────────────────────────────────────────────────────────────────
+    1. 🎓 STUDENT ENROLLMENT MANAGEMENT
+       ├─ **REGULAR STUDENTS**:
+       │  ├─ Enroll in single section per semester
+       │  ├─ Verify payment status before enrollment
+       │  ├─ Assign to appropriate year level section
+       │  └─ Generate enrollment confirmation
+       │
+       └─ **IRREGULAR STUDENTS**:
+          ├─ Enroll in multiple sections (mixed year levels)
+          ├─ Track subject completions and requirements
+          ├─ Manage transfer credits and course equivalencies
+          ├─ Calculate remaining units for graduation
+          └─ Generate custom academic plans
+
+    2. 💰 PAYMENT TRACKING & VERIFICATION
+       ├─ **Per Academic Period Tracking**:
+       │  ├─ ONE payment record per student per semester
+       │  ├─ Regular Student: Standard semester fee (e.g., 15,000 for 5 subjects)
+       │  ├─ Irregular Student: Higher semester fee (e.g., 25,000 for 8 subjects)
+       │  ├─ Payment breakdown: Prelim (25%) + Midterm (25%) + Prefinals (25%) + Finals (25%)
+       │  └─ Track payment dates and amounts per grading period
+       │
+       ├─ **Payment Verification Process**:
+       │  ├─ Verify payments before grade release
+       │  ├─ Generate payment reports by academic period
+       │  ├─ Handle payment disputes and adjustments
+       │  └─ Coordinate with accounting office for fee calculations
+       │
+       └─ **Payment Status Updates**:
+          ├─ Update payment flags per grading period
+          ├─ Calculate total fees based on student enrollments count
+          ├─ Block grade viewing for unpaid periods
+          └─ Generate payment status reports by semester
+
+    3. 📋 ACADEMIC RECORDS MANAGEMENT
+       ├─ **Transcript Generation**:
+       │  ├─ Compile complete academic history
+       │  ├─ Calculate semester and cumulative GPAs
+       │  ├─ Determine academic standing (Dean's List, Probation)
+       │  ├─ Include all grade attempts and improvements
+       │  └─ Generate official transcripts for graduation/transfer
+       │
+       ├─ **Academic Standing Evaluation**:
+       │  ├─ Monitor GPA thresholds per semester
+       │  ├─ Identify students on probation or dean's list
+       │  ├─ Track graduation requirements completion
+       │  └─ Generate academic standing reports
+       │
+       └─ **Historical Data Management**:
+          ├─ Preserve all academic records across years
+          ├─ Maintain course attempt histories
+          ├─ Archive completed student records
+          └─ Ensure data integrity and backup procedures
+
+    👨‍🎓 STUDENT WORKFLOW:
+    ──────────────────────────────────────────────────────────────────
+    1. 📚 ACADEMIC DASHBOARD ACCESS
+       ├─ **Current Semester View**:
+       │  ├─ View enrolled subjects and sections
+       │  ├─ Check class schedules and room assignments
+       │  ├─ See assigned teachers per subject
+       │  └─ Access course materials and announcements
+       │
+       ├─ **Grade Monitoring (Real-time)**:
+       │  ├─ View submitted grades per component:
+       │  │  ├─ Prelim grade (as soon as teacher submits)
+       │  │  ├─ Midterm grade (after midterm submission)
+       │  │  ├─ Prefinal grade (after prefinal submission)
+       │  │  ├─ Final grade (after final submission)
+       │  │  └─ Semester grade (auto-calculated final)
+       │  ├─ Track grade submission timestamps
+       │  ├─ View teacher remarks and feedback
+       │  └─ Monitor overall completion status
+       │
+       └─ **Payment Status Tracking**:
+          ├─ Check payment requirements per period
+          ├─ View payment deadlines and amounts
+          ├─ Track paid/unpaid status per grading component
+          └─ Receive payment reminder notifications
+
+    2. 📖 ACADEMIC HISTORY & TRANSCRIPTS
+       ├─ **Complete Academic Record**:
+       │  ├─ View all subjects taken across all academic years
+       │  ├─ See complete grade history (all 5 components)
+       │  ├─ Track course attempts and improvements
+       │  ├─ Monitor cumulative units earned
+       │  └─ Review academic standing per semester
+       │
+       ├─ **GPA Calculations**:
+       │  ├─ Real-time semester GPA updates
+       │  ├─ Cumulative GPA tracking across all semesters
+       │  ├─ Grade point analysis per subject
+       │  └─ Academic performance trends
+       │
+       └─ **Graduation Progress**:
+          ├─ Track completed vs. required units
+          ├─ Monitor prerequisite completions
+          ├─ View estimated graduation timeline
+          └─ Access unofficial transcript for personal use
+
+    3. 📱 COMMUNICATION & RESOURCES
+       ├─ **Announcement System**:
+       │  ├─ Receive announcements based on visibility settings
+       │  ├─ Mark announcements as read/unread
+       │  ├─ Download attached files and documents
+       │  ├─ View archived announcements when enabled
+       │  └─ Set notification preferences
+       │
+       ├─ **Course Materials Access**:
+       │  ├─ Download lecture notes and presentations
+       │  ├─ Access assignments and project guidelines
+       │  ├─ View reading materials and references
+       │  ├─ Check exam schedules and requirements
+       │  └─ Track material access history
+       │
+       └─ **Academic Support**:
+          ├─ Request transcript copies
+          ├─ Submit grade inquiries through proper channels
+          ├─ Access academic calendar and important dates
+          └─ View contact information for academic advisors
+
+    🔄 SYSTEM INTEGRATION WORKFLOWS:
+    ──────────────────────────────────────────────────────────────────
+    1. **GRADE SUBMISSION TO TRANSCRIPT PIPELINE**:
+       ├─ Teacher submits semester grade → Triggers transcript entry
+       ├─ System preserves all 5 grade components in academic history
+       ├─ Auto-calculates GPA impact and updates summaries
+       ├─ Updates academic standing based on new GPA
+       └─ Triggers graduation requirement checks
+
+    2. **PAYMENT-GRADE INTEGRATION**:
+       ├─ Payment verification before grade viewing access
+       ├─ Period-specific payment tracking (1st sem prelim ≠ 2nd sem prelim)
+       ├─ Automatic payment reminder generation
+       └─ Grade release blocking for unpaid periods
+
+    3. **ENROLLMENT-ACADEMIC RECORD INTEGRATION**:
+       ├─ New enrollment creates grade tracking entries
+       ├─ Section changes update grade assignment teachers
+       ├─ Irregular student enrollments link to existing academic history
+       └─ Transfer students maintain grade history continuity
+
+    4. **ANNOUNCEMENT-USER ROLE INTEGRATION**:
+       ├─ Role-based announcement delivery (teachers_only, all_users, students_only)
+       ├─ Priority-based notification prominence
+       ├─ Automatic archiving based on expiration dates
+       └─ Read status tracking for engagement analytics
+
+    ⚠️  CRITICAL BUSINESS RULES:
+    ──────────────────────────────────────────────────────────────────
+    • **Grade Submission Deadlines**: Teachers must submit grades within specified periods
+    • **Payment Verification**: No grade access without payment confirmation
+    • **Academic Standing**: GPA below 2.0 triggers probation status
+    • **Transcript Preservation**: All academic records must be permanently preserved
+    • **Regular vs Irregular**: Different enrollment and progress tracking rules
+    • **Grade Component Completeness**: All 5 components required for semester grade
+    • **Historical Integrity**: Past academic records cannot be modified after archival
