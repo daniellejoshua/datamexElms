@@ -18,6 +18,13 @@
     └─────────────────┘         │ • student_type  │                               │
               │                 │   - regular     │                               │
               │                 │   - irregular   │                               │
+              │                 │ • education_level ⭐ NEW                       │
+              │                 │   - shs         │                               │
+              │                 │   - college     │                               │
+              │                 │ • track ⭐ NEW   │                               │
+              │                 │   (SHS: STEM,   │                               │
+              │                 │    HUMSS, ABM)  │                               │
+              │                 │ • strand ⭐ NEW │                               │
               │                 │ • status        │                               │
               │                 │ • enrolled_date │                               │
               │                 └─────────────────┘                               │
@@ -30,11 +37,12 @@
               │    │ • course_code   │    │         │ • teacher_id(FK)│───────────┘
               │    │ • description   │    │         │ • section_id(FK)│◀─┐
               │    │ • units         │    │         │ • assigned_date │  │
-              │    │ • academic_year │    │         │ • assigned_by   │  │
-              │    │ • semester      │    │         │ • status        │  │
-              │    │ • status        │    │         └─────────────────┘  │
+              │    │ • education_level ⭐ NEW      │ • assigned_by   │  │
+              │    │   - shs/college │    │         │ • status        │  │
+              │    │ • track ⭐ NEW  │    │         └─────────────────┘  │
+              │    │ • status        │    │                   │          │
               │    └─────────────────┘    │                   │          │
-              │              │            │                   │          │
+              │              │            │         └─────────────────┘  │
               │              ▼            │                   │          │
               │    ┌─────────────────┐    │         ┌─────────────────┐  │
               │    │    SECTIONS     │    │         │ CLASS_          │  │
@@ -43,10 +51,10 @@
               │    │ • course_id (FK)│◀───┘         │ • id            │  │
               │    │ • section_name  │              │ • section_id(FK)│◀─┘
               │    │ • room          │              │ • day_of_week   │
-              │    │ • status        │              │ • start_time    │
-              │    └─────────────────┘              │ • end_time      │
-              │              │                      │ • room          │
-              │              │                      │ • created_by    │
+              │    │ • academic_year │ ⭐ NEW       │ • start_time    │
+              │    │ • semester      │ ⭐ NEW       │ • end_time      │
+              │    │ • status        │              │ • room          │
+              │    └─────────────────┘              │ • created_by    │
               │              │                      └─────────────────┘
               │              ▼
               │    ┌─────────────────┐    
@@ -96,8 +104,34 @@
               │    └─────────────────┘                                  │
               │              │                                          │
               │              ▼                                          │
+              │    ┌─────────────────┐ ⭐ NEW FOR SHS                  │
+              │    │ SHS_STUDENT_    │                                  │
+              │    │ PAYMENTS        │                                  │
+              │    ├─────────────────┤                                  │
+              │    │ • id            │                                  │
+              │    │ • student_id(FK)│◀─────────────────────────────────┘
+              │    │ • academic_year │                                   
+              │    │ • semester      │                                   
+              │    │ • 1st_qtr_amount│                                   
+              │    │ • 1st_qtr_paid  │                                   
+              │    │ • 1st_qtr_pay_dt│                                   
+              │    │ • 2nd_qtr_amount│                                   
+              │    │ • 2nd_qtr_paid  │                                   
+              │    │ • 2nd_qtr_pay_dt│                                   
+              │    │ • 3rd_qtr_amount│                                   
+              │    │ • 3rd_qtr_paid  │                                   
+              │    │ • 3rd_qtr_pay_dt│                                   
+              │    │ • 4th_qtr_amount│                                   
+              │    │ • 4th_qtr_paid  │                                   
+              │    │ • 4th_qtr_pay_dt│                                   
+              │    │ • total_sem_fee │                                   
+              │    │ • total_paid    │                                   
+              │    │ • balance       │                                   
+              │    └─────────────────┘                                   
+              │              │                                           
+              │              ▼                                           
               │    ┌─────────────────┐                              │   │
-              │    │ STUDENT_GRADES  │ ⭐ NEW                       │   │
+              │    │ STUDENT_GRADES  │ ⭐ COLLEGE SYSTEM            │   │
               │    ├─────────────────┤                              │   │
               │    │ • id            │                              │   │
               │    │ • student_      │                              │   │
@@ -110,6 +144,31 @@
               │    │ • final_grade   │
               │    │ • semester_grade│
               │    │ • overall_status│
+              │    │ • teacher_      │
+              │    │   remarks       │
+              │    └─────────────────┘
+              │              │
+              │              ▼
+              │    ┌─────────────────┐ ⭐ NEW FOR SHS
+              │    │ SHS_STUDENT_    │
+              │    │ GRADES          │
+              │    ├─────────────────┤
+              │    │ • id            │
+              │    │ • student_      │
+              │    │   enrollment_   │
+              │    │   id (FK)       │
+              │    │ • teacher_id(FK)│
+              │    │ • 1st_qtr_grade │
+              │    │ • 1st_qtr_sub_dt│
+              │    │ • 2nd_qtr_grade │
+              │    │ • 2nd_qtr_sub_dt│
+              │    │ • 3rd_qtr_grade │
+              │    │ • 3rd_qtr_sub_dt│
+              │    │ • 4th_qtr_grade │
+              │    │ • 4th_qtr_sub_dt│
+              │    │ • final_grade   │
+              │    │ • completion_   │
+              │    │   status        │
               │    │ • teacher_      │
               │    │   remarks       │
               │    └─────────────────┘
@@ -342,9 +401,9 @@
     ──────────────────────────────────────────────────────────────────
     1. 📝 INITIAL SYSTEM SETUP
        ├─ Create user accounts for teachers, registrar, students
-       ├─ Set up academic year and semester periods
-       ├─ Define courses with subject codes and units
-       ├─ Create sections and assign rooms
+       ├─ Define permanent course catalog (subject codes, units)
+       ├─ Create sections for specific academic year/semester periods
+       ├─ Assign rooms to sections
        └─ Configure class schedules (day, time, room)
 
     2. 👨‍🏫 TEACHER MANAGEMENT
@@ -423,12 +482,19 @@
        │  ├─ Assign to appropriate year level section
        │  └─ Generate enrollment confirmation
        │
-       └─ **IRREGULAR STUDENTS**:
-          ├─ Enroll in multiple sections (mixed year levels)
-          ├─ Track subject completions and requirements
-          ├─ Manage transfer credits and course equivalencies
-          ├─ Calculate remaining units for graduation
-          └─ Generate custom academic plans
+       ├─ **IRREGULAR STUDENTS**:
+       │  ├─ Enroll in multiple sections (mixed year levels)
+       │  ├─ Track subject completions and requirements
+       │  ├─ Manage transfer credits and course equivalencies
+       │  ├─ Calculate remaining units for graduation
+       │  └─ Generate custom academic plans
+       │
+       └─ **SECTION ASSIGNMENT MANAGEMENT** ⭐ UPDATED:
+          ├─ Administrators control all section transfers
+          ├─ Students can be moved between sections within semester
+          ├─ Track section changes with academic year/semester context
+          ├─ Maintain complete historical enrollment records
+          └─ Handle capacity management and schedule conflicts
 
     2. 💰 PAYMENT TRACKING & VERIFICATION
        ├─ **Per Academic Period Tracking**:
