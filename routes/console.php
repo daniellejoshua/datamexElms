@@ -2,7 +2,14 @@
 
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\Schedule;
 
 Artisan::command('inspire', function () {
     $this->comment(Inspiring::quote());
 })->purpose('Display an inspiring quote');
+
+// Schedule audit log cleanup to run monthly
+Schedule::command('audit:cleanup --days=365')
+    ->monthly()
+    ->name('audit-cleanup')
+    ->description('Clean up audit logs older than 1 year');

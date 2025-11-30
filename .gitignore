@@ -22,3 +22,12 @@
 Homestead.json
 Homestead.yaml
 Thumbs.db
+
+# IDE Helper files (auto-generated)
+_ide_helper.php
+_ide_helper_models.php
+.phpstorm.meta.php
+
+# Testing cookies
+cookies.txt
+session_cookies.txt

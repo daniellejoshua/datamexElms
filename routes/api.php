@@ -1,15 +1,21 @@
 <?php
 
+use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Test;
-use Illuminate\Notifications\RoutesNotifications;
 use Illuminate\Support\Facades\Route;
-use PHPUnit\Metadata\Group;
 
-// Grouped routes with middleware (e.g., auth:sanctum)
-Route::middleware('auth:sanctum')->group(function () {
+// Public authentication routes with session support
+Route::middleware('web')->group(function () {
+    Route::post('/login', [AuthController::class, 'login']);
+});
+
+// Protected routes with web session authentication
+Route::middleware(['web', 'auth:web'])->group(function () {
+    Route::post('/logout', [AuthController::class, 'logout']);
+    Route::get('/me', [AuthController::class, 'me']);
     Route::get('/user', function (\Illuminate\Http\Request $request) {
         return $request->user();
     });
 });
 
-route::apiResource('/test', Test::class);
+Route::apiResource('/test', Test::class);

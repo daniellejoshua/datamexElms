@@ -17,7 +17,11 @@ return Application::configure(basePath: dirname(__DIR__))
             \Illuminate\Http\Middleware\AddLinkHeadersForPreloadedAssets::class,
         ]);
 
-        //
+        // Exempt API authentication endpoints from CSRF protection
+        $middleware->validateCsrfTokens(except: [
+            'api/login',
+            'api/logout',
+        ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         //

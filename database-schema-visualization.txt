@@ -1,4 +1,4 @@
-                    📚 ELMS Database Schema Visualization (Complete)
+                    📚 ELMS Database Schema Visualization (Complete + Audit Trail)
     
     ┌─────────────────┐         ┌─────────────────┐         ┌─────────────────┐
     │      USERS      │         │    STUDENTS     │         │    TEACHERS     │
@@ -12,16 +12,16 @@
     │   - registrar   │         │ • birth_date    │         │ • specialization│   │
     │   - teacher     │         │ • address       │         │ • hire_date     │   │
     │   - student     │         │ • phone         │         │ • status        │   │
-    │ • is_active     │         │ • year_level    │         └─────────────────┘   │
-    │ • created_at    │         │ • program       │                               │
-    │ • updated_at    │         │ • parent_contact│                               │
-    └─────────────────┘         │ • student_type  │                               │
-              │                 │   - regular     │                               │
+    │   - super_admin │ ⭐ NEW  │ • year_level    │         └─────────────────┘   │
+    │ • is_active     │         │ • program       │                               │
+    │ • created_at    │         │ • parent_contact│                               │
+    │ • updated_at    │         │ • student_type  │                               │
+    └─────────────────┘         │   - regular     │                               │
               │                 │   - irregular   │                               │
-              │                 │ • education_level ⭐ NEW                       │
+              │                 │ • education_level ⭐ NEW                        │
               │                 │   - shs         │                               │
               │                 │   - college     │                               │
-              │                 │ • track ⭐ NEW   │                               │
+              │                 │ • track ⭐ NEW   │                              │
               │                 │   (SHS: STEM,   │                               │
               │                 │    HUMSS, ABM)  │                               │
               │                 │ • strand ⭐ NEW │                               │
@@ -37,7 +37,7 @@
               │    │ • course_code   │    │         │ • teacher_id(FK)│───────────┘
               │    │ • description   │    │         │ • section_id(FK)│◀─┐
               │    │ • units         │    │         │ • assigned_date │  │
-              │    │ • education_level ⭐ NEW      │ • assigned_by   │  │
+              │    │ • education_level ⭐ NEW      │ • assigned_by    │  │
               │    │   - shs/college │    │         │ • status        │  │
               │    │ • track ⭐ NEW  │    │         └─────────────────┘  │
               │    │ • status        │    │                   │          │
@@ -144,6 +144,12 @@
               │    │ • final_grade   │
               │    │ • semester_grade│
               │    │ • overall_status│
+              │    │ • status ⭐ NEW │ ── draft/submitted/finalized
+              │    │ • submitted_at ⭐│ ── finalization timestamps
+              │    │ • finalized_at ⭐│
+              │    │ • finalized_by ⭐│ ── (FK to users)
+              │    │ • finalization_ │
+              │    │   notes ⭐ NEW  │
               │    │ • teacher_      │
               │    │   remarks       │
               │    └─────────────────┘
@@ -169,8 +175,105 @@
               │    │ • final_grade   │
               │    │ • completion_   │
               │    │   status        │
+              │    │ • status ⭐ NEW │ ── draft/submitted/finalized
+              │    │ • submitted_at ⭐│ ── finalization timestamps
+              │    │ • finalized_at ⭐│
+              │    │ • finalized_by ⭐│ ── (FK to users)
+              │    │ • finalization_ │
+              │    │   notes ⭐ NEW  │
               │    │ • teacher_      │
               │    │   remarks       │
+              │    └─────────────────┘
+              │              │
+              │              ▼
+              │    ┌─────────────────┐ ⭐ NEW AUDIT SYSTEM
+              │    │ AUDIT_LOGS      │
+              │    ├─────────────────┤
+              │    │ • id            │
+              │    │ • user_id (FK)  │ ── Who made the change
+              │    │ • user_type     │ ── Backup user info
+              │    │ • user_name     │
+              │    │ • event         │ ── created/updated/deleted
+              │    │ • auditable_type│ ── Model class name
+              │    │ • auditable_id  │ ── Record ID
+              │    │ • old_values    │ ── JSON: Previous data
+              │    │ • new_values    │ ── JSON: New data  
+              │    │ • metadata      │ ── JSON: Extra context
+              │    │ • ip_address    │ ── Request tracking
+              │    │ • user_agent    │
+              │    │ • url           │
+              │    │ • method        │ ── GET/POST/PUT/DELETE
+              │    │ • academic_year │ ── Academic context
+              │    │ • semester      │
+              │    │ • created_at    │
+              │    └─────────────────┘
+              │              │
+              │              ▼
+              │    ┌─────────────────┐ ⭐ NEW VERSIONING
+              │    │ GRADE_VERSIONS  │
+              │    ├─────────────────┤
+              │    │ • id            │
+              │    │ • student_grade_│ ── Links to college grades
+              │    │   id (FK)       │
+              │    │ • shs_student_  │ ── Links to SHS grades
+              │    │   grade_id (FK) │
+              │    │ • version_      │ ── 1, 2, 3, etc.
+              │    │   number        │
+              │    │ • grade_type    │ ── college/shs
+              │    │ • teacher_id(FK)│ ── Who changed it
+              │    │ • teacher_name  │ ── Backup teacher info
+              │    │                 │
+              │    │ ── COLLEGE GRADE SNAPSHOTS ──
+              │    │ • prelim_grade  │
+              │    │ • midterm_grade │
+              │    │ • prefinals_    │
+              │    │   grade         │
+              │    │ • finals_grade  │
+              │    │ • semester_grade│
+              │    │                 │
+              │    │ ── SHS GRADE SNAPSHOTS ──
+              │    │ • 1st_qtr_grade │
+              │    │ • 2nd_qtr_grade │
+              │    │ • 3rd_qtr_grade │
+              │    │ • 4th_qtr_grade │
+              │    │ • final_grade   │
+              │    │                 │
+              │    │ ── VERSION METADATA ──
+              │    │ • change_reason │ ── Why changed
+              │    │ • teacher_      │
+              │    │   remarks       │
+              │    │ • change_type   │ ── initial/correction
+              │    │ • requires_     │    /recalc/admin
+              │    │   approval      │
+              │    │ • is_approved   │
+              │    │ • approved_by   │
+              │    │   (FK)          │
+              │    │ • approved_at   │
+              │    │ • academic_year │
+              │    │ • semester      │
+              │    │ • is_pre_final- │ ── Track finalization
+              │    │   ization ⭐    │    status
+              │    │ • created_at    │
+              │    │ • updated_at    │
+              │    └─────────────────┘
+              │              │
+              │              ▼
+              │    ┌─────────────────┐ ⭐ NEW FINALIZATION
+              │    │ SEMESTER_       │
+              │    │ FINALIZATIONS   │
+              │    ├─────────────────┤
+              │    │ • id            │
+              │    │ • academic_year │ ── "2024-2025"
+              │    │ • semester      │ ── "1st"/"2nd"/"summer"
+              │    │ • education_    │ ── "college"/"shs"
+              │    │   level         │
+              │    │ • track         │ ── For SHS (STEM/HUMSS/ABM)
+              │    │ • finalized_at  │ ── When locked
+              │    │ • finalized_by  │ ── Admin who locked
+              │    │   (FK)          │
+              │    │ • notes         │ ── Reason for locking
+              │    │ • created_at    │
+              │    │ • updated_at    │
               │    └─────────────────┘
               │              │
               │              ▼
@@ -639,3 +742,51 @@
     • **Regular vs Irregular**: Different enrollment and progress tracking rules
     • **Grade Component Completeness**: All 5 components required for semester grade
     • **Historical Integrity**: Past academic records cannot be modified after archival
+    • **Grade Finalization**: Once finalized, grades cannot be modified (locked system-wide) ⭐ NEW
+    • **Audit Trail**: All data changes are logged with complete context and user attribution ⭐ NEW
+    • **Version Control**: Grade changes create automatic versions before finalization ⭐ NEW
+    • **Super Admin Access**: IT maintenance role with system monitoring capabilities ⭐ NEW
+    • **Data Retention**: Audit logs kept for 365 days, grade versions pruned after finalization ⭐ NEW
+
+    🆕 NEW FEATURES ADDED - AUDIT & FINALIZATION SYSTEM:
+    ──────────────────────────────────────────────────────────────────
+    
+    📊 **NEW DATABASE TABLES**:
+    ├─ **audit_logs**: Complete audit trail for all system changes
+    │  ├─ Tracks who, what, when, where for every data modification
+    │  ├─ JSON storage of old/new values with full context
+    │  ├─ Academic year/semester context for educational compliance
+    │  └─ Automatic 365-day retention with cleanup commands
+    │
+    ├─ **grade_versions**: Complete grade change history and versioning
+    │  ├─ Snapshots of all grade changes before finalization
+    │  ├─ Teacher attribution and change reasoning required
+    │  ├─ Approval workflow for significant grade changes
+    │  └─ Pre/post finalization tracking for cleanup optimization
+    │
+    └─ **semester_finalizations**: System-wide grade locking mechanism
+       ├─ Admin-controlled semester finalization by education level
+       ├─ Track-specific locking for SHS (STEM/HUMSS/ABM)
+       ├─ Prevents all grade modifications after finalization
+       └─ Complete audit trail of when/who locked each semester
+
+    🔧 **ENHANCED EXISTING TABLES**:
+    ├─ **users**: Added super_admin role for IT maintenance
+    ├─ **student_grades**: Added finalization status and timestamp fields
+    ├─ **shs_student_grades**: Added finalization status and timestamp fields
+    └─ All auditable tables: Automatic audit logging via Eloquent traits
+
+    🛡️ **NEW SECURITY & COMPLIANCE FEATURES**:
+    ├─ **Complete Audit Trail**: Every create/update/delete operation logged
+    ├─ **Grade Version Control**: Automatic versioning prevents grade manipulation
+    ├─ **Finalization Workflow**: Admin-controlled grade locking system
+    ├─ **Academic Integrity**: Immutable grade history after semester finalization
+    ├─ **Compliance Ready**: 365-day audit retention meets educational standards
+    ├─ **Performance Optimized**: Automatic cleanup prevents database bloat
+    └─ **Emergency Access**: Super admin role for system maintenance and monitoring
+
+    📈 **DATABASE GROWTH IMPACT**:
+    ├─ **Total Tables**: 27 tables (was 24, added 3 new audit/finalization tables)
+    ├─ **Storage Estimate**: ~50-100MB additional growth annually with cleanup
+    ├─ **Performance**: Optimized indexes for audit queries and version lookups
+    └─ **Maintenance**: Automated cleanup commands prevent long-term bloat
