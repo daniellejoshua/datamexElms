@@ -1,7 +1,7 @@
 import { Head } from '@inertiajs/react'
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout'
 
-export default function Dashboard({ auth }) {
+export default function DefaultDashboard({ auth }) {
     return (
         <AuthenticatedLayout auth={auth}>
             <Head title="Dashboard" />
@@ -18,14 +18,9 @@ export default function Dashboard({ auth }) {
                                 <div className="space-y-4">
                                     <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
                                         <p className="text-blue-800 dark:text-blue-200">
-                                            Your dashboard is being prepared based on your role...
+                                            Redirecting to your role-specific dashboard...
                                         </p>
                                     </div>
-                                    {auth?.user?.role && (
-                                        <p className="text-sm text-gray-600 dark:text-gray-400">
-                                            Role: <span className="font-medium capitalize">{auth.user.role}</span>
-                                        </p>
-                                    )}
                                 </div>
                             </div>
                         </div>

@@ -17,7 +17,13 @@ class CourseFactory extends Factory
     public function definition(): array
     {
         return [
-            //
+            'subject_name' => $this->faker->words(3, true),
+            'course_code' => $this->faker->unique()->regexify('[A-Z]{2,4}[0-9]{3}'),
+            'description' => $this->faker->paragraph(),
+            'units' => $this->faker->numberBetween(1, 6),
+            'education_level' => 'college',
+            'track' => null,
+            'status' => 'active',
         ];
     }
 }

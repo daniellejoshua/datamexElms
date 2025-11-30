@@ -25,8 +25,23 @@ return new class extends Migration
         // Optimize grade tables for performance
         try {
             DB::unprepared('CREATE INDEX IF NOT EXISTS grades_status_finalized_idx ON student_grades(status, finalized_at)');
+        } catch (Exception $e) {
+            // Index may already exist or column doesn't exist
+        }
+        
+        try {
             DB::unprepared('CREATE INDEX IF NOT EXISTS grades_teacher_status_idx ON student_grades(teacher_id, status)');
+        } catch (Exception $e) {
+            // Index may already exist
+        }
+        
+        try {
             DB::unprepared('CREATE INDEX IF NOT EXISTS shs_grades_status_finalized_idx ON shs_student_grades(status, finalized_at)');
+        } catch (Exception $e) {
+            // Index may already exist or table/column doesn't exist
+        }
+        
+        try {
             DB::unprepared('CREATE INDEX IF NOT EXISTS shs_grades_teacher_status_idx ON shs_student_grades(teacher_id, status)');
         } catch (Exception $e) {
             // Index may already exist

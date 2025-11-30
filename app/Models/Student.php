@@ -2,12 +2,16 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasManyThrough;
 
 class Student extends Model
 {
+    /** @use HasFactory<\Database\Factories\StudentFactory> */
+    use HasFactory;
     protected $fillable = [
         'user_id',
         'student_number',
@@ -46,7 +50,27 @@ class Student extends Model
         return $this->hasMany(StudentEnrollment::class);
     }
 
+    public function studentEnrollments(): HasMany
+    {
+        return $this->hasMany(StudentEnrollment::class);
+    }
+
+    public function studentGrades(): HasManyThrough
+    {
+        return $this->hasManyThrough(StudentGrade::class, StudentEnrollment::class);
+    }
+
+    public function shsGrades(): HasManyThrough
+    {
+        return $this->hasManyThrough(ShsStudentGrade::class, StudentEnrollment::class);
+    }
+
     public function semesterPayments(): HasMany
+    {
+        return $this->hasMany(StudentSemesterPayment::class);
+    }
+
+    public function studentSemesterPayments(): HasMany
     {
         return $this->hasMany(StudentSemesterPayment::class);
     }
