@@ -11,14 +11,16 @@ class RoleMiddleware
     /**
      * Handle an incoming request.
      */
-    public function handle(Request $request, Closure $next, string $role): Response
+    public function handle(Request $request, Closure $next, string ...$roles): Response
     {
-        if (!$request->user()) {
+        if (! $request->user()) {
             return redirect()->route('login');
         }
 
-        if ($request->user()->role !== $role) {
-            abort(403, 'Access denied. Required role: ' . $role);
+        $userRole = $request->user()->role;
+
+        if (! in_array($userRole, $roles)) {
+            abort(403, 'Access denied. Required roles: '.implode(', ', $roles));
         }
 
         return $next($request);
