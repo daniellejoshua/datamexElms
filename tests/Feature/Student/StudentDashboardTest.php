@@ -1,10 +1,9 @@
 <?php
 
-use App\Models\User;
+use App\Models\Section;
 use App\Models\Student;
 use App\Models\StudentEnrollment;
-use App\Models\Course;
-use App\Models\Section;
+use App\Models\User;
 use Inertia\Testing\AssertableInertia as Assert;
 
 it('displays student dashboard with enrollment data', function () {
@@ -12,22 +11,30 @@ it('displays student dashboard with enrollment data', function () {
     $user = User::factory()->create(['role' => 'student']);
     $student = Student::factory()->create([
         'user_id' => $user->id,
-        'education_level' => 'college'
+        'education_level' => 'college',
     ]);
-    
-    // Create course and section
-    $course = Course::factory()->create();
+
+    // Create program and section with new structure
+    $program = \App\Models\Program::factory()->create();
+    $subject = \App\Models\Subject::factory()->create();
     $section = Section::factory()->create([
-        'course_id' => $course->id,
+        'program_id' => $program->id,
         'academic_year' => '2024-2025',
-        'semester' => '1st'
+        'semester' => '1st',
     ]);
-    
+
+    // Create section-subject relationship
+    $section->subjects()->attach($subject->id, [
+        'teacher_id' => null,
+        'room' => 'Room 101',
+        'status' => 'active',
+    ]);
+
     // Create enrollment
     StudentEnrollment::factory()->create([
         'student_id' => $student->id,
         'section_id' => $section->id,
-        'status' => 'active'
+        'status' => 'active',
     ]);
 
     test()->actingAs($user)->get(route('student.dashboard'))
@@ -47,7 +54,7 @@ it('shows empty state when student has no enrollments', function () {
     $user = User::factory()->create(['role' => 'student']);
     $student = Student::factory()->create([
         'user_id' => $user->id,
-        'education_level' => 'college'
+        'education_level' => 'college',
     ]);
 
     test()->actingAs($user)->get(route('student.dashboard'))

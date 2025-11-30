@@ -12,8 +12,11 @@ class Student extends Model
 {
     /** @use HasFactory<\Database\Factories\StudentFactory> */
     use HasFactory;
+
     protected $fillable = [
         'user_id',
+        'program_id',
+        'current_year_level',
         'student_number',
         'first_name',
         'last_name',
@@ -43,6 +46,11 @@ class Student extends Model
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    public function program(): BelongsTo
+    {
+        return $this->belongsTo(Program::class);
     }
 
     public function enrollments(): HasMany
@@ -85,8 +93,8 @@ class Student extends Model
      */
     public function payments(): HasMany
     {
-        return $this->education_level === 'shs' 
-            ? $this->shsPayments() 
+        return $this->education_level === 'shs'
+            ? $this->shsPayments()
             : $this->semesterPayments();
     }
 

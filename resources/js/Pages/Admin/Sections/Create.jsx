@@ -2,13 +2,13 @@ import React, { useState } from 'react';
 import { Head, useForm } from '@inertiajs/react';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 
-const Create = ({ courses }) => {
+const Create = ({ programs }) => {
     const { data, setData, post, processing, errors } = useForm({
-        course_id: '',
+        program_id: '',
         section_name: '',
+        year_level: 1,
         academic_year: '',
-        semester: '',
-        room: '',
+        semester: '1st',
         status: 'active'
     });
 
@@ -39,26 +39,47 @@ const Create = ({ courses }) => {
                     <div className="bg-white dark:bg-gray-800 overflow-hidden shadow-sm sm:rounded-lg">
                         <div className="p-6">
                             <form onSubmit={handleSubmit} className="space-y-6">
-                                {/* Course Selection */}
+                                {/* Program Selection */}
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                                        Course
+                                        Program
                                     </label>
                                     <select
-                                        value={data.course_id}
-                                        onChange={(e) => setData('course_id', e.target.value)}
+                                        value={data.program_id}
+                                        onChange={(e) => setData('program_id', e.target.value)}
                                         className="w-full rounded-md border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
                                         required
                                     >
-                                        <option value="">Select a course</option>
-                                        {courses?.map((course) => (
-                                            <option key={course.id} value={course.id}>
-                                                {course.course_code} - {course.subject_name}
+                                        <option value="">Select a program</option>
+                                        {programs?.map((program) => (
+                                            <option key={program.id} value={program.id}>
+                                                {program.program_code} - {program.program_name}
                                             </option>
                                         ))}
                                     </select>
-                                    {errors.course_id && (
-                                        <p className="mt-1 text-sm text-red-600 dark:text-red-400">{errors.course_id}</p>
+                                    {errors.program_id && (
+                                        <p className="mt-1 text-sm text-red-600 dark:text-red-400">{errors.program_id}</p>
+                                    )}
+                                </div>
+
+                                {/* Year Level */}
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                        Year Level
+                                    </label>
+                                    <select
+                                        value={data.year_level}
+                                        onChange={(e) => setData('year_level', parseInt(e.target.value))}
+                                        className="w-full rounded-md border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                                        required
+                                    >
+                                        <option value={1}>1st Year</option>
+                                        <option value={2}>2nd Year</option>
+                                        <option value={3}>3rd Year</option>
+                                        <option value={4}>4th Year</option>
+                                    </select>
+                                    {errors.year_level && (
+                                        <p className="mt-1 text-sm text-red-600 dark:text-red-400">{errors.year_level}</p>
                                     )}
                                 </div>
 
@@ -72,11 +93,11 @@ const Create = ({ courses }) => {
                                         value={data.section_name}
                                         onChange={(e) => setData('section_name', e.target.value)}
                                         className="w-full rounded-md border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-                                        placeholder="e.g., BSIT-3A, BSCS-2B"
+                                        placeholder="e.g., A, B, C"
                                         required
                                     />
                                     <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                                        Format: Course-YearLevel+SectionLetter (e.g., BSIT-3A)
+                                        Section identifier (A, B, C, etc.)
                                     </p>
                                     {errors.section_name && (
                                         <p className="mt-1 text-sm text-red-600 dark:text-red-400">{errors.section_name}</p>
@@ -117,31 +138,12 @@ const Create = ({ courses }) => {
                                         className="w-full rounded-md border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
                                         required
                                     >
-                                        <option value="">Select semester</option>
-                                        <option value="first">First Semester</option>
-                                        <option value="second">Second Semester</option>
+                                        <option value="1st">First Semester</option>
+                                        <option value="2nd">Second Semester</option>
                                         <option value="summer">Summer</option>
                                     </select>
                                     {errors.semester && (
                                         <p className="mt-1 text-sm text-red-600 dark:text-red-400">{errors.semester}</p>
-                                    )}
-                                </div>
-
-                                {/* Room */}
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                                        Room
-                                    </label>
-                                    <input
-                                        type="text"
-                                        value={data.room}
-                                        onChange={(e) => setData('room', e.target.value)}
-                                        className="w-full rounded-md border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-                                        placeholder="e.g., 101, Lab-A, Auditorium"
-                                        required
-                                    />
-                                    {errors.room && (
-                                        <p className="mt-1 text-sm text-red-600 dark:text-red-400">{errors.room}</p>
                                     )}
                                 </div>
 

@@ -1,8 +1,8 @@
 <?php
 
+use App\Http\Controllers\Admin\AcademicYearController;
 use App\Http\Controllers\Admin\AdminDashboardController;
 use App\Http\Controllers\Admin\ClassScheduleController;
-use App\Http\Controllers\Admin\CourseController;
 use App\Http\Controllers\Admin\SectionController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\ProfileController;
@@ -30,17 +30,25 @@ Route::middleware(['auth', 'verified'])->prefix('admin')->name('admin.')->group(
         // Dashboard
         Route::get('/dashboard', [AdminDashboardController::class, 'index'])->name('dashboard');
 
-        // Course Management
-        Route::resource('courses', CourseController::class);
-
         // Section Management
         Route::resource('sections', SectionController::class);
         Route::get('sections/{section}/students', [SectionController::class, 'students'])->name('sections.students');
         Route::post('sections/{section}/enroll', [SectionController::class, 'enrollStudent'])->name('sections.enroll');
         Route::patch('enrollments/{enrollment}/unenroll', [SectionController::class, 'unenrollStudent'])->name('enrollments.unenroll');
 
+        // Subject Scheduling
+        Route::get('sections/{section}/subjects', [SectionController::class, 'subjects'])->name('sections.subjects');
+        Route::post('sections/{section}/subjects', [SectionController::class, 'attachSubject'])->name('sections.attach-subject');
+        Route::patch('sections/{section}/subjects/{subject}', [SectionController::class, 'updateSubject'])->name('sections.update-subject');
+        Route::delete('sections/{section}/subjects/{subject}', [SectionController::class, 'detachSubject'])->name('sections.detach-subject');
+
         // Schedule Management
         Route::resource('schedules', ClassScheduleController::class);
+
+        // Academic Year Management
+        Route::get('academic-years', [AcademicYearController::class, 'index'])->name('academic-years.index');
+        Route::get('academic-years/{archivedSection}', [AcademicYearController::class, 'show'])->name('academic-years.show');
+        Route::post('academic-years/archive', [AcademicYearController::class, 'archiveSemester'])->name('academic-years.archive');
     });
 });
 

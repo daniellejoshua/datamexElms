@@ -5,38 +5,51 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Section extends Model
 {
     /** @use HasFactory<\Database\Factories\SectionFactory> */
     use HasFactory;
+
     protected $fillable = [
-        'course_id',
+        'program_id',
         'section_name',
+        'year_level',
         'academic_year',
         'semester',
-        'capacity',
         'status',
     ];
 
-    public function course(): BelongsTo
+    public function program(): BelongsTo
     {
-        return $this->belongsTo(Course::class);
+        return $this->belongsTo(Program::class);
     }
 
-    public function teacherAssignments(): HasMany
+    // New many-to-many relationships through SectionSubject pivot
+    public function sectionSubjects(): HasMany
     {
-        return $this->hasMany(TeacherAssignment::class);
+        return $this->hasMany(SectionSubject::class);
     }
 
+    public function subjects(): BelongsToMany
+    {
+        return $this->belongsToMany(Subject::class, 'section_subjects')
+            ->withPivot(['teacher_id', 'room', 'schedule_days', 'start_time', 'end_time', 'status'])
+            ->withTimestamps();
+    }
+
+    public function teachers(): BelongsToMany
+    {
+        return $this->belongsToMany(Teacher::class, 'section_subjects')
+            ->withPivot(['subject_id', 'room', 'schedule_days', 'start_time', 'end_time', 'status'])
+            ->withTimestamps();
+    }
+
+    // Keep existing relationships
     public function studentEnrollments(): HasMany
     {
         return $this->hasMany(StudentEnrollment::class);
-    }
-
-    public function classSchedules(): HasMany
-    {
-        return $this->hasMany(ClassSchedule::class);
     }
 }

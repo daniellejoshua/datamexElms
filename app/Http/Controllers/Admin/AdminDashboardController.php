@@ -4,10 +4,11 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\AuditLog;
-use App\Models\Course;
+use App\Models\Program;
 use App\Models\Section;
 use App\Models\Student;
 use App\Models\StudentEnrollment;
+use App\Models\Subject;
 use App\Models\Teacher;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
@@ -23,7 +24,8 @@ class AdminDashboardController extends Controller
             'totalUsers' => User::count(),
             'totalStudents' => Student::count(),
             'totalTeachers' => Teacher::count(),
-            'totalCourses' => Course::count(),
+            'totalPrograms' => Program::count(),
+            'totalSubjects' => Subject::count(),
             'totalSections' => Section::count(),
             'activeEnrollments' => StudentEnrollment::where('status', 'active')->count(),
         ];
@@ -41,13 +43,13 @@ class AdminDashboardController extends Controller
             ->groupBy('students.education_level')
             ->get();
 
-        // Get course distribution
-        $courseStats = Course::select('education_level', DB::raw('count(*) as count'))
+        // Get program distribution
+        $programStats = Program::select('education_level', DB::raw('count(*) as count'))
             ->groupBy('education_level')
             ->get();
 
         // Get sections with low enrollment (below 20)
-        $lowEnrollmentSections = Section::with(['course', 'studentEnrollments' => function ($query) {
+        $lowEnrollmentSections = Section::with(['program', 'studentEnrollments' => function ($query) {
             $query->where('status', 'active');
         }])
             ->get()
@@ -60,7 +62,7 @@ class AdminDashboardController extends Controller
             'stats' => $stats,
             'recentActivity' => $recentActivity,
             'enrollmentStats' => $enrollmentStats,
-            'courseStats' => $courseStats,
+            'programStats' => $programStats,
             'lowEnrollmentSections' => $lowEnrollmentSections,
         ]);
     }

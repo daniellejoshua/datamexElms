@@ -23,11 +23,11 @@ class UpdateSectionRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'course_id' => ['required', 'exists:courses,id'],
+            'program_id' => ['required', 'exists:programs,id'],
             'section_name' => ['required', 'string', 'max:50'],
             'academic_year' => ['required', 'string', 'max:20'],
-            'semester' => ['required', Rule::in(['first', 'second', 'summer'])],
-            'room' => ['nullable', 'string', 'max:50'],
+            'semester' => ['required', Rule::in(['1st', '2nd', 'summer'])],
+            'year_level' => ['required', 'integer', 'min:1', 'max:4'],
             'status' => ['required', Rule::in(['active', 'inactive'])],
         ];
     }
@@ -38,11 +38,12 @@ class UpdateSectionRequest extends FormRequest
     public function messages(): array
     {
         return [
-            'course_id.required' => 'Please select a course.',
-            'course_id.exists' => 'The selected course is invalid.',
+            'program_id.required' => 'Please select a program.',
+            'program_id.exists' => 'The selected program is invalid.',
             'section_name.required' => 'Section name is required.',
             'academic_year.required' => 'Academic year is required.',
             'semester.required' => 'Semester is required.',
+            'year_level.required' => 'Year level is required.',
         ];
     }
 }

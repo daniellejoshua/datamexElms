@@ -1,7 +1,6 @@
 <?php
 
 use App\Http\Controllers\Api\AuthController;
-use App\Http\Controllers\Test;
 use Illuminate\Support\Facades\Route;
 
 // Public authentication routes with session support
@@ -17,5 +16,3 @@ Route::middleware(['web', 'auth:web'])->group(function () {
         return $request->user();
     });
 });
-
-Route::apiResource('/test', Test::class);

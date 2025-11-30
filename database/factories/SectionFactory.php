@@ -20,7 +20,8 @@ class SectionFactory extends Factory
             'section_name' => $this->faker->randomElement(['A', 'B', 'C', 'D']),
             'academic_year' => '2024-2025',
             'semester' => $this->faker->randomElement(['1st', '2nd', 'summer']),
-            'room' => $this->faker->randomElement(['Room 101', 'Room 102', 'Room 201', 'Lab A']),
+            'year_level' => $this->faker->numberBetween(1, 4),
+            'program_id' => \App\Models\Program::factory(),
             'status' => 'active',
         ];
     }

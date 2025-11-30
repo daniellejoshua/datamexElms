@@ -1,0 +1,151 @@
+ACADEMIC MANAGEMENT SYSTEM - DATABASE SCHEMA (UPDATED)
+======================================================
+
+┌─────────────────────────────────────────────────────────────────────────────────────────────────┐
+│                                    🏫 ACADEMIC STRUCTURE                                          │
+└─────────────────────────────────────────────────────────────────────────────────────────────────┘
+
+                    ┌─────────────────┐        ┌─────────────────┐
+                    │    PROGRAMS     │        │    SUBJECTS     │
+                    │ • id            │        │ • id            │
+                    │ • program_code  │        │ • subject_code  │
+                    │ • program_name  │        │ • subject_name  │
+                    │ • description   │        │ • description   │
+                    │ • education_lvl │        │ • units         │
+                    │ • track         │        │ • year_level    │
+                    │ • total_years   │        │ • semester      │
+                    │ • status        │        │ • subject_type  │
+                    └─────────────────┘        │ • prerequisites │
+                             │                  │ • status        │
+                             │                  └─────────────────┘
+                             │                           │
+                             │                           │
+                             ▼                           │
+                    ┌─────────────────┐                  │
+                    │    SECTIONS     │                  │
+                    │ • id            │                  │
+                    │ • program_id(FK)│◄─────────────────┘
+                    │ • section_name  │                  │
+                    │ • year_level    │                  │
+                    │ • academic_year │                  │
+                    │ • semester      │                  │
+                    │ • status        │                  │
+                    └─────────────────┘                  │
+                             │                           │
+                             │                           │
+                             ▼                           ▼
+                    ┌─────────────────────────────────────────────┐
+                    │            SECTION_SUBJECTS                 │
+                    │ • id                                        │
+                    │ • section_id (FK) ──────────────────────────│
+                    │ • subject_id (FK) ──────────────────────────┘
+                    │ • teacher_id (FK) ──┐                       
+                    │ • room              │                       
+                    │ • status            │                       
+                    └─────────────────────┼─────────────────────────
+                                         │                       
+┌─────────────────────────────────────────────────────────────────────────────────────────────────┐
+│                                  👥 USER MANAGEMENT                                              │
+└─────────────────────────────────────────────────────────────────────────────────────────────────┘
+
+     ┌─────────────────┐           ┌─────────────────┐           ┌─────────────────┐
+     │     USERS       │           │    STUDENTS     │           │    TEACHERS     │
+     │ • id            │◄──────────│ • id            │           │ • id            │
+     │ • name          │           │ • user_id (FK)  │           │ • user_id (FK)  │──┐
+     │ • email         │           │ • student_num   │           │ • employee_num  │  │
+     │ • password      │           │ • program_id(FK)│           │ • department    │  │
+     │ • email_verified│           │ • current_yr_lvl│           │ • hire_date     │  │
+     │ • role          │           │ • program       │           │ • specialization│  │
+     │ • status        │           │ • status        │           │ • status        │  │
+     │ • last_login    │           │ • enrolled_date │           │ • phone         │  │
+     └─────────────────┘           └─────────────────┘           └─────────────────┘  │
+                                            │                                           │
+                                            │                                           │
+                                            ▼                                           │
+                              ┌─────────────────────────┐                             │
+                              │   STUDENT_ENROLLMENTS  │                             │
+                              │ • id                    │                             │
+                              │ • student_id (FK)       │                             │
+                              │ • section_id (FK) ──────┼─────────────────────────────┘
+                              │ • enrollment_date       │                             │
+                              │ • status                │                             │
+                              │ • grade                 │                             │
+                              └─────────────────────────┘                             │
+                                                                                      │
+┌─────────────────────────────────────────────────────────────────────────────────────────────────┐
+│                                  📅 SCHEDULING SYSTEM                                            │
+└─────────────────────────────────────────────────────────────────────────────────────────────────┘
+                                                                                      │
+                              ┌─────────────────────────┐                             │
+                              │   CLASS_SCHEDULES       │                             │
+                              │ • id                    │                             │
+                              │ • section_subject_id(FK)│─────────────────────────────┘
+                              │ • day_of_week           │
+                              │ • start_time            │
+                              │ • end_time              │
+                              │ • created_by (FK)       │
+                              └─────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────────────────────────┐
+│                              🔄 ACADEMIC YEAR TRANSITIONS                                        │
+└─────────────────────────────────────────────────────────────────────────────────────────────────┘
+
+                              ┌─────────────────────────┐
+                              │   ACADEMIC_YEAR_LOGS    │
+                              │ • id                    │
+                              │ • from_academic_year    │
+                              │ • to_academic_year      │
+                              │ • from_semester         │
+                              │ • to_semester           │
+                              │ • archived_sections     │
+                              │ • archived_enrollments  │
+                              │ • performed_by (FK)     │
+                              │ • performed_at          │
+                              └─────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────────────────────────┐
+│                                 📊 AUDIT & TRACKING                                              │
+└─────────────────────────────────────────────────────────────────────────────────────────────────┘
+
+                              ┌─────────────────────────┐
+                              │      AUDIT_LOGS         │
+                              │ • id                    │
+                              │ • user_id (FK)          │
+                              │ • action                │
+                              │ • auditable_type        │
+                              │ • auditable_id          │
+                              │ • old_values            │
+                              │ • new_values            │
+                              │ • ip_address            │
+                              │ • user_agent            │
+                              │ • performed_at          │
+                              └─────────────────────────┘
+
+
+🎯 IMPROVED ACADEMIC FLOW:
+=========================
+1. Admin creates SECTIONS for Program + Year Level (e.g., "BSIT-1A")
+2. Assigns multiple SUBJECTS to that section through SECTION_SUBJECTS
+3. Assigns TEACHERS to each subject within the section
+4. Creates CLASS_SCHEDULES for each subject with specific times
+5. Students enroll in SECTIONS and automatically get all subjects
+
+✅ Benefits:
+- Sections represent real class groups (BSIT-1A, BSCS-2B)
+- Multiple subjects per section (Math, English, Programming, etc.)
+- Individual teacher assignments per subject
+- Flexible scheduling per subject within section
+- Realistic academic structure
+
+🚮 REMOVED TABLES:
+==================
+- COURSES (confusion between program and subject resolved)
+- TEACHER_ASSIGNMENTS (replaced by teacher_id in SECTION_SUBJECTS)
+
+📋 KEY RELATIONSHIPS:
+====================
+Programs (1) → (M) Sections
+Sections (M) ← → (M) Subjects (via SECTION_SUBJECTS pivot)
+Teachers (1) → (M) Section_Subjects
+Section_Subjects (1) → (M) Class_Schedules
+Students (M) → (M) Sections (via STUDENT_ENROLLMENTS)

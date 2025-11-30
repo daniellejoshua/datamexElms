@@ -5,11 +5,13 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\StoreSectionRequest;
 use App\Http\Requests\Admin\UpdateSectionRequest;
-use App\Models\Course;
+use App\Models\Program;
 use App\Models\Section;
 use App\Models\Student;
 use App\Models\StudentEnrollment;
+use App\Models\Subject;
 use App\Models\Teacher;
+use App\Rules\TeacherScheduleConflict;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -20,7 +22,7 @@ class SectionController extends Controller
 {
     public function index(Request $request): Response
     {
-        $query = Section::with(['course', 'teacherAssignments.teacher.user'])
+        $query = Section::with(['program', 'subjects', 'sectionSubjects.teacher.user'])
             ->withCount(['studentEnrollments as enrolled_count' => function ($query) {
                 $query->where('status', 'active');
             }]);
@@ -29,16 +31,28 @@ class SectionController extends Controller
         if ($request->has('search') && $request->search) {
             $query->where(function ($q) use ($request) {
                 $q->where('section_name', 'like', '%'.$request->search.'%')
-                    ->orWhere('room', 'like', '%'.$request->search.'%')
-                    ->orWhereHas('course', function ($courseQuery) use ($request) {
-                        $courseQuery->where('subject_name', 'like', '%'.$request->search.'%')
-                            ->orWhere('course_code', 'like', '%'.$request->search.'%');
+                    ->orWhereHas('subjects', function ($subjectQuery) use ($request) {
+                        $subjectQuery->where('subject_name', 'like', '%'.$request->search.'%')
+                            ->orWhere('subject_code', 'like', '%'.$request->search.'%');
+                    })
+                    ->orWhereHas('program', function ($programQuery) use ($request) {
+                        $programQuery->where('program_name', 'like', '%'.$request->search.'%')
+                            ->orWhere('program_code', 'like', '%'.$request->search.'%');
+                    })
+                    ->orWhereHas('sectionSubjects', function ($sectionSubjectQuery) use ($request) {
+                        $sectionSubjectQuery->where('room', 'like', '%'.$request->search.'%');
                     });
             });
         }
 
-        if ($request->has('course_id') && $request->course_id) {
-            $query->where('course_id', $request->course_id);
+        if ($request->has('program_id') && $request->program_id) {
+            $query->where('program_id', $request->program_id);
+        }
+
+        if ($request->has('subject_id') && $request->subject_id) {
+            $query->whereHas('subjects', function ($subjectQuery) use ($request) {
+                $subjectQuery->where('subjects.id', $request->subject_id);
+            });
         }
 
         if ($request->has('academic_year') && $request->academic_year) {
@@ -51,29 +65,28 @@ class SectionController extends Controller
 
         $sections = $query->orderBy('academic_year', 'desc')
             ->orderBy('semester')
-            ->orderBy('course_id')
+            ->orderBy('program_id')
             ->orderBy('section_name')
             ->paginate(15)
             ->withQueryString();
 
-        $courses = Course::orderBy('subject_name')->get();
+        $programs = Program::orderBy('program_code')->get();
+        $subjects = Subject::orderBy('subject_code')->get();
 
         return Inertia::render('Admin/Sections/Index', [
             'sections' => $sections,
-            'courses' => $courses,
-            'filters' => $request->only(['search', 'course_id', 'academic_year', 'semester']),
+            'programs' => $programs,
+            'subjects' => $subjects,
+            'filters' => $request->only(['search', 'program_id', 'subject_id', 'academic_year', 'semester']),
         ]);
     }
 
     public function create(Request $request): Response
     {
-        $courses = Course::where('status', 'active')->orderBy('subject_name')->get();
-        $teachers = Teacher::with('user')->get();
+        $programs = Program::where('status', 'active')->orderBy('program_code')->get();
 
         return Inertia::render('Admin/Sections/Create', [
-            'courses' => $courses,
-            'teachers' => $teachers,
-            'selectedCourse' => $request->course_id ? Course::find($request->course_id) : null,
+            'programs' => $programs,
         ]);
     }
 
@@ -88,7 +101,8 @@ class SectionController extends Controller
     public function show(Section $section): Response
     {
         $section->load([
-            'course',
+            'program',
+            'subject',
             'teacherAssignments.teacher.user',
             'studentEnrollments' => function ($query) {
                 $query->with('student.user')->where('status', 'active');
@@ -115,14 +129,12 @@ class SectionController extends Controller
 
     public function edit(Section $section): Response
     {
-        $section->load('course', 'teacherAssignments.teacher.user');
-        $courses = Course::where('status', 'active')->orderBy('subject_name')->get();
-        $teachers = Teacher::with('user')->get();
+        $section->load('program');
+        $programs = Program::where('status', 'active')->orderBy('program_code')->get();
 
         return Inertia::render('Admin/Sections/Edit', [
             'section' => $section,
-            'courses' => $courses,
-            'teachers' => $teachers,
+            'programs' => $programs,
         ]);
     }
 
@@ -152,9 +164,130 @@ class SectionController extends Controller
             ->with('success', 'Section deleted successfully.');
     }
 
+    public function subjects(Section $section): Response
+    {
+        $section->load(['program', 'sectionSubjects.subject', 'sectionSubjects.teacher.user']);
+
+        $subjects = Subject::where('status', 'active')
+            ->orderBy('subject_code')
+            ->get();
+
+        $teachers = Teacher::with('user')
+            ->where('status', 'active')
+            ->get();
+
+        return Inertia::render('Admin/Sections/Subjects', [
+            'section' => $section,
+            'subjects' => $subjects,
+            'teachers' => $teachers,
+        ]);
+    }
+
+    public function attachSubject(Request $request, Section $section): RedirectResponse
+    {
+        $validated = $request->validate([
+            'subject_id' => 'required|exists:subjects,id',
+            'teacher_id' => 'nullable|exists:teachers,id',
+            'room' => 'nullable|string|max:50',
+            'schedule_days' => 'nullable|array',
+            'schedule_days.*' => 'in:monday,tuesday,wednesday,thursday,friday,saturday,sunday',
+            'start_time' => 'nullable|date_format:H:i',
+            'end_time' => 'nullable|date_format:H:i|after:start_time',
+        ]);
+
+        // Additional teacher schedule conflict validation if teacher and schedule are provided
+        if ($validated['teacher_id'] && $validated['schedule_days'] && $validated['start_time'] && $validated['end_time']) {
+            $teacherConflictRule = new TeacherScheduleConflict(
+                $validated['teacher_id'],
+                $validated['subject_id'],
+                $section->id,
+                $validated['schedule_days'],
+                $validated['start_time'],
+                $validated['end_time']
+            );
+
+            $validator = validator($validated, [
+                'teacher_id' => [$teacherConflictRule],
+            ]);
+
+            if ($validator->fails()) {
+                return back()->withErrors($validator)->withInput();
+            }
+        }
+
+        // Check if subject is already attached
+        if ($section->subjects()->where('subject_id', $validated['subject_id'])->exists()) {
+            return back()->withErrors(['subject_id' => 'This subject is already assigned to this section.']);
+        }
+
+        $section->subjects()->attach($validated['subject_id'], [
+            'teacher_id' => $validated['teacher_id'],
+            'room' => $validated['room'],
+            'schedule_days' => $validated['schedule_days'] ? json_encode($validated['schedule_days']) : null,
+            'start_time' => $validated['start_time'],
+            'end_time' => $validated['end_time'],
+            'status' => 'active',
+        ]);
+
+        return back()->with('success', 'Subject assigned to section successfully.');
+    }
+
+    public function updateSubject(Request $request, Section $section, Subject $subject): RedirectResponse
+    {
+        $validated = $request->validate([
+            'teacher_id' => 'nullable|exists:teachers,id',
+            'room' => 'nullable|string|max:50',
+            'schedule_days' => 'nullable|array',
+            'schedule_days.*' => 'in:monday,tuesday,wednesday,thursday,friday,saturday,sunday',
+            'start_time' => 'nullable|date_format:H:i',
+            'end_time' => 'nullable|date_format:H:i|after:start_time',
+        ]);
+
+        // Get the current section subject for exclusion in conflict check
+        $sectionSubject = $section->subjects()->where('subject_id', $subject->id)->firstOrFail();
+
+        // Additional teacher schedule conflict validation if teacher and schedule are provided
+        if ($validated['teacher_id'] && $validated['schedule_days'] && $validated['start_time'] && $validated['end_time']) {
+            $teacherConflictRule = new TeacherScheduleConflict(
+                $validated['teacher_id'],
+                $subject->id,
+                $section->id,
+                $validated['schedule_days'],
+                $validated['start_time'],
+                $validated['end_time'],
+                $sectionSubject->id // Exclude current assignment from conflict check
+            );
+
+            $validator = validator($validated, [
+                'teacher_id' => [$teacherConflictRule],
+            ]);
+
+            if ($validator->fails()) {
+                return back()->withErrors($validator)->withInput();
+            }
+        }
+
+        $section->subjects()->updateExistingPivot($subject->id, [
+            'teacher_id' => $validated['teacher_id'],
+            'room' => $validated['room'],
+            'schedule_days' => $validated['schedule_days'] ? json_encode($validated['schedule_days']) : null,
+            'start_time' => $validated['start_time'],
+            'end_time' => $validated['end_time'],
+        ]);
+
+        return back()->with('success', 'Subject schedule updated successfully.');
+    }
+
+    public function detachSubject(Section $section, Subject $subject): RedirectResponse
+    {
+        $section->subjects()->detach($subject->id);
+
+        return back()->with('success', 'Subject removed from section successfully.');
+    }
+
     public function students(Section $section): Response
     {
-        $section->load(['course', 'studentEnrollments.student.user']);
+        $section->load(['program', 'sectionSubjects.subject', 'studentEnrollments.student.user']);
 
         $enrolledStudents = $section->studentEnrollments()
             ->with('student.user')

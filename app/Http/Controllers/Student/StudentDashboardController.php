@@ -1,6 +1,5 @@
 <?php
 
-
 namespace App\Http\Controllers\Student;
 
 use App\Http\Controllers\Controller;
@@ -13,31 +12,31 @@ class StudentDashboardController extends Controller
     public function index(Request $request): Response
     {
         $user = $request->user();
-        
+
         // Ensure student relationship is loaded
-        if (!$user->student) {
+        if (! $user->student) {
             abort(404, 'Student profile not found');
         }
-        
+
         $student = $user->student;
-        
+
         // Get current enrollments with grades
         $enrollments = $student->studentEnrollments()
-            ->with(['section.course', 'section.teacherAssignments.teacher.user', 'section.classSchedules'])
+            ->with(['section.program', 'section.subjects', 'section.sectionSubjects.teacher.user'])
             ->where('status', 'active')
             ->get();
-            
+
         // Get recent grades
         $recentGrades = $student->studentGrades()
-            ->with(['studentEnrollment.section.course'])
+            ->with(['studentEnrollment.section.program'])
             ->latest()
             ->limit(5)
             ->get();
-            
+
         // Get payment status for current semester
         $currentYear = '2024-2025';
         $currentSemester = '1st';
-        
+
         $paymentStatus = $student->studentSemesterPayments()
             ->where('academic_year', $currentYear)
             ->where('semester', $currentSemester)
@@ -57,7 +56,7 @@ class StudentDashboardController extends Controller
             'currentAcademicInfo' => [
                 'year' => $currentYear,
                 'semester' => $currentSemester,
-            ]
+            ],
         ]);
     }
 }
