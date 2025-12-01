@@ -1,7 +1,8 @@
 import { Head } from '@inertiajs/react'
+import { Link } from '@inertiajs/react'
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/Components/ui/table'
-import { Badge } from '@/Components/ui/badge'
+// import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/Components/ui/table'
+// import { Badge } from '@/Components/ui/badge'
 
 export default function AdminDashboard({ 
     stats, 
@@ -191,6 +192,4 @@ export default function AdminDashboard({
             </div>
         </AuthenticatedLayout>
     );
-};
-
-export default Dashboard;
+}
