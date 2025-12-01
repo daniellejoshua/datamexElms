@@ -1,0 +1,6 @@
+first_name,last_name,email,student_id,program_code,year_level,student_type,education_level
+John,Doe,john.doe@test.com,STU2025001,BSIT,1,regular,college
+Jane,Smith,jane.smith@test.com,STU2025002,ABM,2,irregular,shs
+Mike,Johnson,mike.johnson@test.com,STU2025003,BSIT,2,regular,college
+Sarah,Wilson,sarah.wilson@test.com,STU2025004,HUMSS,1,regular,shs
+Alex,Brown,alex.brown@test.com,STU2025005,BSIT,3,irregular,college
