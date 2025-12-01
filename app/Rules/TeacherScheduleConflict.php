@@ -23,7 +23,9 @@ class TeacherScheduleConflict implements ValidationRule
     /**
      * Run the validation rule.
      *
-     * @param  \Closure(string, ?string=): \Illuminate\Translation\PotentiallyTranslatedString  $fail
+     * @param string $attribute
+     * @param mixed $value
+     * @param \Closure(string): void $fail
      */
     public function validate(string $attribute, mixed $value, Closure $fail): void
     {
@@ -33,25 +35,31 @@ class TeacherScheduleConflict implements ValidationRule
 
         $conflicts = $this->getTeacherConflicts();
         $hoursConflict = $this->checkHoursConflict();
+        $timeSlotConflict = $this->checkTimeSlotConflict();
 
         if ($conflicts->isNotEmpty()) {
             $conflictDetails = $conflicts->map(function ($conflict) {
                 $section = $conflict->section;
                 $subject = $conflict->subject;
                 $days = is_array($conflict->schedule_days) ? implode(', ', $conflict->schedule_days) : $conflict->schedule_days;
-
+                
                 return "{$subject->subject_code} ({$section->program->program_code}-{$section->year_level}{$section->section_name}) on {$days} from {$conflict->start_time} to {$conflict->end_time}";
             })->join('; ');
 
             $fail("Teacher has a scheduling conflict with: {$conflictDetails}");
+            return;
+        }
+
+        if ($timeSlotConflict) {
+            $fail($timeSlotConflict);
+            return;
         }
 
         if ($hoursConflict) {
             $fail($hoursConflict);
+            return;
         }
-    }
-
-    private function getTeacherConflicts()
+    }    private function getTeacherConflicts()
     {
         return SectionSubject::with(['section.program', 'subject'])
             ->where('teacher_id', $this->teacherId)
@@ -118,6 +126,37 @@ class TeacherScheduleConflict implements ValidationRule
 
         if ($existingAssignment) {
             return "Teacher is already assigned to teach {$subject->subject_code} in this section.";
+        }
+
+        return null;
+    }
+
+    private function checkTimeSlotConflict(): ?string
+    {
+        // Check if there's already a different subject scheduled at this exact time slot
+        $existingSubject = SectionSubject::with(['subject', 'section.program'])
+            ->where('section_id', $this->sectionId)
+            ->where('subject_id', '!=', $this->subjectId)
+            ->when($this->excludeSectionSubjectId, function ($query) {
+                $query->where('id', '!=', $this->excludeSectionSubjectId);
+            })
+            ->whereNotNull('schedule_days')
+            ->whereNotNull('start_time')
+            ->whereNotNull('end_time')
+            ->get()
+            ->filter(function ($assignment) {
+                return $this->hasTimeConflict($assignment) && $this->hasDayConflict($assignment);
+            })
+            ->first();
+
+        if ($existingSubject) {
+            $section = $existingSubject->section;
+            $subject = $existingSubject->subject;
+            $days = is_array($existingSubject->schedule_days) 
+                ? implode(', ', $existingSubject->schedule_days) 
+                : $existingSubject->schedule_days;
+            
+            return "Time slot conflict: {$subject->subject_code} is already scheduled for section {$section->program->program_code}-{$section->year_level}{$section->section_name} on {$days} from {$existingSubject->start_time} to {$existingSubject->end_time}.";
         }
 
         return null;

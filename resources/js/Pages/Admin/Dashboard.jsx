@@ -1,8 +1,35 @@
-import React from 'react';
-import { Head, Link } from '@inertiajs/react';
-import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
+import { Head } from '@inertiajs/react'
+import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/Components/ui/table'
+import { Badge } from '@/Components/ui/badge'
 
-const Dashboard = ({ stats }) => {
+export default function AdminDashboard({ 
+    stats, 
+    recentActivity, 
+    enrollmentStats, 
+    programStats, 
+    lowEnrollmentSections 
+}) {
+    const formatDate = (dateString) => {
+        return new Date(dateString).toLocaleDateString('en-PH', {
+            year: 'numeric',
+            month: 'short',
+            day: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit'
+        })
+    }
+
+    const getActionColor = (action) => {
+        const colors = {
+            created: 'default',
+            updated: 'secondary',
+            deleted: 'destructive',
+            enrolled: 'default',
+            graduated: 'outline'
+        }
+        return colors[action.toLowerCase()] || 'secondary'
+    }
     return (
         <AuthenticatedLayout
             header={
