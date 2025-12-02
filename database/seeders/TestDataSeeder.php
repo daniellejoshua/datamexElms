@@ -68,25 +68,8 @@ class TestDataSeeder extends Seeder
             'email_verified_at' => now(),
         ]);
 
-        // Create Programs
-        $programs = [
-            ['code' => 'CS', 'name' => 'Computer Science', 'level' => 'college', 'years' => 4],
-            ['code' => 'IT', 'name' => 'Information Technology', 'level' => 'college', 'years' => 4],
-            ['code' => 'STEM', 'name' => 'Science, Technology, Engineering and Mathematics', 'level' => 'shs', 'years' => 2],
-            ['code' => 'ABM', 'name' => 'Accountancy, Business and Management', 'level' => 'shs', 'years' => 2],
-        ];
-
-        $createdPrograms = [];
-        foreach ($programs as $programData) {
-            $createdPrograms[] = Program::create([
-                'program_code' => $programData['code'],
-                'program_name' => $programData['name'],
-                'education_level' => $programData['level'],
-                'description' => 'Sample program description for ' . $programData['name'],
-                'total_years' => $programData['years'],
-                'status' => 'active',
-            ]);
-        }
+        // Get existing programs (assuming they were created by ProgramSeeder)
+        $createdPrograms = Program::whereIn('program_code', ['CS', 'IT', 'STEM', 'ABM'])->get();
 
         // Create Sections
         $sections = [];
@@ -148,7 +131,7 @@ class TestDataSeeder extends Seeder
             'subject_id' => $createdSubjects[0]->id, // CS101 - 3 hours
             'teacher_id' => $firstTeacher->id,
             'room' => 'Room 101',
-            'schedule_days' => json_encode(['monday']),
+            'schedule_days' => 'Monday',
             'start_time' => '08:00',
             'end_time' => '11:00', // 3 hours
             'status' => 'active',
@@ -159,11 +142,37 @@ class TestDataSeeder extends Seeder
             'subject_id' => $createdSubjects[1]->id, // CS102 - 4 hours
             'teacher_id' => $teachers[1]->id,
             'room' => 'Lab A',
-            'schedule_days' => json_encode(['tuesday', 'thursday']),
+            'schedule_days' => 'Tuesday,Thursday',
             'start_time' => '09:00',
             'end_time' => '11:00', // 2 hours × 2 days = 4 hours
             'status' => 'active',
         ]);
+
+        // Add more assignments for the first teacher to have multiple sections/subjects
+        SectionSubject::create([
+            'section_id' => $firstSection->id,
+            'subject_id' => $createdSubjects[4]->id, // Math101
+            'teacher_id' => $firstTeacher->id,
+            'room' => 'Room 102',
+            'schedule_days' => 'Wednesday,Friday',
+            'start_time' => '10:00',
+            'end_time' => '11:30',
+            'status' => 'active',
+        ]);
+
+        // Assign teacher to IT section as well
+        if (count($sections) > 1) {
+            SectionSubject::create([
+                'section_id' => $sections[1]->id, // IT 1A
+                'subject_id' => $createdSubjects[0]->id, // CS101
+                'teacher_id' => $firstTeacher->id,
+                'room' => 'Room 201',
+                'schedule_days' => 'Monday,Wednesday',
+                'start_time' => '14:00',
+                'end_time' => '15:30',
+                'status' => 'active',
+            ]);
+        }
 
         $this->command->info('Test data created successfully!');
         $this->command->info('Admin: admin@test.com / password');

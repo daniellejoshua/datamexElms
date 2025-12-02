@@ -41,12 +41,23 @@ class AuthenticatedSessionController extends Controller
      */
     public function destroy(Request $request): RedirectResponse
     {
+        // Logout the user
         Auth::guard('web')->logout();
 
+        // Invalidate the session
         $request->session()->invalidate();
 
+        // Regenerate the CSRF token
         $request->session()->regenerateToken();
 
-        return redirect('/');
+        // Clear all cookies by setting them to expire
+        $response = redirect('/');
+        
+        // Clear common Laravel session cookies
+        $response->withCookie(cookie()->forget('laravel_session'));
+        $response->withCookie(cookie()->forget('remember_web'));
+        $response->withCookie(cookie()->forget('XSRF-TOKEN'));
+
+        return $response;
     }
 }

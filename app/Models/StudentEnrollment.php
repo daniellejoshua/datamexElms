@@ -18,6 +18,7 @@ class StudentEnrollment extends Model
         'status',
         'academic_year',
         'semester',
+        'enrolled_by',
     ];
 
     protected function casts(): array
