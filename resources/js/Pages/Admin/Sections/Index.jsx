@@ -152,24 +152,7 @@ const Index = ({
                         )}
                         
                         {/* Clear Filters Button */}
-                        {(selectedAcademicYear || selectedSemester) && (
-                            <Button 
-                                variant="outline" 
-                                size="sm"
-                                onClick={() => {
-                                    // Clear all filters to show ALL sections
-                                    setSelectedAcademicYear('');
-                                    setSelectedSemester('');
-                                    router.get(route('admin.sections.index'), {}, {
-                                        preserveState: true,
-                                        preserveScroll: true,
-                                    });
-                                }}
-                                className="text-gray-600 hover:text-gray-800"
-                            >
-                                Show All
-                            </Button>
-                        )}
+                       
                     </div>
                 </Card>
 

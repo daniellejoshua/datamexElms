@@ -1,10 +1,12 @@
 import React, { useState } from 'react';
-import { Head, useForm, router } from '@inertiajs/react';
+import { Head, useForm, router, Link } from '@inertiajs/react';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
+import { ArrowLeft } from 'lucide-react';
 
 const Subjects = ({ section, subjects, teachers }) => {
     const [showAssignForm, setShowAssignForm] = useState(false);
     const [editingSubject, setEditingSubject] = useState(null);
+    const [openDropdown, setOpenDropdown] = useState(null);
     
     const { data, setData, post, processing, errors, reset } = useForm({
         subject_id: '',
@@ -71,66 +73,86 @@ const Subjects = ({ section, subjects, teachers }) => {
     );
 
     const dayOptions = [
-        { value: 'monday', label: 'Monday' },
-        { value: 'tuesday', label: 'Tuesday' },
-        { value: 'wednesday', label: 'Wednesday' },
-        { value: 'thursday', label: 'Thursday' },
-        { value: 'friday', label: 'Friday' },
-        { value: 'saturday', label: 'Saturday' },
-        { value: 'sunday', label: 'Sunday' },
+        { value: 'monday', label: 'Monday', abbr: 'M' },
+        { value: 'tuesday', label: 'Tuesday', abbr: 'T' },
+        { value: 'wednesday', label: 'Wednesday', abbr: 'W' },
+        { value: 'thursday', label: 'Thursday', abbr: 'TH' },
+        { value: 'friday', label: 'Friday', abbr: 'F' },
+        { value: 'saturday', label: 'Saturday', abbr: 'S' },
     ];
 
-    const handleDayChange = (day, checked) => {
-        if (checked) {
-            setData('schedule_days', [...data.schedule_days, day]);
-        } else {
-            setData('schedule_days', data.schedule_days.filter(d => d !== day));
+    // Create common day patterns
+    const getCommonDayPattern = (days) => {
+        if (!days || !Array.isArray(days)) return null;
+        
+        const daySet = new Set(days);
+        
+        // Check for MWF pattern
+        if (daySet.has('monday') && daySet.has('wednesday') && daySet.has('friday') && daySet.size === 3) {
+            return 'MWF';
         }
-    };
-
-    const handleEditDayChange = (day, checked) => {
-        if (checked) {
-            setEditData('schedule_days', [...editData.schedule_days, day]);
-        } else {
-            setEditData('schedule_days', editData.schedule_days.filter(d => d !== day));
+        
+        // Check for TTH pattern  
+        if (daySet.has('tuesday') && daySet.has('thursday') && daySet.size === 2) {
+            return 'TTH';
         }
+        
+        // Check for weekdays
+        if (daySet.has('monday') && daySet.has('tuesday') && daySet.has('wednesday') && 
+            daySet.has('thursday') && daySet.has('friday') && daySet.size === 5) {
+            return 'M-F';
+        }
+        
+        return null;
     };
 
     const formatScheduleDays = (days) => {
         if (!days || !Array.isArray(days)) return 'Not scheduled';
-        return days.map(day => day.charAt(0).toUpperCase() + day.slice(1)).join(', ');
+        
+        // Check for common patterns first
+        const pattern = getCommonDayPattern(days);
+        if (pattern) return pattern;
+        
+        // Otherwise, use abbreviations
+        return days.map(day => {
+            const dayOption = dayOptions.find(d => d.value === day);
+            return dayOption ? dayOption.abbr : day.charAt(0).toUpperCase();
+        }).join('');
     };
 
     const formatTime = (time) => {
         if (!time) return 'Not set';
-        return time;
+        
+        const [hours, minutes] = time.split(':');
+        const hour24 = parseInt(hours);
+        const hour12 = hour24 === 0 ? 12 : hour24 > 12 ? hour24 - 12 : hour24;
+        const ampm = hour24 >= 12 ? 'PM' : 'AM';
+        
+        return `${hour12}:${minutes} ${ampm}`;
+    };
+
+    const toggleDropdown = (id) => {
+        setOpenDropdown(openDropdown === id ? null : id);
     };
 
     return (
         <AuthenticatedLayout
             header={
-                <div className="flex justify-between items-center">
+                <div className="flex items-center gap-3">
+                    <button className="flex items-center gap-2 px-3 py-1.5 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 transition-colors">
+                        <Link href={route('admin.sections.index')} className="flex items-center gap-2">
+                            <ArrowLeft className="w-4 h-4" />
+                            Back to Sections
+                        </Link>
+                    </button>
+                    <div className="h-6 w-px bg-gray-300 dark:bg-gray-600"></div>
                     <div>
-                        <h2 className="text-xl font-semibold leading-tight text-gray-800 dark:text-gray-200">
+                        <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100">
                             Subject Assignments: {section.program?.program_code}-{section.year_level}{section.section_name}
                         </h2>
-                        <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                        <p className="text-sm text-blue-600 dark:text-blue-400 font-medium mt-1">
                             {section.academic_year} • {section.semester} Semester
                         </p>
-                    </div>
-                    <div className="flex gap-3">
-                        <button
-                            onClick={() => setShowAssignForm(!showAssignForm)}
-                            className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors duration-200"
-                        >
-                            {showAssignForm ? 'Cancel' : 'Assign Subject'}
-                        </button>
-                        <a
-                            href={route('admin.sections.index')}
-                            className="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors duration-200"
-                        >
-                            Back to Sections
-                        </a>
                     </div>
                 </div>
             }
@@ -139,6 +161,16 @@ const Subjects = ({ section, subjects, teachers }) => {
 
             <div className="py-12">
                 <div className="max-w-7xl mx-auto sm:px-6 lg:px-8 space-y-6">
+                    
+                    {/* Assign Subject Button */}
+                    <div className="flex justify-end">
+                        <button
+                            onClick={() => setShowAssignForm(!showAssignForm)}
+                            className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors duration-200"
+                        >
+                            {showAssignForm ? 'Cancel' : 'Assign Subject'}
+                        </button>
+                    </div>
                     
                     {/* Assignment Form */}
                     {showAssignForm && (
@@ -225,19 +257,34 @@ const Subjects = ({ section, subjects, teachers }) => {
                                             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
                                                 Days of Week
                                             </label>
-                                            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
+                                            <div className="grid grid-cols-3 md:grid-cols-6 gap-4">
                                                 {dayOptions.map((day) => (
-                                                    <label key={day.value} className="flex items-center space-x-2 cursor-pointer">
-                                                        <input
-                                                            type="checkbox"
-                                                            checked={data.schedule_days.includes(day.value)}
-                                                            onChange={(e) => handleDayChange(day.value, e.target.checked)}
-                                                            className="rounded border-gray-300 dark:border-gray-700 text-indigo-600 focus:ring-indigo-500"
-                                                        />
-                                                        <span className="text-sm text-gray-700 dark:text-gray-300">{day.label}</span>
-                                                    </label>
-                                                ))}
-                                            </div>
+                                                    <div key={day.value} 
+                                                         onClick={() => {
+                                                             const isSelected = data.schedule_days.includes(day.value);
+                                                             if (isSelected) {
+                                                                 setData('schedule_days', data.schedule_days.filter(d => d !== day.value));
+                                                             } else {
+                                                                 setData('schedule_days', [...data.schedule_days, day.value]);
+                                                             }
+                                                         }}
+                                                         className={`flex flex-col items-center space-y-2 cursor-pointer p-4 rounded-xl border-2 transition-all duration-200 ${
+                                                        data.schedule_days.includes(day.value)
+                                                            ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-900/20'
+                                                            : 'border-gray-200 dark:border-gray-600 hover:border-indigo-300 dark:hover:border-indigo-500 hover:bg-gray-50 dark:hover:bg-gray-700'
+                                                    }`}>
+                                                        <span className={`text-2xl font-bold transition-colors ${
+                                                            data.schedule_days.includes(day.value)
+                                                                ? 'text-indigo-700 dark:text-indigo-300'
+                                                                : 'text-gray-900 dark:text-gray-100'
+                                                        }`}>{day.abbr}</span>
+                                                        <span className={`text-sm transition-colors ${
+                                                            data.schedule_days.includes(day.value)
+                                                                ? 'text-indigo-600 dark:text-indigo-400'
+                                                                : 'text-gray-500 dark:text-gray-400'
+                                                        }`}>{day.label}</span>
+                                                    </div>
+                                                ))}                               </div>
                                             {errors.schedule_days && (
                                                 <p className="mt-1 text-sm text-red-600 dark:text-red-400">{errors.schedule_days}</p>
                                             )}
@@ -353,17 +400,33 @@ const Subjects = ({ section, subjects, teachers }) => {
                                             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
                                                 Days of Week
                                             </label>
-                                            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
+                                            <div className="grid grid-cols-3 md:grid-cols-6 gap-4">
                                                 {dayOptions.map((day) => (
-                                                    <label key={day.value} className="flex items-center space-x-2 cursor-pointer">
-                                                        <input
-                                                            type="checkbox"
-                                                            checked={editData.schedule_days.includes(day.value)}
-                                                            onChange={(e) => handleEditDayChange(day.value, e.target.checked)}
-                                                            className="rounded border-gray-300 dark:border-gray-700 text-indigo-600 focus:ring-indigo-500"
-                                                        />
-                                                        <span className="text-sm text-gray-700 dark:text-gray-300">{day.label}</span>
-                                                    </label>
+                                                    <div key={day.value} 
+                                                         onClick={() => {
+                                                             const isSelected = editData.schedule_days.includes(day.value);
+                                                             if (isSelected) {
+                                                                 setEditData('schedule_days', editData.schedule_days.filter(d => d !== day.value));
+                                                             } else {
+                                                                 setEditData('schedule_days', [...editData.schedule_days, day.value]);
+                                                             }
+                                                         }}
+                                                         className={`flex flex-col items-center space-y-2 cursor-pointer p-4 rounded-xl border-2 transition-all duration-200 ${
+                                                        editData.schedule_days.includes(day.value)
+                                                            ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-900/20'
+                                                            : 'border-gray-200 dark:border-gray-600 hover:border-indigo-300 dark:hover:border-indigo-500 hover:bg-gray-50 dark:hover:bg-gray-700'
+                                                    }`}>
+                                                        <span className={`text-2xl font-bold transition-colors ${
+                                                            editData.schedule_days.includes(day.value)
+                                                                ? 'text-indigo-700 dark:text-indigo-300'
+                                                                : 'text-gray-900 dark:text-gray-100'
+                                                        }`}>{day.abbr}</span>
+                                                        <span className={`text-sm transition-colors ${
+                                                            editData.schedule_days.includes(day.value)
+                                                                ? 'text-indigo-600 dark:text-indigo-400'
+                                                                : 'text-gray-500 dark:text-gray-400'
+                                                        }`}>{day.label}</span>
+                                                    </div>
                                                 ))}
                                             </div>
                                             {editErrors.schedule_days && (
@@ -466,11 +529,11 @@ const Subjects = ({ section, subjects, teachers }) => {
                                                 <tr key={sectionSubject.id}>
                                                     <td className="px-6 py-4 whitespace-nowrap">
                                                         <div>
-                                                            <div className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                                                            <div className="text-sm font-medium text-gray-900 dark:text-gray-100" title={sectionSubject.subject.subject_name}>
                                                                 {sectionSubject.subject.subject_code}
                                                             </div>
                                                             <div className="text-sm text-gray-500 dark:text-gray-400">
-                                                                {sectionSubject.subject.subject_name} • {sectionSubject.subject.units}h/week
+                                                                {sectionSubject.subject.units}h/week
                                                             </div>
                                                         </div>
                                                     </td>
@@ -485,17 +548,19 @@ const Subjects = ({ section, subjects, teachers }) => {
                                                         )}
                                                     </td>
                                                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100">
-                                                        <div className="text-sm">
-                                                            {formatScheduleDays(sectionSubject.schedule_days)}
+                                                        <div className="flex items-center gap-2">
+                                                            <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900/20 dark:text-blue-400">
+                                                                {formatScheduleDays(sectionSubject.schedule_days)}
+                                                            </span>
                                                         </div>
                                                     </td>
                                                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100">
-                                                        <div>
-                                                            <div className="text-sm">
+                                                        <div className="flex flex-col">
+                                                            <div className="text-sm font-medium">
                                                                 {formatTime(sectionSubject.start_time)}
                                                             </div>
                                                             {sectionSubject.start_time && sectionSubject.end_time && (
-                                                                <div className="text-sm text-gray-500 dark:text-gray-400">
+                                                                <div className="text-xs text-gray-500 dark:text-gray-400">
                                                                     to {formatTime(sectionSubject.end_time)}
                                                                 </div>
                                                             )}
@@ -510,21 +575,40 @@ const Subjects = ({ section, subjects, teachers }) => {
                                                             {sectionSubject.status}
                                                         </span>
                                                     </td>
-                                                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                                                        <div className="flex justify-end space-x-2">
-                                                            <button
-                                                                onClick={() => handleEditSubject(sectionSubject)}
-                                                                className="text-indigo-600 hover:text-indigo-900 dark:text-indigo-400 dark:hover:text-indigo-300"
-                                                            >
-                                                                Edit
-                                                            </button>
-                                                            <button
-                                                                onClick={() => handleDetachSubject(sectionSubject.subject.id)}
-                                                                className="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300"
-                                                            >
-                                                                Remove
-                                                            </button>
-                                                        </div>
+                                                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium relative">
+                                                        <button
+                                                            onClick={() => toggleDropdown(sectionSubject.id)}
+                                                            className="p-2 text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300 transition-colors"
+                                                        >
+                                                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 5v.01M12 12v.01M12 19v.01" />
+                                                            </svg>
+                                                        </button>
+                                                        
+                                                        {openDropdown === sectionSubject.id && (
+                                                            <div className="absolute right-0 top-0 mt-8 w-48 bg-white dark:bg-gray-800 rounded-md shadow-lg border border-gray-200 dark:border-gray-700 z-50">
+                                                                <div className="py-1 flex">
+                                                                    <button
+                                                                        onClick={() => {
+                                                                            handleEditSubject(sectionSubject);
+                                                                            setOpenDropdown(null);
+                                                                        }}
+                                                                        className="flex-1 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors border-r border-gray-200 dark:border-gray-600"
+                                                                    >
+                                                                        Edit
+                                                                    </button>
+                                                                    <button
+                                                                        onClick={() => {
+                                                                            handleDetachSubject(sectionSubject.subject.id);
+                                                                            setOpenDropdown(null);
+                                                                        }}
+                                                                        className="flex-1 px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                                                                    >
+                                                                        Remove
+                                                                    </button>
+                                                                </div>
+                                                            </div>
+                                                        )}
                                                     </td>
                                                 </tr>
                                             ))}
@@ -537,19 +621,21 @@ const Subjects = ({ section, subjects, teachers }) => {
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 100 4m0-4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 100 4m0-4v2m0-6V4" />
                                     </svg>
                                     <h3 className="text-sm font-medium text-gray-900 dark:text-gray-100 mb-1">No subjects assigned</h3>
-                                    <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">Get started by assigning a subject to this section.</p>
-                                    <button
-                                        onClick={() => setShowAssignForm(true)}
-                                        className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-md text-sm font-medium transition-colors duration-200"
-                                    >
-                                        Assign First Subject
-                                    </button>
+                                    <p className="text-sm text-gray-500 dark:text-gray-400">Get started by assigning a subject to this section using the button above.</p>
                                 </div>
                             )}
                         </div>
                     </div>
                 </div>
             </div>
+
+            {/* Click outside handler for dropdown */}
+            {openDropdown && (
+                <div 
+                    className="fixed inset-0 z-0" 
+                    onClick={() => setOpenDropdown(null)}
+                ></div>
+            )}
         </AuthenticatedLayout>
     );
 };
