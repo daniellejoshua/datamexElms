@@ -18,6 +18,7 @@ class Subject extends Model
         'year_level',
         'semester',
         'subject_type',
+        'education_level',
         'prerequisites',
         'status',
     ];
@@ -47,6 +48,21 @@ class Subject extends Model
     public function scopeBySemester($query, string $semester)
     {
         return $query->where('semester', $semester);
+    }
+
+    public function scopeByEducationLevel($query, string $level)
+    {
+        return $query->where('education_level', $level);
+    }
+
+    public function scopeCollege($query)
+    {
+        return $query->where('education_level', 'college');
+    }
+
+    public function scopeShs($query)
+    {
+        return $query->where('education_level', 'shs');
     }
 
     public function scopeByType($query, string $type)

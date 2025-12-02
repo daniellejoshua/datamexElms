@@ -1,335 +1,180 @@
-import React, { useState } from 'react';
-import { Head, Link, router } from '@inertiajs/react';
+import React from 'react';
+import { Head, Link } from '@inertiajs/react';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { 
-    School, 
-    Users, 
-    BookOpen, 
-    Calendar, 
-    Plus, 
-    GraduationCap, 
-    Settings, 
-    Building2,
-    ChevronRight,
-    Star,
-    Filter
-} from 'lucide-react';
+import { GraduationCap, School, BookOpen, Users, ChevronRight, Building2 } from 'lucide-react';
 
-const Index = ({ 
-    sections, 
-    filters = {}, 
-    currentAcademicPeriod = {}, 
-    academicYearOptions = [], 
-    semesterOptions = [] 
-}) => {
-    const [selectedAcademicYear, setSelectedAcademicYear] = useState(filters.academic_year || '');
-    const [selectedSemester, setSelectedSemester] = useState(filters.semester || '');
-
-    const handleFilterChange = (type, value) => {
-        const newFilters = { ...filters };
-        
-        if (value === 'all') {
-            delete newFilters[type];
-        } else {
-            newFilters[type] = value;
-        }
-
-        // Update state
-        if (type === 'academic_year') {
-            setSelectedAcademicYear(value === 'all' ? '' : value);
-        } else if (type === 'semester') {
-            setSelectedSemester(value === 'all' ? '' : value);
-        }
-
-        // Navigate with filters
-        router.get(route('admin.sections.index'), newFilters, {
-            preserveState: true,
-            preserveScroll: true,
-        });
-    };
+const Index = () => {
     return (
         <AuthenticatedLayout
             header={
-                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
-                    <div>
-                        <h2 className="text-2xl font-bold text-gray-900">Sections Management</h2>
-                        <p className="text-sm text-blue-600 font-medium mt-1">Manage academic sections and enrollments</p>
+                <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                        <div className="bg-indigo-100 p-2 rounded-lg">
+                            <Building2 className="w-6 h-6 text-indigo-600" />
+                        </div>
+                        <div>
+                            <h2 className="text-2xl font-bold text-gray-900">Section Management</h2>
+                            <p className="text-sm text-gray-600 mt-1">Choose the type of sections you want to manage</p>
+                        </div>
                     </div>
                 </div>
             }
         >
-            <Head title="Sections Management" />
-            
-            <div className="p-4 sm:p-6 lg:p-8 space-y-6">
-                {/* Header with Add Button */}
-                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-                    <div>
-                        <h3 className="text-lg font-semibold text-gray-900">All Sections</h3>
-                        <p className="text-sm text-gray-600">
-                            {sections?.data?.length || 0} section{(sections?.data?.length || 0) !== 1 ? 's' : ''} found
-                        </p>
-                    </div>
-                    <Button asChild className="bg-red-600 hover:bg-red-700 text-white shadow-lg">
-                        <Link href="/admin/sections/create">
-                            <Plus className="w-4 h-4 mr-2" />
-                            Add New Section
-                        </Link>
-                    </Button>
+            <Head title="Section Management" />
+
+            <div className="max-w-6xl mx-auto p-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                    {/* College Sections Card */}
+                    <Card className="group hover:shadow-xl transition-all duration-300 border-2 hover:border-blue-200 bg-gradient-to-br from-white to-blue-50/30">
+                        <CardHeader className="pb-4">
+                            <div className="flex items-center justify-between">
+                                <div className="bg-blue-100 p-3 rounded-xl group-hover:bg-blue-200 transition-colors">
+                                    <GraduationCap className="w-8 h-8 text-blue-600" />
+                                </div>
+                                <div className="text-right">
+                                    <div className="text-sm text-blue-600 font-medium">Higher Education</div>
+                                    <div className="text-xs text-gray-500">Years 1-4</div>
+                                </div>
+                            </div>
+                            <CardTitle className="text-2xl font-bold text-gray-900 mt-4">
+                                College Sections
+                            </CardTitle>
+                            <CardDescription className="text-gray-600 leading-relaxed">
+                                Manage undergraduate and graduate program sections, including specialized courses and major-specific classes.
+                            </CardDescription>
+                        </CardHeader>
+                        
+                        <CardContent className="space-y-6">
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="bg-white/60 p-3 rounded-lg border border-blue-100">
+                                    <div className="flex items-center gap-2">
+                                        <BookOpen className="w-4 h-4 text-blue-600" />
+                                        <span className="text-sm font-medium text-gray-700">Programs</span>
+                                    </div>
+                                    <div className="text-xs text-gray-500 mt-1">Bachelor's & Master's</div>
+                                </div>
+                                <div className="bg-white/60 p-3 rounded-lg border border-blue-100">
+                                    <div className="flex items-center gap-2">
+                                        <Users className="w-4 h-4 text-blue-600" />
+                                        <span className="text-sm font-medium text-gray-700">Students</span>
+                                    </div>
+                                    <div className="text-xs text-gray-500 mt-1">University Level</div>
+                                </div>
+                            </div>
+
+                            <div className="pt-2 border-t border-blue-100">
+                                <div className="flex flex-col sm:flex-row gap-3">
+                                    <Link href="/admin/college/sections" className="flex-1">
+                                        <Button className="w-full bg-blue-600 hover:bg-blue-700 text-white border-0 shadow-md hover:shadow-lg transition-all duration-200">
+                                            <GraduationCap className="w-4 h-4 mr-2" />
+                                            Manage College Sections
+                                            <ChevronRight className="w-4 h-4 ml-2" />
+                                        </Button>
+                                    </Link>
+                                </div>
+                                <div className="flex justify-center gap-4 mt-3 pt-3 border-t border-blue-100">
+                                    <Link href="/admin/college/sections/create" className="text-sm text-blue-600 hover:text-blue-800 font-medium hover:underline">
+                                        Quick Add Section
+                                    </Link>
+                                    <Link href="/admin/college/sections" className="text-sm text-blue-600 hover:text-blue-800 font-medium hover:underline">
+                                        View All Sections
+                                    </Link>
+                                </div>
+                            </div>
+                        </CardContent>
+                    </Card>
+
+                    {/* SHS Sections Card */}
+                    <Card className="group hover:shadow-xl transition-all duration-300 border-2 hover:border-purple-200 bg-gradient-to-br from-white to-purple-50/30">
+                        <CardHeader className="pb-4">
+                            <div className="flex items-center justify-between">
+                                <div className="bg-purple-100 p-3 rounded-xl group-hover:bg-purple-200 transition-colors">
+                                    <School className="w-8 h-8 text-purple-600" />
+                                </div>
+                                <div className="text-right">
+                                    <div className="text-sm text-purple-600 font-medium">Senior High School</div>
+                                    <div className="text-xs text-gray-500">Grades 11-12</div>
+                                </div>
+                            </div>
+                            <CardTitle className="text-2xl font-bold text-gray-900 mt-4">
+                                SHS Sections
+                            </CardTitle>
+                            <CardDescription className="text-gray-600 leading-relaxed">
+                                Manage senior high school sections across different tracks and strands, preparing students for their chosen career paths.
+                            </CardDescription>
+                        </CardHeader>
+                        
+                        <CardContent className="space-y-6">
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="bg-white/60 p-3 rounded-lg border border-purple-100">
+                                    <div className="flex items-center gap-2">
+                                        <BookOpen className="w-4 h-4 text-purple-600" />
+                                        <span className="text-sm font-medium text-gray-700">Tracks</span>
+                                    </div>
+                                    <div className="text-xs text-gray-500 mt-1">Academic & Technical</div>
+                                </div>
+                                <div className="bg-white/60 p-3 rounded-lg border border-purple-100">
+                                    <div className="flex items-center gap-2">
+                                        <Users className="w-4 h-4 text-purple-600" />
+                                        <span className="text-sm font-medium text-gray-700">Students</span>
+                                    </div>
+                                    <div className="text-xs text-gray-500 mt-1">Senior High Level</div>
+                                </div>
+                            </div>
+
+                            <div className="pt-2 border-t border-purple-100">
+                                <div className="flex flex-col sm:flex-row gap-3">
+                                    <Link href="/admin/shs/sections" className="flex-1">
+                                        <Button className="w-full bg-purple-600 hover:bg-purple-700 text-white border-0 shadow-md hover:shadow-lg transition-all duration-200">
+                                            <School className="w-4 h-4 mr-2" />
+                                            Manage SHS Sections
+                                            <ChevronRight className="w-4 h-4 ml-2" />
+                                        </Button>
+                                    </Link>
+                                </div>
+                                <div className="flex justify-center gap-4 mt-3 pt-3 border-t border-purple-100">
+                                    <Link href="/admin/shs/sections/create" className="text-sm text-purple-600 hover:text-purple-800 font-medium hover:underline">
+                                        Quick Add Section
+                                    </Link>
+                                    <Link href="/admin/shs/sections" className="text-sm text-purple-600 hover:text-purple-800 font-medium hover:underline">
+                                        View All Sections
+                                    </Link>
+                                </div>
+                            </div>
+                        </CardContent>
+                    </Card>
                 </div>
 
-                {/* Filters Section */}
-                <Card className="p-4">
-                    <div className="flex flex-col sm:flex-row sm:items-center gap-4">
-                        <div className="flex items-center gap-2 text-gray-700 font-medium">
-                            <Filter className="w-4 h-4" />
-                            <span>Filter by:</span>
-                            {currentAcademicPeriod.academic_year && (
-                                <Badge variant="outline" className="ml-2 text-xs text-blue-600 border-blue-300">
-                                    Current: {currentAcademicPeriod.academic_year} - {currentAcademicPeriod.semester}
-                                </Badge>
-                            )}
-                        </div>
-                        
-                        <div className="flex flex-col sm:flex-row gap-3 flex-1">
-                            {/* Academic Year Filter */}
-                            <div className="flex-1">
-                                <Select
-                                    value={selectedAcademicYear || 'all'}
-                                    onValueChange={(value) => handleFilterChange('academic_year', value)}
-                                >
-                                    <SelectTrigger className="w-full">
-                                        <SelectValue placeholder="Select Academic Year" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="all">All Academic Years</SelectItem>
-                                        {academicYearOptions.map((year) => (
-                                            <SelectItem key={year} value={year}>
-                                                {year} {year === currentAcademicPeriod.academic_year ? '(Current)' : ''}
-                                            </SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
+                {/* Additional Information Card */}
+                <Card className="mt-8 border-gray-200 bg-gradient-to-r from-gray-50 to-blue-50/30">
+                    <CardContent className="p-6">
+                        <div className="flex items-start gap-4">
+                            <div className="bg-indigo-100 p-2 rounded-lg flex-shrink-0">
+                                <Building2 className="w-5 h-5 text-indigo-600" />
                             </div>
-
-                            {/* Semester Filter */}
-                            <div className="flex-1">
-                                <Select
-                                    value={selectedSemester || 'all'}
-                                    onValueChange={(value) => handleFilterChange('semester', value)}
-                                >
-                                    <SelectTrigger className="w-full">
-                                        <SelectValue placeholder="Select Semester" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="all">All Semesters</SelectItem>
-                                        {semesterOptions.map((semester) => (
-                                            <SelectItem key={semester.value} value={semester.value}>
-                                                {semester.label} {semester.value === currentAcademicPeriod.semester ? '(Current)' : ''}
-                                            </SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
-                            </div>
-                        </div>
-                        
-                        {/* Reset to Current Button */}
-                        {(selectedAcademicYear !== currentAcademicPeriod.academic_year || selectedSemester !== currentAcademicPeriod.semester) && (
-                            <Button 
-                                variant="outline" 
-                                size="sm"
-                                onClick={() => {
-                                    handleFilterChange('academic_year', currentAcademicPeriod.academic_year);
-                                    handleFilterChange('semester', currentAcademicPeriod.semester);
-                                }}
-                                className="text-blue-600 hover:text-blue-800 border-blue-300"
-                            >
-                                Show Current
-                            </Button>
-                        )}
-                        
-                        {/* Clear Filters Button */}
-                       
-                    </div>
-                </Card>
-
-                {/* Sections Grid */}
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 gap-6">
-                    {sections?.data?.length > 0 ? (
-                        sections.data.map((section) => {
-                            return (
-                                <Card key={section.id} className="group hover:shadow-xl transition-all duration-300 border-2 hover:border-blue-300 relative overflow-hidden">
-                                    {/* Status Badge */}
-                                    <div className="absolute top-4 right-4">
-                                        <Badge 
-                                            className={`shadow-md font-semibold ${
-                                                section.status === 'active' 
-                                                    ? 'bg-white hover:bg-green-700 text-green-500 border-green-600' 
-                                                    : 'bg-white hover:bg-red-700 text-red-600 border-red-600'
-                                            }`}
-                                        >
-                                            {section.status}
-                                        </Badge>
+                            <div>
+                                <h3 className="font-semibold text-gray-900 mb-2">Section Management Overview</h3>
+                                <p className="text-sm text-gray-600 leading-relaxed">
+                                    The section management system allows you to organize students into appropriate class groups 
+                                    based on their educational level. College sections handle university-level courses with flexible 
+                                    year groupings, while SHS sections focus on track-based learning for grades 11 and 12.
+                                </p>
+                                <div className="flex flex-wrap gap-6 mt-4">
+                                    <div className="flex items-center gap-2">
+                                        <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                                        <span className="text-xs text-gray-600">College: Years 1-4 Programs</span>
                                     </div>
-
-                                    <CardHeader className="pb-4">
-                                        <div className="flex items-start space-x-3">
-                                            <div className="p-3 bg-red-600 rounded-xl flex-shrink-0 shadow-md group-hover:scale-110 transition-transform duration-300">
-                                                <School className="w-6 h-6 text-white" />
-                                            </div>
-                                            <div className="flex-1 min-w-0">
-                                                <CardTitle className="text-lg font-bold text-gray-900 truncate group-hover:text-blue-700 transition-colors">
-                                                    {section.program?.program_code}-{section.year_level}{section.section_name}
-                                                </CardTitle>
-                                                <CardDescription className="text-blue-600 font-semibold truncate">
-                                                    {section.program?.program_name || 'N/A'}
-                                                </CardDescription>
-                                            </div>
-                                        </div>
-                                    </CardHeader>
-                                    
-                                    <CardContent className="space-y-6">
-                                        {/* Section Details */}
-                                        <div className="space-y-4">
-                                            <Card className="p-3 bg-gradient-to-r from-green-50 to-blue-50 border border-green-200">
-                                                <div className="flex items-center text-sm">
-                                                    <GraduationCap className="w-4 h-4 text-green-600 mr-3 flex-shrink-0" />
-                                                    <span className="text-gray-700 font-medium truncate">
-                                                        Year {section.year_level} - Section {section.section_name}
-                                                    </span>
-                                                </div>
-                                            </Card>
-                                            
-                                            <div className="grid grid-cols-2 gap-2">
-                                                <Card className="p-2 text-center bg-orange-50 border-orange-200">
-                                                    <div className="flex flex-col items-center">
-                                                        <BookOpen className="w-4 h-4 text-orange-600 mb-1" />
-                                                        <span className="text-xs font-semibold text-gray-700">
-                                                            {section.subjects?.length || 0}
-                                                        </span>
-                                                        <span className="text-xs text-gray-600">Subjects</span>
-                                                    </div>
-                                                </Card>
-                                                
-                                                <Card className="p-2 text-center bg-purple-50 border-purple-200">
-                                                    <div className="flex flex-col items-center">
-                                                        <Users className="w-4 h-4 text-purple-600 mb-1" />
-                                                        <span className="text-xs font-semibold text-gray-700">
-                                                            {section.enrollments?.length || 0}
-                                                        </span>
-                                                        <span className="text-xs text-gray-600">Students</span>
-                                                    </div>
-                                                </Card>
-                                            </div>
-                                            
-                                            <Card className="p-3 bg-blue-50 border-blue-200">
-                                                <div className="flex items-center text-sm">
-                                                    <Calendar className="w-4 h-4 text-blue-600 mr-3 flex-shrink-0" />
-                                                    <span className="text-gray-700 font-medium truncate">
-                                                        {section.academic_year} - {section.semester}
-                                                    </span>
-                                                </div>
-                                            </Card>
-                                        </div>
-                                        
-                                        {/* Action Buttons */}
-                                        <div className="space-y-3">
-                                            <Button asChild className="w-full bg-blue-600 hover:bg-blue-700 text-white shadow-md">
-                                                <Link href={`/admin/sections/${section.id}/subjects`}>
-                                                    <BookOpen className="w-4 h-4 mr-2" />
-                                                    Manage Subjects
-                                                    <ChevronRight className="w-4 h-4 ml-auto" />
-                                                </Link>
-                                            </Button>
-                                            
-                                            <div className="grid grid-cols-2 gap-2">
-                                                <Button asChild variant="outline" className="border-2 border-blue-300 text-blue-700 hover:bg-blue-50 font-medium">
-                                                    <Link href={`/admin/sections/${section.id}/students`}>
-                                                        <Users className="w-3 h-3 mr-1" />
-                                                        Students
-                                                    </Link>
-                                                </Button>
-                                                <Button asChild variant="outline" className="border-2 border-gray-300 text-gray-700 hover:bg-gray-50 font-medium">
-                                                    <Link href={`/admin/sections/${section.id}/edit`}>
-                                                        <Settings className="w-3 h-3 mr-1" />
-                                                        Edit
-                                                    </Link>
-                                                </Button>
-                                            </div>
-                                        </div>
-                                    </CardContent>
-                                </Card>
-                            );
-                        })
-                    ) : (
-                        <div className="col-span-full">
-                            <Card className="p-16 text-center border-2 border-dashed border-gray-300 hover:border-blue-400 transition-colors bg-gradient-to-br from-gray-50 to-blue-50">
-                                <div className="space-y-6">
-                                    <div className="p-6 bg-gradient-to-br from-blue-100 to-red-100 rounded-full w-24 h-24 mx-auto flex items-center justify-center shadow-lg">
-                                        <Building2 className="w-10 h-10 text-blue-600" />
-                                    </div>
-                                    <div>
-                                        <h3 className="text-2xl font-bold text-gray-900 mb-3">No sections found</h3>
-                                        <p className="text-gray-600 mb-8 max-w-md mx-auto leading-relaxed">
-                                            Create your first section to get started with managing academic programs and student enrollments.
-                                        </p>
-                                        <Button asChild className="bg-red-600 hover:bg-red-700 text-white shadow-lg px-8 py-3 text-base">
-                                            <Link href="/admin/sections/create">
-                                                <Plus className="w-5 h-5 mr-2" />
-                                                Create First Section
-                                            </Link>
-                                        </Button>
+                                    <div className="flex items-center gap-2">
+                                        <div className="w-2 h-2 bg-purple-500 rounded-full"></div>
+                                        <span className="text-xs text-gray-600">SHS: Grades 11-12 Tracks</span>
                                     </div>
                                 </div>
-                            </Card>
+                            </div>
                         </div>
-                    )}
-                </div>
-
-                {/* Pagination */}
-                {sections?.links && sections.links.length > 3 && (
-                    <Card className="p-6">
-                        <div className="flex justify-center">
-                            <nav className="flex items-center space-x-2">
-                                {sections.links.map((link, index) => {
-                                    if (link.url) {
-                                        return (
-                                            <Button
-                                                key={index}
-                                                asChild
-                                                variant={link.active ? "default" : "outline"}
-                                                size="sm"
-                                                className={link.active 
-                                                    ? "bg-blue-600 hover:bg-blue-700 text-white shadow-md" 
-                                                    : "border-gray-300 hover:border-blue-300 text-gray-700"
-                                                }
-                                            >
-                                                <Link href={link.url}>
-                                                    <span dangerouslySetInnerHTML={{ __html: link.label }} />
-                                                </Link>
-                                            </Button>
-                                        );
-                                    } else {
-                                        return (
-                                            <Button
-                                                key={index}
-                                                variant="outline"
-                                                size="sm"
-                                                disabled
-                                                className="border-gray-200 text-gray-400"
-                                            >
-                                                <span dangerouslySetInnerHTML={{ __html: link.label }} />
-                                            </Button>
-                                        );
-                                    }
-                                })}
-                            </nav>
-                        </div>
-                    </Card>
-                )}
+                    </CardContent>
+                </Card>
             </div>
         </AuthenticatedLayout>
     );

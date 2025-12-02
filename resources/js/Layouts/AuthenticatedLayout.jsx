@@ -11,11 +11,21 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Button } from '@/components/ui/button';
-import { ChevronDown, User, LogOut } from 'lucide-react';
+import { ChevronDown, ChevronRight, User, LogOut } from 'lucide-react';
 
 export default function AuthenticatedLayout({ header, children }) {
     const user = usePage().props.auth.user;
     const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+    const [expandedMenus, setExpandedMenus] = useState({
+        'Sections': route().current('admin.sections.*') || route().current('admin.college.*') || route().current('admin.shs.*')
+    });
+
+    const toggleMenu = (itemName) => {
+        setExpandedMenus(prev => ({
+            ...prev,
+            [itemName]: !prev[itemName]
+        }));
+    };
 
     const getNavigationItems = () => {
         switch (user.role) {
@@ -80,7 +90,24 @@ export default function AuthenticatedLayout({ header, children }) {
                     { 
                         name: 'Sections', 
                         href: route('admin.sections.index'), 
-                        current: route().current('admin.sections.*'),
+                        current: route().current('admin.sections.*') || route().current('admin.college.*') || route().current('admin.shs.*'),
+                        children: [
+                            {
+                                name: 'Overview',
+                                href: route('admin.sections.index'),
+                                current: route().current('admin.sections.index')
+                            },
+                            {
+                                name: 'College Sections',
+                                href: route('admin.college.sections.index'),
+                                current: route().current('admin.college.*')
+                            },
+                            {
+                                name: 'SHS Sections',
+                                href: route('admin.shs.sections.index'),
+                                current: route().current('admin.shs.*')
+                            }
+                        ],
                         icon: (
                             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
@@ -193,23 +220,75 @@ export default function AuthenticatedLayout({ header, children }) {
                     {/* Navigation */}
                     <nav className="flex-1 px-4 py-4 space-y-1 overflow-y-auto">
                         {getNavigationItems().map((item) => (
-                            <Link
-                                key={item.name}
-                                href={item.href}
-                                className={`flex items-center px-3 py-3 text-sm font-medium rounded-lg transition-all duration-200 ${
-                                    item.current
-                                        ? 'bg-red-600 text-white shadow-md'
-                                        : 'text-gray-600 hover:bg-red-50 hover:text-red-600'
-                                } ${sidebarCollapsed ? 'justify-center' : ''}`}
-                                title={sidebarCollapsed ? item.name : ''}
-                            >
-                                <span className={`${item.current ? 'text-white' : 'text-gray-500'} ${item.current && 'group-hover:text-white'}`}>
-                                    {item.icon}
-                                </span>
-                                {!sidebarCollapsed && (
-                                    <span className="ml-3 truncate">{item.name}</span>
+                            <div key={item.name}>
+                                {item.children ? (
+                                    // Menu item with children (expandable)
+                                    <>
+                                        <button
+                                            onClick={() => toggleMenu(item.name)}
+                                            className={`w-full flex items-center px-3 py-3 text-sm font-medium rounded-lg transition-all duration-200 ${
+                                                item.current
+                                                    ? 'bg-red-600 text-white shadow-md'
+                                                    : 'text-gray-600 hover:bg-red-50 hover:text-red-600'
+                                            } ${sidebarCollapsed ? 'justify-center' : ''}`}
+                                            title={sidebarCollapsed ? item.name : ''}
+                                        >
+                                            <span className={`${item.current ? 'text-white' : 'text-gray-500'} ${item.current && 'group-hover:text-white'}`}>
+                                                {item.icon}
+                                            </span>
+                                            {!sidebarCollapsed && (
+                                                <>
+                                                    <span className="ml-3 truncate flex-1 text-left">{item.name}</span>
+                                                    <span className={`${item.current ? 'text-white' : 'text-gray-500'}`}>
+                                                        {expandedMenus[item.name] ? (
+                                                            <ChevronDown className="w-4 h-4" />
+                                                        ) : (
+                                                            <ChevronRight className="w-4 h-4" />
+                                                        )}
+                                                    </span>
+                                                </>
+                                            )}
+                                        </button>
+                                        
+                                        {/* Submenu items */}
+                                        {!sidebarCollapsed && expandedMenus[item.name] && (
+                                            <div className="ml-6 mt-1 space-y-1">
+                                                {item.children.map((child) => (
+                                                    <Link
+                                                        key={child.name}
+                                                        href={child.href}
+                                                        className={`flex items-center px-3 py-2 text-sm font-medium rounded-lg transition-all duration-200 ${
+                                                            child.current
+                                                                ? 'bg-red-100 text-red-700 border-l-4 border-red-600'
+                                                                : 'text-gray-600 hover:bg-red-50 hover:text-red-600'
+                                                        }`}
+                                                    >
+                                                        {child.name}
+                                                    </Link>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </>
+                                ) : (
+                                    // Regular menu item without children
+                                    <Link
+                                        href={item.href}
+                                        className={`flex items-center px-3 py-3 text-sm font-medium rounded-lg transition-all duration-200 ${
+                                            item.current
+                                                ? 'bg-red-600 text-white shadow-md'
+                                                : 'text-gray-600 hover:bg-red-50 hover:text-red-600'
+                                        } ${sidebarCollapsed ? 'justify-center' : ''}`}
+                                        title={sidebarCollapsed ? item.name : ''}
+                                    >
+                                        <span className={`${item.current ? 'text-white' : 'text-gray-500'} ${item.current && 'group-hover:text-white'}`}>
+                                            {item.icon}
+                                        </span>
+                                        {!sidebarCollapsed && (
+                                            <span className="ml-3 truncate">{item.name}</span>
+                                        )}
+                                    </Link>
                                 )}
-                            </Link>
+                            </div>
                         ))}
                     </nav>
                 </div>

@@ -3,7 +3,11 @@
 use App\Http\Controllers\Admin\AcademicYearController;
 use App\Http\Controllers\Admin\AdminDashboardController;
 use App\Http\Controllers\Admin\ClassScheduleController;
+use App\Http\Controllers\Admin\CollegeSectionController;
+use App\Http\Controllers\Admin\CollegeSubjectController;
 use App\Http\Controllers\Admin\SectionController;
+use App\Http\Controllers\Admin\ShsSectionController;
+use App\Http\Controllers\Admin\ShsSubjectController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\Student\StudentDashboardController;
@@ -57,6 +61,28 @@ Route::middleware(['auth', 'verified'])->prefix('admin')->name('admin.')->group(
         Route::get('academic-years', [AcademicYearController::class, 'index'])->name('academic-years.index');
         Route::get('academic-years/{archivedSection}', [AcademicYearController::class, 'show'])->name('academic-years.show');
         Route::post('academic-years/archive', [AcademicYearController::class, 'archiveSemester'])->name('academic-years.archive');
+
+        // College Management Routes
+        Route::prefix('college')->name('college.')->group(function () {
+            // College Sections
+            Route::resource('sections', CollegeSectionController::class);
+            Route::get('sections/{section}/subjects', [CollegeSectionController::class, 'subjects'])->name('sections.subjects');
+            Route::post('sections/{section}/subjects', [CollegeSectionController::class, 'attachSubject'])->name('sections.attach-subject');
+            
+            // College Subjects
+            Route::resource('subjects', CollegeSubjectController::class);
+        });
+
+        // SHS Management Routes
+        Route::prefix('shs')->name('shs.')->group(function () {
+            // SHS Sections
+            Route::resource('sections', ShsSectionController::class);
+            Route::get('sections/{section}/subjects', [ShsSectionController::class, 'subjects'])->name('sections.subjects');
+            Route::post('sections/{section}/subjects', [ShsSectionController::class, 'attachSubject'])->name('sections.attach-subject');
+            
+            // SHS Subjects
+            Route::resource('subjects', ShsSubjectController::class);
+        });
     });
 });
 
