@@ -126,10 +126,20 @@ class SectionController extends Controller
 
     public function create(Request $request): Response
     {
+        // Get current academic period
+        $currentAcademicYear = SchoolSetting::getCurrentAcademicYear();
+        $currentSemester = SchoolSetting::getCurrentSemester();
+        
         $programs = Program::where('status', 'active')->orderBy('program_code')->get();
 
         return Inertia::render('Admin/Sections/Create', [
             'programs' => $programs,
+            'currentAcademicPeriod' => [
+                'academic_year' => $currentAcademicYear,
+                'semester' => $currentSemester,
+            ],
+            'academicYearOptions' => AcademicHelper::getAcademicYearOptions(),
+            'semesterOptions' => AcademicHelper::getSemesterOptions(),
         ]);
     }
 
