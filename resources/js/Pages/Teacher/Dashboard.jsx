@@ -1,6 +1,13 @@
 import { Head, Link } from '@inertiajs/react'
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout'
 import { useState, useMemo } from 'react'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { School, Clock, Users, Calendar, Search, GraduationCap, BookOpen, ChevronRight } from 'lucide-react'
 
 export default function TeacherDashboard({ 
     teacher, 
@@ -62,69 +69,69 @@ export default function TeacherDashboard({
     }
 
     const SectionCard = ({ section }) => (
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow">
-            <div className="flex items-start justify-between">
-                <div className="flex-1">
-                    <div className="flex items-center gap-3 mb-3">
-                        <div className="p-2 rounded-lg bg-gradient-to-r from-red-500 to-blue-600">
-                            <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-                            </svg>
+        <Card className="hover:shadow-lg transition-all duration-200 border-2 hover:border-red-200">
+            <CardContent className="p-6">
+                <div className="space-y-4">
+                    <div className="flex items-start justify-between">
+                        <div className="flex items-center gap-3 flex-1 min-w-0">
+                            <div className="p-2 rounded-lg bg-red-600 flex-shrink-0">
+                                <School className="w-5 h-5 text-white" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                                <h3 className="font-bold text-lg text-gray-900 truncate">{section.section_name}</h3>
+                                <p className="text-sm text-blue-600 font-medium truncate">{section.program_name}</p>
+                            </div>
                         </div>
-                        <div>
-                            <h3 className="font-bold text-lg text-gray-900">{section.section_name}</h3>
-                            <p className="text-sm text-blue-600 font-medium">{section.program_name}</p>
+                        <Badge variant="outline" className="ml-2 flex-shrink-0">
+                            Year {section.year_level}
+                        </Badge>
+                    </div>
+                    
+                    <div className="space-y-3">
+                        <div className="flex items-center text-sm text-gray-600">
+                            <BookOpen className="w-4 h-4 mr-3 text-red-500 flex-shrink-0" />
+                            <span className="font-medium text-red-600">{section.subject_code}</span>
+                            <span className="mx-2">-</span>
+                            <span className="truncate">{section.subject_name}</span>
+                        </div>
+                        
+                        <div className="flex items-center text-sm text-gray-600">
+                            <Clock className="w-4 h-4 mr-3 text-blue-500 flex-shrink-0" />
+                            <span>
+                                {section.start_time} - {section.end_time}
+                            </span>
+                            <Badge variant="secondary" className="ml-2 text-xs">
+                                {formatScheduleDays(section.schedule_days)}
+                            </Badge>
+                        </div>
+                        
+                        <div className="flex items-center text-sm text-gray-600">
+                            <Users className="w-4 h-4 mr-3 text-green-500 flex-shrink-0" />
+                            <span>{section.enrolled_students_count || 0} students enrolled</span>
                         </div>
                     </div>
                     
-                    <div className="space-y-2">
-                        <div className="flex items-center text-sm text-gray-600">
-                            <svg className="w-4 h-4 mr-2 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.746 0 3.332.477 4.5 1.253v13C19.832 18.477 18.246 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
-                            </svg>
-                            <span className="font-medium">{section.subject_code}</span> - {section.subject_name}
-                        </div>
-                        <div className="flex items-center text-sm text-gray-600">
-                            <svg className="w-4 h-4 mr-2 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                            </svg>
-                            {section.start_time} - {section.end_time} ({formatScheduleDays(section.schedule_days)})
-                        </div>
-                        <div className="flex items-center text-sm text-gray-600">
-                            <svg className="w-4 h-4 mr-2 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 515.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-                            </svg>
-                            {section.enrolled_students_count || 0} students
-                        </div>
+                    <div className="flex flex-col sm:flex-row gap-2 pt-4 border-t border-gray-100">
+                        <Button asChild className="bg-gradient-to-r from-red-500 to-blue-600 hover:from-red-600 hover:to-blue-700 flex-1">
+                            <Link href={route('teacher.grades.show', section.id)}>
+                                <GraduationCap className="w-4 h-4 mr-2" />
+                                Manage Grades
+                            </Link>
+                        </Button>
+                        <Button variant="outline" className="border-blue-200 text-blue-600 hover:bg-blue-50 flex-1 sm:flex-none">
+                            View Details
+                            <ChevronRight className="w-4 h-4 ml-2" />
+                        </Button>
                     </div>
                 </div>
-                
-                <div className="flex flex-col gap-2 ml-4">
-                    <Link
-                        href={route('teacher.grades.show', section.id)}
-                        className="inline-flex items-center px-4 py-2 text-sm font-medium text-white bg-gradient-to-r from-red-500 to-blue-600 rounded-lg hover:from-red-600 hover:to-blue-700 transition-all duration-200"
-                    >
-                        <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
-                        </svg>
-                        Manage Grades
-                    </Link>
-                    <button className="inline-flex items-center px-4 py-2 text-sm font-medium text-blue-600 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors">
-                        <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                        </svg>
-                        View Details
-                    </button>
-                </div>
-            </div>
-        </div>
+            </CardContent>
+        </Card>
     )
 
     return (
         <AuthenticatedLayout
             header={
-                <div className="flex items-center justify-between">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
                     <div>
                         <h2 className="text-2xl font-bold text-gray-900">Teacher Dashboard</h2>
                         <p className="text-sm text-blue-600 font-medium mt-1">
@@ -132,211 +139,206 @@ export default function TeacherDashboard({
                         </p>
                     </div>
                     
-                    <div className="flex items-center space-x-3">
-                        <Link
-                            href="/teacher/grades"
-                            className="inline-flex items-center px-4 py-2 text-sm font-medium text-white bg-gradient-to-r from-red-500 to-blue-600 rounded-lg hover:from-red-600 hover:to-blue-700 transition-all duration-200 shadow-md"
-                        >
-                            <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
-                            </svg>
-                            Manage Grades
-                        </Link>
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 mt-4 sm:mt-0">
+                        <Button asChild className="bg-gradient-to-r from-red-500 to-blue-600 hover:from-red-600 hover:to-blue-700 shadow-md">
+                            <Link href="/teacher/grades">
+                                <GraduationCap className="w-4 h-4 mr-2" />
+                                Manage Grades
+                            </Link>
+                        </Button>
                         
-                        <div className="bg-white border-2 border-blue-200 text-blue-600 px-4 py-2 rounded-lg text-sm font-medium">
+                        <Badge variant="outline" className="bg-white border-blue-200 text-blue-600 px-3 py-2">
+                            <Calendar className="w-4 h-4 mr-2" />
                             Today's Classes: {todaySchedule?.length || 0}
-                        </div>
+                        </Badge>
                     </div>
                 </div>
             }
         >
             <Head title="Teacher Dashboard" />
 
-            <div className="p-6 space-y-6">
+            <div className="p-4 sm:p-6 lg:p-8 space-y-6">
                 {/* Stats Cards */}
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                    <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-                        <div className="flex items-center">
-                            <div className="p-3 rounded-lg bg-red-50 text-red-600">
-                                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-                                </svg>
-                            </div>
-                            <div className="ml-4">
-                                <p className="text-sm font-medium text-gray-600">Total Sections</p>
-                                <p className="text-2xl font-bold text-gray-900">{stats?.totalSections || 0}</p>
-                            </div>
-                        </div>
-                    </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 lg:gap-6">
+                    <Card className="hover:shadow-md transition-shadow">
+                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                            <CardTitle className="text-sm font-medium text-muted-foreground">Total Sections</CardTitle>
+                            <School className="h-4 w-4 text-muted-foreground" />
+                        </CardHeader>
+                        <CardContent>
+                            <div className="text-2xl font-bold text-red-600">{stats?.totalSections || 0}</div>
+                            <p className="text-xs text-muted-foreground mt-1">Active sections</p>
+                        </CardContent>
+                    </Card>
 
-                    <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-                        <div className="flex items-center">
-                            <div className="p-3 rounded-lg bg-blue-50 text-blue-600">
-                                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 515.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 919.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-                                </svg>
-                            </div>
-                            <div className="ml-4">
-                                <p className="text-sm font-medium text-gray-600">Total Students</p>
-                                <p className="text-2xl font-bold text-gray-900">{stats?.totalStudents || 0}</p>
-                            </div>
-                        </div>
-                    </div>
+                    <Card className="hover:shadow-md transition-shadow">
+                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                            <CardTitle className="text-sm font-medium text-muted-foreground">Total Students</CardTitle>
+                            <Users className="h-4 w-4 text-muted-foreground" />
+                        </CardHeader>
+                        <CardContent>
+                            <div className="text-2xl font-bold text-blue-600">{stats?.totalStudents || 0}</div>
+                            <p className="text-xs text-muted-foreground mt-1">Enrolled students</p>
+                        </CardContent>
+                    </Card>
 
-                    <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-                        <div className="flex items-center">
-                            <div className="p-3 rounded-lg bg-green-50 text-green-600">
-                                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
-                                </svg>
-                            </div>
-                            <div className="ml-4">
-                                <p className="text-sm font-medium text-gray-600">Assignments</p>
-                                <p className="text-2xl font-bold text-gray-900">{stats?.totalAssignments || 0}</p>
-                            </div>
-                        </div>
-                    </div>
+                    <Card className="hover:shadow-md transition-shadow">
+                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                            <CardTitle className="text-sm font-medium text-muted-foreground">Assignments</CardTitle>
+                            <BookOpen className="h-4 w-4 text-muted-foreground" />
+                        </CardHeader>
+                        <CardContent>
+                            <div className="text-2xl font-bold text-green-600">{stats?.totalAssignments || 0}</div>
+                            <p className="text-xs text-muted-foreground mt-1">Total assignments</p>
+                        </CardContent>
+                    </Card>
 
-                    <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-                        <div className="flex items-center">
-                            <div className="p-3 rounded-lg bg-purple-50 text-purple-600">
-                                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                </svg>
-                            </div>
-                            <div className="ml-4">
-                                <p className="text-sm font-medium text-gray-600">Today's Classes</p>
-                                <p className="text-2xl font-bold text-gray-900">{todaySchedule?.length || 0}</p>
-                            </div>
-                        </div>
-                    </div>
+                    <Card className="hover:shadow-md transition-shadow">
+                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                            <CardTitle className="text-sm font-medium text-muted-foreground">Today's Classes</CardTitle>
+                            <Clock className="h-4 w-4 text-muted-foreground" />
+                        </CardHeader>
+                        <CardContent>
+                            <div className="text-2xl font-bold text-purple-600">{todaySchedule?.length || 0}</div>
+                            <p className="text-xs text-muted-foreground mt-1">Classes today</p>
+                        </CardContent>
+                    </Card>
                 </div>
 
                 {/* Search and Filters */}
-                <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-                    <div className="flex flex-col lg:flex-row gap-4 items-start lg:items-center justify-between">
-                        <div className="flex-1 max-w-md">
-                            <div className="relative">
-                                <svg className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                                </svg>
-                                <input
-                                    type="text"
-                                    placeholder="Search sections..."
-                                    value={searchTerm}
-                                    onChange={(e) => setSearchTerm(e.target.value)}
-                                    className="pl-10 pr-4 py-2 w-full border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500 transition-colors"
-                                />
+                <Card>
+                    <CardContent className="p-6">
+                        <div className="flex flex-col lg:flex-row gap-4 items-start lg:items-center justify-between">
+                            <div className="flex-1 max-w-md">
+                                <div className="relative">
+                                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+                                    <Input
+                                        type="text"
+                                        placeholder="Search sections, subjects, or programs..."
+                                        value={searchTerm}
+                                        onChange={(e) => setSearchTerm(e.target.value)}
+                                        className="pl-10"
+                                    />
+                                </div>
+                            </div>
+                            
+                            <div className="flex gap-3">
+                                <Select value={selectedSemester} onValueChange={setSelectedSemester}>
+                                    <SelectTrigger className="w-48">
+                                        <SelectValue placeholder="Select semester" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="current">Current Semester</SelectItem>
+                                        <SelectItem value="1st">1st Semester</SelectItem>
+                                        <SelectItem value="2nd">2nd Semester</SelectItem>
+                                        <SelectItem value="summer">Summer</SelectItem>
+                                    </SelectContent>
+                                </Select>
                             </div>
                         </div>
-                        
-                        <div className="flex gap-3">
-                            <select
-                                value={selectedSemester}
-                                onChange={(e) => setSelectedSemester(e.target.value)}
-                                className="border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-red-500 focus:border-red-500 transition-colors"
-                            >
-                                <option value="current">Current Semester</option>
-                                <option value="1st">1st Semester</option>
-                                <option value="2nd">2nd Semester</option>
-                                <option value="summer">Summer</option>
-                            </select>
-                        </div>
-                    </div>
-                </div>
+                    </CardContent>
+                </Card>
 
                 {/* Education Level Tabs */}
-                <div className="bg-white rounded-xl shadow-sm border border-gray-200">
-                    <div className="border-b border-gray-200">
-                        <nav className="flex">
-                            <button
-                                onClick={() => setActiveTab('college')}
-                                className={`px-6 py-4 text-sm font-medium transition-colors ${
-                                    activeTab === 'college'
-                                        ? 'text-red-600 border-b-2 border-red-600 bg-red-50'
-                                        : 'text-gray-500 hover:text-red-600 hover:bg-red-50'
-                                }`}
-                            >
-                                College ({collegeSections.length})
-                            </button>
-                            <button
-                                onClick={() => setActiveTab('shs')}
-                                className={`px-6 py-4 text-sm font-medium transition-colors ${
-                                    activeTab === 'shs'
-                                        ? 'text-blue-600 border-b-2 border-blue-600 bg-blue-50'
-                                        : 'text-gray-500 hover:text-blue-600 hover:bg-blue-50'
-                                }`}
-                            >
-                                Senior High ({shsSections.length})
-                            </button>
-                        </nav>
-                    </div>
-
-                    {/* Sections Content */}
-                    <div className="p-6">
-                        {activeTab === 'college' && (
-                            <div className="space-y-6">
-                                {collegeSections.length > 0 ? (
-                                    <div className="grid gap-6">
-                                        {collegeSections.map((section) => (
-                                            <SectionCard key={section.id} section={section} />
-                                        ))}
-                                    </div>
-                                ) : (
-                                    <div className="text-center py-12">
-                                        <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-                                        </svg>
-                                        <h3 className="mt-2 text-sm font-medium text-gray-900">No college sections found</h3>
-                                        <p className="mt-1 text-sm text-gray-500">Try adjusting your search criteria or check back later.</p>
-                                    </div>
-                                )}
+                <Card>
+                    <CardContent className="p-0">
+                        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+                            <div className="border-b border-gray-200 px-6 pt-6">
+                                <TabsList className="grid w-full max-w-md grid-cols-2">
+                                    <TabsTrigger 
+                                        value="college" 
+                                        className="data-[state=active]:bg-red-50 data-[state=active]:text-red-600 data-[state=active]:border-red-200"
+                                    >
+                                        <School className="w-4 h-4 mr-2" />
+                                        College ({collegeSections.length})
+                                    </TabsTrigger>
+                                    <TabsTrigger 
+                                        value="shs" 
+                                        className="data-[state=active]:bg-blue-50 data-[state=active]:text-blue-600 data-[state=active]:border-blue-200"
+                                    >
+                                        <GraduationCap className="w-4 h-4 mr-2" />
+                                        Senior High ({shsSections.length})
+                                    </TabsTrigger>
+                                </TabsList>
                             </div>
-                        )}
 
-                        {activeTab === 'shs' && (
-                            <div className="space-y-6">
-                                {shsSections.length > 0 ? (
-                                    <div className="grid gap-6">
-                                        {shsSections.map((section) => (
-                                            <SectionCard key={section.id} section={section} />
-                                        ))}
-                                    </div>
-                                ) : (
-                                    <div className="text-center py-12">
-                                        <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-                                        </svg>
-                                        <h3 className="mt-2 text-sm font-medium text-gray-900">No senior high sections found</h3>
-                                        <p className="mt-1 text-sm text-gray-500">Try adjusting your search criteria or check back later.</p>
-                                    </div>
-                                )}
+                            <div className="p-6">
+                                <TabsContent value="college" className="space-y-6 mt-0">
+                                    {collegeSections.length > 0 ? (
+                                        <div className="grid gap-6">
+                                            {collegeSections.map((section) => (
+                                                <SectionCard key={section.id} section={section} />
+                                            ))}
+                                        </div>
+                                    ) : (
+                                        <div className="text-center py-12">
+                                            <School className="mx-auto h-12 w-12 text-gray-400 mb-4" />
+                                            <h3 className="text-lg font-medium text-gray-900 mb-2">No college sections found</h3>
+                                            <p className="text-sm text-gray-500 max-w-md mx-auto">
+                                                {searchTerm ? 'Try adjusting your search criteria or clear the search to see all sections.' : 'No college sections are currently assigned to you for the selected semester.'}
+                                            </p>
+                                        </div>
+                                    )}
+                                </TabsContent>
+
+                                <TabsContent value="shs" className="space-y-6 mt-0">
+                                    {shsSections.length > 0 ? (
+                                        <div className="grid gap-6">
+                                            {shsSections.map((section) => (
+                                                <SectionCard key={section.id} section={section} />
+                                            ))}
+                                        </div>
+                                    ) : (
+                                        <div className="text-center py-12">
+                                            <GraduationCap className="mx-auto h-12 w-12 text-gray-400 mb-4" />
+                                            <h3 className="text-lg font-medium text-gray-900 mb-2">No senior high sections found</h3>
+                                            <p className="text-sm text-gray-500 max-w-md mx-auto">
+                                                {searchTerm ? 'Try adjusting your search criteria or clear the search to see all sections.' : 'No senior high sections are currently assigned to you for the selected semester.'}
+                                            </p>
+                                        </div>
+                                    )}
+                                </TabsContent>
                             </div>
-                        )}
-                    </div>
-                </div>
+                        </Tabs>
+                    </CardContent>
+                </Card>
 
                 {/* Today's Schedule */}
                 {todaySchedule && todaySchedule.length > 0 && (
-                    <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-                        <h3 className="text-lg font-bold text-gray-900 mb-4">Today's Schedule</h3>
-                        <div className="space-y-3">
-                            {todaySchedule.map((schedule, index) => (
-                                <div key={index} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
-                                    <div>
-                                        <p className="font-medium text-gray-900">{schedule.subject_name}</p>
-                                        <p className="text-sm text-gray-600">{schedule.section_name}</p>
+                    <Card>
+                        <CardHeader>
+                            <CardTitle className="flex items-center gap-2">
+                                <Calendar className="w-5 h-5 text-blue-600" />
+                                Today's Schedule
+                            </CardTitle>
+                            <CardDescription>Your classes scheduled for today</CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                            <div className="space-y-3">
+                                {todaySchedule.map((schedule, index) => (
+                                    <div key={index} className="flex items-center justify-between p-4 bg-gradient-to-r from-gray-50 to-blue-50/30 rounded-lg hover:from-gray-100 hover:to-blue-100/50 transition-all duration-200">
+                                        <div className="flex items-center space-x-4 flex-1">
+                                            <div className="p-2 bg-blue-100 rounded-lg">
+                                                <Clock className="w-4 h-4 text-blue-600" />
+                                            </div>
+                                            <div className="flex-1 min-w-0">
+                                                <p className="font-medium text-gray-900 truncate">{schedule.subject_name}</p>
+                                                <p className="text-sm text-gray-600 truncate">{schedule.section_name}</p>
+                                            </div>
+                                        </div>
+                                        <div className="text-right flex-shrink-0">
+                                            <Badge variant="outline" className="font-medium border-blue-200 text-blue-700">
+                                                {schedule.start_time} - {schedule.end_time}
+                                            </Badge>
+                                            <p className="text-sm text-gray-600 mt-1">{schedule.room}</p>
+                                        </div>
                                     </div>
-                                    <div className="text-right">
-                                        <p className="font-medium text-blue-600">{schedule.start_time} - {schedule.end_time}</p>
-                                        <p className="text-sm text-gray-600">{schedule.room}</p>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
+                                ))}
+                            </div>
+                        </CardContent>
+                    </Card>
                 )}
             </div>
         </AuthenticatedLayout>
-    )
+    );
 }

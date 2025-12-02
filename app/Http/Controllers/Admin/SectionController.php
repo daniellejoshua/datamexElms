@@ -2,10 +2,12 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Helpers\AcademicHelper;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\StoreSectionRequest;
 use App\Http\Requests\Admin\UpdateSectionRequest;
 use App\Models\Program;
+use App\Models\SchoolSetting;
 use App\Models\Section;
 use App\Models\Student;
 use App\Models\StudentEnrollment;
@@ -22,12 +24,16 @@ class SectionController extends Controller
 {
     public function index(Request $request): Response
     {
+        // Get current academic period for default filtering
+        $currentAcademicYear = SchoolSetting::getCurrentAcademicYear();
+        $currentSemester = SchoolSetting::getCurrentSemester();
+        
         $query = Section::with(['program', 'subjects', 'sectionSubjects.teacher.user'])
             ->withCount(['studentEnrollments as enrolled_count' => function ($query) {
                 $query->where('status', 'active');
             }]);
 
-        // Apply filters
+        // Apply filters with defaults
         if ($request->has('search') && $request->search) {
             $query->where(function ($q) use ($request) {
                 $q->where('section_name', 'like', '%'.$request->search.'%')
@@ -55,12 +61,40 @@ class SectionController extends Controller
             });
         }
 
-        if ($request->has('academic_year') && $request->academic_year) {
-            $query->where('academic_year', $request->academic_year);
+        // Only apply academic year filter if explicitly provided
+        // Don't apply default if user chose "All" (which removes the parameter)
+        if ($request->has('academic_year')) {
+            $academicYear = $request->get('academic_year');
+            if ($academicYear) {
+                $query->where('academic_year', $academicYear);
+            }
+        } else {
+            // Only apply default on first load (no filters at all)
+            $hasAnyFilter = $request->has('semester') || $request->has('search') || $request->has('program_id') || $request->has('subject_id');
+            if (!$hasAnyFilter) {
+                $academicYear = $currentAcademicYear;
+                $query->where('academic_year', $academicYear);
+            } else {
+                $academicYear = null;
+            }
         }
 
-        if ($request->has('semester') && $request->semester) {
-            $query->where('semester', $request->semester);
+        // Only apply semester filter if explicitly provided
+        // Don't apply default if user chose "All" (which removes the parameter)
+        if ($request->has('semester')) {
+            $semester = $request->get('semester');
+            if ($semester) {
+                $query->where('semester', $semester);
+            }
+        } else {
+            // Only apply default on first load (no filters at all)
+            $hasAnyFilter = $request->has('academic_year') || $request->has('search') || $request->has('program_id') || $request->has('subject_id');
+            if (!$hasAnyFilter) {
+                $semester = $currentSemester;
+                $query->where('semester', $semester);
+            } else {
+                $semester = null;
+            }
         }
 
         $sections = $query->orderBy('academic_year', 'desc')
@@ -77,7 +111,16 @@ class SectionController extends Controller
             'sections' => $sections,
             'programs' => $programs,
             'subjects' => $subjects,
-            'filters' => $request->only(['search', 'program_id', 'subject_id', 'academic_year', 'semester']),
+            'filters' => array_merge([
+                'academic_year' => $academicYear ?? '',
+                'semester' => $semester ?? '',
+            ], $request->only(['search', 'program_id', 'subject_id'])),
+            'currentAcademicPeriod' => [
+                'academic_year' => $currentAcademicYear,
+                'semester' => $currentSemester,
+            ],
+            'academicYearOptions' => AcademicHelper::getAcademicYearOptions(),
+            'semesterOptions' => AcademicHelper::getSemesterOptions(),
         ]);
     }
 

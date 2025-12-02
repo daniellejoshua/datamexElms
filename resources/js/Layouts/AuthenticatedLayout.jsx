@@ -1,6 +1,17 @@
 import ApplicationLogo from '@/Components/ApplicationLogo';
 import { Link, usePage } from '@inertiajs/react';
 import { useState } from 'react';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { Button } from '@/components/ui/button';
+import { ChevronDown, User, LogOut } from 'lucide-react';
 
 export default function AuthenticatedLayout({ header, children }) {
     const user = usePage().props.auth.user;
@@ -150,7 +161,7 @@ export default function AuthenticatedLayout({ header, children }) {
     return (
         <div className="min-h-screen bg-gray-50 flex">
             {/* Left Sidebar */}
-            <div className={`bg-white border-r border-gray-200 transition-all duration-300 ease-in-out ${sidebarCollapsed ? 'w-16' : 'w-64'} flex-shrink-0`}>
+            <div className={`bg-white border-r border-gray-200 transition-all duration-300 ease-in-out ${sidebarCollapsed ? 'w-16' : 'w-56'} flex-shrink-0`}>
                 <div className="h-full flex flex-col">
                     {/* Logo Section */}
                     <div className="flex items-center justify-between p-4 border-b border-gray-200">
@@ -179,25 +190,6 @@ export default function AuthenticatedLayout({ header, children }) {
                         </button>
                     </div>
 
-                    {/* User Info */}
-                    {!sidebarCollapsed && (
-                        <div className="p-4 border-b border-gray-200">
-                            <div className="flex items-center">
-                                <div className="flex-shrink-0">
-                                    <div className="w-10 h-10 bg-gradient-to-br from-red-500 to-blue-600 rounded-full flex items-center justify-center">
-                                        <span className="text-white font-semibold text-sm">
-                                            {user.name.charAt(0).toUpperCase()}
-                                        </span>
-                                    </div>
-                                </div>
-                                <div className="ml-3 overflow-hidden">
-                                    <p className="text-sm font-medium text-gray-900 truncate">{user.name}</p>
-                                    <p className="text-xs text-blue-600 font-medium capitalize truncate">{user.role.replace('_', ' ')}</p>
-                                </div>
-                            </div>
-                        </div>
-                    )}
-
                     {/* Navigation */}
                     <nav className="flex-1 px-4 py-4 space-y-1 overflow-y-auto">
                         {getNavigationItems().map((item) => (
@@ -206,7 +198,7 @@ export default function AuthenticatedLayout({ header, children }) {
                                 href={item.href}
                                 className={`flex items-center px-3 py-3 text-sm font-medium rounded-lg transition-all duration-200 ${
                                     item.current
-                                        ? 'bg-gradient-to-r from-red-500 to-blue-600 text-white shadow-md'
+                                        ? 'bg-red-600 text-white shadow-md'
                                         : 'text-gray-600 hover:bg-red-50 hover:text-red-600'
                                 } ${sidebarCollapsed ? 'justify-center' : ''}`}
                                 title={sidebarCollapsed ? item.name : ''}
@@ -220,32 +212,6 @@ export default function AuthenticatedLayout({ header, children }) {
                             </Link>
                         ))}
                     </nav>
-
-                    {/* Profile & Logout */}
-                    <div className="border-t border-gray-200 p-4 space-y-1">
-                        <Link
-                            href={route('profile.edit')}
-                            className={`flex items-center px-3 py-3 text-sm font-medium text-gray-600 rounded-lg hover:bg-blue-50 hover:text-blue-600 transition-colors ${sidebarCollapsed ? 'justify-center' : ''}`}
-                            title={sidebarCollapsed ? 'Profile' : ''}
-                        >
-                            <svg className="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                            </svg>
-                            {!sidebarCollapsed && <span className="ml-3">Profile</span>}
-                        </Link>
-                        <Link
-                            href={route('logout')}
-                            method="post"
-                            as="button"
-                            className={`w-full flex items-center px-3 py-3 text-sm font-medium text-red-600 rounded-lg hover:bg-red-50 transition-colors ${sidebarCollapsed ? 'justify-center' : ''}`}
-                            title={sidebarCollapsed ? 'Logout' : ''}
-                        >
-                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013 3v1" />
-                            </svg>
-                            {!sidebarCollapsed && <span className="ml-3">Logout</span>}
-                        </Link>
-                    </div>
                 </div>
             </div>
 
@@ -257,6 +223,51 @@ export default function AuthenticatedLayout({ header, children }) {
                         <div className="flex-1">
                             {header}
                         </div>
+                        
+                        {/* Profile Dropdown */}
+                        <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" className="flex items-center space-x-2 px-3 py-2 h-auto">
+                                    <Avatar className="w-8 h-8">
+                                        <AvatarFallback className="bg-red-600 text-white text-xs">
+                                            {user.name.charAt(0).toUpperCase()}
+                                        </AvatarFallback>
+                                    </Avatar>
+                                    <div className="hidden md:block text-left">
+                                        <p className="text-sm font-medium text-gray-900">{user.name}</p>
+                                        <p className="text-xs text-blue-600 capitalize">{user.role.replace('_', ' ')}</p>
+                                    </div>
+                                    <ChevronDown className="w-4 h-4 text-gray-500" />
+                                </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="w-56">
+                                <DropdownMenuLabel>
+                                    <div className="flex flex-col space-y-1">
+                                        <p className="text-sm font-medium">{user.name}</p>
+                                        <p className="text-xs text-blue-600 capitalize">{user.role.replace('_', ' ')}</p>
+                                    </div>
+                                </DropdownMenuLabel>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem asChild>
+                                    <Link href={route('profile.edit')} className="cursor-pointer">
+                                        <User className="w-4 h-4 mr-2" />
+                                        Profile Settings
+                                    </Link>
+                                </DropdownMenuItem>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem asChild>
+                                    <Link 
+                                        href={route('logout')}
+                                        method="post"
+                                        as="button"
+                                        className="cursor-pointer text-red-600 focus:text-red-600 w-full"
+                                    >
+                                        <LogOut className="w-4 h-4 mr-2" />
+                                        Sign Out
+                                    </Link>
+                                </DropdownMenuItem>
+                            </DropdownMenuContent>
+                        </DropdownMenu>
                     </div>
                 </header>
 
