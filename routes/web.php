@@ -8,17 +8,13 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\Student\StudentDashboardController;
 use App\Http\Controllers\Teacher\DashboardController as TeacherDashboardController;
+use App\Http\Controllers\Teacher\GradeController;
 use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
 Route::get('/', function () {
-    return Inertia::render('Welcome', [
-        'canLogin' => Route::has('login'),
-        'canRegister' => Route::has('register'),
-        'laravelVersion' => Application::VERSION,
-        'phpVersion' => PHP_VERSION,
-    ]);
+    return redirect()->route('login');
 });
 
 Route::middleware(['auth', 'verified', 'role:student'])->prefix('student')->group(function () {
@@ -28,7 +24,12 @@ Route::middleware(['auth', 'verified', 'role:student'])->prefix('student')->grou
 // Teacher Routes
 Route::middleware(['auth', 'verified', 'role:teacher'])->prefix('teacher')->name('teacher.')->group(function () {
     Route::get('/dashboard', [TeacherDashboardController::class, 'index'])->name('dashboard');
-    // Additional teacher routes will be added here later
+    
+    // Grade Management
+    Route::get('/sections/{section}/grades', [GradeController::class, 'show'])->name('grades.show');
+    Route::post('/sections/{section}/grades', [GradeController::class, 'updateGrades'])->name('grades.update');
+    Route::post('/sections/{section}/grades/import', [GradeController::class, 'importGrades'])->name('grades.import');
+    Route::get('/sections/{section}/grades/template', [GradeController::class, 'downloadTemplate'])->name('grades.template');
 });
 
 // Admin Routes
