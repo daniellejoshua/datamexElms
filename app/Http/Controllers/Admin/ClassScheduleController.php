@@ -7,6 +7,7 @@ use App\Http\Requests\Admin\StoreClassScheduleRequest;
 use App\Http\Requests\Admin\UpdateClassScheduleRequest;
 use App\Models\ClassSchedule;
 use App\Models\Section;
+use App\Models\SectionSubject;
 use App\Models\Teacher;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -17,19 +18,24 @@ class ClassScheduleController extends Controller
 {
     public function index(Request $request): Response
     {
-        $query = ClassSchedule::with(['section.course', 'teacher.user']);
+        $query = ClassSchedule::with(['sectionSubject.section.program', 'sectionSubject.subject', 'sectionSubject.teacher.user']);
 
         // Apply filters
         if ($request->has('search') && $request->search) {
             $query->where(function ($q) use ($request) {
-                $q->where('room', 'like', '%'.$request->search.'%')
-                    ->orWhereHas('section.course', function ($courseQuery) use ($request) {
-                        $courseQuery->where('subject_name', 'like', '%'.$request->search.'%')
-                            ->orWhere('course_code', 'like', '%'.$request->search.'%');
-                    })
-                    ->orWhereHas('teacher.user', function ($teacherQuery) use ($request) {
-                        $teacherQuery->where('name', 'like', '%'.$request->search.'%');
-                    });
+                $q->whereHas('sectionSubject', function ($ssQuery) use ($request) {
+                    $ssQuery->where('room', 'like', '%'.$request->search.'%')
+                        ->orWhereHas('subject', function ($subjectQuery) use ($request) {
+                            $subjectQuery->where('subject_name', 'like', '%'.$request->search.'%')
+                                ->orWhere('subject_code', 'like', '%'.$request->search.'%');
+                        })
+                        ->orWhereHas('section', function ($sectionQuery) use ($request) {
+                            $sectionQuery->where('section_name', 'like', '%'.$request->search.'%');
+                        })
+                        ->orWhereHas('teacher.user', function ($teacherQuery) use ($request) {
+                            $teacherQuery->where('name', 'like', '%'.$request->search.'%');
+                        });
+                });
             });
         }
 
@@ -38,7 +44,9 @@ class ClassScheduleController extends Controller
         }
 
         if ($request->has('room') && $request->room) {
-            $query->where('room', $request->room);
+            $query->whereHas('sectionSubject', function ($q) use ($request) {
+                $q->where('room', $request->room);
+            });
         }
 
         $schedules = $query->orderBy('day_of_week')
@@ -46,8 +54,8 @@ class ClassScheduleController extends Controller
             ->paginate(15)
             ->withQueryString();
 
-        // Get available rooms for filtering
-        $rooms = ClassSchedule::distinct()->pluck('room')->filter()->sort()->values();
+        // Get available rooms for filtering (from section_subjects table)
+        $rooms = SectionSubject::distinct()->pluck('room')->filter()->sort()->values();
 
         return Inertia::render('Admin/Schedules/Index', [
             'schedules' => $schedules,
@@ -150,30 +158,18 @@ class ClassScheduleController extends Controller
     {
         $conflicts = [];
 
-        // Check teacher conflicts
-        $teacherConflict = ClassSchedule::where('teacher_id', $data['teacher_id'])
-            ->where('day_of_week', $data['day_of_week'])
-            ->where(function ($query) use ($data) {
-                $query->whereBetween('start_time', [$data['start_time'], $data['end_time']])
-                    ->orWhereBetween('end_time', [$data['start_time'], $data['end_time']])
-                    ->orWhere(function ($q) use ($data) {
-                        $q->where('start_time', '<=', $data['start_time'])
-                            ->where('end_time', '>=', $data['end_time']);
-                    });
-            })
-            ->when($excludeId, function ($query, $excludeId) {
-                $query->where('id', '!=', $excludeId);
-            })
-            ->with(['section.course', 'teacher.user'])
-            ->first();
+        // Get the section_subject to access teacher and room
+        $sectionSubject = SectionSubject::find($data['section_subject_id']);
 
-        if ($teacherConflict) {
-            $conflicts[] = "Teacher {$teacherConflict->teacher->user->name} is already scheduled at this time";
+        if (! $sectionSubject) {
+            return $conflicts;
         }
 
-        // Check room conflicts
-        if (! empty($data['room'])) {
-            $roomConflict = ClassSchedule::where('room', $data['room'])
+        // Check teacher conflicts - if this teacher is teaching another section at the same time
+        if ($sectionSubject->teacher_id) {
+            $teacherConflict = ClassSchedule::whereHas('sectionSubject', function ($query) use ($sectionSubject) {
+                $query->where('teacher_id', $sectionSubject->teacher_id);
+            })
                 ->where('day_of_week', $data['day_of_week'])
                 ->where(function ($query) use ($data) {
                     $query->whereBetween('start_time', [$data['start_time'], $data['end_time']])
@@ -186,11 +182,38 @@ class ClassScheduleController extends Controller
                 ->when($excludeId, function ($query, $excludeId) {
                     $query->where('id', '!=', $excludeId);
                 })
-                ->with(['section.course'])
+                ->with(['sectionSubject.section.program', 'sectionSubject.teacher.user'])
+                ->first();
+
+            if ($teacherConflict) {
+                $teacherName = $teacherConflict->sectionSubject->teacher->user->name ?? 'Unknown';
+                $conflicts[] = "Teacher {$teacherName} is already scheduled at this time";
+            }
+        }
+
+        // Check room conflicts
+        if (! empty($sectionSubject->room)) {
+            $roomConflict = ClassSchedule::whereHas('sectionSubject', function ($query) use ($sectionSubject) {
+                $query->where('room', $sectionSubject->room);
+            })
+                ->where('day_of_week', $data['day_of_week'])
+                ->where(function ($query) use ($data) {
+                    $query->whereBetween('start_time', [$data['start_time'], $data['end_time']])
+                        ->orWhereBetween('end_time', [$data['start_time'], $data['end_time']])
+                        ->orWhere(function ($q) use ($data) {
+                            $q->where('start_time', '<=', $data['start_time'])
+                                ->where('end_time', '>=', $data['end_time']);
+                        });
+                })
+                ->when($excludeId, function ($query, $excludeId) {
+                    $query->where('id', '!=', $excludeId);
+                })
+                ->with(['sectionSubject.section.program', 'sectionSubject.subject'])
                 ->first();
 
             if ($roomConflict) {
-                $conflicts[] = "Room {$data['room']} is already booked at this time for {$roomConflict->section->course->subject_name}";
+                $subjectName = $roomConflict->sectionSubject->subject->subject_name ?? 'Unknown';
+                $conflicts[] = "Room {$sectionSubject->room} is already booked at this time for {$subjectName}";
             }
         }
 

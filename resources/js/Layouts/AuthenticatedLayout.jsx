@@ -179,7 +179,7 @@ export default function AuthenticatedLayout({ header, children }) {
     return (
         <div className="min-h-screen bg-gray-50 flex">
             {/* Left Sidebar */}
-            <div className={`bg-white border-r border-gray-200 transition-all duration-300 ease-in-out ${sidebarCollapsed ? 'w-16' : 'w-56'} flex-shrink-0`}>
+            <div className={`bg-white border-r border-gray-200 transition-all duration-300 ease-in-out ${sidebarCollapsed ? 'w-16' : 'w-48'} flex-shrink-0`}>
                 <div className="h-full flex flex-col">
                     {/* Logo Section */}
                     <div className="flex items-center justify-between p-4 border-b border-gray-200">

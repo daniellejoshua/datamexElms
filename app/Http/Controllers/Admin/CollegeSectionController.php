@@ -70,7 +70,7 @@ class CollegeSectionController extends Controller
             ->orderBy('semester')
             ->orderBy('program_id')
             ->orderBy('section_name')
-            ->paginate(15)
+            ->paginate(6)
             ->withQueryString();
 
         $programs = Program::where('education_level', 'college')->orderBy('program_code')->get();

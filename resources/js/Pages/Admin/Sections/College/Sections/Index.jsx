@@ -24,10 +24,12 @@ const Index = ({
     filters = {}, 
     currentAcademicPeriod = {}, 
     academicYearOptions = [], 
-    semesterOptions = [] 
+    semesterOptions = [],
+    programs = []
 }) => {
     const [selectedAcademicYear, setSelectedAcademicYear] = useState(filters.academic_year || '');
     const [selectedSemester, setSelectedSemester] = useState(filters.semester || '');
+    const [selectedProgram, setSelectedProgram] = useState(filters.program_id || '');
 
     const handleFilterChange = (type, value) => {
         const newFilters = { ...filters };
@@ -43,6 +45,8 @@ const Index = ({
             setSelectedAcademicYear(value === 'all' ? '' : value);
         } else if (type === 'semester') {
             setSelectedSemester(value === 'all' ? '' : value);
+        } else if (type === 'program_id') {
+            setSelectedProgram(value === 'all' ? '' : value);
         }
 
         // Navigate with filters
@@ -69,14 +73,14 @@ const Index = ({
     return (
         <AuthenticatedLayout
             header={
-                <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                        <div className="bg-blue-100 p-2 rounded-lg">
-                            <School className="w-6 h-6 text-blue-600" />
+                <div className="flex items-center justify-between px-2 py-1">
+                    <div className="flex items-center gap-2">
+                        <div className="bg-blue-100 p-1.5 rounded-md">
+                            <School className="w-4 h-4 text-blue-600" />
                         </div>
                         <div>
-                            <h2 className="text-2xl font-bold text-gray-900">College Sections</h2>
-                            <p className="text-sm text-gray-600 mt-1">Manage college program sections and enrollment</p>
+                            <h2 className="text-lg font-semibold text-gray-900">College Sections</h2>
+                            <p className="text-xs text-gray-500 mt-0.5">Manage college program sections</p>
                         </div>
                     </div>
                 </div>
@@ -84,47 +88,45 @@ const Index = ({
         >
             <Head title="College Sections" />
             
-            <div className="p-4 sm:p-6 lg:p-8">
+            <div className="p-2 sm:p-3 lg:p-4">
                 {/* Current Academic Period Banner */}
-                <div className="mb-6 bg-gradient-to-r from-blue-50 to-indigo-50 p-4 rounded-lg border border-blue-200">
+                <div className="mb-3 bg-gradient-to-r from-blue-50 to-indigo-50 p-2 rounded-md border border-blue-200">
                     <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                            <Calendar className="w-5 h-5 text-blue-600" />
+                        <div className="flex items-center gap-2">
+                            <Calendar className="w-3 h-3 text-blue-600" />
                             <div>
-                                <h3 className="font-semibold text-blue-900">Current Academic Period</h3>
-                                <p className="text-sm text-blue-700">
+                                <h3 className="text-xs font-medium text-blue-900">Current Period</h3>
+                                <p className="text-xs text-blue-700">
                                     {currentAcademicPeriod.academic_year} • {getSemesterDisplayName(currentAcademicPeriod.semester)}
                                 </p>
                             </div>
                         </div>
-                        <Button asChild className="bg-red-600 hover:bg-red-700 text-white shadow-lg">
+                        <Button asChild size="sm" className="bg-red-600 hover:bg-red-700 text-white text-xs h-7 px-2">
                             <Link href={route('admin.college.sections.create')}>
-                                <Plus className="w-4 h-4 mr-2" />
-                                Create Section
+                                <Plus className="w-3 h-3 mr-1" />
+                                Create
                             </Link>
                         </Button>
                     </div>
                 </div>
 
                 {/* Filters */}
-                <Card className="mb-6">
-                    <CardHeader>
-                        <CardTitle className="flex items-center gap-2 text-lg">
-                            <Filter className="w-5 h-5" />
-                            Filters
-                        </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <Card className="mb-4 border-0 shadow-sm bg-gradient-to-r from-blue-50 to-indigo-50">
+                    <CardContent className="pt-3 pb-3">
+                        <div className="flex items-center gap-3 mb-2">
+                            <Filter className="w-4 h-4 text-blue-600" />
+                            <span className="text-sm font-medium text-blue-900">Filter Sections</span>
+                        </div>
+                        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
                             {/* Academic Year Filter */}
-                            <div className="space-y-2">
-                                <label className="text-sm font-medium text-gray-700">Academic Year</label>
+                            <div className="space-y-1">
+                                <label className="text-xs font-medium text-gray-600">Academic Year</label>
                                 <Select 
                                     value={selectedAcademicYear || 'all'} 
                                     onValueChange={(value) => handleFilterChange('academic_year', value)}
                                 >
-                                    <SelectTrigger>
-                                        <SelectValue placeholder="Select academic year" />
+                                    <SelectTrigger className="h-8 text-sm border-blue-200 hover:border-blue-400 focus:border-blue-500 focus:ring-blue-200">
+                                        <SelectValue placeholder="Academic Year" />
                                     </SelectTrigger>
                                     <SelectContent>
                                         <SelectItem value="all">Show All</SelectItem>
@@ -138,14 +140,14 @@ const Index = ({
                             </div>
 
                             {/* Semester Filter */}
-                            <div className="space-y-2">
-                                <label className="text-sm font-medium text-gray-700">Semester</label>
+                            <div className="space-y-1">
+                                <label className="text-xs font-medium text-gray-600">Semester</label>
                                 <Select 
                                     value={selectedSemester || 'all'} 
                                     onValueChange={(value) => handleFilterChange('semester', value)}
                                 >
-                                    <SelectTrigger>
-                                        <SelectValue placeholder="Select semester" />
+                                    <SelectTrigger className="h-8 text-sm border-blue-200 hover:border-blue-400 focus:border-blue-500 focus:ring-blue-200">
+                                        <SelectValue placeholder="Semester" />
                                     </SelectTrigger>
                                     <SelectContent>
                                         <SelectItem value="all">Show All</SelectItem>
@@ -157,12 +159,33 @@ const Index = ({
                                     </SelectContent>
                                 </Select>
                             </div>
+
+                            {/* Program Filter */}
+                            <div className="space-y-1">
+                                <label className="text-xs font-medium text-gray-600">Program</label>
+                                <Select 
+                                    value={selectedProgram || 'all'} 
+                                    onValueChange={(value) => handleFilterChange('program_id', value)}
+                                >
+                                    <SelectTrigger className="h-8 text-sm border-blue-200 hover:border-blue-400 focus:border-blue-500 focus:ring-blue-200">
+                                        <SelectValue placeholder="Program" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="all">Show All Programs</SelectItem>
+                                        {programs.map((program) => (
+                                            <SelectItem key={program.id} value={program.id.toString()}>
+                                                {program.program_code} - {program.program_name}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
                         </div>
                     </CardContent>
                 </Card>
 
                 {/* Sections Grid */}
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3 gap-4">
                     {sections?.data?.length > 0 ? (
                         sections.data.map((section) => {
                             return (
@@ -296,9 +319,9 @@ const Index = ({
 
                 {/* Pagination */}
                 {sections?.links && sections.links.length > 3 && (
-                    <Card className="p-6 mt-6">
+                    <Card className="p-3 mt-4">
                         <div className="flex justify-center">
-                            <nav className="flex items-center space-x-2">
+                            <nav className="flex items-center space-x-1">
                                 {sections.links.map((link, index) => {
                                     if (link.url) {
                                         return (
@@ -307,10 +330,11 @@ const Index = ({
                                                 asChild
                                                 variant={link.active ? "default" : "outline"}
                                                 size="sm"
-                                                className={link.active 
-                                                    ? "bg-blue-600 hover:bg-blue-700 text-white shadow-md" 
-                                                    : "border-gray-300 hover:border-blue-300 text-gray-700"
-                                                }
+                                                className={`h-7 px-2 text-xs ${
+                                                    link.active 
+                                                        ? "bg-blue-600 hover:bg-blue-700 text-white" 
+                                                        : "border-gray-300 hover:border-blue-300 text-gray-700"
+                                                }`}
                                             >
                                                 <Link href={link.url}>
                                                     <span dangerouslySetInnerHTML={{ __html: link.label }} />
@@ -324,7 +348,7 @@ const Index = ({
                                                 variant="outline"
                                                 size="sm"
                                                 disabled
-                                                className="border-gray-200 text-gray-400"
+                                                className="border-gray-200 text-gray-400 h-7 px-2 text-xs"
                                             >
                                                 <span dangerouslySetInnerHTML={{ __html: link.label }} />
                                             </Button>

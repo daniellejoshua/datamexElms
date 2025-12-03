@@ -23,12 +23,10 @@ class StoreClassScheduleRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'section_id' => ['required', 'exists:sections,id'],
-            'teacher_id' => ['required', 'exists:teachers,id'],
+            'section_subject_id' => ['required', 'exists:section_subjects,id'],
             'day_of_week' => ['required', Rule::in(['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'])],
             'start_time' => ['required', 'date_format:H:i'],
             'end_time' => ['required', 'date_format:H:i', 'after:start_time'],
-            'room' => ['nullable', 'string', 'max:50'],
         ];
     }
 
@@ -38,8 +36,7 @@ class StoreClassScheduleRequest extends FormRequest
     public function messages(): array
     {
         return [
-            'section_id.required' => 'Please select a section.',
-            'teacher_id.required' => 'Please select a teacher.',
+            'section_subject_id.required' => 'Please select a section and subject.',
             'day_of_week.required' => 'Please select a day of the week.',
             'start_time.required' => 'Start time is required.',
             'end_time.required' => 'End time is required.',
