@@ -148,33 +148,7 @@ const Index = () => {
                 </div>
 
                 {/* Additional Information Card */}
-                <Card className="mt-8 border-gray-200 bg-gradient-to-r from-gray-50 to-blue-50/30">
-                    <CardContent className="p-6">
-                        <div className="flex items-start gap-4">
-                            <div className="bg-indigo-100 p-2 rounded-lg flex-shrink-0">
-                                <Building2 className="w-5 h-5 text-indigo-600" />
-                            </div>
-                            <div>
-                                <h3 className="font-semibold text-gray-900 mb-2">Section Management Overview</h3>
-                                <p className="text-sm text-gray-600 leading-relaxed">
-                                    The section management system allows you to organize students into appropriate class groups 
-                                    based on their educational level. College sections handle university-level courses with flexible 
-                                    year groupings, while SHS sections focus on track-based learning for grades 11 and 12.
-                                </p>
-                                <div className="flex flex-wrap gap-6 mt-4">
-                                    <div className="flex items-center gap-2">
-                                        <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-                                        <span className="text-xs text-gray-600">College: Years 1-4 Programs</span>
-                                    </div>
-                                    <div className="flex items-center gap-2">
-                                        <div className="w-2 h-2 bg-purple-500 rounded-full"></div>
-                                        <span className="text-xs text-gray-600">SHS: Grades 11-12 Tracks</span>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </CardContent>
-                </Card>
+                
             </div>
         </AuthenticatedLayout>
     );

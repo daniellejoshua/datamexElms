@@ -128,11 +128,7 @@ const Create = ({ programs, currentAcademicPeriod, academicYearOptions, semester
                                                                 {program.program_code}
                                                             </Badge>
                                                             <span className="text-sm">{program.program_name}</span>
-                                                            {program.track && (
-                                                                <Badge variant="outline" className="text-xs">
-                                                                    {program.track}
-                                                                </Badge>
-                                                            )}
+                                                          
                                                         </div>
                                                     </SelectItem>
                                                 ))}

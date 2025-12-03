@@ -172,8 +172,8 @@ const Index = ({
                                         <Badge 
                                             className={`shadow-md font-semibold ${
                                                 section.status === 'active' 
-                                                    ? 'bg-white hover:bg-green-700 text-green-500 border-green-600' 
-                                                    : 'bg-white hover:bg-red-700 text-red-600 border-red-600'
+                                                    ? 'bg-white  text-green-500 border-green-600' 
+                                                    : 'bg-white text-red-600 border-red-600'
                                             }`}
                                         >
                                             {section.status}
