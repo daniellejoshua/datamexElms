@@ -11,11 +11,11 @@ use App\Http\Controllers\Admin\ShsSubjectController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\Student\StudentDashboardController;
+use App\Http\Controllers\Teacher\CourseMaterialController;
 use App\Http\Controllers\Teacher\DashboardController as TeacherDashboardController;
 use App\Http\Controllers\Teacher\GradeController;
-use Illuminate\Foundation\Application;
+use App\Http\Controllers\Teacher\SectionController as TeacherSectionController;
 use Illuminate\Support\Facades\Route;
-use Inertia\Inertia;
 
 Route::get('/', function () {
     return redirect()->route('login');
@@ -28,12 +28,22 @@ Route::middleware(['auth', 'verified', 'role:student'])->prefix('student')->grou
 // Teacher Routes
 Route::middleware(['auth', 'verified', 'role:teacher'])->prefix('teacher')->name('teacher.')->group(function () {
     Route::get('/dashboard', [TeacherDashboardController::class, 'index'])->name('dashboard');
-    
+
+    // Section Management
+    Route::get('/sections/college', [TeacherSectionController::class, 'college'])->name('sections.college');
+    Route::get('/sections/shs', [TeacherSectionController::class, 'shs'])->name('sections.shs');
+
     // Grade Management
     Route::get('/sections/{section}/grades', [GradeController::class, 'show'])->name('grades.show');
     Route::post('/sections/{section}/grades', [GradeController::class, 'updateGrades'])->name('grades.update');
     Route::post('/sections/{section}/grades/import', [GradeController::class, 'importGrades'])->name('grades.import');
     Route::get('/sections/{section}/grades/template', [GradeController::class, 'downloadTemplate'])->name('grades.template');
+
+    // Course Materials Management
+    Route::get('/sections/{section}/materials', [CourseMaterialController::class, 'index'])->name('materials.index');
+    Route::post('/sections/{section}/materials', [CourseMaterialController::class, 'store'])->name('materials.store');
+    Route::delete('/sections/{section}/materials/{material}', [CourseMaterialController::class, 'destroy'])->name('materials.destroy');
+    Route::get('/sections/{section}/materials/{material}/download', [CourseMaterialController::class, 'download'])->name('materials.download');
 });
 
 // Admin Routes
@@ -68,7 +78,7 @@ Route::middleware(['auth', 'verified'])->prefix('admin')->name('admin.')->group(
             Route::resource('sections', CollegeSectionController::class);
             Route::get('sections/{section}/subjects', [CollegeSectionController::class, 'subjects'])->name('sections.subjects');
             Route::post('sections/{section}/subjects', [CollegeSectionController::class, 'attachSubject'])->name('sections.attach-subject');
-            
+
             // College Subjects
             Route::resource('subjects', CollegeSubjectController::class);
         });
@@ -79,7 +89,7 @@ Route::middleware(['auth', 'verified'])->prefix('admin')->name('admin.')->group(
             Route::resource('sections', ShsSectionController::class);
             Route::get('sections/{section}/subjects', [ShsSectionController::class, 'subjects'])->name('sections.subjects');
             Route::post('sections/{section}/subjects', [ShsSectionController::class, 'attachSubject'])->name('sections.attach-subject');
-            
+
             // SHS Subjects
             Route::resource('subjects', ShsSubjectController::class);
         });

@@ -11,9 +11,63 @@ export default function Show({ section, sectionSubject, enrollments, isCollegeLe
     const [editingGrades, setEditingGrades] = useState({});
     const [showUploadDialog, setShowUploadDialog] = useState(false);
 
+    // // Debug: Log the section details to help identify the issue
+    // console.log('Section Details:', {
+    //     section_name: section.section_name,
+    //     program: section.program,
+    //     isCollegeLevel: isCollegeLevel,
+    //     type: typeof isCollegeLevel
+    // });
+
     const { data, setData, post, processing, errors, reset } = useForm({
         grades: []
     });
+
+    // Create simplified section name format
+    const getSimplifiedSectionName = () => {
+        // Format: ProgramCode-YearLevel+SectionIdentifier (e.g., "BSIT-3D", "ABM-12A")
+        const programCode = section.program?.program_code || 'N/A';
+        const yearLevel = section.year_level || '';
+        
+        // Get identifier (usually the letter part like A, B, C, D)
+        const identifierMatch = section.section_name.match(/([A-Za-z]+)$/);
+        const identifier = identifierMatch ? identifierMatch[1].toUpperCase() : '';
+        
+        if (yearLevel && identifier) {
+            return `${programCode}-${yearLevel}${identifier}`;
+        } else if (identifier) {
+            return `${programCode}-${identifier}`;
+        }
+        
+        // Fallback to original section name if parsing fails
+        return section.section_name;
+    };
+
+    // Handle saving individual student grades
+    const handleSaveIndividualGrade = async (enrollmentId) => {
+        const studentGrade = data.grades.find(grade => grade.enrollment_id === enrollmentId);
+        if (!studentGrade) return;
+
+        try {
+            await router.post(route('teacher.grades.update', section.id), {
+                grades: [studentGrade]
+            }, {
+                preserveScroll: true,
+                onSuccess: () => {
+                    // Remove editing state for this student
+                    const newEditingGrades = { ...editingGrades };
+                    Object.keys(newEditingGrades).forEach(key => {
+                        if (key.startsWith(`${enrollmentId}_`)) {
+                            delete newEditingGrades[key];
+                        }
+                    });
+                    setEditingGrades(newEditingGrades);
+                }
+            });
+        } catch (error) {
+            console.error('Error saving individual grade:', error);
+        }
+    };
 
     // Filter students based on search term
     const filteredEnrollments = useMemo(() => {
@@ -158,44 +212,51 @@ export default function Show({ section, sectionSubject, enrollments, isCollegeLe
     return (
         <AuthenticatedLayout
             header={
-                <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                    <div className="bg-blue-100 p-2 rounded-lg">
+                        <FileSpreadsheet className="w-6 h-6 text-blue-600" />
+                    </div>
                     <div>
                         <h2 className="text-2xl font-bold text-gray-900">Grade Management</h2>
-                        <p className="text-sm text-blue-600 font-medium">
-                            {section.section_name} - {sectionSubject.subject?.subject_name}
+                        <p className="text-sm text-gray-600">
+                            {getSimplifiedSectionName()} - {sectionSubject.subject?.subject_code}
                         </p>
-                        <p className="text-xs text-gray-500 mt-1">
-                            {section.semester} Semester • {section.academic_year} • {section.program?.name}
-                        </p>
-                    </div>
-                    <div className="flex items-center space-x-3">
-                        <Button 
-                            variant="outline" 
-                            onClick={downloadTemplate}
-                            className="text-blue-600 border-blue-200 hover:bg-blue-50"
-                        >
-                            <Download className="w-4 h-4 mr-2" />
-                            Download Template
-                        </Button>
-                        
-                        <Button 
-                            onClick={() => setShowUploadDialog(true)}
-                            className="bg-gradient-to-r from-red-500 to-blue-600 hover:from-red-600 hover:to-blue-700 text-white"
-                        >
-                            <Upload className="w-4 h-4 mr-2" />
-                            Import Grades
-                        </Button>
                     </div>
                 </div>
             }
         >
-            <Head title={`Grades - ${section.section_name}`} />
+            <Head title={`Grades - ${getSimplifiedSectionName()}`} />
 
             <div className="p-6">
+                {/* Section Header with Actions */}
+                <div className="mb-6">
+                    <div className="flex items-center justify-end mb-4">
+                       
+                        <div className="flex items-center gap-3">
+                            <Button 
+                                variant="outline" 
+                                onClick={downloadTemplate}
+                                className="text-blue-600 border-blue-200 hover:bg-blue-50"
+                            >
+                                <Download className="w-4 h-4 mr-2" />
+                                Download Template
+                            </Button>
+                            
+                            <Button 
+                                onClick={() => setShowUploadDialog(true)}
+                                className="bg-blue-600 hover:bg-blue-700 text-white"
+                            >
+                                <Upload className="w-4 h-4 mr-2" />
+                                Import Grades
+                            </Button>
+                        </div>
+                    </div>
+                </div>
+
                 <div className="bg-white rounded-xl shadow-sm border border-gray-200">
                     <div className="p-6">
                         {/* Search and Controls */}
-                        <div className="mb-6 space-y-4">
+                        <div className="mb-6">
                             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                                 <div className="relative max-w-xs">
                                     <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
@@ -204,7 +265,7 @@ export default function Show({ section, sectionSubject, enrollments, isCollegeLe
                                         placeholder="Search students..."
                                         value={searchTerm}
                                         onChange={(e) => setSearchTerm(e.target.value)}
-                                        className="pl-10 border-gray-300 focus:ring-2 focus:ring-red-500 focus:border-red-500"
+                                        className="pl-10 border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                                     />
                                 </div>
 
@@ -212,37 +273,11 @@ export default function Show({ section, sectionSubject, enrollments, isCollegeLe
                                     <Button 
                                         onClick={handleSaveGrades}
                                         disabled={processing}
-                                        className="bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white"
+                                        className="bg-green-600 hover:bg-green-700 text-white"
                                     >
                                         <Save className="w-4 h-4 mr-2" />
                                         {processing ? 'Saving...' : 'Save All Grades'}
                                     </Button>
-                                </div>
-                            </div>
-
-                            {/* Grade Legend */}
-                            <div className="flex flex-wrap gap-3 text-sm">
-                                <div className="flex items-center gap-2">
-                                    <CheckCircle className="w-4 h-4 text-green-600" />
-                                    <span className="text-green-600 font-medium">
-                                        Excellent: {isCollegeLevel ? '1.0-1.25' : '90-100'}
-                                    </span>
-                                </div>
-                                <div className="flex items-center gap-2">
-                                    <CheckCircle className="w-4 h-4 text-blue-600" />
-                                    <span className="text-blue-600 font-medium">
-                                        Passed: {isCollegeLevel ? '1.26-2.75' : '75-89'}
-                                    </span>
-                                </div>
-                                <div className="flex items-center gap-2">
-                                    <XCircle className="w-4 h-4 text-red-600" />
-                                    <span className="text-red-600 font-medium">
-                                        Failed: {isCollegeLevel ? '2.76+' : 'Below 75'}
-                                    </span>
-                                </div>
-                                <div className="flex items-center gap-2">
-                                    <AlertTriangle className="w-4 h-4 text-gray-600" />
-                                    <span className="text-gray-600 font-medium">Incomplete</span>
                                 </div>
                             </div>
                         </div>
@@ -258,8 +293,8 @@ export default function Show({ section, sectionSubject, enrollments, isCollegeLe
                                             <>
                                                 <TableHead className="text-center font-bold text-gray-900">Prelim</TableHead>
                                                 <TableHead className="text-center font-bold text-gray-900">Midterm</TableHead>
-                                                <TableHead className="text-center font-bold text-gray-900">Pre-Final</TableHead>
-                                                <TableHead className="text-center font-bold text-gray-900">Final</TableHead>
+                                                <TableHead className="text-center font-bold text-gray-900">Prefinals</TableHead>
+                                                <TableHead className="text-center font-bold text-gray-900">Finals</TableHead>
                                             </>
                                         ) : (
                                             <>
@@ -269,8 +304,9 @@ export default function Show({ section, sectionSubject, enrollments, isCollegeLe
                                                 <TableHead className="text-center font-bold text-gray-900">Q4</TableHead>
                                             </>
                                         )}
-                                        <TableHead className="text-center font-bold text-red-600">Semester Grade</TableHead>
+                                        <TableHead className="text-center font-bold text-blue-600">Semester Grade</TableHead>
                                         <TableHead className="text-center font-bold text-gray-900">Remarks</TableHead>
+                                        <TableHead className="text-center font-bold text-gray-900">Actions</TableHead>
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
@@ -288,12 +324,12 @@ export default function Show({ section, sectionSubject, enrollments, isCollegeLe
                                                         <Input
                                                             type="number"
                                                             step="0.01"
-                                                            min="1.0"
-                                                            max="5.0"
+                                                            min="0"
+                                                            max="100"
                                                             value={gradeData.prelim_grade}
                                                             onChange={(e) => handleGradeChange(gradeData.enrollment_id, 'prelim_grade', e.target.value)}
-                                                            className={`w-20 text-center border-gray-300 focus:ring-red-500 focus:border-red-500 ${
-                                                                editingGrades[`${gradeData.enrollment_id}_prelim_grade`] ? 'ring-2 ring-red-300' : ''
+                                                            className={`w-20 text-center border-gray-300 focus:ring-blue-500 focus:border-blue-500 ${
+                                                                editingGrades[`${gradeData.enrollment_id}_prelim_grade`] ? 'ring-2 ring-blue-300' : ''
                                                             } ${getGradeStatusColor(getGradeStatus(gradeData.prelim_grade))}`}
                                                         />
                                                     </TableCell>
@@ -301,12 +337,12 @@ export default function Show({ section, sectionSubject, enrollments, isCollegeLe
                                                         <Input
                                                             type="number"
                                                             step="0.01"
-                                                            min="1.0"
-                                                            max="5.0"
+                                                            min="0"
+                                                            max="100"
                                                             value={gradeData.midterm_grade}
                                                             onChange={(e) => handleGradeChange(gradeData.enrollment_id, 'midterm_grade', e.target.value)}
-                                                            className={`w-20 text-center border-gray-300 focus:ring-red-500 focus:border-red-500 ${
-                                                                editingGrades[`${gradeData.enrollment_id}_midterm_grade`] ? 'ring-2 ring-red-300' : ''
+                                                            className={`w-20 text-center border-gray-300 focus:ring-blue-500 focus:border-blue-500 ${
+                                                                editingGrades[`${gradeData.enrollment_id}_midterm_grade`] ? 'ring-2 ring-blue-300' : ''
                                                             } ${getGradeStatusColor(getGradeStatus(gradeData.midterm_grade))}`}
                                                         />
                                                     </TableCell>
@@ -314,12 +350,12 @@ export default function Show({ section, sectionSubject, enrollments, isCollegeLe
                                                         <Input
                                                             type="number"
                                                             step="0.01"
-                                                            min="1.0"
-                                                            max="5.0"
+                                                            min="0"
+                                                            max="100"
                                                             value={gradeData.prefinal_grade}
                                                             onChange={(e) => handleGradeChange(gradeData.enrollment_id, 'prefinal_grade', e.target.value)}
-                                                            className={`w-20 text-center border-gray-300 focus:ring-red-500 focus:border-red-500 ${
-                                                                editingGrades[`${gradeData.enrollment_id}_prefinal_grade`] ? 'ring-2 ring-red-300' : ''
+                                                            className={`w-20 text-center border-gray-300 focus:ring-blue-500 focus:border-blue-500 ${
+                                                                editingGrades[`${gradeData.enrollment_id}_prefinal_grade`] ? 'ring-2 ring-blue-300' : ''
                                                             } ${getGradeStatusColor(getGradeStatus(gradeData.prefinal_grade))}`}
                                                         />
                                                     </TableCell>
@@ -327,12 +363,12 @@ export default function Show({ section, sectionSubject, enrollments, isCollegeLe
                                                         <Input
                                                             type="number"
                                                             step="0.01"
-                                                            min="1.0"
-                                                            max="5.0"
+                                                            min="0"
+                                                            max="100"
                                                             value={gradeData.final_grade}
                                                             onChange={(e) => handleGradeChange(gradeData.enrollment_id, 'final_grade', e.target.value)}
-                                                            className={`w-20 text-center border-gray-300 focus:ring-red-500 focus:border-red-500 ${
-                                                                editingGrades[`${gradeData.enrollment_id}_final_grade`] ? 'ring-2 ring-red-300' : ''
+                                                            className={`w-20 text-center border-gray-300 focus:ring-blue-500 focus:border-blue-500 ${
+                                                                editingGrades[`${gradeData.enrollment_id}_final_grade`] ? 'ring-2 ring-blue-300' : ''
                                                             } ${getGradeStatusColor(getGradeStatus(gradeData.final_grade))}`}
                                                         />
                                                     </TableCell>
@@ -346,8 +382,8 @@ export default function Show({ section, sectionSubject, enrollments, isCollegeLe
                                                             max="100"
                                                             value={gradeData.first_quarter_grade}
                                                             onChange={(e) => handleGradeChange(gradeData.enrollment_id, 'first_quarter_grade', e.target.value)}
-                                                            className={`w-20 text-center border-gray-300 focus:ring-red-500 focus:border-red-500 ${
-                                                                editingGrades[`${gradeData.enrollment_id}_first_quarter_grade`] ? 'ring-2 ring-red-300' : ''
+                                                            className={`w-20 text-center border-gray-300 focus:ring-purple-500 focus:border-purple-500 ${
+                                                                editingGrades[`${gradeData.enrollment_id}_first_quarter_grade`] ? 'ring-2 ring-purple-300' : ''
                                                             } ${getGradeStatusColor(getGradeStatus(gradeData.first_quarter_grade))}`}
                                                         />
                                                     </TableCell>
@@ -358,8 +394,8 @@ export default function Show({ section, sectionSubject, enrollments, isCollegeLe
                                                             max="100"
                                                             value={gradeData.second_quarter_grade}
                                                             onChange={(e) => handleGradeChange(gradeData.enrollment_id, 'second_quarter_grade', e.target.value)}
-                                                            className={`w-20 text-center border-gray-300 focus:ring-red-500 focus:border-red-500 ${
-                                                                editingGrades[`${gradeData.enrollment_id}_second_quarter_grade`] ? 'ring-2 ring-red-300' : ''
+                                                            className={`w-20 text-center border-gray-300 focus:ring-purple-500 focus:border-purple-500 ${
+                                                                editingGrades[`${gradeData.enrollment_id}_second_quarter_grade`] ? 'ring-2 ring-purple-300' : ''
                                                             } ${getGradeStatusColor(getGradeStatus(gradeData.second_quarter_grade))}`}
                                                         />
                                                     </TableCell>
@@ -370,8 +406,8 @@ export default function Show({ section, sectionSubject, enrollments, isCollegeLe
                                                             max="100"
                                                             value={gradeData.third_quarter_grade}
                                                             onChange={(e) => handleGradeChange(gradeData.enrollment_id, 'third_quarter_grade', e.target.value)}
-                                                            className={`w-20 text-center border-gray-300 focus:ring-red-500 focus:border-red-500 ${
-                                                                editingGrades[`${gradeData.enrollment_id}_third_quarter_grade`] ? 'ring-2 ring-red-300' : ''
+                                                            className={`w-20 text-center border-gray-300 focus:ring-purple-500 focus:border-purple-500 ${
+                                                                editingGrades[`${gradeData.enrollment_id}_third_quarter_grade`] ? 'ring-2 ring-purple-300' : ''
                                                             } ${getGradeStatusColor(getGradeStatus(gradeData.third_quarter_grade))}`}
                                                         />
                                                     </TableCell>
@@ -382,8 +418,8 @@ export default function Show({ section, sectionSubject, enrollments, isCollegeLe
                                                             max="100"
                                                             value={gradeData.fourth_quarter_grade}
                                                             onChange={(e) => handleGradeChange(gradeData.enrollment_id, 'fourth_quarter_grade', e.target.value)}
-                                                            className={`w-20 text-center border-gray-300 focus:ring-red-500 focus:border-red-500 ${
-                                                                editingGrades[`${gradeData.enrollment_id}_fourth_quarter_grade`] ? 'ring-2 ring-red-300' : ''
+                                                            className={`w-20 text-center border-gray-300 focus:ring-purple-500 focus:border-purple-500 ${
+                                                                editingGrades[`${gradeData.enrollment_id}_fourth_quarter_grade`] ? 'ring-2 ring-purple-300' : ''
                                                             } ${getGradeStatusColor(getGradeStatus(gradeData.fourth_quarter_grade))}`}
                                                         />
                                                     </TableCell>

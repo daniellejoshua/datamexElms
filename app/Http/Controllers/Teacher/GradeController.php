@@ -48,10 +48,43 @@ class GradeController extends Controller
         ->get();
 
         // Determine if this is college or SHS based on section
-        $isCollegeLevel = in_array($section->year_level, ['1st Year', '2nd Year', '3rd Year', '4th Year']);
+        // Load the program relationship if not already loaded
+        $section->load('program');
+        
+        // Check multiple ways to determine if it's college level:
+        // 1. Check program type/name for college indicators
+        // 2. Check year level format variations
+        $isCollegeLevel = false;
+        
+        if ($section->program) {
+            // Check if program name contains college indicators
+            $programName = strtolower($section->program->program_name ?? '');
+            $collegeIndicators = ['bachelor', 'bs', 'ba', 'bsit', 'bscs', 'college'];
+            
+            foreach ($collegeIndicators as $indicator) {
+                if (strpos($programName, $indicator) !== false) {
+                    $isCollegeLevel = true;
+                    break;
+                }
+            }
+        }
+        
+        // If not determined by program, check year level
+        if (!$isCollegeLevel) {
+            $yearLevel = $section->year_level;
+            
+            // Check various year level formats
+            $collegeYearFormats = [
+                '1st Year', '2nd Year', '3rd Year', '4th Year',
+                '1', '2', '3', '4',
+                1, 2, 3, 4
+            ];
+            
+            $isCollegeLevel = in_array($yearLevel, $collegeYearFormats, true);
+        }
 
         return Inertia::render('Teacher/Grades/Show', [
-            'section' => $section->load(['sectionSubjects.subject']),
+            'section' => $section->load(['program', 'sectionSubjects.subject']),
             'sectionSubject' => $sectionSubject,
             'enrollments' => $enrollments,
             'isCollegeLevel' => $isCollegeLevel,
@@ -89,8 +122,33 @@ class GradeController extends Controller
         foreach ($validated['grades'] as $gradeData) {
             $enrollment = StudentEnrollment::findOrFail($gradeData['enrollment_id']);
             
-            // Determine if this is college or SHS
-            $isCollegeLevel = in_array($enrollment->section->year_level, ['1st Year', '2nd Year', '3rd Year', '4th Year']);
+            // Determine if this is college or SHS with improved logic
+            $enrollment->section->load('program');
+            
+            $isCollegeLevel = false;
+            
+            if ($enrollment->section->program) {
+                $programName = strtolower($enrollment->section->program->program_name ?? '');
+                $collegeIndicators = ['bachelor', 'bs', 'ba', 'bsit', 'bscs', 'college'];
+                
+                foreach ($collegeIndicators as $indicator) {
+                    if (strpos($programName, $indicator) !== false) {
+                        $isCollegeLevel = true;
+                        break;
+                    }
+                }
+            }
+            
+            if (!$isCollegeLevel) {
+                $yearLevel = $enrollment->section->year_level;
+                $collegeYearFormats = [
+                    '1st Year', '2nd Year', '3rd Year', '4th Year',
+                    '1', '2', '3', '4',
+                    1, 2, 3, 4
+                ];
+                
+                $isCollegeLevel = in_array($yearLevel, $collegeYearFormats, true);
+            }
 
             if ($isCollegeLevel) {
                 // Handle college grades
