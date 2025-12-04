@@ -275,7 +275,7 @@ const Index = ({
                                             
                                             <div className="grid grid-cols-2 gap-2">
                                                 <Button asChild variant="outline" className="border-2 border-blue-300 text-blue-700 hover:bg-blue-50 font-medium">
-                                                    <Link href={route('admin.college.sections.show', section.id)}>
+                                                    <Link href={route('admin.sections.students', section.id)}>
                                                         <Users className="w-3 h-3 mr-1" />
                                                         Students
                                                     </Link>

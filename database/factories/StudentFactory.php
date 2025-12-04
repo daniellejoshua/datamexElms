@@ -17,6 +17,7 @@ class StudentFactory extends Factory
     public function definition(): array
     {
         return [
+            'user_id' => \App\Models\User::factory()->create(['role' => 'student']),
             'student_number' => $this->faker->unique()->numerify('2024-####'),
             'first_name' => $this->faker->firstName(),
             'last_name' => $this->faker->lastName(),

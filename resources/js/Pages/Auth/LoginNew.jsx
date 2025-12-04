@@ -131,7 +131,7 @@ export default function Login({ status, canResetPassword }) {
                     xmlns="http://www.w3.org/2000/svg"
                 >
                     <defs>
-                        <mask id="mask0" maskType="alpha">
+                        <mask id="mask0" mask-type="alpha">
                             <path d="M342.407 73.6315C388.53 56.4007 394.378 17.3643 391.538 0H566V840H0C14.5385 834.991 100.266 804.436 77.2046 707.263C49.6393 591.11 115.306 518.927 176.468 488.873C363.385 397.026 156.98 302.824 167.945 179.32C173.46 117.209 284.755 95.1699 342.407 73.6315Z"/>
                         </mask>
                         <linearGradient id="gradient" x1="0%" y1="0%" x2="100%" y2="100%">

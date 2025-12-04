@@ -27,7 +27,7 @@ class SectionController extends Controller
         // Get current academic period for default filtering
         $currentAcademicYear = SchoolSetting::getCurrentAcademicYear();
         $currentSemester = SchoolSetting::getCurrentSemester();
-        
+
         $query = Section::with(['program', 'subjects', 'sectionSubjects.teacher.user'])
             ->withCount(['studentEnrollments as enrolled_count' => function ($query) {
                 $query->where('status', 'active');
@@ -71,7 +71,7 @@ class SectionController extends Controller
         } else {
             // Only apply default on first load (no filters at all)
             $hasAnyFilter = $request->has('semester') || $request->has('search') || $request->has('program_id') || $request->has('subject_id');
-            if (!$hasAnyFilter) {
+            if (! $hasAnyFilter) {
                 $academicYear = $currentAcademicYear;
                 $query->where('academic_year', $academicYear);
             } else {
@@ -89,7 +89,7 @@ class SectionController extends Controller
         } else {
             // Only apply default on first load (no filters at all)
             $hasAnyFilter = $request->has('academic_year') || $request->has('search') || $request->has('program_id') || $request->has('subject_id');
-            if (!$hasAnyFilter) {
+            if (! $hasAnyFilter) {
                 $semester = $currentSemester;
                 $query->where('semester', $semester);
             } else {
@@ -129,7 +129,7 @@ class SectionController extends Controller
         // Get current academic period
         $currentAcademicYear = SchoolSetting::getCurrentAcademicYear();
         $currentSemester = SchoolSetting::getCurrentSemester();
-        
+
         $programs = Program::where('status', 'active')->orderBy('program_code')->get();
 
         return Inertia::render('Admin/Sections/Create', [
@@ -340,6 +340,13 @@ class SectionController extends Controller
 
     public function students(Section $section): Response
     {
+        \Illuminate\Support\Facades\Log::info('Students page accessed', [
+            'section_id' => $section->id,
+            'user_id' => Auth::id(),
+            'user_name' => Auth::user() ? Auth::user()->name : 'Not authenticated',
+            'timestamp' => now(),
+        ]);
+
         $section->load(['program', 'sectionSubjects.subject', 'studentEnrollments.student.user']);
 
         $enrolledStudents = $section->studentEnrollments()
@@ -349,65 +356,295 @@ class SectionController extends Controller
 
         $enrolledStudentIds = $enrolledStudents->pluck('student.id')->toArray();
 
-        $availableStudents = Student::with('user')
+        // Get available students that match the program, year level and enrollment rules
+        $availableStudentsQuery = Student::with(['user', 'program', 'studentEnrollments' => function ($query) {
+            $query->where('status', 'active');
+        }])
             ->whereNotIn('id', $enrolledStudentIds)
-            ->get();
+            ->where('program_id', $section->program_id) // Only students from same program
+            ->where('current_year_level', $section->year_level) // Only students from same year level
+            ->where('status', 'active'); // Only active students
+
+        // For non-irregular students, exclude those already enrolled in any section for current academic period
+        $availableStudents = $availableStudentsQuery->get()->filter(function ($student) use ($section) {
+            // If student is irregular, they can be in multiple sections
+            if ($student->student_type === 'irregular') {
+                return true;
+            }
+
+            // For regular students, check if they're already enrolled in any section for this academic period
+            $hasActiveEnrollment = $student->studentEnrollments()
+                ->where('status', 'active')
+                ->where('academic_year', $section->academic_year)
+                ->where('semester', $section->semester)
+                ->exists();
+
+            return ! $hasActiveEnrollment;
+        });
+
+        // Debug logging
+        \Illuminate\Support\Facades\Log::info('Students data prepared', [
+            'section_id' => $section->id,
+            'section_name' => $section->section_name,
+            'section_program_id' => $section->program_id,
+            'section_year_level' => $section->year_level,
+            'enrolled_students_count' => $enrolledStudents->count(),
+            'available_students_count' => $availableStudents->count(),
+            'enrolled_student_ids' => $enrolledStudentIds,
+            'available_student_sample' => $availableStudents->take(3)->map(function($student) {
+                return [
+                    'id' => $student->id,
+                    'name' => $student->user->name,
+                    'student_number' => $student->student_number,
+                    'program_id' => $student->program_id,
+                    'year_level' => $student->current_year_level,
+                    'student_type' => $student->student_type
+                ];
+            })
+        ]);
 
         return Inertia::render('Admin/Sections/Students', [
             'section' => $section,
             'enrolledStudents' => $enrolledStudents,
-            'availableStudents' => $availableStudents,
+            'availableStudents' => $availableStudents->values(), // Reset array keys after filtering
         ]);
     }
 
     public function enrollStudent(Request $request, Section $section): RedirectResponse
     {
+        // Log every request that hits this method
+        \Illuminate\Support\Facades\Log::info('===== ENROLLMENT METHOD HIT =====', [
+            'section_id' => $section->id,
+            'request_data' => $request->all(),
+            'timestamp' => now()
+        ]);
+
+        // Validate authentication
+        if (! Auth::check()) {
+            \Illuminate\Support\Facades\Log::error('User not authenticated');
+            return redirect()->back()->withErrors(['error' => 'You must be logged in to enroll students.']);
+        }
+
+        $authenticatedUserId = Auth::id();
+
         $request->validate([
             'student_ids' => 'required|array|min:1',
             'student_ids.*' => 'required|exists:students,id',
         ]);
 
-        $enrolledCount = 0;
-        $alreadyEnrolled = [];
+        try {
+            $enrollments = [];
+            foreach ($request->student_ids as $studentId) {
+                $enrollments[] = [
+                    'student_id' => $studentId,
+                    'section_id' => $section->id,
+                    'enrolled_by' => $authenticatedUserId,
+                    'enrollment_date' => now()->toDateString(),
+                    'academic_year' => $section->academic_year,
+                    'semester' => $section->semester,
+                    'status' => 'active',
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ];
+            }
 
-        foreach ($request->student_ids as $studentId) {
-            // Check if student is already enrolled in this section
-            $existingEnrollment = StudentEnrollment::where('student_id', $studentId)
-                ->where('section_id', $section->id)
+            \App\Models\StudentEnrollment::insert($enrollments);
+            
+            \Illuminate\Support\Facades\Log::info('Successfully enrolled students', [
+                'count' => count($enrollments),
+                'section_id' => $section->id
+            ]);
+
+            return redirect()->back()->with('success', 'Students enrolled successfully!');
+            
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error('Enrollment failed', [
+                'error' => $e->getMessage(),
+                'section_id' => $section->id,
+                'student_ids' => $request->student_ids
+            ]);
+
+            return redirect()->back()->withErrors(['error' => 'Failed to enroll students: ' . $e->getMessage()]);
+        }
+
+        $request->validate([
+            'student_ids' => 'required|array|min:1',
+            'student_ids.*' => 'required|exists:students,id',
+        ]);
+
+        try {
+            // Load all students at once for better performance
+            // Note: We'll load the program relationship separately to avoid issues
+            $students = Student::with(['user', 'studentEnrollments' => function ($query) {
+                $query->where('status', 'active');
+            }])->whereIn('id', $request->student_ids)->get()->keyBy('id');
+
+            $enrolledCount = 0;
+            $alreadyEnrolled = [];
+            $programMismatch = [];
+            $yearLevelMismatch = [];
+            $alreadyInSection = [];
+            $enrollmentsToCreate = [];
+
+            \Illuminate\Support\Facades\Log::info('Processing enrollment batch', [
+                'authenticated_user_id' => $authenticatedUserId,
+                'total_students_to_process' => count($request->student_ids),
+                'section_id' => $section->id,
+            ]);
+
+            foreach ($request->student_ids as $studentId) {
+                $student = $students->get($studentId);
+
+                if (! $student) {
+                    continue;
+                }
+
+                // Check if student belongs to the same program as the section
+                if ($student->program_id !== $section->program_id) {
+                    $programMismatch[] = $student->user->name;
+
+                    continue;
+                }
+
+                // Check if student is in the same year level as the section
+                if ($student->current_year_level != $section->year_level) {
+                    $yearLevelMismatch[] = $student->user->name;
+
+                    continue;
+                }
+
+                // Check if student is already enrolled in this section
+                $existingEnrollment = StudentEnrollment::where('student_id', $studentId)
+                    ->where('section_id', $section->id)
+                    ->where('status', 'active')
+                    ->first();
+
+                if ($existingEnrollment) {
+                    $alreadyEnrolled[] = $student->user->name;
+
+                    continue;
+                }
+
+                // For non-irregular students, check if already enrolled in another section for this academic period
+                if ($student->student_type !== 'irregular') {
+                    $hasActiveEnrollment = $student->studentEnrollments()
+                        ->where('status', 'active')
+                        ->where('academic_year', $section->academic_year)
+                        ->where('semester', $section->semester)
+                        ->exists();
+
+                    if ($hasActiveEnrollment) {
+                        $alreadyInSection[] = $student->user->name;
+
+                        continue;
+                    }
+                }
+
+                // Prepare enrollment data for bulk creation
+                $enrollmentsToCreate[] = [
+                    'student_id' => $studentId,
+                    'section_id' => $section->id,
+                    'enrollment_date' => now()->toDateString(),
+                    'enrolled_by' => $authenticatedUserId, // Use the authenticated user ID
+                    'status' => 'active',
+                    'academic_year' => $section->academic_year,
+                    'semester' => $section->semester,
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ];
+
+                $enrolledCount++;
+            }
+
+            // Bulk create enrollments for better performance
+            if (! empty($enrollmentsToCreate)) {
+                \Illuminate\Support\Facades\Log::info('About to create enrollments', [
+                    'count' => count($enrollmentsToCreate),
+                    'authenticated_user_still' => Auth::id(),
+                    'sample_enrollment_enrolled_by' => $enrollmentsToCreate[0]['enrolled_by'] ?? 'MISSING',
+                    'enrollments' => $enrollmentsToCreate,
+                ]);
+
+                StudentEnrollment::insert($enrollmentsToCreate);
+                \Illuminate\Support\Facades\Log::info('Successfully created enrollments', ['count' => count($enrollmentsToCreate)]);
+            }
+
+            $messages = [];
+            if ($enrolledCount > 0) {
+                $messages[] = "{$enrolledCount} student(s) enrolled successfully.";
+            }
+
+            if (! empty($alreadyEnrolled)) {
+                $names = implode(', ', $alreadyEnrolled);
+                $messages[] = "Already enrolled: {$names}";
+            }
+
+            if (! empty($programMismatch)) {
+                $names = implode(', ', $programMismatch);
+                $messages[] = "Program mismatch: {$names}";
+            }
+
+            if (! empty($yearLevelMismatch)) {
+                $names = implode(', ', $yearLevelMismatch);
+                $messages[] = "Year level mismatch: {$names}";
+            }
+
+            if (! empty($alreadyInSection)) {
+                $names = implode(', ', $alreadyInSection);
+                $messages[] = "Already in another section: {$names}";
+            }
+
+            $message = implode(' | ', $messages);
+            $type = $enrolledCount > 0 ? 'success' : 'warning';
+
+            return redirect()->back()->with($type, $message ?: 'No students were enrolled.');
+
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error('Enrollment error: '.$e->getMessage(), [
+                'section_id' => $section->id,
+                'student_ids' => $request->student_ids,
+                'trace' => $e->getTraceAsString(),
+            ]);
+
+            return redirect()->back()->with('error', 'An error occurred during enrollment. Please try again.');
+        }
+    }
+
+    public function removeStudent(Request $request, Section $section): \Illuminate\Http\JsonResponse
+    {
+        $request->validate([
+            'student_id' => 'required|exists:students,id',
+        ]);
+
+        try {
+            $enrollment = StudentEnrollment::where('section_id', $section->id)
+                ->where('student_id', $request->student_id)
                 ->where('status', 'active')
                 ->first();
 
-            if ($existingEnrollment) {
-                $student = Student::with('user')->find($studentId);
-                $alreadyEnrolled[] = $student->user->name;
-
-                continue;
+            if (!$enrollment) {
+                return response()->json(['error' => 'Student not found in this section'], 404);
             }
 
-            StudentEnrollment::create([
-                'student_id' => $studentId,
+            $enrollment->update(['status' => 'dropped']);
+
+            \Illuminate\Support\Facades\Log::info('Student removed from section', [
+                'student_id' => $request->student_id,
                 'section_id' => $section->id,
-                'enrollment_date' => now()->toDateString(),
-                'enrolled_by' => Auth::id(),
-                'status' => 'active',
-                'academic_year' => $section->academic_year,
-                'semester' => $section->semester,
+                'removed_by' => Auth::id(),
             ]);
 
-            $enrolledCount++;
-        }
+            return response()->json(['message' => 'Student removed successfully']);
 
-        $message = '';
-        if ($enrolledCount > 0) {
-            $message = "{$enrolledCount} student(s) enrolled successfully.";
-        }
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error('Remove student error: '.$e->getMessage(), [
+                'section_id' => $section->id,
+                'student_id' => $request->student_id,
+                'trace' => $e->getTraceAsString(),
+            ]);
 
-        if (! empty($alreadyEnrolled)) {
-            $names = implode(', ', $alreadyEnrolled);
-            $message .= " Note: {$names} ".(count($alreadyEnrolled) === 1 ? 'is' : 'are').' already enrolled.';
+            return response()->json(['error' => 'An error occurred while removing the student'], 500);
         }
-
-        return redirect()->back()->with('success', trim($message));
     }
 
     public function unenrollStudent(StudentEnrollment $enrollment): RedirectResponse

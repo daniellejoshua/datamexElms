@@ -56,6 +56,7 @@ Route::middleware(['auth', 'verified'])->prefix('admin')->name('admin.')->group(
         Route::resource('sections', SectionController::class);
         Route::get('sections/{section}/students', [SectionController::class, 'students'])->name('sections.students');
         Route::post('sections/{section}/enroll', [SectionController::class, 'enrollStudent'])->name('sections.enroll');
+        Route::delete('sections/{section}/remove-student', [SectionController::class, 'removeStudent'])->name('sections.remove-student');
         Route::patch('enrollments/{enrollment}/unenroll', [SectionController::class, 'unenrollStudent'])->name('enrollments.unenroll');
 
         // Subject Scheduling
