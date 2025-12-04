@@ -15,6 +15,8 @@ class CourseMaterial extends Model
         'description',
         'file_name',
         'file_path',
+        'file_hash',
+        'referenced_file_id',
         'file_type',
         'file_size',
         'original_name',
@@ -25,6 +27,81 @@ class CourseMaterial extends Model
         'download_count',
         'version_number',
     ];
+
+    /**
+     * Relationship to the original file (if this is a reference)
+     */
+    public function originalFile()
+    {
+        return $this->belongsTo(CourseMaterial::class, 'referenced_file_id');
+    }
+
+    /**
+     * Relationship to files that reference this one
+     */
+    public function references()
+    {
+        return $this->hasMany(CourseMaterial::class, 'referenced_file_id');
+    }
+
+    /**
+     * Find existing file by hash to prevent duplicates
+     */
+    public static function findByFileHash(string $hash)
+    {
+        return static::where('file_hash', $hash)->first();
+    }
+
+    /**
+     * Create a reference to an existing file for a different section/teacher
+     */
+    public static function createReference(CourseMaterial $originalFile, array $data)
+    {
+        return static::create(array_merge($data, [
+            'file_name' => $originalFile->file_name,
+            'file_path' => $originalFile->file_path,
+            'file_hash' => $originalFile->file_hash,
+            'referenced_file_id' => $originalFile->id, // Clear reference to original
+            'file_type' => $originalFile->file_type,
+            'file_size' => $originalFile->file_size,
+        ]));
+    }
+
+    /**
+     * Check if this material is using the original file or a reference
+     */
+    public function isOriginalFile(): bool
+    {
+        return $this->referenced_file_id === null;
+    }
+
+    /**
+     * Get the original material for this file
+     */
+    public function getOriginalMaterial(): ?CourseMaterial
+    {
+        if (!$this->file_hash) {
+            return $this; // If no hash, this is the original
+        }
+
+        return static::where('file_hash', $this->file_hash)
+            ->orderBy('created_at')
+            ->first();
+    }
+
+    /**
+     * Get all references to this file
+     */
+    public function getReferences()
+    {
+        if (!$this->file_hash) {
+            return collect(); // No references if no hash
+        }
+
+        return static::where('file_hash', $this->file_hash)
+            ->where('id', '!=', $this->id)
+            ->get();
+    }
 
     protected $casts = [
         'upload_date' => 'date',

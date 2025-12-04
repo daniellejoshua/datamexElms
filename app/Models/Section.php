@@ -57,4 +57,9 @@ class Section extends Model
     {
         return $this->hasMany(StudentEnrollment::class);
     }
+
+    public function courseMaterials(): HasMany
+    {
+        return $this->hasMany(CourseMaterial::class);
+    }
 }

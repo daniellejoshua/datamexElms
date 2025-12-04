@@ -1,5 +1,18 @@
-import { Head } from '@inertiajs/react'
+import { Head, Link } from '@inertiajs/react'
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
+import { 
+    GraduationCap, 
+    BookOpen, 
+    TrendingUp, 
+    CreditCard,
+    Calendar,
+    User,
+    ArrowRight,
+    Eye
+} from 'lucide-react'
 
 export default function Dashboard({ 
     auth,
@@ -38,6 +51,7 @@ export default function Dashboard({
             </AuthenticatedLayout>
         );
     }
+
     const getGradeColor = (grade) => {
         if (grade >= 90) return 'text-green-600'
         if (grade >= 80) return 'text-blue-600'
@@ -52,238 +66,220 @@ export default function Dashboard({
     }
 
     return (
-        <AuthenticatedLayout auth={auth}>
-            <Head title="Student Dashboard" />
-            
-            <div className="py-12">
-                <div className="max-w-7xl mx-auto sm:px-6 lg:px-8">
-                    {/* Welcome Header */}
-                    <div className="bg-white dark:bg-gray-800 overflow-hidden shadow-sm sm:rounded-lg mb-6">
-                        <div className="p-6 text-gray-900 dark:text-gray-100">
-                            <div className="flex justify-between items-start">
-                                <div>
-                                    <h1 className="text-2xl font-bold">
-                                        Welcome back, {student.user.name}!
-                                    </h1>
-                                    <div className="mt-2 space-y-1 text-sm text-gray-600 dark:text-gray-400">
-                                        <p>Student Number: <span className="font-medium">{student.student_number}</span></p>
-                                        <p>Year Level: <span className="font-medium">{student.year_level}</span></p>
-                                        {student.education_level === 'shs' ? (
-                                            <p>Track: <span className="font-medium">{student.track || 'N/A'}</span></p>
-                                        ) : (
-                                            <p>Program: <span className="font-medium">{student.program || 'N/A'}</span></p>
-                                        )}
-                                    </div>
-                                </div>
-                                <div className="text-right text-sm text-gray-600 dark:text-gray-400">
-                                    <p>Academic Year: {currentAcademicInfo.year}</p>
-                                    <p>Semester: {currentAcademicInfo.semester}</p>
-                                </div>
-                            </div>
+        <AuthenticatedLayout 
+            auth={auth}
+            header={
+                <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                        <div className="bg-blue-100 p-2 rounded-lg">
+                            <GraduationCap className="w-6 h-6 text-blue-600" />
+                        </div>
+                        <div>
+                            <h2 className="text-2xl font-bold text-gray-900">Student Dashboard</h2>
+                            <p className="text-sm text-gray-600 mt-1">Welcome back, {student.user.name}! Here's your academic overview</p>
                         </div>
                     </div>
-
-                    {/* Stats Cards */}
-                    <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
-                        <div className="bg-white dark:bg-gray-800 overflow-hidden shadow-sm sm:rounded-lg">
-                            <div className="p-6">
-                                <div className="flex items-center">
-                                    <div className="p-3 rounded-full bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-400">
-                                        📚
-                                    </div>
-                                    <div className="ml-4">
-                                        <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Enrolled Subjects</p>
-                                        <p className="text-2xl font-semibold text-gray-900 dark:text-gray-100">
-                                            {stats.totalSubjects}
-                                        </p>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div className="bg-white dark:bg-gray-800 overflow-hidden shadow-sm sm:rounded-lg">
-                            <div className="p-6">
-                                <div className="flex items-center">
-                                    <div className="p-3 rounded-full bg-green-100 dark:bg-green-900 text-green-600 dark:text-green-400">
-                                        📊
-                                    </div>
-                                    <div className="ml-4">
-                                        <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Average Grade</p>
-                                        <p className={`text-2xl font-semibold ${getGradeColor(stats.averageGrade)}`}>
-                                            {stats.averageGrade ? stats.averageGrade.toFixed(1) : 'N/A'}
-                                        </p>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div className="bg-white dark:bg-gray-800 overflow-hidden shadow-sm sm:rounded-lg">
-                            <div className="p-6">
-                                <div className="flex items-center">
-                                    <div className="p-3 rounded-full bg-green-100 dark:bg-green-900 text-green-600 dark:text-green-400">
-                                        💰
-                                    </div>
-                                    <div className="ml-4">
-                                        <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Payments Made</p>
-                                        <p className="text-2xl font-semibold text-gray-900 dark:text-gray-100">
-                                            ₱{stats.totalPaid.toLocaleString()}
-                                        </p>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div className="bg-white dark:bg-gray-800 overflow-hidden shadow-sm sm:rounded-lg">
-                            <div className="p-6">
-                                <div className="flex items-center">
-                                    <div className={`p-3 rounded-full ${stats.balance > 0 ? 'bg-red-100 dark:bg-red-900 text-red-600 dark:text-red-400' : 'bg-green-100 dark:bg-green-900 text-green-600 dark:text-green-400'}`}>
-                                        {stats.balance > 0 ? '⚠️' : '✅'}
-                                    </div>
-                                    <div className="ml-4">
-                                        <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Balance</p>
-                                        <p className={`text-2xl font-semibold ${getPaymentStatusColor()}`}>
-                                            ₱{stats.balance.toLocaleString()}
-                                        </p>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* Current Enrollments */}
-                    <div className="bg-white dark:bg-gray-800 overflow-hidden shadow-sm sm:rounded-lg mb-6">
-                        <div className="p-6">
-                            <h2 className="text-xl font-semibold mb-4 text-gray-900 dark:text-gray-100">Current Subjects</h2>
-                            {enrollments.length > 0 ? (
-                                <div className="overflow-x-auto">
-                                    <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-                                        <thead className="bg-gray-50 dark:bg-gray-700">
-                                            <tr>
-                                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                                                    Course
-                                                </th>
-                                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                                                    Section
-                                                </th>
-                                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                                                    Teacher
-                                                </th>
-                                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                                                    Schedule
-                                                </th>
-                                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                                                    Status
-                                                </th>
-                                            </tr>
-                                        </thead>
-                                        <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-                                            {enrollments.map((enrollment) => (
-                                                <tr key={enrollment.id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
-                                                    <td className="px-6 py-4 whitespace-nowrap">
-                                                        <div className="text-sm font-medium text-gray-900 dark:text-gray-100">
-                                                            {enrollment.section.course.course_code}
-                                                        </div>
-                                                        <div className="text-sm text-gray-500 dark:text-gray-400">
-                                                            {enrollment.section.course.course_name}
-                                                        </div>
-                                                    </td>
-                                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100">
-                                                        {enrollment.section.section_name}
-                                                    </td>
-                                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100">
-                                                        {enrollment.section.teacher_assignments?.[0]?.teacher?.user?.name || 'TBA'}
-                                                    </td>
-                                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100">
-                                                        {enrollment.section.class_schedules?.length > 0 
-                                                            ? enrollment.section.class_schedules.map(schedule => 
-                                                                `${schedule.day_of_week} ${schedule.start_time}-${schedule.end_time}`
-                                                              ).join(', ')
-                                                            : 'TBA'
-                                                        }
-                                                    </td>
-                                                    <td className="px-6 py-4 whitespace-nowrap">
-                                                        <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                                                            enrollment.status === 'active' 
-                                                                ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
-                                                                : 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300'
-                                                        }`}>
-                                                            {enrollment.status}
-                                                        </span>
-                                                    </td>
-                                                </tr>
-                                            ))}
-                                        </tbody>
-                                    </table>
-                                </div>
-                            ) : (
-                                <div className="text-center py-8">
-                                    <div className="text-gray-400 dark:text-gray-500 mb-2">📚</div>
-                                    <p className="text-gray-500 dark:text-gray-400">No enrollments found</p>
-                                </div>
-                            )}
-                        </div>
-                    </div>
-
-                    {/* Recent Grades */}
-                    <div className="bg-white dark:bg-gray-800 overflow-hidden shadow-sm sm:rounded-lg">
-                        <div className="p-6">
-                            <h2 className="text-xl font-semibold mb-4 text-gray-900 dark:text-gray-100">Recent Grades</h2>
-                            {recentGrades.length > 0 ? (
-                                <div className="overflow-x-auto">
-                                    <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-                                        <thead className="bg-gray-50 dark:bg-gray-700">
-                                            <tr>
-                                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                                                    Subject
-                                                </th>
-                                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                                                    Prelim
-                                                </th>
-                                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                                                    Midterm
-                                                </th>
-                                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                                                    Finals
-                                                </th>
-                                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                                                    Semester Grade
-                                                </th>
-                                            </tr>
-                                        </thead>
-                                        <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-                                            {recentGrades.map((grade) => (
-                                                <tr key={grade.id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
-                                                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-gray-100">
-                                                        {grade.student_enrollment?.section?.course?.course_code || 'N/A'}
-                                                    </td>
-                                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100">
-                                                        {grade.prelim_grade || '-'}
-                                                    </td>
-                                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100">
-                                                        {grade.midterm_grade || '-'}
-                                                    </td>
-                                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100">
-                                                        {grade.finals_grade || '-'}
-                                                    </td>
-                                                    <td className="px-6 py-4 whitespace-nowrap">
-                                                        <span className={`text-sm font-medium ${getGradeColor(grade.semester_grade)}`}>
-                                                            {grade.semester_grade || 'Pending'}
-                                                        </span>
-                                                    </td>
-                                                </tr>
-                                            ))}
-                                        </tbody>
-                                    </table>
-                                </div>
-                            ) : (
-                                <div className="text-center py-8">
-                                    <div className="text-gray-400 dark:text-gray-500 mb-2">📊</div>
-                                    <p className="text-gray-500 dark:text-gray-400">No grades available yet</p>
-                                </div>
-                            )}
-                        </div>
+                    <div className="flex items-center gap-3">
+                        <Button asChild variant="outline" className="text-blue-600 border-blue-300 hover:bg-blue-50">
+                            <Link href={route('student.subjects')}>
+                                <BookOpen className="w-4 h-4 mr-2" />
+                                My Subjects
+                            </Link>
+                        </Button>
                     </div>
                 </div>
+            }
+        >
+            <Head title="Student Dashboard" />
+            
+            <div className="p-6 space-y-6">
+                {/* Academic Info Card */}
+                <Card>
+                    <CardHeader>
+                        <CardTitle className="flex items-center gap-2">
+                            <User className="w-5 h-5" />
+                            Academic Information
+                        </CardTitle>
+                        <CardDescription>
+                            Your current enrollment details for {currentAcademicInfo.year} - {currentAcademicInfo.semester} Semester
+                        </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <div className="text-center p-4 bg-blue-50 rounded-lg">
+                                <p className="text-sm text-blue-600 font-semibold">Student Number</p>
+                                <p className="text-lg font-bold text-blue-800">{student.student_number}</p>
+                            </div>
+                            <div className="text-center p-4 bg-green-50 rounded-lg">
+                                <p className="text-sm text-green-600 font-semibold">Year Level</p>
+                                <p className="text-lg font-bold text-green-800">{student.year_level}</p>
+                            </div>
+                            <div className="text-center p-4 bg-purple-50 rounded-lg">
+                                <p className="text-sm text-purple-600 font-semibold">
+                                    {student.education_level === 'shs' ? 'Track' : 'Program'}
+                                </p>
+                                <p className="text-lg font-bold text-purple-800">
+                                    {student.education_level === 'shs' ? (student.track || 'N/A') : (student.program || 'N/A')}
+                                </p>
+                            </div>
+                        </div>
+                    </CardContent>
+                </Card>
+
+                {/* Stats Cards */}
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                    <Card>
+                        <CardContent className="p-6">
+                            <div className="flex items-center gap-4">
+                                <div className="p-3 rounded-full bg-blue-100 text-blue-600">
+                                    <BookOpen className="w-6 h-6" />
+                                </div>
+                                <div>
+                                    <p className="text-sm text-gray-600 font-semibold">Enrolled Subjects</p>
+                                    <p className="text-2xl font-bold text-blue-700">{stats.totalSubjects}</p>
+                                </div>
+                            </div>
+                        </CardContent>
+                    </Card>
+                    <Card>
+                        <CardContent className="p-6">
+                            <div className="flex items-center gap-4">
+                                <div className="p-3 rounded-full bg-green-100 text-green-600">
+                                    <TrendingUp className="w-6 h-6" />
+                                </div>
+                                <div>
+                                    <p className="text-sm text-gray-600 font-semibold">Average Grade</p>
+                                    <p className={`text-2xl font-bold ${getGradeColor(stats.averageGrade)}`}>
+                                        {stats.averageGrade ? stats.averageGrade.toFixed(1) : 'N/A'}
+                                    </p>
+                                </div>
+                            </div>
+                        </CardContent>
+                    </Card>
+                    <Card>
+                        <CardContent className="p-6">
+                            <div className="flex items-center gap-4">
+                                <div className="p-3 rounded-full bg-green-100 text-green-600">
+                                    <CreditCard className="w-6 h-6" />
+                                </div>
+                                <div>
+                                    <p className="text-sm text-gray-600 font-semibold">Total Paid</p>
+                                    <p className="text-2xl font-bold text-green-700">₱{stats.totalPaid.toLocaleString()}</p>
+                                </div>
+                            </div>
+                        </CardContent>
+                    </Card>
+                    <Card>
+                        <CardContent className="p-6">
+                            <div className="flex items-center gap-4">
+                                <div className={`p-3 rounded-full ${stats.balance === 0 ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600'}`}>
+                                    <CreditCard className="w-6 h-6" />
+                                </div>
+                                <div>
+                                    <p className="text-sm text-gray-600 font-semibold">Balance</p>
+                                    <p className={`text-2xl font-bold ${getPaymentStatusColor()}`}>₱{stats.balance.toLocaleString()}</p>
+                                </div>
+                            </div>
+                        </CardContent>
+                    </Card>
+                </div>
+
+                {/* Current Enrollments */}
+                <Card>
+                    <CardHeader>
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <CardTitle className="flex items-center gap-2">
+                                    <BookOpen className="w-5 h-5" />
+                                    Current Subjects
+                                </CardTitle>
+                                <CardDescription>
+                                    Your enrolled subjects for this semester
+                                </CardDescription>
+                            </div>
+                            <Button asChild variant="outline">
+                                <Link href={route('student.subjects')}>
+                                    <Eye className="w-4 h-4 mr-2" />
+                                    View All
+                                </Link>
+                            </Button>
+                        </div>
+                    </CardHeader>
+                    <CardContent>
+                        {enrollments && enrollments.length > 0 ? (
+                            <div className="space-y-3">
+                                {enrollments.slice(0, 5).map((enrollment) => (
+                                    <div key={enrollment.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                                        <div>
+                                            <h4 className="font-semibold text-gray-900">
+                                                {enrollment.section?.program?.program_code || 'N/A'}
+                                            </h4>
+                                            <p className="text-sm text-gray-600">
+                                                {enrollment.section?.program?.program_name || 'N/A'} - {enrollment.section?.program?.program_code || 'N/A'}-{enrollment.section?.year_level || 'N/A'}{enrollment.section?.section_name || 'N/A'}
+                                            </p>
+                                        </div>
+                                        <Badge variant="secondary">
+                                            {enrollment.status}
+                                        </Badge>
+                                    </div>
+                                ))}
+                                {enrollments.length > 5 && (
+                                    <div className="pt-3 border-t text-center">
+                                        <p className="text-sm text-gray-600">
+                                            Showing 5 of {enrollments.length} subjects
+                                        </p>
+                                    </div>
+                                )}
+                            </div>
+                        ) : (
+                            <div className="text-center py-8">
+                                <BookOpen className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                                <p className="text-gray-500">No current enrollments found</p>
+                            </div>
+                        )}
+                    </CardContent>
+                </Card>
+
+                {/* Recent Grades */}
+                <Card>
+                    <CardHeader>
+                        <CardTitle className="flex items-center gap-2">
+                            <TrendingUp className="w-5 h-5" />
+                            Recent Grades
+                        </CardTitle>
+                        <CardDescription>
+                            Your latest academic performance
+                        </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                        {recentGrades && recentGrades.length > 0 ? (
+                            <div className="space-y-3">
+                                {recentGrades.map((grade, index) => (
+                                    <div key={index} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                                        <div>
+                                            <h4 className="font-semibold text-gray-900">
+                                                {grade.student_enrollment?.section?.program?.program_code || 'N/A'}
+                                            </h4>
+                                            <p className="text-sm text-gray-600">
+                                                {grade.grading_period} - {grade.semester_grade ? 'Semester' : 'Partial'} Grade
+                                            </p>
+                                        </div>
+                                        <div className="text-right">
+                                            <p className={`text-lg font-bold ${getGradeColor(grade.semester_grade || grade.prelim_grade)}`}>
+                                                {grade.semester_grade || grade.prelim_grade || 'N/A'}
+                                            </p>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        ) : (
+                            <div className="text-center py-8">
+                                <TrendingUp className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                                <p className="text-gray-500">No grades available yet</p>
+                            </div>
+                        )}
+                    </CardContent>
+                </Card>
             </div>
         </AuthenticatedLayout>
     )

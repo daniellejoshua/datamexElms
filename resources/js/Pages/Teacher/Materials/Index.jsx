@@ -279,68 +279,68 @@ export default function MaterialsIndex({ section, materials, sectionSubject }) {
                 {/* Materials Grid */}
                 {materials.length > 0 ? (
                     <>
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                             {materials.map((material) => (
-                                <Card key={material.id} className="border hover:shadow-md transition-shadow">
+                                <Card key={material.id} className="group hover:shadow-lg transition-all duration-300 border-gray-200 hover:border-blue-300">
                                     {/* Header */}
                                     <CardHeader className="pb-3">
                                         <div className="flex items-start justify-between">
                                             <div className="flex items-center gap-3 flex-1 min-w-0">
-                                                <div className="bg-blue-100 p-2 rounded-lg">
+                                                <div className="bg-blue-50 group-hover:bg-blue-100 p-2 rounded-lg transition-colors border border-blue-200">
                                                     <div className="text-blue-600 text-sm font-bold">{getFileIcon(material.file_type)}</div>
                                                 </div>
                                                 <div className="flex-1 min-w-0">
-                                                    <CardTitle className="text-sm font-bold text-gray-900 truncate">
+                                                    <CardTitle className="text-sm font-semibold text-gray-900 group-hover:text-blue-700 truncate transition-colors">
                                                         {material.title}
                                                     </CardTitle>
-                                                    <CardDescription className="text-gray-500 text-xs truncate">
+                                                    <CardDescription className="text-gray-600 text-xs truncate mt-0.5">
                                                         {material.original_name}
                                                     </CardDescription>
                                                 </div>
                                             </div>
-                                            <Badge className={`${getCategoryColor(material.category)} text-xs shrink-0`}>
+                                            <Badge className={`${getCategoryColor(material.category)} text-xs font-medium shrink-0`}>
                                                 {material.category}
                                             </Badge>
                                         </div>
                                     </CardHeader>
 
                                     {/* Content */}
-                                    <CardContent className="space-y-3">
+                                    <CardContent className="space-y-4">
                                         {/* Description */}
                                         {material.description && (
-                                            <div className="bg-gray-50 p-2 rounded border">
-                                                <p className="text-xs text-gray-700 leading-tight line-clamp-2">
+                                            <div className="p-3 bg-gray-50 dark:bg-gray-800 rounded-lg border-l-4 border-blue-500">
+                                                <p className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed line-clamp-3">
                                                     {material.description}
                                                 </p>
                                             </div>
                                         )}
 
-                                        {/* Stats Grid */}
-                                        <div className="grid grid-cols-3 gap-2 text-xs">
-                                            <div className="text-center p-2 bg-gray-50 rounded border">
-                                                <Calendar className="w-3 h-3 text-gray-500 mx-auto mb-1" />
-                                                <p className="font-medium text-gray-700">{new Date(material.upload_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</p>
+                                        {/* Material Info */}
+                                        <div className="flex items-center gap-4 text-sm text-gray-600 dark:text-gray-400">
+                                            <div className="flex items-center gap-1">
+                                                <Calendar className="w-4 h-4" />
+                                                <span>{new Date(material.upload_date).toLocaleDateString('en-US', { 
+                                                    month: 'short', 
+                                                    day: 'numeric',
+                                                    year: 'numeric' 
+                                                })}</span>
                                             </div>
-                                            <div className="text-center p-2 bg-gray-50 rounded border">
-                                                <Download className="w-3 h-3 text-gray-500 mx-auto mb-1" />
-                                                <p className="font-medium text-gray-700">{material.download_count}</p>
-                                            </div>
-                                            <div className="text-center p-2 bg-gray-50 rounded border">
-                                                <File className="w-3 h-3 text-gray-500 mx-auto mb-1" />
-                                                <p className="font-medium text-gray-700">{material.formatted_file_size}</p>
+                                            <div className="flex items-center gap-1">
+                                                <File className="w-4 h-4" />
+                                                <span className="font-medium">{material.formatted_file_size}</span>
                                             </div>
                                         </div>
 
                                         {/* Action Buttons */}
-                                        <div className="flex gap-2">
+                                        <div className="flex gap-2 pt-2">
                                             <Button
                                                 size="sm"
                                                 variant="outline"
                                                 asChild
-                                                className="flex-1 text-xs"
+                                                className="flex-1 text-sm font-medium"
                                             >
                                                 <Link href={route('teacher.materials.download', [section.id, material.id])}>
-                                                    <Download className="w-3 h-3 mr-1" />
+                                                    <Download className="w-4 h-4 mr-2" />
                                                     Download
                                                 </Link>
                                             </Button>
@@ -350,7 +350,7 @@ export default function MaterialsIndex({ section, materials, sectionSubject }) {
                                                 onClick={() => handleDelete(material.id)}
                                                 className="px-3"
                                             >
-                                                <Trash2 className="w-3 h-3" />
+                                                <Trash2 className="w-4 h-4" />
                                             </Button>
                                         </div>
                                     </CardContent>

@@ -22,7 +22,14 @@ class StudentDashboardController extends Controller
 
         // Get current enrollments with grades
         $enrollments = $student->studentEnrollments()
-            ->with(['section.program', 'section.subjects', 'section.sectionSubjects.teacher.user'])
+            ->with([
+                'section.program',
+                'section.subjects',
+                'section.sectionSubjects.teacher.user' => function ($query) {
+                    $query->select('id', 'name');
+                },
+                'section.sectionSubjects.subject',
+            ])
             ->where('status', 'active')
             ->get();
 

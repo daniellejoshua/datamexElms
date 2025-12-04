@@ -11,6 +11,7 @@ use App\Http\Controllers\Admin\ShsSubjectController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\Student\StudentDashboardController;
+use App\Http\Controllers\Student\SubjectController as StudentSubjectController;
 use App\Http\Controllers\Teacher\CourseMaterialController;
 use App\Http\Controllers\Teacher\DashboardController as TeacherDashboardController;
 use App\Http\Controllers\Teacher\GradeController;
@@ -23,6 +24,9 @@ Route::get('/', function () {
 
 Route::middleware(['auth', 'verified', 'role:student'])->prefix('student')->group(function () {
     Route::get('/dashboard', [StudentDashboardController::class, 'index'])->name('student.dashboard');
+    Route::get('/subjects', [StudentSubjectController::class, 'index'])->name('student.subjects');
+    Route::get('/materials/{material}/download', [StudentSubjectController::class, 'downloadMaterial'])->name('student.materials.download');
+    Route::post('/materials/{material}/mark-viewed', [StudentSubjectController::class, 'markMaterialAsViewed'])->name('student.materials.mark-viewed');
 });
 
 // Teacher Routes

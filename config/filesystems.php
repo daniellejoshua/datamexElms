@@ -60,6 +60,15 @@ return [
             'report' => false,
         ],
 
+        // Production-ready course materials disk
+        'course_materials' => [
+            'driver' => env('COURSE_MATERIALS_DISK', 'public'),
+            'root' => storage_path('app/course_materials'),
+            'url' => env('APP_URL').'/storage/course_materials',
+            'visibility' => 'public',
+            'throw' => false,
+        ],
+
     ],
 
     /*

@@ -47,71 +47,14 @@ export default function TeacherDashboard({
                         </p>
                     </div>
                     
-                    <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 mt-4 sm:mt-0">
-                        <Button asChild className="bg-gradient-to-r from-red-500 to-blue-600 hover:from-red-600 hover:to-blue-700 shadow-md">
-                            <Link href="/teacher/grades">
-                                <GraduationCap className="w-4 h-4 mr-2" />
-                                Manage Grades
-                            </Link>
-                        </Button>
-                        
-                        <Badge variant="outline" className="bg-white border-blue-200 text-blue-600 px-3 py-2">
-                            <Calendar className="w-4 h-4 mr-2" />
-                            Today's Classes: {todaySchedule?.length || 0}
-                        </Badge>
-                    </div>
+                   
                 </div>
             }
         >
             <Head title="Teacher Dashboard" />
 
             <div className="p-4 sm:p-6 lg:p-8 space-y-6">
-                {/* Stats Cards */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 lg:gap-6">
-                    <Card className="hover:shadow-md transition-shadow">
-                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                            <CardTitle className="text-sm font-medium text-muted-foreground">Total Sections</CardTitle>
-                            <School className="h-4 w-4 text-muted-foreground" />
-                        </CardHeader>
-                        <CardContent>
-                            <div className="text-2xl font-bold text-red-600">{stats?.totalSections || 0}</div>
-                            <p className="text-xs text-muted-foreground mt-1">Active sections</p>
-                        </CardContent>
-                    </Card>
-
-                    <Card className="hover:shadow-md transition-shadow">
-                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                            <CardTitle className="text-sm font-medium text-muted-foreground">Total Students</CardTitle>
-                            <Users className="h-4 w-4 text-muted-foreground" />
-                        </CardHeader>
-                        <CardContent>
-                            <div className="text-2xl font-bold text-blue-600">{stats?.totalStudents || 0}</div>
-                            <p className="text-xs text-muted-foreground mt-1">Enrolled students</p>
-                        </CardContent>
-                    </Card>
-
-                    <Card className="hover:shadow-md transition-shadow">
-                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                            <CardTitle className="text-sm font-medium text-muted-foreground">Assignments</CardTitle>
-                            <BookOpen className="h-4 w-4 text-muted-foreground" />
-                        </CardHeader>
-                        <CardContent>
-                            <div className="text-2xl font-bold text-green-600">{stats?.totalAssignments || 0}</div>
-                            <p className="text-xs text-muted-foreground mt-1">Total assignments</p>
-                        </CardContent>
-                    </Card>
-
-                    <Card className="hover:shadow-md transition-shadow">
-                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                            <CardTitle className="text-sm font-medium text-muted-foreground">Today's Classes</CardTitle>
-                            <Clock className="h-4 w-4 text-muted-foreground" />
-                        </CardHeader>
-                        <CardContent>
-                            <div className="text-2xl font-bold text-purple-600">{todaySchedule?.length || 0}</div>
-                            <p className="text-xs text-muted-foreground mt-1">Classes today</p>
-                        </CardContent>
-                    </Card>
-                </div>
+            
 
                 {/* Search and Filters */}
                 {/* Navigation Cards */}
