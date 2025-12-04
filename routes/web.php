@@ -30,8 +30,8 @@ Route::middleware(['auth', 'verified', 'role:teacher'])->prefix('teacher')->name
     Route::get('/dashboard', [TeacherDashboardController::class, 'index'])->name('dashboard');
 
     // Section Management
-    Route::get('/sections/college', [TeacherSectionController::class, 'college'])->name('sections.college');
-    Route::get('/sections/shs', [TeacherSectionController::class, 'shs'])->name('sections.shs');
+    Route::get('/sections/college', [TeacherSectionController::class, 'collegeSections'])->name('sections.college');
+    Route::get('/sections/shs', [TeacherSectionController::class, 'shsSections'])->name('sections.shs');
 
     // Grade Management
     Route::get('/sections/{section}/grades', [GradeController::class, 'show'])->name('grades.show');
@@ -58,6 +58,11 @@ Route::middleware(['auth', 'verified'])->prefix('admin')->name('admin.')->group(
         Route::post('sections/{section}/enroll', [SectionController::class, 'enrollStudent'])->name('sections.enroll');
         Route::delete('sections/{section}/remove-student', [SectionController::class, 'removeStudent'])->name('sections.remove-student');
         Route::patch('enrollments/{enrollment}/unenroll', [SectionController::class, 'unenrollStudent'])->name('enrollments.unenroll');
+
+        // Subject-level Enrollment for Irregular Students
+        Route::get('sections/{section}/students/{student}/subjects', [SectionController::class, 'subjectEnrollment'])->name('sections.subject-enrollment');
+        Route::post('sections/{section}/students/{student}/subjects', [SectionController::class, 'enrollStudentInSubjects'])->name('sections.enroll-subjects');
+        Route::delete('sections/{section}/students/{student}/subjects', [SectionController::class, 'removeStudentFromSubject'])->name('sections.remove-from-subject');
 
         // Subject Scheduling
         Route::get('sections/{section}/subjects', [SectionController::class, 'subjects'])->name('sections.subjects');

@@ -2,20 +2,21 @@
 
 namespace App\Http\Controllers\Teacher;
 
+use App\Exports\GradeTemplateExport;
 use App\Http\Controllers\Controller;
+use App\Imports\GradeImport;
 use App\Models\Section;
 use App\Models\SectionSubject;
-use App\Models\StudentGrade;
 use App\Models\ShsStudentGrade;
 use App\Models\StudentEnrollment;
+use App\Models\StudentGrade;
+use App\Models\StudentSubjectEnrollment;
 use App\Models\Teacher;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Inertia\Inertia;
 use Inertia\Response;
 use Maatwebsite\Excel\Facades\Excel;
-use App\Imports\GradeImport;
-use App\Exports\GradeTemplateExport;
 
 class GradeController extends Controller
 {
@@ -28,39 +29,107 @@ class GradeController extends Controller
         $teacher = Teacher::where('user_id', $user->id)->firstOrFail();
 
         // Verify teacher is assigned to this section
-        $sectionSubject = SectionSubject::where('section_id', $section->id)
+        $sectionSubject = SectionSubject::with(['subject'])
+            ->where('section_id', $section->id)
             ->where('teacher_id', $teacher->id)
             ->firstOrFail();
 
-        // Get all student enrollments for this section
-        $enrollments = StudentEnrollment::with([
+        // Get students enrolled in this specific subject for this teacher
+        // This includes both regular students (enrolled through section) and irregular students (enrolled per subject)
+        $subjectEnrollments = StudentSubjectEnrollment::with([
             'student.user',
-            'section',
-            'studentGrades' => function ($query) use ($teacher) {
-                $query->where('teacher_id', $teacher->id);
-            },
-            'shsStudentGrades' => function ($query) use ($teacher) {
-                $query->where('teacher_id', $teacher->id);
-            }
+            'sectionSubject.subject',
         ])
-        ->where('section_id', $section->id)
-        ->where('status', 'active')
-        ->get();
+            ->where('section_subject_id', $sectionSubject->id)
+            ->where('status', 'active')
+            ->whereHas('student.user', function ($query) {
+                $query->whereNotNull('name')
+                    ->where('name', '!=', '')
+                    ->where('name', 'not like', '%Unknown%');
+            })
+            ->get();
+
+        // Transform to maintain compatibility with existing frontend
+        $enrollments = collect();
+
+        foreach ($subjectEnrollments as $subjectEnrollment) {
+            // For regular students, find their section enrollment
+            // For irregular students, create a mock enrollment structure
+            $studentEnrollment = null;
+
+            if ($subjectEnrollment->enrollment_type === 'regular') {
+                $studentEnrollment = StudentEnrollment::with([
+                    'student.user',
+                    'section',
+                    'studentGrades' => function ($query) use ($teacher) {
+                        $query->where('teacher_id', $teacher->id);
+                    },
+                    'shsStudentGrades' => function ($query) use ($teacher) {
+                        $query->where('teacher_id', $teacher->id);
+                    },
+                ])
+                    ->where('section_id', $section->id)
+                    ->where('student_id', $subjectEnrollment->student_id)
+                    ->where('status', 'active')
+                    ->first();
+            }
+
+            if ($studentEnrollment) {
+                // Use existing enrollment for regular students
+                $enrollments->push($studentEnrollment);
+            } else {
+                // For irregular students, we need to find or create a StudentEnrollment record
+                // or handle grades differently since they might not have a section enrollment
+
+                // Try to find any existing enrollment for this student (they might have one from another section)
+                $anyStudentEnrollment = StudentEnrollment::where('student_id', $subjectEnrollment->student_id)
+                    ->where('status', 'active')
+                    ->first();
+
+                if ($anyStudentEnrollment) {
+                    // Load grades for this teacher specifically
+                    $anyStudentEnrollment->load([
+                        'studentGrades' => function ($query) use ($teacher) {
+                            $query->where('teacher_id', $teacher->id);
+                        },
+                        'shsStudentGrades' => function ($query) use ($teacher) {
+                            $query->where('teacher_id', $teacher->id);
+                        },
+                    ]);
+                    $enrollments->push($anyStudentEnrollment);
+                } else {
+                    // Create mock enrollment for irregular students without any enrollment record
+                    $mockEnrollment = (object) [
+                        'id' => "irregular_{$subjectEnrollment->id}", // Unique ID for irregular students
+                        'student' => $subjectEnrollment->student,
+                        'section' => $section,
+                        'status' => 'active',
+                        'enrollment_type' => 'irregular',
+                        'subject_enrollment_id' => $subjectEnrollment->id,
+                        'studentGrades' => collect(), // Empty for now - grades system needs to be updated for irregular students
+                        'shsStudentGrades' => collect(), // Empty for now - grades system needs to be updated for irregular students
+                        'student_grades' => collect(), // Frontend expects this name
+                        'shs_student_grades' => collect(), // Frontend expects this name
+                    ];
+                    $enrollments->push($mockEnrollment);
+                }
+            }
+        }
 
         // Determine if this is college or SHS based on section
         // Load the program relationship if not already loaded
         $section->load('program');
-        
+
         // Check multiple ways to determine if it's college level:
         // 1. Check program type/name for college indicators
         // 2. Check year level format variations
         $isCollegeLevel = false;
-        
+
         if ($section->program) {
             // Check if program name contains college indicators
             $programName = strtolower($section->program->program_name ?? '');
             $collegeIndicators = ['bachelor', 'bs', 'ba', 'bsit', 'bscs', 'college'];
-            
+
             foreach ($collegeIndicators as $indicator) {
                 if (strpos($programName, $indicator) !== false) {
                     $isCollegeLevel = true;
@@ -68,18 +137,18 @@ class GradeController extends Controller
                 }
             }
         }
-        
+
         // If not determined by program, check year level
-        if (!$isCollegeLevel) {
+        if (! $isCollegeLevel) {
             $yearLevel = $section->year_level;
-            
+
             // Check various year level formats
             $collegeYearFormats = [
                 '1st Year', '2nd Year', '3rd Year', '4th Year',
                 '1', '2', '3', '4',
-                1, 2, 3, 4
+                1, 2, 3, 4,
             ];
-            
+
             $isCollegeLevel = in_array($yearLevel, $collegeYearFormats, true);
         }
 
@@ -88,7 +157,7 @@ class GradeController extends Controller
             'sectionSubject' => $sectionSubject,
             'enrollments' => $enrollments,
             'isCollegeLevel' => $isCollegeLevel,
-            'teacher' => $teacher
+            'teacher' => $teacher,
         ]);
     }
 
@@ -121,16 +190,16 @@ class GradeController extends Controller
 
         foreach ($validated['grades'] as $gradeData) {
             $enrollment = StudentEnrollment::findOrFail($gradeData['enrollment_id']);
-            
+
             // Determine if this is college or SHS with improved logic
             $enrollment->section->load('program');
-            
+
             $isCollegeLevel = false;
-            
+
             if ($enrollment->section->program) {
                 $programName = strtolower($enrollment->section->program->program_name ?? '');
                 $collegeIndicators = ['bachelor', 'bs', 'ba', 'bsit', 'bscs', 'college'];
-                
+
                 foreach ($collegeIndicators as $indicator) {
                     if (strpos($programName, $indicator) !== false) {
                         $isCollegeLevel = true;
@@ -138,15 +207,15 @@ class GradeController extends Controller
                     }
                 }
             }
-            
-            if (!$isCollegeLevel) {
+
+            if (! $isCollegeLevel) {
                 $yearLevel = $enrollment->section->year_level;
                 $collegeYearFormats = [
                     '1st Year', '2nd Year', '3rd Year', '4th Year',
                     '1', '2', '3', '4',
-                    1, 2, 3, 4
+                    1, 2, 3, 4,
                 ];
-                
+
                 $isCollegeLevel = in_array($yearLevel, $collegeYearFormats, true);
             }
 
@@ -154,7 +223,7 @@ class GradeController extends Controller
                 // Handle college grades
                 $grade = StudentGrade::firstOrNew([
                     'student_enrollment_id' => $enrollment->id,
-                    'teacher_id' => $teacher->id
+                    'teacher_id' => $teacher->id,
                 ]);
 
                 $grade->prelim_grade = $gradeData['prelim_grade'] ?? null;
@@ -170,16 +239,16 @@ class GradeController extends Controller
                 }
 
                 // Set submission timestamps
-                if ($gradeData['prelim_grade'] !== null && !$grade->prelim_submitted_at) {
+                if ($gradeData['prelim_grade'] !== null && ! $grade->prelim_submitted_at) {
                     $grade->prelim_submitted_at = now();
                 }
-                if ($gradeData['midterm_grade'] !== null && !$grade->midterm_submitted_at) {
+                if ($gradeData['midterm_grade'] !== null && ! $grade->midterm_submitted_at) {
                     $grade->midterm_submitted_at = now();
                 }
-                if ($gradeData['prefinal_grade'] !== null && !$grade->prefinal_submitted_at) {
+                if ($gradeData['prefinal_grade'] !== null && ! $grade->prefinal_submitted_at) {
                     $grade->prefinal_submitted_at = now();
                 }
-                if ($gradeData['final_grade'] !== null && !$grade->final_submitted_at) {
+                if ($gradeData['final_grade'] !== null && ! $grade->final_submitted_at) {
                     $grade->final_submitted_at = now();
                 }
 
@@ -188,7 +257,7 @@ class GradeController extends Controller
                 // Handle SHS grades
                 $grade = ShsStudentGrade::firstOrNew([
                     'student_enrollment_id' => $enrollment->id,
-                    'teacher_id' => $teacher->id
+                    'teacher_id' => $teacher->id,
                 ]);
 
                 $grade->first_quarter_grade = $gradeData['first_quarter_grade'] ?? null;
@@ -198,24 +267,24 @@ class GradeController extends Controller
                 $grade->teacher_remarks = $gradeData['teacher_remarks'] ?? null;
 
                 // Calculate final grade if all quarters are present
-                if ($grade->first_quarter_grade && $grade->second_quarter_grade && 
+                if ($grade->first_quarter_grade && $grade->second_quarter_grade &&
                     $grade->third_quarter_grade && $grade->fourth_quarter_grade) {
-                    $grade->final_grade = ($grade->first_quarter_grade + $grade->second_quarter_grade + 
+                    $grade->final_grade = ($grade->first_quarter_grade + $grade->second_quarter_grade +
                                          $grade->third_quarter_grade + $grade->fourth_quarter_grade) / 4;
                     $grade->completion_status = $grade->final_grade >= 75 ? 'passed' : 'failed';
                 }
 
                 // Set submission timestamps
-                if ($gradeData['first_quarter_grade'] !== null && !$grade->first_quarter_submitted_at) {
+                if ($gradeData['first_quarter_grade'] !== null && ! $grade->first_quarter_submitted_at) {
                     $grade->first_quarter_submitted_at = now();
                 }
-                if ($gradeData['second_quarter_grade'] !== null && !$grade->second_quarter_submitted_at) {
+                if ($gradeData['second_quarter_grade'] !== null && ! $grade->second_quarter_submitted_at) {
                     $grade->second_quarter_submitted_at = now();
                 }
-                if ($gradeData['third_quarter_grade'] !== null && !$grade->third_quarter_submitted_at) {
+                if ($gradeData['third_quarter_grade'] !== null && ! $grade->third_quarter_submitted_at) {
                     $grade->third_quarter_submitted_at = now();
                 }
-                if ($gradeData['fourth_quarter_grade'] !== null && !$grade->fourth_quarter_submitted_at) {
+                if ($gradeData['fourth_quarter_grade'] !== null && ! $grade->fourth_quarter_submitted_at) {
                     $grade->fourth_quarter_submitted_at = now();
                 }
 
@@ -245,10 +314,10 @@ class GradeController extends Controller
 
         try {
             Excel::import(new GradeImport($section, $teacher), $request->file('grades_file'));
-            
+
             return redirect()->back()->with('success', 'Grades imported successfully.');
         } catch (\Exception $e) {
-            return redirect()->back()->withErrors(['grades_file' => 'Error importing grades: ' . $e->getMessage()]);
+            return redirect()->back()->withErrors(['grades_file' => 'Error importing grades: '.$e->getMessage()]);
         }
     }
 
@@ -261,20 +330,45 @@ class GradeController extends Controller
         $teacher = Teacher::where('user_id', $user->id)->firstOrFail();
 
         // Verify teacher is assigned to this section
-        SectionSubject::where('section_id', $section->id)
+        $sectionSubject = SectionSubject::where('section_id', $section->id)
             ->where('teacher_id', $teacher->id)
             ->firstOrFail();
 
-        // Get students in this section
-        $enrollments = StudentEnrollment::with('student.user')
-            ->where('section_id', $section->id)
+        // Get students enrolled in this specific subject for this teacher
+        $subjectEnrollments = StudentSubjectEnrollment::with('student.user')
+            ->where('section_subject_id', $sectionSubject->id)
             ->where('status', 'active')
             ->get();
+
+        // Transform to match expected structure for the template
+        $enrollments = collect();
+
+        foreach ($subjectEnrollments as $subjectEnrollment) {
+            if ($subjectEnrollment->enrollment_type === 'regular') {
+                // For regular students, find their section enrollment
+                $studentEnrollment = StudentEnrollment::with('student.user')
+                    ->where('section_id', $section->id)
+                    ->where('student_id', $subjectEnrollment->student_id)
+                    ->where('status', 'active')
+                    ->first();
+
+                if ($studentEnrollment) {
+                    $enrollments->push($studentEnrollment);
+                }
+            } else {
+                // For irregular students, create mock enrollment
+                $mockEnrollment = (object) [
+                    'id' => "irregular_{$subjectEnrollment->id}",
+                    'student' => $subjectEnrollment->student,
+                ];
+                $enrollments->push($mockEnrollment);
+            }
+        }
 
         // Determine if college or SHS
         $isCollegeLevel = in_array($section->year_level, ['1st Year', '2nd Year', '3rd Year', '4th Year']);
 
-        return Excel::download(new GradeTemplateExport($enrollments, $isCollegeLevel), 
-                              "grade_template_{$section->section_code}.xlsx");
+        return Excel::download(new GradeTemplateExport($enrollments, $isCollegeLevel),
+            "grade_template_{$section->section_code}.xlsx");
     }
 }

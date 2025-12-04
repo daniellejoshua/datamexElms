@@ -89,6 +89,32 @@ class Student extends Model
     }
 
     /**
+     * Get subject enrollments for this student.
+     */
+    public function subjectEnrollments(): HasMany
+    {
+        return $this->hasMany(StudentSubjectEnrollment::class);
+    }
+
+    /**
+     * Get active subject enrollments for current semester.
+     */
+    public function activeSubjectEnrollments(): HasMany
+    {
+        return $this->subjectEnrollments()->where('status', 'active');
+    }
+
+    /**
+     * Get subject enrollments for a specific academic period.
+     */
+    public function subjectEnrollmentsForPeriod($academicYear, $semester): HasMany
+    {
+        return $this->subjectEnrollments()
+            ->where('academic_year', $academicYear)
+            ->where('semester', $semester);
+    }
+
+    /**
      * Get payment model based on education level
      */
     public function payments(): HasMany

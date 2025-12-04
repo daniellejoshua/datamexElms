@@ -4,11 +4,12 @@ import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/Components/ui/table';
 import { Button } from '@/Components/ui/button';
 import { Input } from '@/Components/ui/input';
-import { Download, Upload, Save, Search, FileSpreadsheet, CheckCircle, XCircle, AlertTriangle } from 'lucide-react';
+import { Download, Upload, Save, Search, FileSpreadsheet, CheckCircle, XCircle, AlertTriangle, ArrowLeft } from 'lucide-react';
 
 export default function Show({ section, sectionSubject, enrollments, isCollegeLevel, teacher }) {
     const [searchTerm, setSearchTerm] = useState('');
     const [editingGrades, setEditingGrades] = useState({});
+    const [originalGrades, setOriginalGrades] = useState({}); // Track original values
     const [showUploadDialog, setShowUploadDialog] = useState(false);
 
     // // Debug: Log the section details to help identify the issue
@@ -73,23 +74,43 @@ export default function Show({ section, sectionSubject, enrollments, isCollegeLe
     const filteredEnrollments = useMemo(() => {
         if (!searchTerm) return enrollments;
         
-        return enrollments.filter(enrollment => 
-            enrollment.student.user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            enrollment.student.student_id.toLowerCase().includes(searchTerm.toLowerCase())
-        );
+        return enrollments.filter(enrollment => {
+            if (!enrollment.student || !enrollment.student.user) return false;
+            
+            const studentName = enrollment.student.user.name?.toLowerCase() || '';
+            const studentNumber = (enrollment.student.student_number || enrollment.student.student_id || '').toLowerCase();
+            const searchLower = searchTerm.toLowerCase();
+            
+            return studentName.includes(searchLower) || studentNumber.includes(searchLower);
+        });
     }, [enrollments, searchTerm]);
 
     // Initialize grades data
     React.useEffect(() => {
         const initialGrades = filteredEnrollments.map(enrollment => {
+            // Safely access grades arrays - check both camelCase (Laravel) and snake_case (frontend) naming
+            const studentGrades = enrollment.studentGrades || enrollment.student_grades || [];
+            const shsStudentGrades = enrollment.shsStudentGrades || enrollment.shs_student_grades || [];
+            
             const existingGrade = isCollegeLevel 
-                ? enrollment.student_grades[0] 
-                : enrollment.shs_student_grades[0];
+                ? (studentGrades.length > 0 ? studentGrades[0] : null)
+                : (shsStudentGrades.length > 0 ? shsStudentGrades[0] : null);
+
+            // Defensive access to student data
+            const student = enrollment.student || {};
+            const user = student.user || {};
+            const studentNumber = student.student_number || student.student_id || 'N/A';
+            const studentName = user.name || 'Unknown Student';
+            
+            // Skip students with invalid names
+            if (!user.name || user.name.trim() === '' || user.name.includes('Unknown')) {
+                return null;
+            }
 
             return {
                 enrollment_id: enrollment.id,
-                student_id: enrollment.student.student_id,
-                student_name: enrollment.student.user.name,
+                student_id: studentNumber,
+                student_name: studentName,
                 prelim_grade: existingGrade?.prelim_grade || '',
                 midterm_grade: existingGrade?.midterm_grade || '',
                 prefinal_grade: existingGrade?.prefinal_grade || '',
@@ -102,9 +123,26 @@ export default function Show({ section, sectionSubject, enrollments, isCollegeLe
                 semester_grade: existingGrade?.semester_grade || '',
                 final_computed_grade: existingGrade?.final_grade || ''
             };
-        });
+        }).filter(Boolean); // Remove null entries
 
         setData('grades', initialGrades);
+        
+        // Store original grades for comparison
+        const originalData = {};
+        initialGrades.forEach(grade => {
+            originalData[grade.enrollment_id] = {
+                prelim_grade: grade.prelim_grade,
+                midterm_grade: grade.midterm_grade,
+                prefinal_grade: grade.prefinal_grade,
+                final_grade: grade.final_grade,
+                first_quarter_grade: grade.first_quarter_grade,
+                second_quarter_grade: grade.second_quarter_grade,
+                third_quarter_grade: grade.third_quarter_grade,
+                fourth_quarter_grade: grade.fourth_quarter_grade,
+                teacher_remarks: grade.teacher_remarks
+            };
+        });
+        setOriginalGrades(originalData);
     }, [filteredEnrollments, isCollegeLevel]);
 
     // Calculate semester grade based on grading periods
@@ -133,6 +171,12 @@ export default function Show({ section, sectionSubject, enrollments, isCollegeLe
 
     // Handle grade input change
     const handleGradeChange = (enrollmentId, field, value) => {
+        // Validate input: only allow numbers 0-100 with up to 2 decimal places
+        const numValue = parseFloat(value);
+        if (value !== '' && (isNaN(numValue) || numValue < 0 || numValue > 100)) {
+            return; // Don't update if invalid
+        }
+        
         const updatedGrades = data.grades.map(grade => {
             if (grade.enrollment_id === enrollmentId) {
                 const updatedGrade = { ...grade, [field]: value };
@@ -170,6 +214,72 @@ export default function Show({ section, sectionSubject, enrollments, isCollegeLe
             case 'failed': return 'text-red-600 bg-red-50';
             default: return 'text-gray-600 bg-gray-50';
         }
+    };
+
+    // Check if a specific student has unsaved changes
+    const hasStudentChanges = (enrollmentId) => {
+        const currentGrade = data.grades.find(g => g.enrollment_id === enrollmentId);
+        const originalGrade = originalGrades[enrollmentId];
+        
+        if (!currentGrade || !originalGrade) return false;
+        
+        // Compare current values with original values
+        const fieldsToCheck = [
+            'prelim_grade', 'midterm_grade', 'prefinal_grade', 'final_grade',
+            'first_quarter_grade', 'second_quarter_grade', 'third_quarter_grade', 'fourth_quarter_grade',
+            'teacher_remarks'
+        ];
+        
+        return fieldsToCheck.some(field => {
+            const current = (currentGrade[field] || '').toString();
+            const original = (originalGrade[field] || '').toString();
+            return current !== original;
+        });
+    };
+
+    // Save grades for a specific student only
+    const saveIndividualGrade = (enrollmentId) => {
+        const studentGrade = data.grades.find(grade => grade.enrollment_id === enrollmentId);
+        if (!studentGrade) return;
+
+        // Create payload with just this student's data
+        const individualPayload = {
+            grades: [studentGrade]
+        };
+
+        post(route('teacher.grades.update', section.id), {
+            data: individualPayload,
+            onSuccess: () => {
+                // Update original grades to current values
+                setOriginalGrades(prev => ({
+                    ...prev,
+                    [enrollmentId]: {
+                        prelim_grade: studentGrade.prelim_grade,
+                        midterm_grade: studentGrade.midterm_grade,
+                        prefinal_grade: studentGrade.prefinal_grade,
+                        final_grade: studentGrade.final_grade,
+                        first_quarter_grade: studentGrade.first_quarter_grade,
+                        second_quarter_grade: studentGrade.second_quarter_grade,
+                        third_quarter_grade: studentGrade.third_quarter_grade,
+                        fourth_quarter_grade: studentGrade.fourth_quarter_grade,
+                        teacher_remarks: studentGrade.teacher_remarks
+                    }
+                }));
+                
+                // Clear editing state for this student only
+                const newEditingGrades = { ...editingGrades };
+                Object.keys(newEditingGrades).forEach(key => {
+                    if (key.startsWith(`${enrollmentId}_`)) {
+                        delete newEditingGrades[key];
+                    }
+                });
+                setEditingGrades(newEditingGrades);
+                alert('Grade saved successfully!');
+            },
+            onError: () => {
+                alert('Error saving grade. Please try again.');
+            }
+        });
     };
 
     // Save grades
@@ -212,15 +322,24 @@ export default function Show({ section, sectionSubject, enrollments, isCollegeLe
     return (
         <AuthenticatedLayout
             header={
-                <div className="flex items-center gap-3">
-                    <div className="bg-blue-100 p-2 rounded-lg">
-                        <FileSpreadsheet className="w-6 h-6 text-blue-600" />
-                    </div>
-                    <div>
-                        <h2 className="text-2xl font-bold text-gray-900">Grade Management</h2>
-                        <p className="text-sm text-gray-600">
-                            {getSimplifiedSectionName()} - {sectionSubject.subject?.subject_code}
-                        </p>
+                <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                        <button 
+                            onClick={() => router.visit(route('teacher.sections.college'))}
+                            className="flex items-center gap-2 px-3 py-1.5 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-md transition-colors"
+                        >
+                            <ArrowLeft className="w-4 h-4" />
+                            Back to Subjects
+                        </button>
+                        <div className="h-6 w-px bg-gray-300"></div>
+                        <div>
+                            <h2 className="text-2xl font-bold text-gray-900">
+                                {sectionSubject?.subject?.subject_name || 'Grade Management'}
+                            </h2>
+                            <p className="text-sm text-blue-600 font-medium mt-1">
+                               {getSimplifiedSectionName()} • {section.academic_year} - Semester {section.semester}
+                            </p>
+                        </div>
                     </div>
                 </div>
             }
@@ -231,7 +350,6 @@ export default function Show({ section, sectionSubject, enrollments, isCollegeLe
                 {/* Section Header with Actions */}
                 <div className="mb-6">
                     <div className="flex items-center justify-end mb-4">
-                       
                         <div className="flex items-center gap-3">
                             <Button 
                                 variant="outline" 
@@ -286,41 +404,40 @@ export default function Show({ section, sectionSubject, enrollments, isCollegeLe
                         <div className="overflow-x-auto">
                             <Table className="min-w-full">
                                 <TableHeader>
-                                    <TableRow className="bg-gray-50 border-b border-gray-200">
-                                        <TableHead className="text-left font-bold text-gray-900">Student ID</TableHead>
-                                        <TableHead className="text-left font-bold text-gray-900">Name</TableHead>
+                                    <TableRow className="bg-blue-50 border-b">
+                                        <TableHead className="text-left font-semibold text-gray-900 py-3">Student ID</TableHead>
+                                        <TableHead className="text-left font-semibold text-gray-900 py-3">Name</TableHead>
                                         {isCollegeLevel ? (
                                             <>
-                                                <TableHead className="text-center font-bold text-gray-900">Prelim</TableHead>
-                                                <TableHead className="text-center font-bold text-gray-900">Midterm</TableHead>
-                                                <TableHead className="text-center font-bold text-gray-900">Prefinals</TableHead>
-                                                <TableHead className="text-center font-bold text-gray-900">Finals</TableHead>
+                                                <TableHead className="text-center font-semibold text-gray-900 py-3">Prelim</TableHead>
+                                                <TableHead className="text-center font-semibold text-gray-900 py-3">Midterm</TableHead>
+                                                <TableHead className="text-center font-semibold text-gray-900 py-3">Prefinals</TableHead>
+                                                <TableHead className="text-center font-semibold text-gray-900 py-3">Finals</TableHead>
                                             </>
                                         ) : (
                                             <>
-                                                <TableHead className="text-center font-bold text-gray-900">Q1</TableHead>
-                                                <TableHead className="text-center font-bold text-gray-900">Q2</TableHead>
-                                                <TableHead className="text-center font-bold text-gray-900">Q3</TableHead>
-                                                <TableHead className="text-center font-bold text-gray-900">Q4</TableHead>
+                                                <TableHead className="text-center font-semibold text-gray-900 py-3">Q1</TableHead>
+                                                <TableHead className="text-center font-semibold text-gray-900 py-3">Q2</TableHead>
+                                                <TableHead className="text-center font-semibold text-gray-900 py-3">Q3</TableHead>
+                                                <TableHead className="text-center font-semibold text-gray-900 py-3">Q4</TableHead>
                                             </>
                                         )}
-                                        <TableHead className="text-center font-bold text-blue-600">Semester Grade</TableHead>
-                                        <TableHead className="text-center font-bold text-gray-900">Remarks</TableHead>
-                                        <TableHead className="text-center font-bold text-gray-900">Actions</TableHead>
+                                        <TableHead className="text-center font-semibold text-blue-600 py-3">Semester Grade</TableHead>
+                                        <TableHead className="text-center font-semibold text-gray-900 py-3">Actions</TableHead>
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
                                     {data.grades.map((gradeData, index) => (
-                                        <TableRow key={gradeData.enrollment_id} className="border-b hover:bg-gray-50">
-                                            <TableCell className="font-medium text-blue-600">
-                                                {gradeData.student_id}
+                                        <TableRow key={gradeData.enrollment_id} className="hover:bg-gray-50">
+                                            <TableCell className="font-medium text-blue-600 py-3">
+                                                {gradeData.student_id || 'N/A'}
                                             </TableCell>
-                                            <TableCell className="font-medium">
+                                            <TableCell className="font-medium py-3">
                                                 {gradeData.student_name}
                                             </TableCell>
                                             {isCollegeLevel ? (
                                                 <>
-                                                    <TableCell className="text-center">
+                                                    <TableCell className="text-center py-3">
                                                         <Input
                                                             type="number"
                                                             step="0.01"
@@ -328,12 +445,10 @@ export default function Show({ section, sectionSubject, enrollments, isCollegeLe
                                                             max="100"
                                                             value={gradeData.prelim_grade}
                                                             onChange={(e) => handleGradeChange(gradeData.enrollment_id, 'prelim_grade', e.target.value)}
-                                                            className={`w-20 text-center border-gray-300 focus:ring-blue-500 focus:border-blue-500 ${
-                                                                editingGrades[`${gradeData.enrollment_id}_prelim_grade`] ? 'ring-2 ring-blue-300' : ''
-                                                            } ${getGradeStatusColor(getGradeStatus(gradeData.prelim_grade))}`}
+                                                            className="w-20 text-center text-sm"
                                                         />
                                                     </TableCell>
-                                                    <TableCell className="text-center">
+                                                    <TableCell className="text-center py-3">
                                                         <Input
                                                             type="number"
                                                             step="0.01"
@@ -341,12 +456,10 @@ export default function Show({ section, sectionSubject, enrollments, isCollegeLe
                                                             max="100"
                                                             value={gradeData.midterm_grade}
                                                             onChange={(e) => handleGradeChange(gradeData.enrollment_id, 'midterm_grade', e.target.value)}
-                                                            className={`w-20 text-center border-gray-300 focus:ring-blue-500 focus:border-blue-500 ${
-                                                                editingGrades[`${gradeData.enrollment_id}_midterm_grade`] ? 'ring-2 ring-blue-300' : ''
-                                                            } ${getGradeStatusColor(getGradeStatus(gradeData.midterm_grade))}`}
+                                                            className="w-20 text-center text-sm"
                                                         />
                                                     </TableCell>
-                                                    <TableCell className="text-center">
+                                                    <TableCell className="text-center py-3">
                                                         <Input
                                                             type="number"
                                                             step="0.01"
@@ -354,12 +467,10 @@ export default function Show({ section, sectionSubject, enrollments, isCollegeLe
                                                             max="100"
                                                             value={gradeData.prefinal_grade}
                                                             onChange={(e) => handleGradeChange(gradeData.enrollment_id, 'prefinal_grade', e.target.value)}
-                                                            className={`w-20 text-center border-gray-300 focus:ring-blue-500 focus:border-blue-500 ${
-                                                                editingGrades[`${gradeData.enrollment_id}_prefinal_grade`] ? 'ring-2 ring-blue-300' : ''
-                                                            } ${getGradeStatusColor(getGradeStatus(gradeData.prefinal_grade))}`}
+                                                            className="w-20 text-center text-sm"
                                                         />
                                                     </TableCell>
-                                                    <TableCell className="text-center">
+                                                    <TableCell className="text-center py-3">
                                                         <Input
                                                             type="number"
                                                             step="0.01"
@@ -367,51 +478,43 @@ export default function Show({ section, sectionSubject, enrollments, isCollegeLe
                                                             max="100"
                                                             value={gradeData.final_grade}
                                                             onChange={(e) => handleGradeChange(gradeData.enrollment_id, 'final_grade', e.target.value)}
-                                                            className={`w-20 text-center border-gray-300 focus:ring-blue-500 focus:border-blue-500 ${
-                                                                editingGrades[`${gradeData.enrollment_id}_final_grade`] ? 'ring-2 ring-blue-300' : ''
-                                                            } ${getGradeStatusColor(getGradeStatus(gradeData.final_grade))}`}
+                                                            className="w-20 text-center text-sm"
                                                         />
                                                     </TableCell>
                                                 </>
                                             ) : (
                                                 <>
-                                                    <TableCell className="text-center">
+                                                    <TableCell className="text-center py-3">
                                                         <Input
                                                             type="number"
                                                             min="0"
                                                             max="100"
                                                             value={gradeData.first_quarter_grade}
                                                             onChange={(e) => handleGradeChange(gradeData.enrollment_id, 'first_quarter_grade', e.target.value)}
-                                                            className={`w-20 text-center border-gray-300 focus:ring-purple-500 focus:border-purple-500 ${
-                                                                editingGrades[`${gradeData.enrollment_id}_first_quarter_grade`] ? 'ring-2 ring-purple-300' : ''
-                                                            } ${getGradeStatusColor(getGradeStatus(gradeData.first_quarter_grade))}`}
+                                                            className="w-20 text-center text-sm"
                                                         />
                                                     </TableCell>
-                                                    <TableCell className="text-center">
+                                                    <TableCell className="text-center py-3">
                                                         <Input
                                                             type="number"
                                                             min="0"
                                                             max="100"
                                                             value={gradeData.second_quarter_grade}
                                                             onChange={(e) => handleGradeChange(gradeData.enrollment_id, 'second_quarter_grade', e.target.value)}
-                                                            className={`w-20 text-center border-gray-300 focus:ring-purple-500 focus:border-purple-500 ${
-                                                                editingGrades[`${gradeData.enrollment_id}_second_quarter_grade`] ? 'ring-2 ring-purple-300' : ''
-                                                            } ${getGradeStatusColor(getGradeStatus(gradeData.second_quarter_grade))}`}
+                                                            className="w-20 text-center text-sm"
                                                         />
                                                     </TableCell>
-                                                    <TableCell className="text-center">
+                                                    <TableCell className="text-center py-3">
                                                         <Input
                                                             type="number"
                                                             min="0"
                                                             max="100"
                                                             value={gradeData.third_quarter_grade}
                                                             onChange={(e) => handleGradeChange(gradeData.enrollment_id, 'third_quarter_grade', e.target.value)}
-                                                            className={`w-20 text-center border-gray-300 focus:ring-purple-500 focus:border-purple-500 ${
-                                                                editingGrades[`${gradeData.enrollment_id}_third_quarter_grade`] ? 'ring-2 ring-purple-300' : ''
-                                                            } ${getGradeStatusColor(getGradeStatus(gradeData.third_quarter_grade))}`}
+                                                            className="w-20 text-center text-sm"
                                                         />
                                                     </TableCell>
-                                                    <TableCell className="text-center">
+                                                    <TableCell className="text-center py-3">
                                                         <Input
                                                             type="number"
                                                             min="0"
@@ -425,21 +528,24 @@ export default function Show({ section, sectionSubject, enrollments, isCollegeLe
                                                     </TableCell>
                                                 </>
                                             )}
-                                            <TableCell className="text-center">
-                                                <span className={`inline-block px-3 py-1 rounded-full font-bold ${
-                                                    getGradeStatusColor(getGradeStatus(gradeData.semester_grade))
-                                                }`}>
-                                                    {gradeData.semester_grade || 'N/A'}
-                                                </span>
+                                            <TableCell className="text-center py-3">
+                                                <div className="font-semibold text-blue-600">
+                                                    {gradeData.semester_grade || '--'}
+                                                </div>
                                             </TableCell>
-                                            <TableCell className="text-center">
-                                                <Input
-                                                    type="text"
-                                                    value={gradeData.teacher_remarks}
-                                                    onChange={(e) => handleGradeChange(gradeData.enrollment_id, 'teacher_remarks', e.target.value)}
-                                                    placeholder="Remarks..."
-                                                    className="w-32 text-center border-gray-300 focus:ring-blue-500 focus:border-blue-500"
-                                                />
+                                            <TableCell className="text-center py-3">
+                                                {hasStudentChanges(gradeData.enrollment_id) ? (
+                                                    <Button 
+                                                        onClick={() => saveIndividualGrade(gradeData.enrollment_id)}
+                                                        size="sm" 
+                                                        className="bg-green-600 hover:bg-green-700 text-white"
+                                                        disabled={processing}
+                                                    >
+                                                        {processing ? 'Saving...' : 'Save'}
+                                                    </Button>
+                                                ) : (
+                                                    <span className="text-gray-400 text-sm"></span>
+                                                )}
                                             </TableCell>
                                         </TableRow>
                                     ))}

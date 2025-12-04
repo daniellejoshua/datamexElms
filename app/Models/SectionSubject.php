@@ -54,6 +54,32 @@ class SectionSubject extends Model
     }
 
     /**
+     * Get student enrollments for this section subject.
+     */
+    public function studentEnrollments(): HasMany
+    {
+        return $this->hasMany(StudentSubjectEnrollment::class);
+    }
+
+    /**
+     * Get active student enrollments for this section subject.
+     */
+    public function activeStudentEnrollments(): HasMany
+    {
+        return $this->studentEnrollments()->where('status', 'active');
+    }
+
+    /**
+     * Get enrolled students for this section subject.
+     */
+    public function enrolledStudents()
+    {
+        return $this->belongsToMany(Student::class, 'student_subject_enrollments')
+            ->withPivot(['enrollment_type', 'academic_year', 'semester', 'status', 'enrollment_date', 'remarks'])
+            ->wherePivot('status', 'active');
+    }
+
+    /**
      * Scope for active section subjects
      */
     public function scopeActive($query)

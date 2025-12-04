@@ -21,6 +21,88 @@ import {
 export default function ShsSections({ sections, filters }) {
     const [searchTerm, setSearchTerm] = useState(filters?.search || '');
 
+    // Format schedule for display
+    const formatSchedule = (scheduleDays, startTime, endTime) => {
+        if (!scheduleDays || scheduleDays.length === 0) return 'No schedule set';
+        
+        try {
+            const days = Array.isArray(scheduleDays) ? scheduleDays : JSON.parse(scheduleDays || '[]');
+            
+            // Convert days to lowercase for comparison
+            const daySet = new Set(days.map(day => day.toLowerCase()));
+            
+            // Common schedule patterns
+            let dayDisplay = '';
+            if (daySet.has('monday') && daySet.has('wednesday') && daySet.has('friday') && daySet.size === 3) {
+                dayDisplay = 'MWF';
+            } else if (daySet.has('tuesday') && daySet.has('thursday') && daySet.size === 2) {
+                dayDisplay = 'TTHS';
+            } else if (daySet.has('monday') && daySet.has('tuesday') && daySet.has('wednesday') && daySet.has('thursday') && daySet.has('friday') && daySet.size === 5) {
+                dayDisplay = 'MTWTF';
+            } else if (daySet.has('monday') && daySet.has('wednesday') && daySet.size === 2) {
+                dayDisplay = 'MW';
+            } else if (daySet.has('tuesday') && daySet.has('friday') && daySet.size === 2) {
+                dayDisplay = 'TF';
+            } else {
+                // Fallback to individual abbreviations
+                const dayAbbrevs = {
+                    monday: 'M',
+                    tuesday: 'T', 
+                    wednesday: 'W',
+                    thursday: 'TH',
+                    friday: 'F',
+                    saturday: 'S',
+                    sunday: 'SU'
+                };
+                dayDisplay = days.map(day => dayAbbrevs[day.toLowerCase()] || day).join('');
+            }
+            
+            let timeRange = '';
+            if (startTime && endTime) {
+                try {
+                    // Simple time formatting for HH:mm format
+                    const formatTime = (time) => {
+                        if (!time) return null;
+                        
+                        // Time should now come as HH:mm from backend
+                        const timePart = time.match(/(\d{1,2}):(\d{2})/);
+                        if (!timePart) return null;
+                        
+                        const hours = parseInt(timePart[1]);
+                        const minutes = parseInt(timePart[2]);
+                        
+                        // Validate time
+                        if (hours < 0 || hours > 23 || minutes < 0 || minutes > 59) {
+                            return null;
+                        }
+                        
+                        // Format to 12-hour format
+                        const period = hours >= 12 ? 'PM' : 'AM';
+                        const displayHours = hours === 0 ? 12 : hours > 12 ? hours - 12 : hours;
+                        const displayMinutes = minutes.toString().padStart(2, '0');
+                        
+                        return `${displayHours}:${displayMinutes} ${period}`;
+                    };
+                    
+                    const formattedStartTime = formatTime(startTime);
+                    const formattedEndTime = formatTime(endTime);
+                    
+                    if (formattedStartTime && formattedEndTime) {
+                        timeRange = ` • ${formattedStartTime} - ${formattedEndTime}`;
+                    }
+                } catch (timeError) {
+                    console.warn('Invalid time format:', { startTime, endTime, error: timeError });
+                    timeRange = '';
+                }
+            }
+
+            return `${dayDisplay}${timeRange}`;
+        } catch (error) {
+            console.warn('Error formatting schedule:', error);
+            return 'Invalid schedule';
+        }
+    };
+
     const handleSearch = (e) => {
         e.preventDefault();
         router.get(route('teacher.sections.shs'), { search: searchTerm }, {
@@ -131,6 +213,23 @@ export default function ShsSections({ sections, filters }) {
                                             <p className="text-sm text-gray-800 font-medium leading-tight">
                                                 {section.teacher_subject?.subject?.subject_name}
                                             </p>
+                                            {/* Schedule */}
+                                            {(section.teacher_subject?.schedule_days || section.teacher_subject?.start_time) && (
+                                                <div className="mt-2 px-2 py-1 bg-gray-100 rounded-md">
+                                                    <p className="text-xs text-gray-600 font-medium">
+                                                        {formatSchedule(
+                                                            section.teacher_subject?.schedule_days,
+                                                            section.teacher_subject?.start_time,
+                                                            section.teacher_subject?.end_time
+                                                        )}
+                                                    </p>
+                                                    {section.teacher_subject?.room && (
+                                                        <p className="text-xs text-gray-500 mt-0.5">
+                                                            Room: {section.teacher_subject.room}
+                                                        </p>
+                                                    )}
+                                                </div>
+                                            )}
                                         </div>
 
                                         {/* Stats */}

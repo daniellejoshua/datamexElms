@@ -4,7 +4,7 @@ import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Check, X, Users, UserPlus, GraduationCap, ArrowLeft, Mail, Phone, MapPin, Calendar, BookOpen, User, Trash2 } from 'lucide-react';
+import { Check, X, Users, UserPlus, GraduationCap, ArrowLeft, Mail, Phone, MapPin, Calendar, BookOpen, User, Trash2, Settings } from 'lucide-react';
 
 export default function Students({ section, enrolledStudents, availableStudents }) {
     const { flash } = usePage().props;
@@ -146,6 +146,13 @@ export default function Students({ section, enrolledStudents, availableStudents 
         }
     };
 
+    const handleManageSubjects = (studentId) => {
+        router.get(route('admin.sections.subject-enrollment', {
+            section: section.id,
+            student: studentId
+        }));
+    };
+
     // Format section name for better readability
     const formatSectionName = (section) => {
         console.log('Section object for formatting:', section);
@@ -242,10 +249,29 @@ export default function Students({ section, enrolledStudents, availableStudents 
                                                 >
                                                     {enrollment.student.user.name}
                                                 </p>
-                                                <p className="text-sm text-gray-600 mt-0.5">{enrollment.student.student_number}</p>
+                                                <div className="flex items-center gap-2 mt-0.5">
+                                                    <p className="text-sm text-gray-600">{enrollment.student.student_number}</p>
+                                                    {enrollment.student.student_type === 'irregular' && (
+                                                        <Badge variant="outline" className="text-xs bg-orange-50 text-orange-700 border-orange-200">
+                                                            Irregular
+                                                        </Badge>
+                                                    )}
+                                                </div>
                                             </div>
                                             <div className="flex items-center gap-2 ml-3">
                                                 <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded whitespace-nowrap">Enrolled</span>
+                                                {enrollment.student.student_type === 'irregular' && (
+                                                    <button
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            handleManageSubjects(enrollment.student.id);
+                                                        }}
+                                                        className="opacity-0 group-hover:opacity-100 transition-opacity p-1.5 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded"
+                                                        title="Manage subjects"
+                                                    >
+                                                        <Settings className="h-3.5 w-3.5" />
+                                                    </button>
+                                                )}
                                                 <button
                                                     onClick={(e) => {
                                                         e.stopPropagation();

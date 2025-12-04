@@ -15,11 +15,95 @@ import {
     FileText,
     BarChart3,
     ChevronRight,
-    Upload
+    Upload,
+    Clock,
+    MapPin
 } from 'lucide-react';
 
 export default function CollegeSections({ sections, filters }) {
     const [searchTerm, setSearchTerm] = useState(filters?.search || '');
+
+    // Format schedule for display
+    const formatSchedule = (scheduleDays, startTime, endTime) => {
+        if (!scheduleDays || scheduleDays.length === 0) return 'No schedule set';
+        
+        try {
+            const days = Array.isArray(scheduleDays) ? scheduleDays : JSON.parse(scheduleDays || '[]');
+            
+            // Convert days to lowercase for comparison
+            const daySet = new Set(days.map(day => day.toLowerCase()));
+            
+            // Common schedule patterns
+            let dayDisplay = '';
+            if (daySet.has('monday') && daySet.has('wednesday') && daySet.has('friday') && daySet.size === 3) {
+                dayDisplay = 'MWF';
+            } else if (daySet.has('tuesday') && daySet.has('thursday') && daySet.size === 2) {
+                dayDisplay = 'TTHS';
+            } else if (daySet.has('monday') && daySet.has('tuesday') && daySet.has('wednesday') && daySet.has('thursday') && daySet.has('friday') && daySet.size === 5) {
+                dayDisplay = 'MTWTF';
+            } else if (daySet.has('monday') && daySet.has('wednesday') && daySet.size === 2) {
+                dayDisplay = 'MW';
+            } else if (daySet.has('tuesday') && daySet.has('friday') && daySet.size === 2) {
+                dayDisplay = 'TF';
+            } else {
+                // Fallback to individual abbreviations
+                const dayAbbrevs = {
+                    monday: 'M',
+                    tuesday: 'T', 
+                    wednesday: 'W',
+                    thursday: 'TH',
+                    friday: 'F',
+                    saturday: 'S',
+                    sunday: 'SU'
+                };
+                dayDisplay = days.map(day => dayAbbrevs[day.toLowerCase()] || day).join('');
+            }
+            
+            let timeRange = '';
+            if (startTime && endTime) {
+                try {
+                    // Simple time formatting for HH:mm format
+                    const formatTime = (time) => {
+                        if (!time) return null;
+                        
+                        // Time should now come as HH:mm from backend
+                        const timePart = time.match(/(\d{1,2}):(\d{2})/);
+                        if (!timePart) return null;
+                        
+                        const hours = parseInt(timePart[1]);
+                        const minutes = parseInt(timePart[2]);
+                        
+                        // Validate time
+                        if (hours < 0 || hours > 23 || minutes < 0 || minutes > 59) {
+                            return null;
+                        }
+                        
+                        // Format to 12-hour format
+                        const period = hours >= 12 ? 'PM' : 'AM';
+                        const displayHours = hours === 0 ? 12 : hours > 12 ? hours - 12 : hours;
+                        const displayMinutes = minutes.toString().padStart(2, '0');
+                        
+                        return `${displayHours}:${displayMinutes} ${period}`;
+                    };
+                    
+                    const formattedStartTime = formatTime(startTime);
+                    const formattedEndTime = formatTime(endTime);
+                    
+                    if (formattedStartTime && formattedEndTime) {
+                        timeRange = ` • ${formattedStartTime} - ${formattedEndTime}`;
+                    }
+                } catch (timeError) {
+                    console.warn('Invalid time format:', { startTime, endTime, error: timeError });
+                    timeRange = '';
+                }
+            }
+
+            return `${dayDisplay}${timeRange}`;
+        } catch (error) {
+            console.warn('Error formatting schedule:', error);
+            return 'Invalid schedule';
+        }
+    };
 
     const handleSearch = (e) => {
         e.preventDefault();
@@ -86,9 +170,9 @@ export default function CollegeSections({ sections, filters }) {
                 </Card>
 
                 {/* Sections Grid */}
-                {sections.data.length > 0 ? (
+                {sections.data && sections.data.length > 0 ? (
                     <>
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3 gap-4">
+                        <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
                             {sections.data.map((section) => (
                                 <Card key={section.id} className="group hover:shadow-xl transition-all duration-300 border-2 hover:border-blue-300 relative overflow-hidden">
                                     {/* Status Badge */}
@@ -115,31 +199,33 @@ export default function CollegeSections({ sections, filters }) {
                                     </CardHeader>
                                     
                                     <CardContent className="space-y-6">
+                                        {/* Subject Info */}
+                                        {section.teacher_subject?.subject && (
+                                            <Card className="p-3 bg-gradient-to-r from-orange-50 to-yellow-50 border border-orange-200">
+                                                <div className="flex items-center text-sm">
+                                                    <BookOpen className="w-4 h-4 text-orange-600 mr-3 flex-shrink-0" />
+                                                    <div className="flex-1">
+                                                        <span className="font-medium text-orange-600 block">
+                                                            {section.teacher_subject.subject.subject_code}
+                                                        </span>
+                                                        <span className="text-xs text-gray-600 truncate">
+                                                            {section.teacher_subject.subject.subject_name}
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                            </Card>
+                                        )}
+
                                         {/* Section Details */}
                                         <div className="space-y-4">
-                                            <div className="grid grid-cols-2 gap-2">
-                                                <Card className="p-3 bg-gradient-to-r from-green-50 to-blue-50 border border-green-200">
-                                                    <div className="flex items-center text-sm">
-                                                        <GraduationCap className="w-4 h-4 text-green-600 mr-3 flex-shrink-0" />
-                                                        <span className="text-gray-700 font-medium truncate">
-                                                            Year {section.year_level}
-                                                        </span>
-                                                    </div>
-                                                </Card>
-
-                                                {/* Subject Info */}
-                                                <Card className="p-3 bg-gradient-to-r from-orange-50 to-yellow-50 border border-orange-200">
-                                                    <div className="flex items-center text-sm">
-                                                        <BookOpen className="w-4 h-4 text-orange-600 mr-3 flex-shrink-0" />
-                                                        <span 
-                                                            className="font-medium text-orange-600 cursor-help" 
-                                                            title={section.teacher_subject?.subject?.subject_name}
-                                                        >
-                                                            {section.teacher_subject?.subject?.subject_code}
-                                                        </span>
-                                                    </div>
-                                                </Card>
-                                            </div>
+                                            <Card className="p-3 bg-gradient-to-r from-green-50 to-blue-50 border border-green-200">
+                                                <div className="flex items-center text-sm">
+                                                    <GraduationCap className="w-4 h-4 text-green-600 mr-3 flex-shrink-0" />
+                                                    <span className="text-gray-700 font-medium truncate">
+                                                        Year {section.year_level} - Section {section.section_name}
+                                                    </span>
+                                                </div>
+                                            </Card>
                                             
                                             <div className="grid grid-cols-2 gap-2">
                                                 <Card className="p-2 text-center bg-blue-50 border-blue-200">
@@ -171,6 +257,34 @@ export default function CollegeSections({ sections, filters }) {
                                                     </span>
                                                 </div>
                                             </Card>
+                                            
+                                            {/* Schedule Information */}
+                                            {section.teacher_subject && (
+                                                <Card className="p-3 bg-emerald-50 border-emerald-200">
+                                                    <div className="flex items-center text-sm">
+                                                        <Clock className="w-61 h-4 text-emerald-600 mr-3 flex-shrink-0" />
+                                                        <span className="text-gray-700 font-medium truncate">
+                                                            {formatSchedule(
+                                                                section.teacher_subject.schedule_days, 
+                                                                section.teacher_subject.start_time, 
+                                                                section.teacher_subject.end_time
+                                                            )}
+                                                        </span>
+                                                    </div>
+                                                </Card>
+                                            )}
+                                            
+                                            {/* Room Information */}
+                                            {section.teacher_subject?.room && (
+                                                <Card className="p-3 bg-purple-50 border-purple-200">
+                                                    <div className="flex items-center text-sm">
+                                                        <MapPin className="w-4 h-4 text-purple-600 mr-3 flex-shrink-0" />
+                                                        <span className="text-gray-700 font-medium truncate">
+                                                            Room {section.teacher_subject.room}
+                                                        </span>
+                                                    </div>
+                                                </Card>
+                                            )}
                                         </div>
                                         
                                         {/* Action Buttons */}

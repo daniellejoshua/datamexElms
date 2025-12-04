@@ -21,7 +21,8 @@ import {
     School,
     Clock,
     Eye,
-    File
+    File,
+    ArrowLeft
 } from 'lucide-react';
 
 export default function MaterialsIndex({ section, materials, sectionSubject }) {
@@ -98,12 +99,22 @@ export default function MaterialsIndex({ section, materials, sectionSubject }) {
         <AuthenticatedLayout
             header={
                 <div className="flex items-center gap-3">
-                    <div className="bg-blue-100 p-2 rounded-lg">
-                        <BookOpen className="w-6 h-6 text-blue-600" />
-                    </div>
+                    <Button
+                        asChild
+                        variant="ghost"
+                        size="sm"
+                        className="text-gray-600 hover:text-gray-900"
+                    >
+                        <Link href={route('teacher.sections.college')}>
+                            <ArrowLeft className="w-4 h-4 mr-1" />
+                            Back to Sections
+                        </Link>
+                    </Button>
+                    <div className="h-6 w-px bg-gray-300"></div>
+                  
                     <div>
-                        <h2 className="text-2xl font-bold text-gray-900">Learning Materials</h2>
-                        <p className="text-sm text-gray-600">{getSimplifiedSectionName()} - {sectionSubject.subject.subject_code}</p>
+                        <h2 className="text-2xl font-bold text-gray-900">{sectionSubject.subject.subject_name}</h2>
+                        <p className="text-sm text-blue-600">{getSimplifiedSectionName()} • {sectionSubject.subject.subject_code} • Learning Materials</p>
                     </div>
                 </div>
             }
