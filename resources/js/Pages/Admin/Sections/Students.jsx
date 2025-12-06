@@ -20,7 +20,7 @@ export default function Students({ section, enrolledStudents, availableStudents 
     console.log('Enrolled students count:', enrolledStudents?.length);
     console.log('Available students count:', availableStudents?.length);
 
-    const handleEnrollStudents = async () => {
+    const handleEnrollStudents = () => {
         if (selectedStudents.length === 0) {
             alert('Please select at least one student');
             return;
@@ -29,58 +29,23 @@ export default function Students({ section, enrolledStudents, availableStudents 
         setIsEnrolling(true);
         console.log('Starting enrollment for students:', selectedStudents);
         
-        try {
-            // Try multiple ways to get CSRF token
-            let csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
-            
-            if (!csrfToken) {
-                // Try to get it from a form if meta tag doesn't exist
-                const csrfInput = document.querySelector('input[name="_token"]');
-                csrfToken = csrfInput?.value;
-            }
-            
-            if (!csrfToken) {
-                // Get it from Laravel's global window object if available
-                csrfToken = window.Laravel?.csrfToken;
-            }
-            
-            console.log('CSRF token found:', csrfToken ? 'Yes' : 'No');
-            console.log('CSRF token value:', csrfToken);
-            
-            if (!csrfToken) {
-                alert('CSRF token not found. Please refresh the page and try again.');
-                setIsEnrolling(false);
-                return;
-            }
-            
-            const response = await fetch(`/admin/sections/${section.id}/enroll`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': csrfToken,
-                    'Accept': 'application/json',
-                },
-                body: JSON.stringify({
-                    student_ids: selectedStudents
-                })
-            });
-
-            console.log('Response status:', response.status);
-
-            if (response.ok) {
+        router.post(route('admin.sections.enroll', section.id), {
+            student_ids: selectedStudents
+        }, {
+            onSuccess: () => {
                 alert('Students enrolled successfully!');
-                window.location.reload();
-            } else {
-                const responseText = await response.text();
-                console.log('Error response:', responseText);
-                alert(`Failed to enroll students. Status: ${response.status}`);
+                setSelectedStudents([]);
+                setIsEnrolling(false);
+            },
+            onError: (errors) => {
+                console.error('Enrollment errors:', errors);
+                alert('Failed to enroll students. Please check the console for details.');
+                setIsEnrolling(false);
+            },
+            onFinish: () => {
                 setIsEnrolling(false);
             }
-        } catch (error) {
-            console.error('Enrollment error:', error);
-            alert('Network error occurred. Please check console for details.');
-            setIsEnrolling(false);
-        }
+        });
     };
 
     const toggleStudent = (studentId) => {
@@ -106,44 +71,25 @@ export default function Students({ section, enrolledStudents, availableStudents 
         setIsRemoveModalOpen(true);
     };
 
-    const confirmRemoveStudent = async () => {
+    const confirmRemoveStudent = () => {
         if (!studentToRemove) return;
 
-        try {
-            let csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
-            
-            if (!csrfToken) {
-                alert('CSRF token not found. Please refresh the page and try again.');
-                return;
-            }
-
-            const response = await fetch(`/admin/sections/${section.id}/remove-student`, {
-                method: 'DELETE',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': csrfToken,
-                    'Accept': 'application/json',
-                },
-                body: JSON.stringify({
-                    student_id: studentToRemove.id
-                })
-            });
-
-            if (response.ok) {
+        router.delete(route('admin.sections.remove-student', section.id), {
+            data: {
+                student_id: studentToRemove.id
+            },
+            onSuccess: () => {
                 alert('Student removed successfully!');
-                window.location.reload();
-            } else {
-                const responseText = await response.text();
-                console.log('Error response:', responseText);
-                alert(`Failed to remove student. Status: ${response.status}`);
+                setIsRemoveModalOpen(false);
+                setStudentToRemove(null);
+            },
+            onError: (errors) => {
+                console.error('Remove student errors:', errors);
+                alert('Failed to remove student. Please check the console for details.');
+                setIsRemoveModalOpen(false);
+                setStudentToRemove(null);
             }
-        } catch (error) {
-            console.error('Remove student error:', error);
-            alert('Network error occurred. Please check console for details.');
-        } finally {
-            setIsRemoveModalOpen(false);
-            setStudentToRemove(null);
-        }
+        });
     };
 
     const handleManageSubjects = (studentId) => {
@@ -369,6 +315,11 @@ export default function Students({ section, enrolledStudents, availableStudents 
                                                         <span className="text-xs bg-gray-200 px-2 py-1 rounded">
                                                             {student.program.program_code}
                                                         </span>
+                                                    )}
+                                                    {student.student_type === 'irregular' && (
+                                                        <Badge variant="outline" className="text-xs bg-yellow-50 border-yellow-300 text-yellow-700">
+                                                            Irregular
+                                                        </Badge>
                                                     )}
                                                 </div>
                                             </div>

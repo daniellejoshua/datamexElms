@@ -16,6 +16,8 @@ class DatabaseSeeder extends Seeder
             ProgramSeeder::class,
             SubjectSeeder::class,
             TestDataSeeder::class,
+            SectionSubjectSeeder::class,
+            RealisticStudentSeeder::class,
         ]);
     }
 }

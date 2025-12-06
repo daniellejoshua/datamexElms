@@ -53,11 +53,11 @@ describe('Student Enrollment Management', function () {
     it('prevents enrolling students from different programs', function () {
         $program1 = Program::factory()->create([
             'program_name' => 'Program 1',
-            'program_code' => 'PROG1'
+            'program_code' => 'PROG1',
         ]);
         $program2 = Program::factory()->create([
             'program_name' => 'Program 2',
-            'program_code' => 'PROG2'
+            'program_code' => 'PROG2',
         ]);
 
         $section = Section::factory()->create(['program_id' => $program1->id]);
@@ -87,6 +87,7 @@ describe('Student Enrollment Management', function () {
         $student = Student::factory()->create([
             'program_id' => $program->id,
             'current_year_level' => 1, // First year student
+            'student_type' => 'regular', // Explicitly set as regular
         ]);
 
         $response = $this->post(route('admin.sections.enroll', $section->id), [

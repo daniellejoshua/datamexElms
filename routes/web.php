@@ -10,6 +10,10 @@ use App\Http\Controllers\Admin\ShsSectionController;
 use App\Http\Controllers\Admin\ShsSubjectController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\Registrar\CollegePaymentController;
+use App\Http\Controllers\Registrar\ShsPaymentController;
+use App\Http\Controllers\Registrar\StudentBalanceController;
+use App\Http\Controllers\RegistrarController;
 use App\Http\Controllers\Student\StudentDashboardController;
 use App\Http\Controllers\Student\SubjectController as StudentSubjectController;
 use App\Http\Controllers\Teacher\CourseMaterialController;
@@ -27,6 +31,58 @@ Route::middleware(['auth', 'verified', 'role:student'])->prefix('student')->grou
     Route::get('/subjects', [StudentSubjectController::class, 'index'])->name('student.subjects');
     Route::get('/materials/{material}/download', [StudentSubjectController::class, 'downloadMaterial'])->name('student.materials.download');
     Route::post('/materials/{material}/mark-viewed', [StudentSubjectController::class, 'markMaterialAsViewed'])->name('student.materials.mark-viewed');
+});
+
+// Registrar Routes
+Route::middleware(['auth', 'verified', 'role:registrar'])->prefix('registrar')->name('registrar.')->group(function () {
+    Route::get('/dashboard', [RegistrarController::class, 'dashboard'])->name('dashboard');
+    Route::get('/students', [RegistrarController::class, 'students'])->name('students');
+    Route::get('/students/create', [RegistrarController::class, 'create'])->name('students.create');
+    Route::post('/students', [RegistrarController::class, 'store'])->name('students.store');
+    Route::get('/teachers', [RegistrarController::class, 'teachers'])->name('teachers');
+    Route::get('/sections', [RegistrarController::class, 'sections'])->name('sections');
+    Route::get('/enrollment', [RegistrarController::class, 'showEnrollment'])->name('enrollment.create');
+    Route::post('/enrollment', [RegistrarController::class, 'processEnrollment'])->name('enrollment.store');
+    Route::post('/simple-enrollment', [\App\Http\Controllers\Registrar\EnrollmentController::class, 'simpleEnrollment'])->name('enrollment.simple');
+
+    // College Payment Routes
+    Route::prefix('payments/college')->name('payments.college.')->group(function () {
+        Route::get('/', [CollegePaymentController::class, 'index'])->name('index');
+        Route::get('/student/{student}', [CollegePaymentController::class, 'show'])->name('show');
+        Route::post('/', [CollegePaymentController::class, 'store'])->name('store');
+        Route::post('/payment/{payment}/record', [CollegePaymentController::class, 'recordPayment'])->name('record');
+    });
+
+    // SHS Payment Routes
+    Route::prefix('payments/shs')->name('payments.shs.')->group(function () {
+        Route::get('/', [ShsPaymentController::class, 'index'])->name('index');
+        Route::get('/student/{student}', [ShsPaymentController::class, 'show'])->name('show');
+        Route::post('/', [ShsPaymentController::class, 'store'])->name('store');
+        Route::post('/payment/{payment}/record', [ShsPaymentController::class, 'recordPayment'])->name('record');
+        Route::get('/fee-structure', [ShsPaymentController::class, 'getFeeStructure'])->name('fee-structure');
+    });
+
+    // Student Balance Management Routes
+    Route::prefix('balances')->name('balances.')->group(function () {
+        Route::get('/', [StudentBalanceController::class, 'index'])->name('index');
+        Route::get('/create', [StudentBalanceController::class, 'create'])->name('create');
+        Route::post('/', [StudentBalanceController::class, 'store'])->name('store');
+        Route::get('/{balance}', [StudentBalanceController::class, 'show'])->name('show');
+        Route::get('/{balance}/edit', [StudentBalanceController::class, 'edit'])->name('edit');
+        Route::put('/{balance}', [StudentBalanceController::class, 'update'])->name('update');
+        Route::post('/{balance}/payment', [StudentBalanceController::class, 'recordPayment'])->name('payment');
+        Route::post('/{balance}/set-exact', [StudentBalanceController::class, 'setExactBalance'])->name('set-exact');
+        Route::get('/student/{student}/summary', [StudentBalanceController::class, 'getStudentBalanceSummary'])->name('student.summary');
+    });
+
+    // Student Progression Routes
+    Route::prefix('progression')->name('progression.')->group(function () {
+        Route::get('/', [\App\Http\Controllers\Registrar\StudentProgressionController::class, 'index'])->name('index');
+        Route::post('/student/{student}/progress', [\App\Http\Controllers\Registrar\StudentProgressionController::class, 'progressStudent'])->name('student.progress');
+        Route::post('/batch-progress', [\App\Http\Controllers\Registrar\StudentProgressionController::class, 'batchProgress'])->name('batch.progress');
+        Route::post('/finalize-semester', [\App\Http\Controllers\Registrar\StudentProgressionController::class, 'finalizeSemester'])->name('finalize.semester');
+        Route::get('/student/{student}/history', [\App\Http\Controllers\Registrar\StudentProgressionController::class, 'studentHistory'])->name('student.history');
+    });
 });
 
 // Teacher Routes
@@ -104,6 +160,26 @@ Route::middleware(['auth', 'verified'])->prefix('admin')->name('admin.')->group(
             Route::resource('subjects', ShsSubjectController::class);
         });
     });
+});
+
+// Registrar Routes (Payment & Enrollment Management)
+Route::prefix('registrar')->name('registrar.')->middleware(['auth'])->group(function () {
+    // Payment Management
+    Route::get('payments', [App\Http\Controllers\Registrar\PaymentController::class, 'index'])->name('payments.index');
+    Route::get('payments/report', [App\Http\Controllers\Registrar\PaymentController::class, 'report'])->name('payments.report');
+    Route::get('students/{student}/payments', [App\Http\Controllers\Registrar\PaymentController::class, 'show'])->name('payments.show');
+    Route::get('students/{student}/payments/create', [App\Http\Controllers\Registrar\PaymentController::class, 'create'])->name('payments.create');
+    Route::post('students/{student}/payments', [App\Http\Controllers\Registrar\PaymentController::class, 'store'])->name('payments.store');
+    Route::post('payments/{payment}/process', [App\Http\Controllers\Registrar\PaymentController::class, 'processPayment'])->name('payments.process');
+    Route::get('transactions/{transaction}/receipt', [App\Http\Controllers\Registrar\PaymentController::class, 'receipt'])->name('payments.receipt');
+
+    // Enrollment Management
+    Route::get('enrollments', [App\Http\Controllers\Registrar\EnrollmentController::class, 'index'])->name('enrollments.index');
+    Route::get('students/{student}/enroll', [App\Http\Controllers\Registrar\EnrollmentController::class, 'create'])->name('enrollments.create');
+    Route::post('students/{student}/enroll', [App\Http\Controllers\Registrar\EnrollmentController::class, 'store'])->name('enrollments.store');
+    Route::get('students/{student}/subjects/enroll', [App\Http\Controllers\Registrar\EnrollmentController::class, 'createSubjectEnrollment'])->name('enrollments.subjects.create');
+    Route::post('students/{student}/subjects/enroll', [App\Http\Controllers\Registrar\EnrollmentController::class, 'storeSubjectEnrollment'])->name('enrollments.subjects.store');
+    Route::delete('enrollments/{enrollment}', [App\Http\Controllers\Registrar\EnrollmentController::class, 'destroy'])->name('enrollments.destroy');
 });
 
 Route::get('/dashboard', [DashboardController::class, 'index'])->middleware(['auth', 'verified'])->name('dashboard');

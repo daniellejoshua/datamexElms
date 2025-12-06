@@ -14,6 +14,16 @@ import {
     Eye
 } from 'lucide-react'
 
+// Helper function to format section name
+const formatSectionName = (section) => {
+    if (!section) return 'N/A';
+    if (section.program?.program_code && section.year_level) {
+        const identifier = section.section_name;
+        return `${section.program.program_code}-${section.year_level}${identifier}`;
+    }
+    return section.section_name || 'N/A';
+};
+
 export default function Dashboard({ 
     auth,
     student, 
@@ -212,10 +222,10 @@ export default function Dashboard({
                                     <div key={enrollment.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                                         <div>
                                             <h4 className="font-semibold text-gray-900">
-                                                {enrollment.section?.program?.program_code || 'N/A'}
+                                                {formatSectionName(enrollment.section)}
                                             </h4>
                                             <p className="text-sm text-gray-600">
-                                                {enrollment.section?.program?.program_name || 'N/A'} - {enrollment.section?.program?.program_code || 'N/A'}-{enrollment.section?.year_level || 'N/A'}{enrollment.section?.section_name || 'N/A'}
+                                                {enrollment.section?.program?.program_name || 'N/A'}
                                             </p>
                                         </div>
                                         <Badge variant="secondary">
@@ -258,7 +268,7 @@ export default function Dashboard({
                                     <div key={index} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                                         <div>
                                             <h4 className="font-semibold text-gray-900">
-                                                {grade.student_enrollment?.section?.program?.program_code || 'N/A'}
+                                                {formatSectionName(grade.student_enrollment?.section)}
                                             </h4>
                                             <p className="text-sm text-gray-600">
                                                 {grade.grading_period} - {grade.semester_grade ? 'Semester' : 'Partial'} Grade

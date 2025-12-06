@@ -68,6 +68,11 @@ class Student extends Model
         return $this->hasManyThrough(StudentGrade::class, StudentEnrollment::class);
     }
 
+    public function studentBalances(): HasMany
+    {
+        return $this->hasMany(StudentBalance::class);
+    }
+
     public function shsGrades(): HasManyThrough
     {
         return $this->hasManyThrough(ShsStudentGrade::class, StudentEnrollment::class);
@@ -86,6 +91,21 @@ class Student extends Model
     public function shsPayments(): HasMany
     {
         return $this->hasMany(ShsStudentPayment::class);
+    }
+
+    public function paymentTransactions(): HasMany
+    {
+        return $this->hasMany(PaymentTransaction::class);
+    }
+
+    public function archivedEnrollments(): HasMany
+    {
+        return $this->hasMany(ArchivedStudentEnrollment::class);
+    }
+
+    public function studentSubjectEnrollments(): HasMany
+    {
+        return $this->hasMany(StudentSubjectEnrollment::class);
     }
 
     /**
@@ -138,5 +158,48 @@ class Student extends Model
     public function isCollege(): bool
     {
         return $this->education_level === 'college';
+    }
+
+    /**
+     * Ensure student has payment records for the given academic year and semester
+     */
+    public function ensurePaymentRecords(string $academicYear, string $semester): void
+    {
+        // Check if payment record already exists
+        $existingPayment = StudentSemesterPayment::where([
+            'student_id' => $this->id,
+            'academic_year' => $academicYear,
+            'semester' => $semester,
+        ])->first();
+
+        if (! $existingPayment) {
+            // Create payment record with default values based on education level
+            $enrollmentFee = $this->education_level === 'college' ? 5000 : 3000;
+            $prelimAmount = $this->education_level === 'college' ? 6000 : 4000;
+            $midtermAmount = $this->education_level === 'college' ? 6000 : 4000;
+            $prefinalAmount = $this->education_level === 'college' ? 6000 : 4000;
+            $finalAmount = $this->education_level === 'college' ? 6000 : 4000;
+            $totalSemesterFee = $enrollmentFee + $prelimAmount + $midtermAmount + $prefinalAmount + $finalAmount;
+
+            StudentSemesterPayment::create([
+                'student_id' => $this->id,
+                'academic_year' => $academicYear,
+                'semester' => $semester,
+                'enrollment_fee' => $enrollmentFee,
+                'enrollment_paid' => 0,
+                'prelim_amount' => $prelimAmount,
+                'prelim_paid' => 0,
+                'midterm_amount' => $midtermAmount,
+                'midterm_paid' => 0,
+                'prefinal_amount' => $prefinalAmount,
+                'prefinal_paid' => 0,
+                'final_amount' => $finalAmount,
+                'final_paid' => 0,
+                'total_semester_fee' => $totalSemesterFee,
+                'total_paid' => 0,
+                'balance' => $totalSemesterFee,
+                'status' => 'pending',
+            ]);
+        }
     }
 }

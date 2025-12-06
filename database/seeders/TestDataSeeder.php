@@ -89,15 +89,17 @@ class TestDataSeeder extends Seeder
         }
 
         // Create Subjects with different hour requirements
-        $subjects = [
-            // CS Subjects
-            ['code' => 'CS101', 'name' => 'Introduction to Programming', 'units' => 3, 'year' => 1, 'type' => 'major'],
-            ['code' => 'CS102', 'name' => 'Data Structures', 'units' => 4, 'year' => 1, 'type' => 'major'],
-            ['code' => 'CS201', 'name' => 'Object Oriented Programming', 'units' => 3, 'year' => 2, 'type' => 'major'],
-            ['code' => 'CS202', 'name' => 'Database Systems', 'units' => 4, 'year' => 2, 'type' => 'major'],
-            
-            // Math Subjects
-            ['code' => 'MATH101', 'name' => 'College Algebra', 'units' => 3, 'year' => 1, 'type' => 'general'],
+        $existingSubjects = Subject::all();
+        if ($existingSubjects->isEmpty()) {
+            $subjects = [
+                // CS Subjects
+                ['code' => 'CS101', 'name' => 'Introduction to Programming', 'units' => 3, 'year' => 1, 'type' => 'major'],
+                ['code' => 'CS102', 'name' => 'Data Structures', 'units' => 4, 'year' => 1, 'type' => 'major'],
+                ['code' => 'CS201', 'name' => 'Object Oriented Programming', 'units' => 3, 'year' => 2, 'type' => 'major'],
+                ['code' => 'CS202', 'name' => 'Database Systems', 'units' => 4, 'year' => 2, 'type' => 'major'],
+                
+                // Math Subjects
+                ['code' => 'MATH101', 'name' => 'College Algebra', 'units' => 3, 'year' => 1, 'type' => 'general'],
             ['code' => 'MATH102', 'name' => 'Calculus I', 'units' => 4, 'year' => 1, 'type' => 'general'],
             ['code' => 'MATH201', 'name' => 'Statistics', 'units' => 3, 'year' => 2, 'type' => 'general'],
             
