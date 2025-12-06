@@ -56,6 +56,27 @@ export default function GradesModal({ isOpen, onClose, subject }) {
         { label: 'Final', value: subject.grades?.final_grade, weight: '25%' },
     ];
 
+// Add this function inside your GradesModal component
+const getGradePointEquivalence = (grade) => {
+    if (!grade || grade === 'N/A') return 'N/A';
+    const num = parseFloat(grade);
+    if (num >= 96) return '1.00';
+    if (num >= 94) return '1.25';
+    if (num >= 91) return '1.50';
+    if (num >= 88) return '1.75';
+    if (num >= 85) return '2.00';
+    if (num >= 83) return '2.25';
+    if (num >= 80) return '2.50';
+    if (num >= 78) return '2.75';
+    if (num >= 75) return '3.00';
+    if (num < 75) return '5.00';
+    return 'N/A';
+};
+
+
+
+
+
     const semesterGrade = subject.grades?.semester_grade;
 
     return (
@@ -146,13 +167,14 @@ export default function GradesModal({ isOpen, onClose, subject }) {
                                                 </div>
                                                 <div className="flex items-center justify-between">
                                                     <span className={`text-2xl font-bold ${getGradeColor(item.value)}`}>
-                                                        {item.value || 'N/A'}
+                                                        {getGradePointEquivalence(item.value) || 'N/A'}
                                                     </span>
+                                                    
                                                     <Badge 
                                                         variant="secondary" 
                                                         className={`${getGradeBg(item.value)} ${getGradeColor(item.value)} border-0`}
                                                     >
-                                                        {getLetterGrade(item.value)}
+                                                        {item.value}
                                                     </Badge>
                                                 </div>
                                             </div>
@@ -175,13 +197,13 @@ export default function GradesModal({ isOpen, onClose, subject }) {
                                             <p className="text-sm text-gray-600 mb-1">Overall Performance</p>
                                             <div className="flex items-center gap-3">
                                                 <span className={`text-4xl font-bold ${getGradeColor(semesterGrade)}`}>
-                                                    {semesterGrade || 'N/A'}
+                                                    {getGradePointEquivalence(semesterGrade)|| 'N/A'}
                                                 </span>
                                                 <Badge 
                                                     variant="secondary" 
                                                     className={`text-lg px-3 py-1 ${getGradeBg(semesterGrade)} ${getGradeColor(semesterGrade)} border-0`}
                                                 >
-                                                    {getLetterGrade(semesterGrade)}
+                                                    {semesterGrade}
                                                 </Badge>
                                             </div>
                                         </div>

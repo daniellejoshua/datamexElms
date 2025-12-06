@@ -9,6 +9,7 @@ class StudentGrade extends Model
 {
     protected $fillable = [
         'student_enrollment_id',
+        'section_subject_id',
         'teacher_id',
         'prelim_grade',
         'midterm_grade',

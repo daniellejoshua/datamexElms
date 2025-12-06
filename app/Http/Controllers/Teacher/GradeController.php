@@ -49,77 +49,56 @@ class GradeController extends Controller
             })
             ->get();
 
+        // Load section's program for determining education level
+        $section->load('program');
+
         // Transform to maintain compatibility with existing frontend
         $enrollments = collect();
 
         foreach ($subjectEnrollments as $subjectEnrollment) {
-            // For regular students, find their section enrollment
-            // For irregular students, create a mock enrollment structure
-            $studentEnrollment = null;
-
-            if ($subjectEnrollment->enrollment_type === 'regular') {
-                $studentEnrollment = StudentEnrollment::with([
-                    'student.user',
-                    'section',
-                    'studentGrades' => function ($query) use ($teacher) {
-                        $query->where('teacher_id', $teacher->id);
-                    },
-                    'shsStudentGrades' => function ($query) use ($teacher) {
-                        $query->where('teacher_id', $teacher->id);
-                    },
-                ])
-                    ->where('section_id', $section->id)
-                    ->where('student_id', $subjectEnrollment->student_id)
-                    ->where('status', 'active')
-                    ->first();
-            }
+            // Find the student's enrollment in this section
+            $studentEnrollment = StudentEnrollment::with([
+                'student.user',
+                'section',
+                'studentGrades' => function ($query) use ($sectionSubject) {
+                    $query->where('section_subject_id', $sectionSubject->id);
+                },
+                'shsStudentGrades' => function ($query) use ($sectionSubject) {
+                    $query->where('section_subject_id', $sectionSubject->id);
+                },
+            ])
+                ->where('section_id', $section->id)
+                ->where('student_id', $subjectEnrollment->student_id)
+                ->where('status', 'active')
+                ->first();
 
             if ($studentEnrollment) {
-                // Use existing enrollment for regular students
+                // Add subject enrollment info to the student enrollment
+                $studentEnrollment->subject_enrollment = $subjectEnrollment;
                 $enrollments->push($studentEnrollment);
             } else {
-                // For irregular students, we need to find or create a StudentEnrollment record
-                // or handle grades differently since they might not have a section enrollment
-
-                // Try to find any existing enrollment for this student (they might have one from another section)
-                $anyStudentEnrollment = StudentEnrollment::where('student_id', $subjectEnrollment->student_id)
-                    ->where('status', 'active')
-                    ->first();
-
-                if ($anyStudentEnrollment) {
-                    // Load grades for this teacher specifically
-                    $anyStudentEnrollment->load([
-                        'studentGrades' => function ($query) use ($teacher) {
-                            $query->where('teacher_id', $teacher->id);
-                        },
-                        'shsStudentGrades' => function ($query) use ($teacher) {
-                            $query->where('teacher_id', $teacher->id);
-                        },
-                    ]);
-                    $enrollments->push($anyStudentEnrollment);
-                } else {
-                    // Create mock enrollment for irregular students without any enrollment record
-                    $mockEnrollment = (object) [
-                        'id' => "irregular_{$subjectEnrollment->id}", // Unique ID for irregular students
-                        'student' => $subjectEnrollment->student,
-                        'section' => $section,
-                        'status' => 'active',
-                        'enrollment_type' => 'irregular',
-                        'subject_enrollment_id' => $subjectEnrollment->id,
-                        'studentGrades' => collect(), // Empty for now - grades system needs to be updated for irregular students
-                        'shsStudentGrades' => collect(), // Empty for now - grades system needs to be updated for irregular students
-                        'student_grades' => collect(), // Frontend expects this name
-                        'shs_student_grades' => collect(), // Frontend expects this name
-                    ];
-                    $enrollments->push($mockEnrollment);
-                }
+                // For students without section enrollment (irregular), create a mock enrollment
+                // This happens when a student is enrolled only in specific subjects
+                $mockEnrollment = (object) [
+                    'id' => "subject_enrollment_{$subjectEnrollment->id}",
+                    'student' => $subjectEnrollment->student->load('user'),
+                    'section' => $section,
+                    'status' => 'active',
+                    'enrollment_type' => 'irregular',
+                    'subject_enrollment_id' => $subjectEnrollment->id,
+                    'subject_enrollment' => $subjectEnrollment,
+                    'studentGrades' => StudentGrade::where('student_id', $subjectEnrollment->student_id)
+                        ->where('section_subject_id', $sectionSubject->id)
+                        ->get(),
+                    'shsStudentGrades' => ShsStudentGrade::where('student_id', $subjectEnrollment->student_id)
+                        ->where('section_subject_id', $sectionSubject->id)
+                        ->get(),
+                ];
+                $enrollments->push($mockEnrollment);
             }
         }
 
         // Determine if this is college or SHS based on section
-        // Load the program relationship if not already loaded
-        $section->load('program');
-
         // Check multiple ways to determine if it's college level:
         // 1. Check program type/name for college indicators
         // 2. Check year level format variations
@@ -223,6 +202,7 @@ class GradeController extends Controller
                 // Handle college grades
                 $grade = StudentGrade::firstOrNew([
                     'student_enrollment_id' => $enrollment->id,
+                    'section_subject_id' => $section->sectionSubjects->where('teacher_id', $teacher->id)->first()?->id,
                     'teacher_id' => $teacher->id,
                 ]);
 
@@ -257,6 +237,7 @@ class GradeController extends Controller
                 // Handle SHS grades
                 $grade = ShsStudentGrade::firstOrNew([
                     'student_enrollment_id' => $enrollment->id,
+                    'section_subject_id' => $section->sectionSubjects->where('teacher_id', $teacher->id)->first()?->id,
                     'teacher_id' => $teacher->id,
                 ]);
 
