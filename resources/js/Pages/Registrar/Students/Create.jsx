@@ -1,10 +1,12 @@
 import { Head, useForm, router } from '@inertiajs/react'
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { UserPlus, ArrowLeft } from 'lucide-react'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { UserPlus, ArrowLeft, GraduationCap, BookOpen } from 'lucide-react'
 import { useState, useEffect } from 'react'
 
 export default function CreateStudent({ programs, auth, currentAcademicYear, currentSemester }) {
@@ -14,7 +16,11 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
         last_name: '',
         middle_name: '',
         birth_date: '',
-        address: '',
+        street: '',
+        barangay: '',
+        city: '',
+        province: '',
+        zip_code: '',
         phone: '',
         email: '',
         parent_contact: '',
@@ -34,6 +40,10 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
 
     const [selectedProgram, setSelectedProgram] = useState(null)
     const [calculatedBalance, setCalculatedBalance] = useState(0)
+
+    // Group programs by education level
+    const collegePrograms = programs.filter(p => p.education_level === 'college')
+    const shsPrograms = programs.filter(p => p.education_level === 'shs')
 
     useEffect(() => {
         if (data.program_id) {
@@ -56,9 +66,28 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
 
     const handleSubmit = (e) => {
         e.preventDefault()
-        console.log('Form submitting with data:', data)
+        
+        // Concatenate address parts
+        const addressParts = [
+            data.street,
+            data.barangay,
+            data.city,
+            data.province,
+            data.zip_code
+        ].filter(Boolean).join(', ')
+        
+        // Create new data object with address
+        const submitData = {
+            ...data,
+            address: addressParts || null
+        }
+        
+        console.log('Form submitting with data:', submitData)
+        
+        // Submit using Inertia's post with the form data directly
         post(route('registrar.students.store'), {
             preserveScroll: true,
+            data: submitData,
             onSuccess: (response) => {
                 console.log('Success response:', response)
                 alert('Student registered successfully!')
@@ -85,17 +114,23 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
         <AuthenticatedLayout
             header={
                 <div className="flex items-center justify-between">
-                    <div>
-                        <h2 className="text-2xl font-bold text-gray-900">Register New Student</h2>
-                        <p className="text-sm text-gray-600 mt-1">
-                            Create student account and process enrollment fee payment
-                        </p>
+                    <div className="flex items-center gap-3">
+                        <div className="bg-purple-100 p-2 rounded-lg">
+                            <UserPlus className="w-6 h-6 text-purple-600" />
+                        </div>
+                        <div>
+                            <h2 className="text-2xl font-bold text-gray-900">Register New Student</h2>
+                            <p className="text-sm text-gray-600 mt-1">
+                                Create student account and process enrollment fee payment
+                            </p>
+                        </div>
                     </div>
                     <Button
                         variant="outline"
                         onClick={() => router.visit(route('registrar.students'))}
+                        className="gap-2"
                     >
-                        <ArrowLeft className="w-4 h-4 mr-2" />
+                        <ArrowLeft className="w-4 h-4" />
                         Back to Students
                     </Button>
                 </div>
@@ -105,20 +140,28 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
 
             <form onSubmit={handleSubmit} className="space-y-6">
                 {/* Personal Information */}
-                <Card>
-                    <CardHeader>
-                        <CardTitle>Personal Information</CardTitle>
-                        <CardDescription>Enter the student's personal details</CardDescription>
+                <Card className="border-t-4 border-t-blue-500">
+                    <CardHeader className="bg-gradient-to-r from-blue-50 to-transparent">
+                        <div className="flex items-center gap-2">
+                            <div className="bg-blue-100 p-2 rounded-lg">
+                                <UserPlus className="w-5 h-5 text-blue-600" />
+                            </div>
+                            <div>
+                                <CardTitle>Personal Information</CardTitle>
+                                <CardDescription>Enter the student's personal details</CardDescription>
+                            </div>
+                        </div>
                     </CardHeader>
-                    <CardContent className="space-y-4">
+                    <CardContent className="space-y-6 pt-6">
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                             <div>
                                 <Label htmlFor="first_name">First Name *</Label>
-                                <Input
+                                <Input 
                                     id="first_name"
                                     value={data.first_name}
                                     onChange={e => setData('first_name', e.target.value)}
                                     required
+                                    className="h-10"
                                 />
                                 {errors.first_name && (
                                     <p className="text-red-500 text-sm mt-1">{errors.first_name}</p>
@@ -127,7 +170,7 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
 
                             <div>
                                 <Label htmlFor="middle_name">Middle Name</Label>
-                                <Input
+                                <Input 
                                     id="middle_name"
                                     value={data.middle_name}
                                     onChange={e => setData('middle_name', e.target.value)}
@@ -139,7 +182,7 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
 
                             <div>
                                 <Label htmlFor="last_name">Last Name *</Label>
-                                <Input
+                                <Input 
                                     id="last_name"
                                     value={data.last_name}
                                     onChange={e => setData('last_name', e.target.value)}
@@ -154,7 +197,7 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div>
                                 <Label htmlFor="birth_date">Birth Date *</Label>
-                                <Input
+                                <Input 
                                     id="birth_date"
                                     type="date"
                                     value={data.birth_date}
@@ -168,7 +211,7 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
 
                             <div>
                                 <Label htmlFor="email">Email Address *</Label>
-                                <Input
+                                <Input 
                                     id="email"
                                     type="email"
                                     value={data.email}
@@ -188,7 +231,7 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div>
                                 <Label htmlFor="phone">Phone Number</Label>
-                                <Input
+                                <Input 
                                     id="phone"
                                     value={data.phone}
                                     onChange={e => setData('phone', e.target.value)}
@@ -201,7 +244,7 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
 
                             <div>
                                 <Label htmlFor="parent_contact">Parent/Guardian Contact</Label>
-                                <Input
+                                <Input 
                                     id="parent_contact"
                                     value={data.parent_contact}
                                     onChange={e => setData('parent_contact', e.target.value)}
@@ -214,68 +257,162 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                         </div>
 
                         <div>
-                            <Label htmlFor="address">Address</Label>
-                            <Input
-                                id="address"
-                                value={data.address}
-                                onChange={e => setData('address', e.target.value)}
-                                placeholder="Complete address"
-                            />
-                            {errors.address && (
-                                <p className="text-red-500 text-sm mt-1">{errors.address}</p>
-                            )}
+                            <Label className="text-base font-semibold text-gray-900 mb-3 block">Address</Label>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
+                                    <Label htmlFor="street">Street/House No.</Label>
+                                    <Input 
+                                        id="street"
+                                        value={data.street}
+                                        onChange={e => setData('street', e.target.value)}
+                                        placeholder="e.g. 123 Main St"
+                                    />
+                                    {errors.street && (
+                                        <p className="text-red-500 text-sm mt-1">{errors.street}</p>
+                                    )}
+                                </div>
+
+                                <div>
+                                    <Label htmlFor="barangay">Barangay</Label>
+                                    <Input 
+                                        id="barangay"
+                                        value={data.barangay}
+                                        onChange={e => setData('barangay', e.target.value)}
+                                        placeholder="e.g. San Antonio"
+                                    />
+                                    {errors.barangay && (
+                                        <p className="text-red-500 text-sm mt-1">{errors.barangay}</p>
+                                    )}
+                                </div>
+
+                                <div>
+                                    <Label htmlFor="city">City/Municipality</Label>
+                                    <Input 
+                                        id="city"
+                                        value={data.city}
+                                        onChange={e => setData('city', e.target.value)}
+                                        placeholder="e.g. Makati City"
+                                    />
+                                    {errors.city && (
+                                        <p className="text-red-500 text-sm mt-1">{errors.city}</p>
+                                    )}
+                                </div>
+
+                                <div>
+                                    <Label htmlFor="province">Province</Label>
+                                    <Input 
+                                        id="province"
+                                        value={data.province}
+                                        onChange={e => setData('province', e.target.value)}
+                                        placeholder="e.g. Metro Manila"
+                                    />
+                                    {errors.province && (
+                                        <p className="text-red-500 text-sm mt-1">{errors.province}</p>
+                                    )}
+                                </div>
+
+                                <div>
+                                    <Label htmlFor="zip_code">Zip Code</Label>
+                                    <Input 
+                                        id="zip_code"
+                                        value={data.zip_code}
+                                        onChange={e => setData('zip_code', e.target.value)}
+                                        placeholder="e.g. 1200"
+                                        maxLength="4"
+                                    />
+                                    {errors.zip_code && (
+                                        <p className="text-red-500 text-sm mt-1">{errors.zip_code}</p>
+                                    )}
+                                </div>
+                            </div>
                         </div>
                     </CardContent>
                 </Card>
 
                 {/* Academic Information */}
-                <Card>
-                    <CardHeader>
-                        <CardTitle>Academic Information</CardTitle>
-                        <CardDescription>Select the student's program and year level</CardDescription>
+                <Card className="border-t-4 border-t-green-500">
+                    <CardHeader className="bg-gradient-to-r from-green-50 to-transparent">
+                        <div className="flex items-center gap-2">
+                            <div className="bg-green-100 p-2 rounded-lg">
+                                <GraduationCap className="w-5 h-5 text-green-600" />
+                            </div>
+                            <div>
+                                <CardTitle>Academic Information</CardTitle>
+                                <CardDescription>Select the student's program and year level</CardDescription>
+                            </div>
+                        </div>
                     </CardHeader>
-                    <CardContent className="space-y-4">
+                    <CardContent className="space-y-6 pt-6">
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div>
-                                <Label htmlFor="program_id">Program *</Label>
-                                <select
-                                    id="program_id"
-                                    value={data.program_id}
-                                    onChange={e => setData('program_id', e.target.value)}
-                                    className="w-full border border-gray-300 rounded-md px-3 py-2"
-                                    required
-                                >
-                                    <option value="">Select Program</option>
-                                    {programs.map(program => (
-                                        <option key={program.id} value={program.id}>
-                                            {program.name} 
-                                            {program.track && ` - ${program.track}`}
-                                            {program.strand && ` (${program.strand})`}
-                                        </option>
-                                    ))}
-                                </select>
+                                <Label htmlFor="program_id" className="text-sm font-medium">Program *</Label>
+                                <Select value={data.program_id.toString()} onValueChange={(value) => setData('program_id', value)}>
+                                    <SelectTrigger className={`h-10 ${errors.program_id ? 'border-red-500' : 'border-gray-300 focus:border-green-500'}`}>
+                                        <SelectValue placeholder="Select program" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {collegePrograms.length > 0 && (
+                                            <div className="px-2 py-1.5 text-xs font-semibold text-blue-700 bg-blue-50">
+                                                COLLEGE PROGRAMS
+                                            </div>
+                                        )}
+                                        {collegePrograms.map(program => (
+                                            <SelectItem key={program.id} value={program.id.toString()}>
+                                                <div className="flex items-center gap-2">
+                                                    <Badge variant="secondary" className="font-mono text-xs">
+                                                        {program.program_code}
+                                                    </Badge>
+                                                    <span className="text-sm">{program.program_name || program.name}</span>
+                                                </div>
+                                            </SelectItem>
+                                        ))}
+                                        {shsPrograms.length > 0 && (
+                                            <div className="px-2 py-1.5 text-xs font-semibold text-purple-700 bg-purple-50 mt-1">
+                                                SENIOR HIGH SCHOOL
+                                            </div>
+                                        )}
+                                        {shsPrograms.map(program => (
+                                            <SelectItem key={program.id} value={program.id.toString()}>
+                                                <div className="flex flex-col">
+                                                    <span className="text-sm font-medium">{program.program_name || program.name}</span>
+                                                    {program.track && program.strand && (
+                                                        <span className="text-xs text-gray-500">{program.track} - {program.strand}</span>
+                                                    )}
+                                                </div>
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
                                 {errors.program_id && (
                                     <p className="text-red-500 text-sm mt-1">{errors.program_id}</p>
+                                )}
+                                {selectedProgram && (
+                                    <div className="mt-2 p-2 bg-blue-50 rounded-lg">
+                                        <p className="text-xs font-medium text-blue-800">
+                                            {selectedProgram.education_level === 'college' ? '🎓 College Program' : '📚 Senior High School'}
+                                        </p>
+                                    </div>
                                 )}
                             </div>
 
                             <div>
-                                <Label htmlFor="year_level">Year Level *</Label>
-                                <select
-                                    id="year_level"
-                                    value={data.year_level}
-                                    onChange={e => setData('year_level', e.target.value)}
-                                    className="w-full border border-gray-300 rounded-md px-3 py-2"
-                                    required
+                                <Label htmlFor="year_level" className="text-sm font-medium">Year Level *</Label>
+                                <Select 
+                                    value={data.year_level} 
+                                    onValueChange={(value) => setData('year_level', value)}
                                     disabled={!selectedProgram}
                                 >
-                                    <option value="">Select Year Level</option>
-                                    {getYearLevelOptions().map(level => (
-                                        <option key={level} value={level}>
-                                            {level}
-                                        </option>
-                                    ))}
-                                </select>
+                                    <SelectTrigger className={`h-10 ${errors.year_level ? 'border-red-500' : 'border-gray-300 focus:border-green-500'} ${!selectedProgram ? 'bg-gray-100 cursor-not-allowed' : ''}`}>
+                                        <SelectValue placeholder={!selectedProgram ? 'Select Program First' : 'Select Year Level'} />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {getYearLevelOptions().map(level => (
+                                            <SelectItem key={level} value={level}>
+                                                {level}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
                                 {errors.year_level && (
                                     <p className="text-red-500 text-sm mt-1">{errors.year_level}</p>
                                 )}
@@ -283,17 +420,16 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                         </div>
 
                         <div>
-                            <Label htmlFor="student_type">Student Type *</Label>
-                            <select
-                                id="student_type"
-                                value={data.student_type}
-                                onChange={e => setData('student_type', e.target.value)}
-                                className="w-full border border-gray-300 rounded-md px-3 py-2"
-                                required
-                            >
-                                <option value="regular">Regular</option>
-                                <option value="irregular">Irregular</option>
-                            </select>
+                            <Label htmlFor="student_type" className="text-sm font-medium">Student Type *</Label>
+                            <Select value={data.student_type} onValueChange={(value) => setData('student_type', value)}>
+                                <SelectTrigger className={`h-10 ${errors.student_type ? 'border-red-500' : 'border-gray-300 focus:border-green-500'}`}>
+                                    <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="regular">✓ Regular Student</SelectItem>
+                                    <SelectItem value="irregular">⚠ Irregular Student</SelectItem>
+                                </SelectContent>
+                            </Select>
                             {errors.student_type && (
                                 <p className="text-red-500 text-sm mt-1">{errors.student_type}</p>
                             )}
@@ -305,18 +441,25 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                 </Card>
 
                 {/* Payment Information */}
-                <Card>
-                    <CardHeader>
-                        <CardTitle>Enrollment Fee Payment</CardTitle>
-                        <CardDescription>
-                            Process the initial enrollment fee payment for {currentAcademicYear} - {currentSemester} Semester
-                        </CardDescription>
+                <Card className="border-t-4 border-t-orange-500">
+                    <CardHeader className="bg-gradient-to-r from-orange-50 to-transparent">
+                        <div className="flex items-center gap-2">
+                            <div className="bg-orange-100 p-2 rounded-lg">
+                                <BookOpen className="w-5 h-5 text-orange-600" />
+                            </div>
+                            <div>
+                                <CardTitle>Enrollment Fee Payment</CardTitle>
+                                <CardDescription>
+                                    Process the initial enrollment fee payment for {currentAcademicYear} - {currentSemester} Semester
+                                </CardDescription>
+                            </div>
+                        </div>
                     </CardHeader>
-                    <CardContent className="space-y-4">
+                    <CardContent className="space-y-6 pt-6">
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div>
                                 <Label htmlFor="enrollment_fee">Enrollment Fee *</Label>
-                                <Input
+                                <Input 
                                     id="enrollment_fee"
                                     type="number"
                                     step="0.01"
@@ -336,7 +479,7 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
 
                             <div>
                                 <Label htmlFor="payment_amount">Initial Payment Amount *</Label>
-                                <Input
+                                <Input 
                                     id="payment_amount"
                                     type="number"
                                     step="0.01"

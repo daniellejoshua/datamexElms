@@ -7,6 +7,7 @@ use App\Models\PaymentTransaction;
 use App\Models\Program;
 use App\Models\Section;
 use App\Models\Student;
+use App\Models\StudentEnrollment;
 use App\Models\StudentSemesterPayment;
 use App\Models\Teacher;
 use App\Models\User;
@@ -45,11 +46,57 @@ class RegistrarController extends Controller
      */
     public function students(): Response
     {
-        $students = Student::with(['user', 'program'])
-            ->paginate(15);
+        $educationLevel = request('education_level', 'all');
+        $status = request('status', 'all');
+        $yearLevel = request('year_level', 'all');
+        $studentType = request('student_type', 'all');
+
+        $query = Student::with(['user', 'program'])
+            ->when($educationLevel !== 'all', function ($q) use ($educationLevel) {
+                $q->where('education_level', $educationLevel);
+            })
+            ->when($status !== 'all', function ($q) use ($status) {
+                $isActive = $status === 'active';
+                $q->whereHas('user', function ($query) use ($isActive) {
+                    $query->where('is_active', $isActive);
+                });
+            })
+            ->when($yearLevel !== 'all', function ($q) use ($yearLevel) {
+                $q->where('year_level', $yearLevel);
+            })
+            ->when($studentType !== 'all', function ($q) use ($studentType) {
+                $q->where('student_type', $studentType);
+            });
+
+        $students = $query->paginate(15)->withQueryString();
+
+        // Get current enrollment sections for each student
+        $currentAcademicYear = AcademicHelper::getCurrentAcademicYear();
+        $currentSemester = AcademicHelper::getCurrentSemester();
+
+        $students->getCollection()->transform(function ($student) use ($currentAcademicYear, $currentSemester) {
+            $enrollment = StudentEnrollment::with(['section.program'])
+                ->where('student_id', $student->id)
+                ->where('academic_year', $currentAcademicYear)
+                ->where('semester', $currentSemester)
+                ->where('status', 'active')
+                ->first();
+
+            $student->current_section = $enrollment?->section;
+            return $student;
+        });
+
+        $programs = Program::orderBy('program_name')->get();
 
         return Inertia::render('Registrar/Students/Index', [
             'students' => $students,
+            'programs' => $programs,
+            'filters' => [
+                'education_level' => $educationLevel,
+                'status' => $status,
+                'year_level' => $yearLevel,
+                'student_type' => $studentType,
+            ],
         ]);
     }
 
@@ -81,6 +128,11 @@ class RegistrarController extends Controller
             'middle_name' => ['nullable', 'string', 'max:255'],
             'birth_date' => ['required', 'date'],
             'address' => ['nullable', 'string'],
+            'street' => ['nullable', 'string', 'max:255'],
+            'barangay' => ['nullable', 'string', 'max:255'],
+            'city' => ['nullable', 'string', 'max:255'],
+            'province' => ['nullable', 'string', 'max:255'],
+            'zip_code' => ['nullable', 'string', 'max:10'],
             'phone' => ['nullable', 'string', 'max:20'],
             'email' => ['required', 'email', 'unique:users,email'],
             'parent_contact' => ['nullable', 'string', 'max:20'],
@@ -116,6 +168,19 @@ class RegistrarController extends Controller
             // Extract numeric year level from string (e.g., "1st Year" -> 1, "Grade 11" -> 11)
             $numericYearLevel = $this->extractNumericYearLevel($validated['year_level'], $validated['education_level']);
 
+            // Concatenate address parts if provided
+            $address = $validated['address'] ?? '';
+            if (empty($address)) {
+                $addressParts = array_filter([
+                    $validated['street'] ?? null,
+                    $validated['barangay'] ?? null,
+                    $validated['city'] ?? null,
+                    $validated['province'] ?? null,
+                    $validated['zip_code'] ?? null,
+                ]);
+                $address = implode(', ', $addressParts);
+            }
+
             // Create student record
             $student = Student::create([
                 'user_id' => $user->id,
@@ -125,7 +190,7 @@ class RegistrarController extends Controller
                 'last_name' => $validated['last_name'],
                 'middle_name' => $validated['middle_name'],
                 'birth_date' => $validated['birth_date'],
-                'address' => $validated['address'],
+                'address' => $address,
                 'phone' => $validated['phone'],
                 'parent_contact' => $validated['parent_contact'],
                 'year_level' => $validated['year_level'],

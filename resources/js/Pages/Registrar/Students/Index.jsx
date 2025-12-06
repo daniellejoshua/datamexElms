@@ -4,11 +4,45 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Users, Search, UserPlus, Eye, Edit, Trash2, Download } from 'lucide-react'
+import { Users, Search, Eye, Edit, Filter, UserPlus } from 'lucide-react'
 import { useState } from 'react'
 
-export default function StudentsIndex({ students, auth }) {
+// Helper function to format section name
+const formatSectionName = (section) => {
+    if (!section) return 'Not Enrolled';
+    if (section.program?.program_code && section.year_level) {
+        const identifier = section.section_name;
+        return `${section.program.program_code}-${section.year_level}${identifier}`;
+    }
+    return section.section_name || 'N/A';
+};
+
+export default function StudentsIndex({ students, programs, filters, auth }) {
     const [searchTerm, setSearchTerm] = useState('')
+    const [educationLevel, setEducationLevel] = useState(filters?.education_level || 'all')
+    const [status, setStatus] = useState(filters?.status || 'all')
+    const [yearLevel, setYearLevel] = useState(filters?.year_level || 'all')
+    const [studentType, setStudentType] = useState(filters?.student_type || 'all')
+
+    const handleFilterChange = () => {
+        router.get(route('registrar.students'), {
+            education_level: educationLevel,
+            status: status,
+            year_level: yearLevel,
+            student_type: studentType,
+        }, {
+            preserveState: true,
+            preserveScroll: true,
+        })
+    }
+
+    const handleResetFilters = () => {
+        setEducationLevel('all')
+        setStatus('all')
+        setYearLevel('all')
+        setStudentType('all')
+        router.get(route('registrar.students'))
+    }
 
     const filteredStudents = students.data.filter(student =>
         student.first_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -51,10 +85,21 @@ export default function StudentsIndex({ students, auth }) {
                 {/* Search and Filters */}
                 <Card>
                     <CardHeader>
-                        <CardTitle className="text-lg">Search Students</CardTitle>
+                        <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                                <Filter className="w-5 h-5 text-purple-600" />
+                                <CardTitle className="text-lg">Search & Filter Students</CardTitle>
+                            </div>
+                            <Link href={route('registrar.students.create')}>
+                                <Button className="gap-2">
+                                    <UserPlus className="w-4 h-4" />
+                                    Add Student
+                                </Button>
+                            </Link>
+                        </div>
                     </CardHeader>
                     <CardContent>
-                        <div className="flex flex-col sm:flex-row gap-4">
+                        <div className="flex flex-col gap-4">
                             <div className="relative flex-1">
                                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
                                 <Input
@@ -64,16 +109,68 @@ export default function StudentsIndex({ students, auth }) {
                                     className="pl-10"
                                 />
                             </div>
-                            <select className="border border-gray-300 rounded-md px-3 py-2">
-                                <option value="">All Programs</option>
-                                <option value="college">College</option>
-                                <option value="shs">Senior High School</option>
-                            </select>
-                            <select className="border border-gray-300 rounded-md px-3 py-2">
-                                <option value="">All Status</option>
-                                <option value="active">Active</option>
-                                <option value="inactive">Inactive</option>
-                            </select>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                                <div>
+                                    <label className="text-xs font-medium text-gray-700 mb-1 block">Education Level</label>
+                                    <select 
+                                        className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm"
+                                        value={educationLevel}
+                                        onChange={(e) => setEducationLevel(e.target.value)}
+                                    >
+                                        <option value="all">All Levels</option>
+                                        <option value="college">College</option>
+                                        <option value="shs">Senior High School</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="text-xs font-medium text-gray-700 mb-1 block">Status</label>
+                                    <select 
+                                        className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm"
+                                        value={status}
+                                        onChange={(e) => setStatus(e.target.value)}
+                                    >
+                                        <option value="all">All Status</option>
+                                        <option value="active">Active</option>
+                                        <option value="inactive">Inactive</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="text-xs font-medium text-gray-700 mb-1 block">Student Type</label>
+                                    <select 
+                                        className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm"
+                                        value={studentType}
+                                        onChange={(e) => setStudentType(e.target.value)}
+                                    >
+                                        <option value="all">All Types</option>
+                                        <option value="regular">Regular</option>
+                                        <option value="irregular">Irregular</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="text-xs font-medium text-gray-700 mb-1 block">Year Level</label>
+                                    <select 
+                                        className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm"
+                                        value={yearLevel}
+                                        onChange={(e) => setYearLevel(e.target.value)}
+                                    >
+                                        <option value="all">All Years</option>
+                                        <option value="1">1st Year / Grade 11</option>
+                                        <option value="2">2nd Year / Grade 12</option>
+                                        <option value="3">3rd Year</option>
+                                        <option value="4">4th Year</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div className="flex gap-2">
+                                <Button onClick={handleFilterChange} className="flex-1 sm:flex-initial">
+                                    Apply Filters
+                                </Button>
+                                {(educationLevel !== 'all' || status !== 'all' || yearLevel !== 'all' || studentType !== 'all') && (
+                                    <Button variant="outline" onClick={handleResetFilters}>
+                                        Reset Filters
+                                    </Button>
+                                )}
+                            </div>
                         </div>
                     </CardContent>
                 </Card>
@@ -96,23 +193,24 @@ export default function StudentsIndex({ students, auth }) {
                     <CardContent>
                         <div className="overflow-x-auto">
                             <table className="w-full">
-                                <thead>
+                                <thead className="bg-gray-50">
                                     <tr className="border-b">
-                                        <th className="text-left py-3 px-4">Student Info</th>
-                                        <th className="text-left py-3 px-4">Student Number</th>
-                                        <th className="text-left py-3 px-4">Program</th>
-                                        <th className="text-left py-3 px-4">Year Level</th>
-                                        <th className="text-left py-3 px-4">Status</th>
-                                        <th className="text-left py-3 px-4">Enrolled Date</th>
-                                        <th className="text-right py-3 px-4">Actions</th>
+                                        <th className="text-left py-3 px-4 text-xs font-semibold text-gray-700 uppercase">Student Info</th>
+                                        <th className="text-left py-3 px-4 text-xs font-semibold text-gray-700 uppercase">Student Number</th>
+                                        <th className="text-left py-3 px-4 text-xs font-semibold text-gray-700 uppercase">Program</th>
+                                        <th className="text-left py-3 px-4 text-xs font-semibold text-gray-700 uppercase">Current Section</th>
+                                        <th className="text-left py-3 px-4 text-xs font-semibold text-gray-700 uppercase">Year Level</th>
+                                        <th className="text-left py-3 px-4 text-xs font-semibold text-gray-700 uppercase">Type</th>
+                                        <th className="text-left py-3 px-4 text-xs font-semibold text-gray-700 uppercase">Status</th>
+                                        <th className="text-right py-3 px-4 text-xs font-semibold text-gray-700 uppercase">Actions</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     {filteredStudents.map((student) => (
-                                        <tr key={student.id} className="border-b hover:bg-gray-50">
+                                        <tr key={student.id} className="border-b hover:bg-gray-50 transition-colors">
                                             <td className="py-3 px-4">
                                                 <div>
-                                                    <div className="font-medium text-gray-900">
+                                                    <div className="font-semibold text-gray-900">
                                                         {student.first_name} {student.middle_name} {student.last_name}
                                                     </div>
                                                     <div className="text-sm text-gray-500">
@@ -121,27 +219,51 @@ export default function StudentsIndex({ students, auth }) {
                                                 </div>
                                             </td>
                                             <td className="py-3 px-4">
-                                                <span className="font-mono text-sm">
+                                                <span className="font-mono text-sm font-medium bg-gray-100 px-2 py-1 rounded">
                                                     {student.student_number}
                                                 </span>
                                             </td>
                                             <td className="py-3 px-4">
                                                 <div>
-                                                    <div className="font-medium">
-                                                        {student.program?.name || 'N/A'}
+                                                    <div className="font-medium text-gray-900">
+                                                        {student.program?.program_name || student.program?.name || 'N/A'}
                                                     </div>
-                                                    <div className="text-sm text-gray-500">
-                                                        {student.track && `${student.track} - ${student.strand}`}
+                                                    <div className="text-xs text-gray-500">
+                                                        {student.program?.program_code || ''}
+                                                        {student.track && ` - ${student.track}`}
                                                     </div>
                                                 </div>
                                             </td>
                                             <td className="py-3 px-4">
-                                                <Badge variant="outline">
+                                                <div className="font-medium text-blue-600">
+                                                    {formatSectionName(student.current_section)}
+                                                </div>
+                                                {student.current_section && (
+                                                    <div className="text-xs text-gray-500">
+                                                        {student.current_section.academic_year} - {student.current_section.semester}
+                                                    </div>
+                                                )}
+                                            </td>
+                                            <td className="py-3 px-4">
+                                                <Badge variant="outline" className="font-medium">
                                                     {student.education_level === 'college' 
                                                         ? `${student.current_year_level || student.year_level} Year`
                                                         : `Grade ${student.year_level}`
                                                     }
                                                 </Badge>
+                                            </td>
+                                            <td className="py-3 px-4">
+                                                {student.student_type && (
+                                                    <Badge 
+                                                        variant="secondary"
+                                                        className={student.student_type === 'regular' 
+                                                            ? 'bg-blue-100 text-blue-800' 
+                                                            : 'bg-orange-100 text-orange-800'
+                                                        }
+                                                    >
+                                                        {student.student_type}
+                                                    </Badge>
+                                                )}
                                             </td>
                                             <td className="py-3 px-4">
                                                 <Badge 
@@ -151,34 +273,23 @@ export default function StudentsIndex({ students, auth }) {
                                                     {student.user?.is_active ? 'Active' : 'Inactive'}
                                                 </Badge>
                                             </td>
-                                            <td className="py-3 px-4 text-sm text-gray-600">
-                                                {student.enrolled_date 
-                                                    ? new Date(student.enrolled_date).toLocaleDateString()
-                                                    : 'N/A'
-                                                }
-                                            </td>
                                             <td className="py-3 px-4">
                                                 <div className="flex justify-end gap-2">
                                                     <Button
                                                         size="sm"
                                                         variant="outline"
                                                         onClick={() => handleViewStudent(student.id)}
+                                                        className="hover:bg-blue-50 hover:border-blue-300"
                                                     >
-                                                        <Eye className="w-3 h-3" />
+                                                        <Eye className="w-4 h-4" />
                                                     </Button>
                                                     <Button
                                                         size="sm"
                                                         variant="outline"
                                                         onClick={() => handleEditStudent(student.id)}
+                                                        className="hover:bg-green-50 hover:border-green-300"
                                                     >
-                                                        <Edit className="w-3 h-3" />
-                                                    </Button>
-                                                    <Button
-                                                        size="sm"
-                                                        variant="outline"
-                                                        className="text-red-600 hover:text-red-700"
-                                                    >
-                                                        <Trash2 className="w-3 h-3" />
+                                                        <Edit className="w-4 h-4" />
                                                     </Button>
                                                 </div>
                                             </td>
