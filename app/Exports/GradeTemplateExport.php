@@ -11,6 +11,7 @@ use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 class GradeTemplateExport implements FromCollection, WithHeadings, WithStyles
 {
     protected Collection $enrollments;
+
     protected bool $isCollegeLevel;
 
     public function __construct(Collection $enrollments, bool $isCollegeLevel)

@@ -116,6 +116,14 @@ class StudentPaymentService
             // Update semester payment record
             $this->updatePaymentStatus($semesterPayment, $paymentType);
 
+            // Always recalculate total paid and balance after any payment
+            $totalPaid = $semesterPayment->calculateTotalPaid();
+            $balance = $semesterPayment->calculateBalance();
+            $semesterPayment->update([
+                'total_paid' => $totalPaid,
+                'balance' => $balance,
+            ]);
+
             return $transaction;
         });
     }
@@ -142,10 +150,19 @@ class StudentPaymentService
         ];
 
         if (isset($fieldMap[$paymentType])) {
-            $semesterPayment->update([
+            $updates = [
                 $fieldMap[$paymentType] => true,
                 $dateFieldMap[$paymentType] => now()->toDateString(),
-            ]);
+            ];
+
+            // Recalculate total paid and balance
+            $totalPaid = $semesterPayment->calculateTotalPaid();
+            $balance = $semesterPayment->calculateBalance();
+
+            $updates['total_paid'] = $totalPaid;
+            $updates['balance'] = $balance;
+
+            $semesterPayment->update($updates);
         }
     }
 

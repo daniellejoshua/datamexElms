@@ -2,12 +2,9 @@
 
 namespace App\Console\Commands;
 
-use Illuminate\Console\Command;
 use App\Models\Section;
-use App\Models\SectionSubject;
-use App\Models\StudentEnrollment;
 use App\Models\StudentSubjectEnrollment;
-use Illuminate\Support\Facades\DB;
+use Illuminate\Console\Command;
 
 class SyncSectionSubjectEnrollments extends Command
 {
@@ -59,6 +56,7 @@ class SyncSectionSubjectEnrollments extends Command
             }
         }
         $this->info("Added $count missing subject enrollments.");
+
         return 0;
     }
 }

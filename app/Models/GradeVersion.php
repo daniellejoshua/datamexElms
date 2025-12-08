@@ -2,9 +2,9 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Database\Eloquent\Builder;
 
 class GradeVersion extends Model
 {
@@ -86,7 +86,7 @@ class GradeVersion extends Model
     public function scopePendingApproval(Builder $query)
     {
         return $query->where('requires_approval', true)
-                    ->where('is_approved', false);
+            ->where('is_approved', false);
     }
 
     // Get the actual grade record this version belongs to
@@ -95,6 +95,7 @@ class GradeVersion extends Model
         if ($this->grade_type === 'college') {
             return $this->studentGrade;
         }
+
         return $this->shsStudentGrade;
     }
 }

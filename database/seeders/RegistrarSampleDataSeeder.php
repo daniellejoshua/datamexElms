@@ -2,16 +2,15 @@
 
 namespace Database\Seeders;
 
-use Illuminate\Database\Console\Seeds\WithoutModelEvents;
-use Illuminate\Database\Seeder;
-use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Facades\DB;
-use App\Models\User;
+use App\Models\ShsStudentPayment;
 use App\Models\Student;
 use App\Models\StudentEnrollment;
 use App\Models\StudentSemesterPayment;
-use App\Models\ShsStudentPayment;
+use App\Models\User;
 use Carbon\Carbon;
+use Illuminate\Database\Seeder;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
 
 class RegistrarSampleDataSeeder extends Seeder
 {
@@ -161,12 +160,13 @@ class RegistrarSampleDataSeeder extends Seeder
             $existingUser = User::where('email', $studentData['email'])->first();
             if ($existingUser) {
                 $this->command->info("User {$studentData['email']} already exists, skipping...");
+
                 continue;
             }
 
             // Create user account
             $user = User::create([
-                'name' => $studentData['first_name'] . ' ' . $studentData['last_name'],
+                'name' => $studentData['first_name'].' '.$studentData['last_name'],
                 'email' => $studentData['email'],
                 'password' => Hash::make('password123'),
                 'role' => 'student',
@@ -176,9 +176,9 @@ class RegistrarSampleDataSeeder extends Seeder
             // Generate student number
             $year = date('Y');
             $programCode = $programRecords->where('id', $studentData['program_id'])->first()->program_code;
-            $lastStudent = Student::where('student_number', 'like', $year . $programCode . '%')->latest('id')->first();
-            $sequence = $lastStudent ? (int)substr($lastStudent->student_number, -4) + 1 : 1;
-            $studentNumber = $year . $programCode . str_pad($sequence, 4, '0', STR_PAD_LEFT);
+            $lastStudent = Student::where('student_number', 'like', $year.$programCode.'%')->latest('id')->first();
+            $sequence = $lastStudent ? (int) substr($lastStudent->student_number, -4) + 1 : 1;
+            $studentNumber = $year.$programCode.str_pad($sequence, 4, '0', STR_PAD_LEFT);
 
             // Create student record
             $student = Student::create([
@@ -189,7 +189,7 @@ class RegistrarSampleDataSeeder extends Seeder
                 'middle_name' => $studentData['middle_name'],
                 'program_id' => $studentData['program_id'],
                 'current_year_level' => $studentData['year_level'],
-                'year_level' => (string)$studentData['year_level'],
+                'year_level' => (string) $studentData['year_level'],
                 'birth_date' => Carbon::now()->subYears(rand(18, 25))->format('Y-m-d'),
                 'address' => fake()->address(),
                 'phone' => fake()->phoneNumber(),
@@ -213,16 +213,16 @@ class RegistrarSampleDataSeeder extends Seeder
 
             // Create payment records based on program type
             $isProgramSHS = str_contains($programCode, 'ABM');
-            
+
             if ($isProgramSHS) {
                 // SHS Payment
-                $totalAmount = match($studentData['student_type']) {
+                $totalAmount = match ($studentData['student_type']) {
                     'irregular' => 28000,
                     'transferee' => 26000,
                     default => 25000
                 };
 
-                $amountPaid = match($studentData['status']) {
+                $amountPaid = match ($studentData['status']) {
                     'active' => $totalAmount * (rand(0, 8) / 10), // 0-80% paid
                     'graduated' => $totalAmount,
                     'inactive' => $totalAmount * (rand(1, 3) / 10), // 10-30% paid
@@ -264,20 +264,20 @@ class RegistrarSampleDataSeeder extends Seeder
                 ]);
             } else {
                 // College Payment
-                $baseAmount = match($programCode) {
+                $baseAmount = match ($programCode) {
                     'BSIT' => 35000,
                     'BSN' => 45000,
                     'BSBA' => 30000,
                     default => 32000
                 };
 
-                $totalAmount = match($studentData['student_type']) {
+                $totalAmount = match ($studentData['student_type']) {
                     'irregular' => $baseAmount * 1.15, // 15% surcharge
                     'transferee' => $baseAmount * 0.9, // 10% discount due to credits
                     default => $baseAmount
                 };
 
-                $amountPaid = match($studentData['status']) {
+                $amountPaid = match ($studentData['status']) {
                     'active' => $totalAmount * (rand(2, 9) / 10), // 20-90% paid
                     'graduated' => $totalAmount,
                     'inactive' => $totalAmount * (rand(1, 4) / 10), // 10-40% paid

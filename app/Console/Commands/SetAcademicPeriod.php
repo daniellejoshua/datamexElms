@@ -33,14 +33,15 @@ class SetAcademicPeriod extends Command
         if ($this->option('auto')) {
             SchoolSetting::useAutomaticAcademicPeriod();
             $this->info('✅ Switched to automatic academic period calculation');
-            $this->line("Current period: " . AcademicHelper::getCurrentAcademicYear() . " - " . AcademicHelper::getCurrentSemester());
+            $this->line('Current period: '.AcademicHelper::getCurrentAcademicYear().' - '.AcademicHelper::getCurrentSemester());
+
             return 0;
         }
 
         $academicYear = $this->option('year');
         $semester = $this->option('semester');
 
-        if (!$academicYear) {
+        if (! $academicYear) {
             $academicYear = $this->choice(
                 'Select academic year:',
                 AcademicHelper::getAcademicYearOptions(),
@@ -48,7 +49,7 @@ class SetAcademicPeriod extends Command
             );
         }
 
-        if (!$semester) {
+        if (! $semester) {
             $semesterOptions = collect(AcademicHelper::getSemesterOptions())->pluck('value')->toArray();
             $semester = $this->choice(
                 'Select semester:',
@@ -58,20 +59,22 @@ class SetAcademicPeriod extends Command
         }
 
         // Validate academic year format
-        if (!preg_match('/^\d{4}-\d{4}$/', $academicYear)) {
+        if (! preg_match('/^\d{4}-\d{4}$/', $academicYear)) {
             $this->error('❌ Invalid academic year format. Use YYYY-YYYY (e.g., 2024-2025)');
+
             return 1;
         }
 
         // Validate semester
-        if (!in_array($semester, ['1st', '2nd', 'summer'])) {
+        if (! in_array($semester, ['1st', '2nd', 'summer'])) {
             $this->error('❌ Invalid semester. Use: 1st, 2nd, or summer');
+
             return 1;
         }
 
         SchoolSetting::setCurrentAcademicPeriod($academicYear, $semester);
 
-        $this->info("✅ Academic period set successfully!");
+        $this->info('✅ Academic period set successfully!');
         $this->line("Academic Year: {$academicYear}");
         $this->line("Semester: {$semester}");
 

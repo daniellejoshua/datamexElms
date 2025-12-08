@@ -14,7 +14,7 @@ return new class extends Migration
         Schema::table('courses', function (Blueprint $table) {
             $table->enum('education_level', ['shs', 'college', 'both'])->default('college')->after('units');
             $table->string('track')->nullable()->after('education_level'); // STEM, HUMSS, ABM, etc.
-            
+
             $table->index(['education_level', 'status']);
         });
     }

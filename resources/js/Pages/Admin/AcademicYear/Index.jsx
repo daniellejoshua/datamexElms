@@ -1,261 +1,219 @@
+
 import React, { useState } from 'react';
 import { Head, useForm } from '@inertiajs/react';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 
-const Index = ({ archivedSections, academicYears, currentAcademicYear }) => {
-    const [showArchiveForm, setShowArchiveForm] = useState(false);
-    
+const Index = ({ archivedSections, academicYears, currentAcademicYear, currentSemester, unpaid_count = 0, unpaid_students = [] }) => {
+    // Assume current semester is always available (e.g. from config or backend prop)
+    const [showModal, setShowModal] = useState(false);
     const { data, setData, post, processing, errors, reset } = useForm({
         academic_year: currentAcademicYear,
-        semester: '',
-        archive_notes: ''
+        semester: currentSemester,
+        archive_notes: '',
+        password: '',
+        force: false,
     });
-
-    const handleArchiveSemester = (e) => {
-        e.preventDefault();
-        post('/admin/academic-years/archive', {
-            onSuccess: () => {
-                reset();
-                setShowArchiveForm(false);
-            }
-        });
-    };
-
-    const formatDate = (dateString) => {
-        return new Date(dateString).toLocaleDateString('en-US', {
-            year: 'numeric',
-            month: 'long', 
-            day: 'numeric'
-        });
-    };
 
     const getSemesterDisplay = (semester) => {
         const semesters = {
-            'first': 'First Semester',
-            'second': 'Second Semester', 
+            '1st': 'First Semester',
+            '2nd': 'Second Semester',
             'summer': 'Summer'
         };
         return semesters[semester] || semester;
     };
 
+    const getNextPeriod = (academicYear, semester) => {
+        let nextYear = academicYear;
+        let nextSem = '';
+
+        switch (semester) {
+            case '1st':
+                nextSem = '2nd';
+                break;
+            case '2nd':
+                // Skip summer, move to next academic year
+                const [startYear, endYear] = academicYear.split('-');
+                nextYear = `${endYear}-${parseInt(endYear) + 1}`;
+                nextSem = '1st';
+                break;
+        }
+
+        return { year: nextYear, semester: nextSem };
+    };
+
+    const nextPeriod = getNextPeriod(data.academic_year, currentSemester);
+
+    const handleArchive = () => {
+        setShowModal(true);
+    };
+
+    const confirmArchive = (e) => {
+        e.preventDefault();
+        post('/admin/academic-years/archive', {
+            onSuccess: () => {
+                reset();
+                setShowModal(false);
+                window.location.reload(); // Refresh to show new academic period
+            },
+            onError: () => {
+                // Keep modal open to show errors
+            }
+        });
+    };
+
     return (
         <AuthenticatedLayout
             header={
-                <div className="flex justify-between items-center">
-                    <h2 className="text-xl font-semibold leading-tight text-gray-800 dark:text-gray-200">
-                        Academic Year Management
-                    </h2>
-                    <button
-                        onClick={() => setShowArchiveForm(!showArchiveForm)}
-                        className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-md text-sm font-medium transition-colors duration-200"
-                    >
-                        {showArchiveForm ? 'Cancel' : 'Archive Semester'}
-                    </button>
-                </div>
+                <h2 className="text-xl font-semibold leading-tight text-gray-800 dark:text-gray-200">
+                    Academic Year Management
+                </h2>
             }
         >
             <Head title="Academic Year Management" />
-            
             <div className="py-12">
-                <div className="max-w-7xl mx-auto sm:px-6 lg:px-8 space-y-6">
-                    
-                    {/* Archive Semester Form */}
-                    {showArchiveForm && (
-                        <div className="bg-white dark:bg-gray-800 overflow-hidden shadow-sm sm:rounded-lg">
-                            <div className="p-6 border-l-4 border-red-500">
-                                <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">
-                                    ⚠️ Archive Semester - This Action Cannot Be Undone
-                                </h3>
-                                <p className="text-sm text-gray-600 dark:text-gray-400 mb-6">
-                                    Archiving a semester will move all sections and student enrollments to historical records. 
-                                    Current sections will be deleted and only accessible through this archive system.
-                                </p>
-                                
-                                <form onSubmit={handleArchiveSemester} className="space-y-4">
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                        <div>
-                                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                                                Academic Year
-                                            </label>
-                                            <input
-                                                type="text"
-                                                value={data.academic_year}
-                                                onChange={(e) => setData('academic_year', e.target.value)}
-                                                className="w-full rounded-md border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300"
-                                                placeholder="2024-2025"
-                                                required
-                                            />
-                                            {errors.academic_year && (
-                                                <p className="mt-1 text-sm text-red-600">{errors.academic_year}</p>
-                                            )}
-                                        </div>
-                                        
-                                        <div>
-                                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                                                Semester
-                                            </label>
-                                            <select
-                                                value={data.semester}
-                                                onChange={(e) => setData('semester', e.target.value)}
-                                                className="w-full rounded-md border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300"
-                                                required
-                                            >
-                                                <option value="">Select semester to archive</option>
-                                                <option value="first">First Semester</option>
-                                                <option value="second">Second Semester</option>
-                                                <option value="summer">Summer</option>
-                                            </select>
-                                            {errors.semester && (
-                                                <p className="mt-1 text-sm text-red-600">{errors.semester}</p>
-                                            )}
-                                        </div>
-                                    </div>
-                                    
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                                            Archive Notes (Optional)
-                                        </label>
-                                        <textarea
-                                            value={data.archive_notes}
-                                            onChange={(e) => setData('archive_notes', e.target.value)}
-                                            rows={3}
-                                            className="w-full rounded-md border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300"
-                                            placeholder="Add any notes about this archival..."
-                                        />
-                                        {errors.archive_notes && (
-                                            <p className="mt-1 text-sm text-red-600">{errors.archive_notes}</p>
-                                        )}
-                                    </div>
-                                    
-                                    <div className="flex justify-end space-x-4 pt-4">
-                                        <button
-                                            type="button"
-                                            onClick={() => setShowArchiveForm(false)}
-                                            className="bg-gray-300 hover:bg-gray-400 text-gray-700 px-4 py-2 rounded-md text-sm font-medium"
-                                        >
-                                            Cancel
-                                        </button>
-                                        <button
-                                            type="submit"
-                                            disabled={processing}
-                                            className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-md text-sm font-medium disabled:opacity-50"
-                                        >
-                                            {processing ? 'Archiving...' : 'Archive Semester'}
-                                        </button>
-                                    </div>
-                                </form>
-                            </div>
+                <div className="max-w-2xl mx-auto bg-white dark:bg-gray-800 shadow rounded-lg p-8">
+                    <div className="mb-6">
+                        <div className="text-lg font-bold text-gray-800 dark:text-gray-100 mb-2">
+                            Current Academic Year: <span className="font-mono">{currentAcademicYear}</span>
                         </div>
-                    )}
-
-                    {/* Academic Years Summary */}
-                    <div className="bg-white dark:bg-gray-800 overflow-hidden shadow-sm sm:rounded-lg">
-                        <div className="p-6">
-                            <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">
-                                Academic Years Summary
-                            </h3>
-                            
-                            {academicYears.length === 0 ? (
-                                <p className="text-gray-500 dark:text-gray-400">No archived academic years yet.</p>
-                            ) : (
-                                <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                                    {academicYears.map((year) => (
-                                        <div key={year.academic_year} className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
-                                            <h4 className="font-medium text-gray-900 dark:text-gray-100">
-                                                {year.academic_year}
-                                            </h4>
-                                            <p className="text-sm text-gray-500 dark:text-gray-400">
-                                                {year.sections_count} sections archived
-                                            </p>
-                                        </div>
-                                    ))}
-                                </div>
-                            )}
+                        <div className="text-lg font-bold text-gray-800 dark:text-gray-100 mb-4">
+                            Current Semester: <span className="font-mono">{getSemesterDisplay(currentSemester)}</span>
+                        </div>
+                        <div className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+                            After archiving, the system will automatically advance to: <span className="font-mono font-semibold">{nextPeriod.year} - {getSemesterDisplay(nextPeriod.semester)}</span>
                         </div>
                     </div>
-
-                    {/* Archived Sections */}
-                    <div className="bg-white dark:bg-gray-800 overflow-hidden shadow-sm sm:rounded-lg">
-                        <div className="p-6">
-                            <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-6">
-                                Archived Sections History
-                            </h3>
-                            
-                            {archivedSections.data.length === 0 ? (
-                                <p className="text-gray-500 dark:text-gray-400 text-center py-8">
-                                    No archived sections yet. Use the "Archive Semester" button to move completed sections to history.
-                                </p>
-                            ) : (
-                                <div className="space-y-4">
-                                    {archivedSections.data.map((section) => (
-                                        <div key={section.id} className="border border-gray-200 dark:border-gray-700 rounded-lg p-4">
-                                            <div className="flex justify-between items-start">
-                                                <div className="flex-1">
-                                                    <h4 className="font-medium text-gray-900 dark:text-gray-100">
-                                                        {section.section_name}
-                                                    </h4>
-                                                    <p className="text-sm text-gray-500 dark:text-gray-400">
-                                                        {section.course_data.subject_name} ({section.course_data.course_code})
-                                                    </p>
-                                                    <div className="mt-2 grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                                                        <div>
-                                                            <span className="font-medium">Academic Year:</span> {section.academic_year}
-                                                        </div>
-                                                        <div>
-                                                            <span className="font-medium">Semester:</span> {getSemesterDisplay(section.semester)}
-                                                        </div>
-                                                        <div>
-                                                            <span className="font-medium">Room:</span> {section.room || 'N/A'}
-                                                        </div>
-                                                        <div>
-                                                            <span className="font-medium">Students:</span> {section.total_enrolled_students}
-                                                        </div>
-                                                    </div>
-                                                    <div className="mt-2 text-sm text-gray-600 dark:text-gray-400">
-                                                        Completed: {section.completed_students} | Dropped: {section.dropped_students}
-                                                        {section.section_average_grade && (
-                                                            <span> | Average: {section.section_average_grade}%</span>
-                                                        )}
-                                                    </div>
+                    <div className="mb-8">
+                        <button
+                            className="bg-red-600 hover:bg-red-700 text-white px-6 py-3 rounded-md text-lg font-semibold shadow disabled:opacity-50"
+                            onClick={handleArchive}
+                            disabled={processing}
+                        >
+                            Archive {data.academic_year} {getSemesterDisplay(currentSemester)} & Advance to {nextPeriod.year} {getSemesterDisplay(nextPeriod.semester)}
+                        </button>
+                    </div>
+                    {unpaid_count > 0 && (
+                        <div className="max-w-2xl mx-auto mt-4 p-4 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg">
+                            <div className="text-sm text-yellow-700 dark:text-yellow-300 mb-2">
+                                There are <span className="font-semibold">{unpaid_count}</span> students with outstanding balances for {data.academic_year} {getSemesterDisplay(currentSemester)}. These students will be flagged as "On Hold" and cannot be auto-enrolled until balances are cleared.
+                            </div>
+                            <details className="mt-2">
+                                <summary className="cursor-pointer text-sm font-medium text-yellow-800 dark:text-yellow-200 hover:underline">
+                                    View Unpaid Students & Payment History
+                                </summary>
+                                <div className="mt-3 space-y-3">
+                                    {unpaid_students.map((student) => (
+                                        <div key={student.id} className="bg-white dark:bg-gray-800 p-3 rounded border border-yellow-300 dark:border-yellow-600">
+                                            <div className="flex justify-between items-start mb-2">
+                                                <div>
+                                                    <div className="font-medium text-gray-900 dark:text-gray-100">{student.name}</div>
+                                                    <div className="text-sm text-gray-600 dark:text-gray-400">Student #: {student.student_number}</div>
+                                                    <div className="text-sm text-gray-600 dark:text-gray-400">{student.academic_year} - {student.semester} Semester</div>
                                                 </div>
-                                                
                                                 <div className="text-right">
-                                                    <p className="text-xs text-gray-500 dark:text-gray-400">
-                                                        Archived on {formatDate(section.archived_at)}
-                                                    </p>
-                                                    <p className="text-xs text-gray-500 dark:text-gray-400">
-                                                        by {section.archived_by.name}
-                                                    </p>
-                                                    <a
-                                                        href={route('admin.academic-years.show', section.id)}
-                                                        className="mt-2 inline-block text-indigo-600 hover:text-indigo-800 text-sm"
-                                                    >
-                                                        View Details
-                                                    </a>
+                                                    <div className="text-lg font-bold text-red-600 dark:text-red-400">₱{student.balance}</div>
+                                                    <div className="text-xs text-gray-500 dark:text-gray-400">Outstanding</div>
                                                 </div>
                                             </div>
-                                            
-                                            {section.archive_notes && (
-                                                <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-700">
-                                                    <p className="text-sm text-gray-600 dark:text-gray-400">
-                                                        <span className="font-medium">Notes:</span> {section.archive_notes}
-                                                    </p>
+                                            {student.payments.length > 0 && (
+                                                <div className="mt-2">
+                                                    <div className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Payment History:</div>
+                                                    <div className="space-y-1 max-h-32 overflow-y-auto">
+                                                        {student.payments.map((payment) => (
+                                                            <div key={payment.id} className="text-xs bg-gray-50 dark:bg-gray-700 p-2 rounded flex justify-between">
+                                                                <div>
+                                                                    <span className="font-medium">₱{payment.amount}</span>
+                                                                    {payment.reference_number && <span className="ml-2 text-gray-500">Ref: {payment.reference_number}</span>}
+                                                                </div>
+                                                                <div className="text-gray-500">
+                                                                    {new Date(payment.payment_date).toLocaleDateString()}
+                                                                </div>
+                                                            </div>
+                                                        ))}
+                                                    </div>
                                                 </div>
                                             )}
                                         </div>
                                     ))}
                                 </div>
-                            )}
-                            
-                            {/* Pagination */}
-                            {archivedSections.links && archivedSections.links.length > 3 && (
-                                <div className="mt-6 flex justify-center">
-                                    {/* Add pagination component here if needed */}
+                            </details>
+                        </div>
+                    )}
+                    {errors.error && (
+                        <div className="mb-4 text-center text-red-600 font-semibold">{errors.error}</div>
+                    )}
+                </div>
+
+                {/* Modal for confirmation and password */}
+                {showModal && (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+                        <div className="bg-white dark:bg-gray-900 rounded-lg shadow-lg p-6 w-full max-w-md">
+                            <h2 className="text-lg font-bold mb-4 text-red-700 dark:text-red-400">Confirm Archive</h2>
+                            <p className="mb-4 text-gray-700 dark:text-gray-300">Are you sure you want to mark <span className="font-semibold">{data.academic_year} {getSemesterDisplay(currentSemester)}</span> as finished? This will archive all sections and grades for this period. <span className="font-semibold text-red-600">This action is irreversible.</span></p>
+                            <form onSubmit={confirmArchive} className="space-y-4">
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                        Archive Notes (Optional)
+                                    </label>
+                                    <textarea
+                                        value={data.archive_notes}
+                                        onChange={(e) => setData('archive_notes', e.target.value)}
+                                        rows={2}
+                                        className="w-full rounded-md border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300"
+                                        placeholder="Add any notes about this archival..."
+                                    />
+                                    {errors.archive_notes && (
+                                        <p className="mt-1 text-sm text-red-600">{errors.archive_notes}</p>
+                                    )}
                                 </div>
-                            )}
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                        Confirm Password
+                                    </label>
+                                    <input
+                                        type="password"
+                                        value={data.password}
+                                        onChange={(e) => setData('password', e.target.value)}
+                                        className="w-full rounded-md border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300"
+                                        required
+                                    />
+                                    {errors.password && (
+                                        <p className="mt-1 text-sm text-red-600">{errors.password}</p>
+                                    )}
+                                </div>
+                                <div className="flex items-center justify-between gap-4 pt-2">
+                                    <label className="flex items-center gap-2 text-sm">
+                                        <input
+                                            type="checkbox"
+                                            checked={data.force}
+                                            onChange={(e) => setData('force', e.target.checked)}
+                                            className="w-4 h-4"
+                                        />
+                                        <span className="text-sm">Force archive (override unpaid-student block)</span>
+                                    </label>
+                                    <div className="flex items-center gap-4">
+                                    <button
+                                        type="button"
+                                        className="px-4 py-2 rounded-md bg-gray-300 hover:bg-gray-400 text-gray-700 text-sm font-medium"
+                                        onClick={() => setShowModal(false)}
+                                        disabled={processing}
+                                    >
+                                        Cancel
+                                    </button>
+                                    <button
+                                        type="submit"
+                                        className="px-4 py-2 rounded-md bg-red-600 hover:bg-red-700 text-white text-sm font-medium"
+                                        disabled={processing}
+                                    >
+                                        {processing ? 'Archiving...' : 'Yes, Mark as Finished & Archive'}
+                                    </button>
+                                    </div>
+                                </div>
+                            </form>
                         </div>
                     </div>
-                </div>
+                )}
             </div>
         </AuthenticatedLayout>
     );

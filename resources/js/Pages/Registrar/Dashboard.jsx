@@ -89,14 +89,14 @@ export default function RegistrarDashboard({ stats, auth }) {
                 {/* Quick Actions */}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                     <Card className="hover:shadow-lg transition-shadow cursor-pointer">
-                        <Link href={route('registrar.students')} className="block">
+                        <Link href={route('registrar.enrollments.index')} className="block">
                             <CardHeader>
                                 <CardTitle className="flex items-center text-lg">
                                     <Users className="w-5 h-5 mr-2 text-blue-600" />
                                     Student Management
                                 </CardTitle>
                                 <CardDescription>
-                                    View, edit, and manage student records and enrollment status
+                                    Manage students, enrollments, and access historical records
                                 </CardDescription>
                             </CardHeader>
                             <CardContent>
@@ -155,14 +155,14 @@ export default function RegistrarDashboard({ stats, auth }) {
                     </Card>
 
                     <Card className="hover:shadow-lg transition-shadow cursor-pointer">
-                        <Link href={route('registrar.enrollment.create')} className="block">
+                        <Link href={route('registrar.enrollments.index')} className="block">
                             <CardHeader>
                                 <CardTitle className="flex items-center text-lg">
                                     <UserCheck className="w-5 h-5 mr-2 text-orange-600" />
                                     Student Enrollment
                                 </CardTitle>
                                 <CardDescription>
-                                    Process new student enrollments and course registrations
+                                    Manage students, enrollments, and access historical records
                                 </CardDescription>
                             </CardHeader>
                             <CardContent>

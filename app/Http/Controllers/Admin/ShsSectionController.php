@@ -9,8 +9,6 @@ use App\Http\Requests\Admin\UpdateSectionRequest;
 use App\Models\Program;
 use App\Models\SchoolSetting;
 use App\Models\Section;
-use App\Models\Student;
-use App\Models\StudentEnrollment;
 use App\Models\Subject;
 use App\Models\Teacher;
 use Illuminate\Http\RedirectResponse;
@@ -25,7 +23,7 @@ class ShsSectionController extends Controller
         // Get current academic period for default filtering
         $currentAcademicYear = SchoolSetting::getCurrentAcademicYear();
         $currentSemester = SchoolSetting::getCurrentSemester();
-        
+
         $query = Section::with(['program', 'subjects', 'sectionSubjects.teacher.user'])
             ->whereHas('program', function ($programQuery) {
                 $programQuery->where('education_level', 'shs');
@@ -104,7 +102,7 @@ class ShsSectionController extends Controller
     {
         $currentAcademicYear = SchoolSetting::getCurrentAcademicYear();
         $currentSemester = SchoolSetting::getCurrentSemester();
-        
+
         $programs = Program::where('education_level', 'shs')
             ->where('status', 'active')
             ->orderBy('track')
@@ -210,7 +208,7 @@ class ShsSectionController extends Controller
         $subjects = Subject::where('education_level', 'shs')
             ->orderBy('subject_code')
             ->get();
-        
+
         $teachers = Teacher::with('user')->get();
 
         return Inertia::render('Admin/Sections/Shs/Sections/Subjects', [

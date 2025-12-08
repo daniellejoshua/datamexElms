@@ -6,6 +6,7 @@ use App\Models\ArchivedStudentEnrollment;
 use App\Models\SemesterFinalization;
 use App\Models\Student;
 use App\Models\StudentEnrollment;
+use App\Models\StudentSemesterPayment;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -19,6 +20,15 @@ class StudentProgressionService
      */
     public function progressToNextSemester(Student $student, string $newAcademicYear, string $newSemester): void
     {
+        // Check if student has any unpaid balances
+        $unpaidBalances = StudentSemesterPayment::where('student_id', $student->id)
+            ->where('balance', '>', 0)
+            ->sum('balance');
+
+        if ($unpaidBalances > 0) {
+            throw new \Exception("Cannot progress student {$student->user->name} due to unpaid balance of ₱" . number_format($unpaidBalances, 2));
+        }
+
         DB::transaction(function () use ($student, $newAcademicYear, $newSemester) {
             // Archive current enrollment if exists
             $currentEnrollment = $student->enrollments()
@@ -47,6 +57,15 @@ class StudentProgressionService
      */
     public function progressToNextYearLevel(Student $student, string $newAcademicYear): void
     {
+        // Check if student has any unpaid balances
+        $unpaidBalances = StudentSemesterPayment::where('student_id', $student->id)
+            ->where('balance', '>', 0)
+            ->sum('balance');
+
+        if ($unpaidBalances > 0) {
+            throw new \Exception("Cannot progress student {$student->user->name} due to unpaid balance of ₱" . number_format($unpaidBalances, 2));
+        }
+
         DB::transaction(function () use ($student, $newAcademicYear) {
             // Archive current enrollment
             $currentEnrollment = $student->enrollments()

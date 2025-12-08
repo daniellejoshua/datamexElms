@@ -18,7 +18,7 @@ return new class extends Migration
             $table->string('type')->default('string'); // string, integer, boolean, json
             $table->text('description')->nullable();
             $table->timestamps();
-            
+
             $table->index('key');
         });
     }

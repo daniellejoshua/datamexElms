@@ -15,7 +15,7 @@ return new class extends Migration
             $table->enum('education_level', ['shs', 'college'])->default('college')->after('student_type');
             $table->string('track')->nullable()->after('education_level'); // For SHS: STEM, HUMSS, ABM, etc.
             $table->string('strand')->nullable()->after('track'); // For SHS strand specialization
-            
+
             // Index for efficient queries
             $table->index(['education_level', 'student_type']);
         });

@@ -3,14 +3,10 @@
 namespace App\Http\Controllers\Teacher;
 
 use App\Http\Controllers\Controller;
-use App\Models\Teacher;
 use App\Models\Section;
-use App\Models\Student;
-use App\Models\Subject;
 use App\Models\SectionSubject;
-use Illuminate\Http\Request;
+use App\Models\Teacher;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -23,20 +19,20 @@ class DashboardController extends Controller
     {
         // Get the current authenticated teacher
         $teacher = Teacher::where('user_id', Auth::id())->firstOrFail();
-        
+
         // Get teacher's sections with related data
         $teacherSections = SectionSubject::with([
             'section.program',
             'section.enrollments.student',
             'subject',
         ])
-        ->where('teacher_id', $teacher->id)
-        ->where('status', 'active')
-        ->get();
+            ->where('teacher_id', $teacher->id)
+            ->where('status', 'active')
+            ->get();
 
         // Calculate statistics
         $totalSections = $teacherSections->count();
-        $totalStudents = $teacherSections->sum(function($sectionSubject) {
+        $totalStudents = $teacherSections->sum(function ($sectionSubject) {
             return $sectionSubject->section->enrollments->count();
         });
         $totalSubjects = $teacherSections->pluck('subject_id')->unique()->count();
@@ -51,10 +47,10 @@ class DashboardController extends Controller
         $recentActivities = $this->getRecentActivities($teacher);
 
         // Prepare section overview data
-        $sectionOverview = $teacherSections->map(function($sectionSubject) {
+        $sectionOverview = $teacherSections->map(function ($sectionSubject) {
             $section = $sectionSubject->section;
             $studentCount = $section->enrollments->count();
-            
+
             return [
                 'id' => $section->id,
                 'section_name' => $section->section_name,
@@ -73,7 +69,7 @@ class DashboardController extends Controller
         return Inertia::render('Teacher/Dashboard', [
             'teacher' => [
                 'id' => $teacher->id,
-                'name' => trim($teacher->first_name . ' ' . $teacher->middle_name . ' ' . $teacher->last_name),
+                'name' => trim($teacher->first_name.' '.$teacher->middle_name.' '.$teacher->last_name),
                 'employee_number' => $teacher->employee_number,
                 'department' => $teacher->department,
                 'specialization' => $teacher->specialization,
@@ -97,14 +93,14 @@ class DashboardController extends Controller
     private function getTodaySchedule(Teacher $teacher)
     {
         $today = now()->format('l'); // Get day name (e.g., 'Monday')
-        
+
         return SectionSubject::with(['section.program', 'subject'])
             ->where('teacher_id', $teacher->id)
             ->where('status', 'active')
             ->whereRaw('FIND_IN_SET(?, schedule_days)', [$today])
             ->orderBy('start_time')
             ->get()
-            ->map(function($sectionSubject) {
+            ->map(function ($sectionSubject) {
                 return [
                     'id' => $sectionSubject->id,
                     'subject_name' => $sectionSubject->subject->subject_name,
@@ -124,24 +120,24 @@ class DashboardController extends Controller
      */
     private function getUpcomingClasses(Teacher $teacher)
     {
-        $upcomingDays = collect(range(1, 3))->map(function($day) {
+        $upcomingDays = collect(range(1, 3))->map(function ($day) {
             return now()->addDays($day)->format('l');
         });
 
         return SectionSubject::with(['section.program', 'subject'])
             ->where('teacher_id', $teacher->id)
             ->where('status', 'active')
-            ->where(function($query) use ($upcomingDays) {
-                foreach($upcomingDays as $day) {
+            ->where(function ($query) use ($upcomingDays) {
+                foreach ($upcomingDays as $day) {
                     $query->orWhereRaw('FIND_IN_SET(?, schedule_days)', [$day]);
                 }
             })
             ->orderBy('start_time')
             ->get()
-            ->map(function($sectionSubject) {
+            ->map(function ($sectionSubject) {
                 $scheduleDays = explode(',', $sectionSubject->schedule_days);
                 $nextClassDate = null;
-                
+
                 // Find the next occurrence
                 for ($i = 1; $i <= 7; $i++) {
                     $checkDate = now()->addDays($i);
@@ -150,7 +146,7 @@ class DashboardController extends Controller
                         break;
                     }
                 }
-                
+
                 return [
                     'id' => $sectionSubject->id,
                     'subject_name' => $sectionSubject->subject->subject_name,
@@ -200,7 +196,7 @@ class DashboardController extends Controller
     private function formatSchedule(SectionSubject $sectionSubject): string
     {
         $days = $sectionSubject->schedule_days;
-        
+
         // Handle the schedule_days based on its type
         if (is_array($days)) {
             $formattedDays = implode(', ', array_map('ucfirst', $days));
@@ -212,10 +208,10 @@ class DashboardController extends Controller
         } else {
             $formattedDays = 'TBA';
         }
-        
+
         $startTime = \Carbon\Carbon::parse($sectionSubject->start_time)->format('g:i A');
         $endTime = \Carbon\Carbon::parse($sectionSubject->end_time)->format('g:i A');
-        
+
         return "{$formattedDays} {$startTime} - {$endTime}";
     }
 }

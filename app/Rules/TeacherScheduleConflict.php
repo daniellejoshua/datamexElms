@@ -23,9 +23,7 @@ class TeacherScheduleConflict implements ValidationRule
     /**
      * Run the validation rule.
      *
-     * @param string $attribute
-     * @param mixed $value
-     * @param \Closure(string): void $fail
+     * @param  \Closure(string): void  $fail
      */
     public function validate(string $attribute, mixed $value, Closure $fail): void
     {
@@ -42,24 +40,29 @@ class TeacherScheduleConflict implements ValidationRule
                 $section = $conflict->section;
                 $subject = $conflict->subject;
                 $days = is_array($conflict->schedule_days) ? implode(', ', $conflict->schedule_days) : $conflict->schedule_days;
-                
+
                 return "{$subject->subject_code} ({$section->program->program_code}-{$section->year_level}{$section->section_name}) on {$days} from {$conflict->start_time} to {$conflict->end_time}";
             })->join('; ');
 
             $fail("Teacher has a scheduling conflict with: {$conflictDetails}");
+
             return;
         }
 
         if ($timeSlotConflict) {
             $fail($timeSlotConflict);
+
             return;
         }
 
         if ($hoursConflict) {
             $fail($hoursConflict);
+
             return;
         }
-    }    private function getTeacherConflicts()
+    }
+
+    private function getTeacherConflicts()
     {
         return SectionSubject::with(['section.program', 'subject'])
             ->where('teacher_id', $this->teacherId)
@@ -152,10 +155,10 @@ class TeacherScheduleConflict implements ValidationRule
         if ($existingSubject) {
             $section = $existingSubject->section;
             $subject = $existingSubject->subject;
-            $days = is_array($existingSubject->schedule_days) 
-                ? implode(', ', $existingSubject->schedule_days) 
+            $days = is_array($existingSubject->schedule_days)
+                ? implode(', ', $existingSubject->schedule_days)
                 : $existingSubject->schedule_days;
-            
+
             return "Time slot conflict: {$subject->subject_code} is already scheduled for section {$section->program->program_code}-{$section->year_level}{$section->section_name} on {$days} from {$existingSubject->start_time} to {$existingSubject->end_time}.";
         }
 

@@ -14,7 +14,7 @@ return new class extends Migration
         Schema::table('sections', function (Blueprint $table) {
             $table->string('academic_year')->after('course_id'); // e.g., "2024-2025"
             $table->enum('semester', ['1st', '2nd', 'summer'])->default('1st')->after('academic_year');
-            
+
             // Index for efficient historical queries
             $table->index(['academic_year', 'semester']);
             $table->index(['course_id', 'academic_year', 'semester']);

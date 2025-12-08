@@ -60,12 +60,20 @@ class ShsStudentPayment extends Model
     public function calculateTotalPaid(): float
     {
         $total = 0;
-        
-        if ($this->first_quarter_paid) $total += $this->first_quarter_amount;
-        if ($this->second_quarter_paid) $total += $this->second_quarter_amount;
-        if ($this->third_quarter_paid) $total += $this->third_quarter_amount;
-        if ($this->fourth_quarter_paid) $total += $this->fourth_quarter_amount;
-        
+
+        if ($this->first_quarter_paid) {
+            $total += $this->first_quarter_amount;
+        }
+        if ($this->second_quarter_paid) {
+            $total += $this->second_quarter_amount;
+        }
+        if ($this->third_quarter_paid) {
+            $total += $this->third_quarter_amount;
+        }
+        if ($this->fourth_quarter_paid) {
+            $total += $this->fourth_quarter_amount;
+        }
+
         return $total;
     }
 

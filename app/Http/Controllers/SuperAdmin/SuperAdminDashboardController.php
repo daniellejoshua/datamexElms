@@ -42,12 +42,13 @@ class SuperAdminDashboardController extends Controller
     private function getDatabaseSize()
     {
         try {
-            $size = DB::select("
+            $size = DB::select('
                 SELECT 
                     ROUND(SUM(data_length + index_length) / 1024 / 1024, 2) AS size_mb
                 FROM information_schema.tables 
                 WHERE table_schema = DATABASE()
-            ");
+            ');
+
             return $size[0]->size_mb ?? 0;
         } catch (\Exception $e) {
             return 'N/A';
@@ -57,7 +58,7 @@ class SuperAdminDashboardController extends Controller
     private function getSystemHealth()
     {
         $health = [];
-        
+
         // Database connectivity
         try {
             DB::connection()->getPdo();
@@ -68,7 +69,7 @@ class SuperAdminDashboardController extends Controller
 
         // Storage space
         $health['storage'] = disk_free_space(storage_path()) > 1024 * 1024 * 100 ? 'healthy' : 'low';
-        
+
         // Memory usage
         $health['memory'] = memory_get_usage(true) < 128 * 1024 * 1024 ? 'healthy' : 'high';
 

@@ -16,7 +16,7 @@ return new class extends Migration
             $table->foreignId('course_id')->constrained()->onDelete('cascade');
             $table->string('section_name');
             $table->string('room')->nullable();
-            $table->enum('status',['active','inactive'])->default('active');
+            $table->enum('status', ['active', 'inactive'])->default('active');
             $table->timestamps();
         });
     }

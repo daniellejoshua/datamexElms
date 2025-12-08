@@ -108,7 +108,7 @@ class ShsSubjectController extends Controller
         }
 
         $validated = $request->validate([
-            'subject_code' => 'required|string|max:20|unique:subjects,subject_code,' . $subject->id,
+            'subject_code' => 'required|string|max:20|unique:subjects,subject_code,'.$subject->id,
             'subject_name' => 'required|string|max:255',
             'description' => 'nullable|string',
             'units' => 'required|integer|min:1|max:6',

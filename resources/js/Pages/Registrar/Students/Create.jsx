@@ -1,4 +1,4 @@
-import { Head, useForm, router } from '@inertiajs/react'
+import { Head, Link, router, useForm } from '@inertiajs/react'
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -6,11 +6,15 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { UserPlus, ArrowLeft, GraduationCap, BookOpen } from 'lucide-react'
-import { useState, useEffect } from 'react'
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { UserPlus, ArrowLeft, GraduationCap, BookOpen, AlertTriangle, DollarSign } from 'lucide-react'
+import { useState, useEffect, useRef } from 'react'
 
 export default function CreateStudent({ programs, auth, currentAcademicYear, currentSemester }) {
     const { data, setData, post, processing, errors, reset } = useForm({
+        // Student Number (for checking existing students)
+        student_number: '',
+        
         // Personal Information
         first_name: '',
         last_name: '',
@@ -38,8 +42,30 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
         payment_amount: '',
     })
 
+    // Helper function to format dates for HTML date inputs
+    const formatDateForInput = (dateString) => {
+        if (!dateString) return ''
+        try {
+            const date = new Date(dateString)
+            return date.toISOString().split('T')[0]
+        } catch {
+            return dateString
+        }
+    }
+
     const [selectedProgram, setSelectedProgram] = useState(null)
     const [calculatedBalance, setCalculatedBalance] = useState(0)
+    const [archivedStudent, setArchivedStudent] = useState(null)
+    const [checkingArchived, setCheckingArchived] = useState(false)
+    const [studentFound, setStudentFound] = useState(null)
+    const [isExistingStudent, setIsExistingStudent] = useState(false)
+    const [isReturningStudent, setIsReturningStudent] = useState(false)
+    const [checkingStudent, setCheckingStudent] = useState(false)
+    const [showErrorModal, setShowErrorModal] = useState(false)
+    const [showPaymentModal, setShowPaymentModal] = useState(false)
+    const [paymentHistory, setPaymentHistory] = useState(null)
+    const [loadingPaymentHistory, setLoadingPaymentHistory] = useState(false)
+    const lastErrorRef = useRef('')
 
     // Group programs by education level
     const collegePrograms = programs.filter(p => p.education_level === 'college')
@@ -64,8 +90,137 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
         setCalculatedBalance(enrollmentFee - paymentAmount)
     }, [data.enrollment_fee, data.payment_amount])
 
+    // Show error modal when student error exists
+    useEffect(() => {
+        if (errors.student) {
+            setShowErrorModal(true)
+        } else {
+            setShowErrorModal(false)
+            lastErrorRef.current = ''
+        }
+    }, [errors.student])
+
+    // Check for archived student when email changes
+    useEffect(() => {
+        if (data.email && data.email.includes('@')) {
+            checkArchivedStudent()
+        } else {
+            setArchivedStudent(null)
+        }
+    }, [data.email])
+
+    const checkArchivedStudent = async () => {
+        if (!data.email) return
+        
+        setCheckingArchived(true)
+        try {
+            const response = await fetch(`/api/archived-students/check?email=${encodeURIComponent(data.email)}`)
+            if (response.ok) {
+                const result = await response.json()
+                setArchivedStudent(result.archivedStudent)
+            }
+        } catch (error) {
+            console.error('Error checking archived student:', error)
+        } finally {
+            setCheckingArchived(false)
+        }
+    }
+
+    const checkStudent = async () => {
+        if (!data.student_number) return
+        
+        setCheckingStudent(true)
+        try {
+            const response = await fetch(`/api/students/check/${data.student_number}`)
+            const result = await response.json()
+            
+            if (result.exists) {
+                setStudentFound(result.student)
+                setIsExistingStudent(true)
+                setIsReturningStudent(false)
+                // Auto-fill existing student data
+                const addressParts = result.student.address ? result.student.address.split(',').map(part => part.trim()) : []
+                setData(prev => ({
+                    ...prev,
+                    first_name: result.student.first_name || '',
+                    last_name: result.student.last_name || '',
+                    middle_name: result.student.middle_name || '',
+                    email: result.student.email || '',
+                    program_id: result.student.program?.id || '',
+                    year_level: result.student.year_level || '',
+                    education_level: result.student.education_level || 'college',
+                    student_type: result.student.student_type || 'regular',
+                    birth_date: formatDateForInput(result.student.birth_date) || '',
+                    phone: result.student.phone || '',
+                    parent_contact: result.student.parent_contact || '',
+                    street: addressParts[0] || '',
+                    barangay: addressParts[1] || '',
+                    city: addressParts[2] || '',
+                    province: addressParts[3] || '',
+                    zip_code: addressParts[4] || '',
+                }))
+            } else if (result.archived) {
+                // Student exists in archived records
+                setStudentFound(result.archived)
+                setIsExistingStudent(false)
+                setIsReturningStudent(true)
+                // Auto-fill archived student data
+                setData(prev => ({
+                    ...prev,
+                    first_name: result.archived.first_name || '',
+                    last_name: result.archived.last_name || '',
+                    middle_name: result.archived.middle_name || '',
+                    email: result.archived.email || '',
+                    program_id: result.archived.program?.id || '',
+                    year_level: result.archived.year_level || '',
+                    education_level: result.archived.education_level || 'college',
+                    student_type: 'returning',
+                    birth_date: formatDateForInput(result.archived.birth_date) || '',
+                    phone: result.archived.phone || '',
+                    parent_contact: result.archived.parent_contact || '',
+                    street: result.archived.address?.split(',')[0]?.trim() || '',
+                    barangay: result.archived.address?.split(',')[1]?.trim() || '',
+                    city: result.archived.address?.split(',')[2]?.trim() || '',
+                    province: result.archived.address?.split(',')[3]?.trim() || '',
+                    zip_code: result.archived.address?.split(',')[4]?.trim() || '',
+                }))
+            } else {
+                setStudentFound(null)
+                setIsExistingStudent(false)
+                setIsReturningStudent(false)
+                // Reset form for new student
+                setData(prev => ({
+                    ...prev,
+                    first_name: '',
+                    last_name: '',
+                    middle_name: '',
+                    email: '',
+                    program_id: '',
+                    year_level: '',
+                    education_level: 'college',
+                    student_type: 'regular',
+                    birth_date: '',
+                    phone: '',
+                    parent_contact: '',
+                    street: '',
+                    barangay: '',
+                    city: '',
+                    province: '',
+                    zip_code: '',
+                }))
+            }
+        } catch (error) {
+            console.error('Error checking student:', error)
+        } finally {
+            setCheckingStudent(false)
+        }
+    }
+
     const handleSubmit = (e) => {
         e.preventDefault()
+        
+        // Reset modal state before submission
+        setShowErrorModal(false)
         
         // Concatenate address parts
         const addressParts = [
@@ -95,9 +250,29 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
             },
             onError: (errors) => {
                 console.error('Validation errors:', errors)
-                alert('Please check the form for errors')
+                // Show error modal if there's a student balance error
+                if (errors.student) {
+                    setShowErrorModal(true)
+                } else {
+                    alert('Please check the form for errors')
+                }
             },
         })
+    }
+
+    const loadPaymentHistory = async (studentId) => {
+        setLoadingPaymentHistory(true);
+        try {
+            const response = await fetch(`/api/students/${studentId}/payments`);
+            const result = await response.json();
+            setPaymentHistory(result);
+            setShowPaymentModal(true);
+        } catch (error) {
+            console.error('Error loading payment history:', error);
+            alert('Failed to load payment history');
+        } finally {
+            setLoadingPaymentHistory(false);
+        }
     }
 
     const getYearLevelOptions = () => {
@@ -115,30 +290,109 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
             header={
                 <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
-                        <div className="bg-purple-100 p-2 rounded-lg">
-                            <UserPlus className="w-6 h-6 text-purple-600" />
-                        </div>
+                        <Button asChild variant="ghost" size="sm">
+                            <Link href={route('registrar.students')} className="flex items-center gap-2">
+                                <ArrowLeft className="w-4 h-4" />
+                                Back to Students
+                            </Link>
+                        </Button>
+                        <div className="h-6 w-px bg-gray-300"></div>
                         <div>
-                            <h2 className="text-2xl font-bold text-gray-900">Register New Student</h2>
-                            <p className="text-sm text-gray-600 mt-1">
-                                Create student account and process enrollment fee payment
-                            </p>
+                            <h2 className="text-2xl font-bold text-gray-900">Student Registration & Enrollment</h2>
+                            <p className="text-sm text-purple-600 font-medium mt-1">Register new students or update existing student records</p>
                         </div>
                     </div>
-                    <Button
-                        variant="outline"
-                        onClick={() => router.visit(route('registrar.students'))}
-                        className="gap-2"
-                    >
-                        <ArrowLeft className="w-4 h-4" />
-                        Back to Students
-                    </Button>
                 </div>
             }
         >
+        
             <Head title="Register New Student" />
 
             <form onSubmit={handleSubmit} className="space-y-6">
+                {/* Student Number Check */}
+                <Card className="border-t-4 border-t-green-500">
+                    <CardHeader className="bg-gradient-to-r from-green-50 to-transparent">
+                        <div className="flex items-center gap-2">
+                            <div className="bg-green-100 p-2 rounded-lg">
+                                <UserPlus className="w-5 h-5 text-green-600" />
+                            </div>
+                            <div>
+                                <CardTitle>Student Number Check</CardTitle>
+                                <CardDescription>Enter student number to check if student exists and auto-fill data</CardDescription>
+                            </div>
+                        </div>
+                    </CardHeader>
+                    <CardContent className="space-y-4 pt-6">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <Label htmlFor="student_number">Student Number *</Label>
+                                <div className="flex gap-2">
+                                    <Input 
+                                        id="student_number"
+                                        value={data.student_number}
+                                        onChange={e => setData('student_number', e.target.value)}
+                                        placeholder="Enter student number"
+                                        className="h-10"
+                                    />
+                                    <Button 
+                                        type="button" 
+                                        onClick={checkStudent} 
+                                        variant="outline"
+                                        disabled={checkingStudent || !data.student_number}
+                                    >
+                                        {checkingStudent ? 'Checking...' : 'Check'}
+                                    </Button>
+                                </div>
+                                {errors.student_number && (
+                                    <p className="text-red-500 text-sm mt-1">{errors.student_number}</p>
+                                )}
+                            </div>
+
+                            {studentFound && isExistingStudent && (
+                                <div className="bg-green-50 p-4 rounded-md border border-green-200">
+                                    <p className="text-sm text-green-800 font-medium flex items-center gap-2">
+                                        <UserPlus className="w-4 h-4" />
+                                        Existing Student Found
+                                    </p>
+                                    <p className="text-sm text-green-600">
+                                        {studentFound.first_name} {studentFound.middle_name} {studentFound.last_name} - {studentFound.program?.name}
+                                    </p>
+                                    <p className="text-xs text-green-500 mt-1">
+                                        Student data has been auto-filled. You can modify if needed.
+                                    </p>
+                                </div>
+                            )}
+
+                            {isReturningStudent && (
+                                <div className="bg-orange-50 p-4 rounded-md border border-orange-200">
+                                    <p className="text-sm text-orange-800 font-medium flex items-center gap-2">
+                                        <UserPlus className="w-4 h-4" />
+                                        Returning Student Found
+                                    </p>
+                                    <p className="text-sm text-orange-600">
+                                        {studentFound.first_name} {studentFound.middle_name} {studentFound.last_name} - Archived records restored
+                                    </p>
+                                    <p className="text-xs text-orange-500 mt-1">
+                                        Student data has been auto-filled from archived records.
+                                    </p>
+                                </div>
+                            )}
+
+                            {!studentFound && data.student_number && !checkingStudent && (
+                                <div className="bg-blue-50 p-4 rounded-md border border-blue-200">
+                                    <p className="text-sm text-blue-800 font-medium flex items-center gap-2">
+                                        <UserPlus className="w-4 h-4" />
+                                        New Student
+                                    </p>
+                                    <p className="text-sm text-blue-600">
+                                        Student number not found. Please fill in all details below.
+                                    </p>
+                                </div>
+                            )}
+                        </div>
+                    </CardContent>
+                </Card>
+
                 {/* Personal Information */}
                 <Card className="border-t-4 border-t-blue-500">
                     <CardHeader className="bg-gradient-to-r from-blue-50 to-transparent">
@@ -221,6 +475,43 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                                 />
                                 {errors.email && (
                                     <p className="text-red-500 text-sm mt-1">{errors.email}</p>
+                                )}
+                                {checkingArchived && (
+                                    <p className="text-blue-500 text-sm mt-1">Checking for existing student records...</p>
+                                )}
+                                {archivedStudent && (
+                                    <div className="mt-2 p-3 bg-green-50 border border-green-200 rounded-md">
+                                        <p className="text-green-800 text-sm font-medium">
+                                            Returning Student Found!
+                                        </p>
+                                        <p className="text-green-700 text-sm mt-1">
+                                            Student #{archivedStudent.student_number} - {archivedStudent.first_name} {archivedStudent.last_name}
+                                        </p>
+                                        <p className="text-green-600 text-xs mt-1">
+                                            Last enrolled: {archivedStudent.archived_at}
+                                        </p>
+                                        <Button
+                                            type="button"
+                                            size="sm"
+                                            className="mt-2"
+                                            onClick={() => {
+                                                setData({
+                                                    ...data,
+                                                    first_name: archivedStudent.first_name,
+                                                    last_name: archivedStudent.last_name,
+                                                    middle_name: archivedStudent.middle_name || '',
+                                                    birth_date: archivedStudent.birth_date || '',
+                                                    phone: archivedStudent.phone || '',
+                                                    parent_contact: archivedStudent.parent_contact || '',
+                                                    education_level: archivedStudent.education_level || '',
+                                                    track: archivedStudent.track || '',
+                                                    strand: archivedStudent.strand || '',
+                                                })
+                                            }}
+                                        >
+                                            Copy Student Details
+                                        </Button>
+                                    </div>
                                 )}
                                 <p className="text-xs text-gray-500 mt-1">
                                     This will be used as the username. Default password: password123
@@ -447,14 +738,14 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                             <div className="bg-orange-100 p-2 rounded-lg">
                                 <BookOpen className="w-5 h-5 text-orange-600" />
                             </div>
-                            <div>
-                                <CardTitle>Enrollment Fee Payment</CardTitle>
-                                <CardDescription>
-                                    Process the initial enrollment fee payment for {currentAcademicYear} - {currentSemester} Semester
-                                </CardDescription>
+                                <div>
+                                    <CardTitle>Enrollment Fee Payment</CardTitle>
+                                    <CardDescription>
+                                        Process the initial enrollment fee payment for {currentAcademicYear} - {currentSemester} Semester
+                                    </CardDescription>
+                                </div>
                             </div>
-                        </div>
-                    </CardHeader>
+                        </CardHeader>
                     <CardContent className="space-y-6 pt-6">
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div>
@@ -542,10 +833,132 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                     </Button>
                     <Button type="submit" disabled={processing}>
                         <UserPlus className="w-4 h-4 mr-2" />
-                        {processing ? 'Registering...' : 'Register Student'}
+                        {processing ? 'Processing...' : isExistingStudent ? 'Update Student' : 'Register Student'}
                     </Button>
                 </div>
             </form>
+
+            {/* Error Modal */}
+            <Dialog open={showErrorModal} onOpenChange={setShowErrorModal}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle className="flex items-center gap-2 text-red-600">
+                            <AlertTriangle className="w-5 h-5" />
+                            Enrollment Not Allowed
+                        </DialogTitle>
+                        <DialogDescription>
+                            {errors.student}
+                        </DialogDescription>
+                    </DialogHeader>
+                    <div className="flex justify-between items-center">
+                        {studentFound && (
+                            <Button
+                                variant="outline"
+                                onClick={() => loadPaymentHistory(studentFound.id)}
+                                disabled={loadingPaymentHistory}
+                                className="flex items-center gap-2"
+                            >
+                                <DollarSign className="w-4 h-4" />
+                                {loadingPaymentHistory ? 'Loading...' : 'View Payment History'}
+                            </Button>
+                        )}
+                        <Button onClick={() => setShowErrorModal(false)}>
+                            Close
+                        </Button>
+                    </div>
+                </DialogContent>
+            </Dialog>
+
+            {/* Payment History Modal */}
+            <Dialog open={showPaymentModal} onOpenChange={setShowPaymentModal}>
+                <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+                    <DialogHeader>
+                        <DialogTitle className="flex items-center gap-2">
+                            <DollarSign className="w-5 h-5" />
+                            Payment History - {paymentHistory?.student?.first_name} {paymentHistory?.student?.last_name}
+                        </DialogTitle>
+                        <DialogDescription>
+                            Student ID: {paymentHistory?.student?.student_number}
+                        </DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-4">
+                        {paymentHistory?.paymentSummary ? (
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <Card>
+                                    <CardHeader className="pb-2">
+                                        <CardTitle className="text-sm">Total Paid</CardTitle>
+                                    </CardHeader>
+                                    <CardContent>
+                                        <div className="text-2xl font-bold text-green-600">
+                                            ₱{Number(paymentHistory.paymentSummary.totalPaid || 0).toFixed(2)}
+                                        </div>
+                                    </CardContent>
+                                </Card>
+                                <Card>
+                                    <CardHeader className="pb-2">
+                                        <CardTitle className="text-sm">Outstanding Balance</CardTitle>
+                                    </CardHeader>
+                                    <CardContent>
+                                        <div className="text-2xl font-bold text-red-600">
+                                            ₱{Number(paymentHistory.paymentSummary.balance || 0).toFixed(2)}
+                                        </div>
+                                    </CardContent>
+                                </Card>
+                                <Card>
+                                    <CardHeader className="pb-2">
+                                        <CardTitle className="text-sm">Total Fee</CardTitle>
+                                    </CardHeader>
+                                    <CardContent>
+                                        <div className="text-2xl font-bold text-blue-600">
+                                            ₱{Number(paymentHistory.paymentSummary.totalFee || 0).toFixed(2)}
+                                        </div>
+                                    </CardContent>
+                                </Card>
+                            </div>
+                        ) : null}
+
+                        {paymentHistory?.payments && paymentHistory.payments.length > 0 ? (
+                            <div>
+                                <h3 className="text-lg font-semibold mb-3">Payment Records</h3>
+                                <div className="space-y-2">
+                                    {paymentHistory.payments.map((payment, index) => (
+                                        <Card key={index}>
+                                            <CardContent className="p-4">
+                                                <div className="flex justify-between items-start">
+                                                    <div>
+                                                        <div className="font-medium">
+                                                            {payment.academic_year} - {payment.semester}
+                                                        </div>
+                                                        <div className="text-sm text-gray-600">
+                                                            Enrollment Fee: ₱{Number(payment.enrollment_fee || 0).toFixed(2)}
+                                                        </div>
+                                                        <div className="text-sm text-gray-600">
+                                                            Paid: ₱{Number(payment.total_paid || 0).toFixed(2)} | 
+                                                            Balance: ₱{Number(payment.balance || 0).toFixed(2)}
+                                                        </div>
+                                                    </div>
+                                                    <Badge variant={payment.balance > 0 ? "destructive" : "default"}>
+                                                        {payment.balance > 0 ? "Outstanding" : "Paid"}
+                                                    </Badge>
+                                                </div>
+                                            </CardContent>
+                                        </Card>
+                                    ))}
+                                </div>
+                            </div>
+                        ) : (
+                            <div className="text-center py-8 text-gray-500">
+                                No payment records found for this student.
+                            </div>
+                        )}
+                    </div>
+                    <div className="flex justify-end">
+                        <Button onClick={() => setShowPaymentModal(false)}>
+                            Close
+                        </Button>
+                    </div>
+                </DialogContent>
+            </Dialog>
         </AuthenticatedLayout>
     )
 }

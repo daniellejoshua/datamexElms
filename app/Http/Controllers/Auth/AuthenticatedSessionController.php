@@ -52,7 +52,7 @@ class AuthenticatedSessionController extends Controller
 
         // Clear all cookies by setting them to expire
         $response = redirect('/');
-        
+
         // Clear common Laravel session cookies
         $response->withCookie(cookie()->forget('laravel_session'));
         $response->withCookie(cookie()->forget('remember_web'));

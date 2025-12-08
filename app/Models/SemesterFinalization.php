@@ -14,18 +14,18 @@ class SemesterFinalization extends Model
         'track',
         'finalized_at',
         'finalized_by',
-        'notes'
+        'notes',
     ];
-    
+
     protected $casts = [
-        'finalized_at' => 'datetime'
+        'finalized_at' => 'datetime',
     ];
-    
+
     public function finalizedBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'finalized_by');
     }
-    
+
     public static function isFinalized(
         string $academicYear,
         string $semester,
@@ -35,13 +35,13 @@ class SemesterFinalization extends Model
         return static::where('academic_year', $academicYear)
             ->where('semester', $semester)
             ->where('education_level', $educationLevel)
-            ->when($track, fn($query) => $query->where('track', $track))
+            ->when($track, fn ($query) => $query->where('track', $track))
             ->exists();
     }
-    
+
     public function scopeForCurrentSemester($query)
     {
         return $query->where('academic_year', config('academic.current_year', '2024-2025'))
-                    ->where('semester', config('academic.current_semester', '1st'));
+            ->where('semester', config('academic.current_semester', '1st'));
     }
 }

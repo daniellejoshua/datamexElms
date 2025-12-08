@@ -17,11 +17,11 @@ return new class extends Migration
             $table->foreignId('section_id')->constrained()->onDelete('cascade');
             $table->date('assigned_date');
             $table->foreignId('assigned_by')->constrained('users')->onDelete('cascade');
-            $table->enum('status',['active','inactive'])->default('active');
+            $table->enum('status', ['active', 'inactive'])->default('active');
             $table->timestamps();
             $table->unique(['teacher_id', 'section_id']);
-                    $table->index(['teacher_id', 'status']); 
-        $table->index(['section_id', 'status']); 
+            $table->index(['teacher_id', 'status']);
+            $table->index(['section_id', 'status']);
         });
     }
 

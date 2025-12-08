@@ -2,10 +2,10 @@
 
 namespace App\Imports;
 
+use App\Models\Section;
+use App\Models\ShsStudentGrade;
 use App\Models\StudentEnrollment;
 use App\Models\StudentGrade;
-use App\Models\ShsStudentGrade;
-use App\Models\Section;
 use App\Models\Teacher;
 use Illuminate\Support\Collection;
 use Maatwebsite\Excel\Concerns\ToCollection;
@@ -15,7 +15,9 @@ use Maatwebsite\Excel\Concerns\WithValidation;
 class GradeImport implements ToCollection, WithHeadingRow, WithValidation
 {
     protected Section $section;
+
     protected Teacher $teacher;
+
     protected bool $isCollegeLevel;
 
     public function __construct(Section $section, Teacher $teacher)
@@ -32,11 +34,11 @@ class GradeImport implements ToCollection, WithHeadingRow, WithValidation
             $enrollment = StudentEnrollment::whereHas('student', function ($query) use ($row) {
                 $query->where('student_id', $row['student_id']);
             })
-            ->where('section_id', $this->section->id)
-            ->where('status', 'active')
-            ->first();
+                ->where('section_id', $this->section->id)
+                ->where('status', 'active')
+                ->first();
 
-            if (!$enrollment) {
+            if (! $enrollment) {
                 continue; // Skip if student not found in this section
             }
 
@@ -44,7 +46,7 @@ class GradeImport implements ToCollection, WithHeadingRow, WithValidation
                 // Handle college grades
                 $grade = StudentGrade::firstOrNew([
                     'student_enrollment_id' => $enrollment->id,
-                    'teacher_id' => $this->teacher->id
+                    'teacher_id' => $this->teacher->id,
                 ]);
 
                 $grade->prelim_grade = $this->parseGrade($row['prelim_grade'] ?? null);
@@ -60,16 +62,16 @@ class GradeImport implements ToCollection, WithHeadingRow, WithValidation
                 }
 
                 // Set submission timestamps
-                if ($grade->prelim_grade !== null && !$grade->prelim_submitted_at) {
+                if ($grade->prelim_grade !== null && ! $grade->prelim_submitted_at) {
                     $grade->prelim_submitted_at = now();
                 }
-                if ($grade->midterm_grade !== null && !$grade->midterm_submitted_at) {
+                if ($grade->midterm_grade !== null && ! $grade->midterm_submitted_at) {
                     $grade->midterm_submitted_at = now();
                 }
-                if ($grade->prefinal_grade !== null && !$grade->prefinal_submitted_at) {
+                if ($grade->prefinal_grade !== null && ! $grade->prefinal_submitted_at) {
                     $grade->prefinal_submitted_at = now();
                 }
-                if ($grade->final_grade !== null && !$grade->final_submitted_at) {
+                if ($grade->final_grade !== null && ! $grade->final_submitted_at) {
                     $grade->final_submitted_at = now();
                 }
 
@@ -78,7 +80,7 @@ class GradeImport implements ToCollection, WithHeadingRow, WithValidation
                 // Handle SHS grades
                 $grade = ShsStudentGrade::firstOrNew([
                     'student_enrollment_id' => $enrollment->id,
-                    'teacher_id' => $this->teacher->id
+                    'teacher_id' => $this->teacher->id,
                 ]);
 
                 $grade->first_quarter_grade = $this->parseGrade($row['first_quarter_grade'] ?? null);
@@ -88,24 +90,24 @@ class GradeImport implements ToCollection, WithHeadingRow, WithValidation
                 $grade->teacher_remarks = $row['teacher_remarks'] ?? null;
 
                 // Calculate final grade if all quarters are present
-                if ($grade->first_quarter_grade && $grade->second_quarter_grade && 
+                if ($grade->first_quarter_grade && $grade->second_quarter_grade &&
                     $grade->third_quarter_grade && $grade->fourth_quarter_grade) {
-                    $grade->final_grade = ($grade->first_quarter_grade + $grade->second_quarter_grade + 
+                    $grade->final_grade = ($grade->first_quarter_grade + $grade->second_quarter_grade +
                                          $grade->third_quarter_grade + $grade->fourth_quarter_grade) / 4;
                     $grade->completion_status = $grade->final_grade >= 75 ? 'passed' : 'failed';
                 }
 
                 // Set submission timestamps
-                if ($grade->first_quarter_grade !== null && !$grade->first_quarter_submitted_at) {
+                if ($grade->first_quarter_grade !== null && ! $grade->first_quarter_submitted_at) {
                     $grade->first_quarter_submitted_at = now();
                 }
-                if ($grade->second_quarter_grade !== null && !$grade->second_quarter_submitted_at) {
+                if ($grade->second_quarter_grade !== null && ! $grade->second_quarter_submitted_at) {
                     $grade->second_quarter_submitted_at = now();
                 }
-                if ($grade->third_quarter_grade !== null && !$grade->third_quarter_submitted_at) {
+                if ($grade->third_quarter_grade !== null && ! $grade->third_quarter_submitted_at) {
                     $grade->third_quarter_submitted_at = now();
                 }
-                if ($grade->fourth_quarter_grade !== null && !$grade->fourth_quarter_submitted_at) {
+                if ($grade->fourth_quarter_grade !== null && ! $grade->fourth_quarter_submitted_at) {
                     $grade->fourth_quarter_submitted_at = now();
                 }
 
@@ -121,7 +123,7 @@ class GradeImport implements ToCollection, WithHeadingRow, WithValidation
         }
 
         $numericGrade = (float) $grade;
-        
+
         // Validate grade range
         if ($numericGrade < 0 || $numericGrade > 100) {
             return null;

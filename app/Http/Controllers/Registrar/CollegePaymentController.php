@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Registrar;
 
 use App\Helpers\AcademicHelper;
 use App\Http\Controllers\Controller;
+use App\Models\SchoolSetting;
 use App\Models\Student;
 use App\Models\StudentEnrollment;
 use App\Models\StudentSemesterPayment;
@@ -20,8 +21,8 @@ class CollegePaymentController extends Controller
     public function index(): Response
     {
         // Get current academic year and semester
-        $currentAcademicYear = AcademicHelper::getCurrentAcademicYear();
-        $currentSemester = AcademicHelper::getCurrentSemester();
+        $currentAcademicYear = SchoolSetting::getCurrentAcademicYear();
+        $currentSemester = SchoolSetting::getCurrentSemester();
 
         // Get filter parameters from request, defaulting to current values
         $filterAcademicYear = request('academic_year', $currentAcademicYear);
@@ -106,14 +107,22 @@ class CollegePaymentController extends Controller
                 ->sum('balance'),
         ];
 
-        // Generate academic years list (current and past 2 years)
-        $currentYear = (int) date('Y');
-        $academicYears = [
-            ($currentYear - 2) . '-' . ($currentYear - 1),
-            ($currentYear - 1) . '-' . $currentYear,
-            $currentYear . '-' . ($currentYear + 1),
-            ($currentYear + 1) . '-' . ($currentYear + 2),
-        ];
+        // Generate academic years list (current and archived years only)
+        $currentAcademicYear = SchoolSetting::getCurrentAcademicYear();
+        $academicYears = StudentSemesterPayment::whereHas('student', function ($query) {
+            $query->where('education_level', 'college');
+        })
+            ->distinct()
+            ->pluck('academic_year')
+            ->sort()
+            ->values()
+            ->toArray();
+
+        // Ensure current academic year is included even if no payments exist yet
+        if (!in_array($currentAcademicYear, $academicYears)) {
+            $academicYears[] = $currentAcademicYear;
+            sort($academicYears);
+        }
 
         return Inertia::render('Registrar/Payments/College/Index', [
             'payments' => $paginatedPayments,
@@ -232,11 +241,11 @@ class CollegePaymentController extends Controller
         // Enforce sequential payment order
         $termSequence = ['enrollment', 'prelim', 'midterm', 'prefinal', 'final'];
         $currentTermIndex = array_search($validated['term'], $termSequence);
-        
+
         // Check if all previous terms are paid
         for ($i = 0; $i < $currentTermIndex; $i++) {
             $previousTermPaidField = $termSequence[$i].'_paid';
-            if (!$payment->{$previousTermPaidField}) {
+            if (! $payment->{$previousTermPaidField}) {
                 return back()->withErrors(['term' => 'You must pay for '.ucfirst($termSequence[$i]).' before paying for '.ucfirst($validated['term']).'.']);
             }
         }
@@ -271,29 +280,29 @@ class CollegePaymentController extends Controller
         // Update the corresponding term payment flag
         $termField = $validated['term'].'_paid';
         $termDateField = $validated['term'].'_payment_date';
-        
+
         // Refresh and recalculate totals
         $payment->refresh();
         $payment->{$termDateField} = $validated['payment_date'];
-        
+
         // Check if this term is now fully paid
         $termFeeField = $validated['term'].'_amount';
         if ($validated['term'] === 'enrollment') {
             $termFeeField = 'enrollment_fee';
         }
-        
+
         // Get total paid for this specific term from transactions
         $termTotalPaid = \App\Models\PaymentTransaction::where('payable_id', $payment->id)
             ->where('payable_type', \App\Models\StudentSemesterPayment::class)
             ->where('payment_type', $paymentType)
             ->where('status', 'completed')
             ->sum('amount');
-        
+
         $termFee = $payment->{$termFeeField} ?? 0;
         if ($termTotalPaid >= $termFee) {
             $payment->{$termField} = true;
         }
-        
+
         $payment->save();
 
         return back()->with('success', 'Payment of ₱'.number_format($validated['amount_paid'], 2).' recorded successfully. OR#: '.$validated['or_number']);

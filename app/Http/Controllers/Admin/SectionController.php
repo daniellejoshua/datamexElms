@@ -12,6 +12,7 @@ use App\Models\Section;
 use App\Models\SectionSubject;
 use App\Models\Student;
 use App\Models\StudentEnrollment;
+use App\Models\StudentSemesterPayment;
 use App\Models\StudentSubjectEnrollment;
 use App\Models\Subject;
 use App\Models\Teacher;
@@ -435,6 +436,17 @@ class SectionController extends Controller
 
                 if (! $student) {
                     $errorStudents[] = "Student ID {$studentId} not found";
+
+                    continue;
+                }
+
+                // Check if student has any unpaid balances from previous semesters
+                $unpaidBalances = StudentSemesterPayment::where('student_id', $studentId)
+                    ->where('balance', '>', 0)
+                    ->sum('balance');
+
+                if ($unpaidBalances > 0) {
+                    $skippedStudents[] = $student->user->name.' (has unpaid balance of ₱'.number_format($unpaidBalances, 2).')';
 
                     continue;
                 }

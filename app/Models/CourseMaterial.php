@@ -80,7 +80,7 @@ class CourseMaterial extends Model
      */
     public function getOriginalMaterial(): ?CourseMaterial
     {
-        if (!$this->file_hash) {
+        if (! $this->file_hash) {
             return $this; // If no hash, this is the original
         }
 
@@ -94,7 +94,7 @@ class CourseMaterial extends Model
      */
     public function getReferences()
     {
-        if (!$this->file_hash) {
+        if (! $this->file_hash) {
             return collect(); // No references if no hash
         }
 

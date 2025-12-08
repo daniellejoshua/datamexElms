@@ -17,7 +17,7 @@ const formatSectionName = (section) => {
     return section.section_name || 'N/A';
 };
 
-export default function StudentsIndex({ students, programs, filters, auth }) {
+export default function StudentsIndex({ students, programs, filters, auth, on_hold_count }) {
     const [searchTerm, setSearchTerm] = useState('')
     const [educationLevel, setEducationLevel] = useState(filters?.education_level || 'all')
     const [status, setStatus] = useState(filters?.status || 'all')
@@ -63,6 +63,17 @@ export default function StudentsIndex({ students, programs, filters, auth }) {
         router.visit(`/registrar/students/${studentId}/edit`)
     }
 
+    const clearHold = (studentId) => {
+        if (!confirm('Clear hold for this student? Ensure payment is reconciled.')) return;
+
+        router.post(route('registrar.students.clear_hold', studentId), {}, {
+            onSuccess: () => {
+                // reload current page to refresh counts
+                router.reload();
+            }
+        });
+    }
+
     return (
         <AuthenticatedLayout
             header={
@@ -82,6 +93,23 @@ export default function StudentsIndex({ students, programs, filters, auth }) {
             <Head title="Student Management" />
 
             <div className="space-y-6">
+                {/* On-hold summary */}
+                {/* If controller provided on_hold_count prop, show it */}
+                {typeof on_hold_count !== 'undefined' && (
+                    <Card>
+                        <CardContent>
+                            <div className="flex items-center justify-between">
+                                <div>
+                                    <h3 className="text-sm font-semibold">Students on Hold</h3>
+                                    <p className="text-xs text-gray-500">Students prevented from enrolling due to unpaid balances</p>
+                                </div>
+                                <div className="text-right">
+                                    <div className="text-lg font-bold text-yellow-700">{on_hold_count}</div>
+                                </div>
+                            </div>
+                        </CardContent>
+                    </Card>
+                )}
                 {/* Search and Filters */}
                 <Card>
                     <CardHeader>
@@ -266,15 +294,28 @@ export default function StudentsIndex({ students, programs, filters, auth }) {
                                                 )}
                                             </td>
                                             <td className="py-3 px-4">
-                                                <Badge 
-                                                    variant="secondary"
-                                                    className={getStatusColor(student.user?.is_active)}
-                                                >
-                                                    {student.user?.is_active ? 'Active' : 'Inactive'}
-                                                </Badge>
+                                                <div className="flex items-center gap-2">
+                                                    <Badge 
+                                                        variant="secondary"
+                                                        className={getStatusColor(student.user?.is_active)}
+                                                    >
+                                                        {student.user?.is_active ? 'Active' : 'Inactive'}
+                                                    </Badge>
+                                                    {student.is_on_hold && (
+                                                        <Badge className="bg-yellow-100 text-yellow-800">
+                                                            On Hold • ₱{Number(student.hold_balance || 0).toFixed(2)}
+                                                        </Badge>
+                                                    )}
+                                                </div>
                                             </td>
                                             <td className="py-3 px-4">
                                                 <div className="flex justify-end gap-2">
+                                                    <Link href={route('registrar.payments.show', student.id)}>
+                                                        <Button size="sm" variant="outline" className="hover:bg-blue-50 hover:border-blue-300">
+                                                            Payments
+                                                        </Button>
+                                                    </Link>
+
                                                     <Button
                                                         size="sm"
                                                         variant="outline"
@@ -283,6 +324,7 @@ export default function StudentsIndex({ students, programs, filters, auth }) {
                                                     >
                                                         <Eye className="w-4 h-4" />
                                                     </Button>
+
                                                     <Button
                                                         size="sm"
                                                         variant="outline"
@@ -291,6 +333,12 @@ export default function StudentsIndex({ students, programs, filters, auth }) {
                                                     >
                                                         <Edit className="w-4 h-4" />
                                                     </Button>
+
+                                                    {student.is_on_hold && (
+                                                        <Button size="sm" onClick={() => clearHold(student.id)} className="border-yellow-400 text-yellow-700 hover:bg-yellow-50">
+                                                            Clear Hold
+                                                        </Button>
+                                                    )}
                                                 </div>
                                             </td>
                                         </tr>

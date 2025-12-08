@@ -32,13 +32,13 @@ trait Auditable
         if ($event === 'updated') {
             $oldValues = $this->getOriginal();
             $newValues = $this->getAttributes();
-            
+
             // Remove unchanged values
             $changes = array_diff_assoc($newValues, $oldValues);
             if (empty($changes)) {
                 return; // No actual changes
             }
-            
+
             $newValues = $changes;
             $oldValues = array_intersect_key($oldValues, $changes);
         } elseif ($event === 'created') {
@@ -50,7 +50,7 @@ trait Auditable
         AuditLog::create([
             'user_id' => $user?->id,
             'user_type' => $user?->role ?? 'system',
-            'user_name' => $user?->first_name . ' ' . $user?->last_name ?? 'System',
+            'user_name' => $user?->first_name.' '.$user?->last_name ?? 'System',
             'event' => $event,
             'auditable_type' => get_class($this),
             'auditable_id' => $this->id,

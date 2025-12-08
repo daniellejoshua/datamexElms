@@ -3,8 +3,10 @@
 namespace App\Http\Controllers;
 
 use App\Helpers\AcademicHelper;
+use App\Models\ArchivedStudent;
 use App\Models\PaymentTransaction;
 use App\Models\Program;
+use App\Models\SchoolSetting;
 use App\Models\Section;
 use App\Models\Student;
 use App\Models\StudentEnrollment;
@@ -71,8 +73,8 @@ class RegistrarController extends Controller
         $students = $query->paginate(15)->withQueryString();
 
         // Get current enrollment sections for each student
-        $currentAcademicYear = AcademicHelper::getCurrentAcademicYear();
-        $currentSemester = AcademicHelper::getCurrentSemester();
+        $currentAcademicYear = SchoolSetting::getCurrentAcademicYear();
+        $currentSemester = SchoolSetting::getCurrentSemester();
 
         $students->getCollection()->transform(function ($student) use ($currentAcademicYear, $currentSemester) {
             $enrollment = StudentEnrollment::with(['section.program'])
@@ -83,14 +85,18 @@ class RegistrarController extends Controller
                 ->first();
 
             $student->current_section = $enrollment?->section;
+
             return $student;
         });
 
         $programs = Program::orderBy('program_name')->get();
 
+        $onHoldCount = Student::where('is_on_hold', true)->count();
+
         return Inertia::render('Registrar/Students/Index', [
             'students' => $students,
             'programs' => $programs,
+            'on_hold_count' => $onHoldCount,
             'filters' => [
                 'education_level' => $educationLevel,
                 'status' => $status,
@@ -111,17 +117,35 @@ class RegistrarController extends Controller
 
         return Inertia::render('Registrar/Students/Create', [
             'programs' => $programs,
-            'currentAcademicYear' => AcademicHelper::getCurrentAcademicYear(),
-            'currentSemester' => AcademicHelper::getCurrentSemester(),
+            'currentAcademicYear' => SchoolSetting::getCurrentAcademicYear(),
+            'currentSemester' => SchoolSetting::getCurrentSemester(),
         ]);
     }
 
     /**
-     * Store a newly registered student.
+     * Clear an on-hold status for a student after payment reconciliation.
+     */
+    public function clearHold(Request $request, Student $student)
+    {
+        // Permission check could be added here
+        $student->update([
+            'is_on_hold' => false,
+            'hold_balance' => null,
+            'hold_reason' => null,
+        ]);
+
+        return redirect()->back()->with('success', "Hold cleared for {$student->user->name}.");
+    }
+
+    /**
+     * Store a newly registered student or update existing student.
      */
     public function store(Request $request)
     {
         $validated = $request->validate([
+            // Student number for checking existing students
+            'student_number' => ['nullable', 'string'],
+
             // Personal Information
             'first_name' => ['required', 'string', 'max:255'],
             'last_name' => ['required', 'string', 'max:255'],
@@ -134,7 +158,7 @@ class RegistrarController extends Controller
             'province' => ['nullable', 'string', 'max:255'],
             'zip_code' => ['nullable', 'string', 'max:10'],
             'phone' => ['nullable', 'string', 'max:20'],
-            'email' => ['required', 'email', 'unique:users,email'],
+            'email' => ['required', 'email'],
             'parent_contact' => ['nullable', 'string', 'max:20'],
 
             // Academic Information
@@ -153,17 +177,57 @@ class RegistrarController extends Controller
         try {
             DB::beginTransaction();
 
-            // Create user account with email as username and default password
-            $user = User::create([
-                'name' => trim($validated['first_name'].' '.$validated['last_name']),
-                'email' => $validated['email'],
-                'password' => Hash::make('password123'),
-                'role' => 'student',
-                'is_active' => true,
-            ]);
+            // Check if this is an existing student being updated
+            $existingStudent = null;
+            if (! empty($validated['student_number'])) {
+                $existingStudent = Student::where('student_number', $validated['student_number'])->first();
+            }
 
-            // Generate student number (you can customize this logic)
-            $studentNumber = $this->generateStudentNumber($validated['education_level']);
+            // Check if this is a returning student from archived records
+            $archivedStudent = ArchivedStudent::whereHas('user', function ($query) use ($validated) {
+                $query->where('email', $validated['email']);
+            })->first();
+
+            $isReturningStudent = $archivedStudent !== null;
+            $isUpdatingExisting = $existingStudent !== null;
+
+            // If updating existing student, use their existing user
+            if ($isUpdatingExisting) {
+                $user = $existingStudent->user;
+                $user->update([
+                    'name' => trim($validated['first_name'].' '.$validated['last_name']),
+                    'email' => $validated['email'],
+                    'is_active' => true,
+                ]);
+                $studentNumber = $existingStudent->student_number;
+            } elseif ($isReturningStudent) {
+                $user = $archivedStudent->user;
+                // Update user name if changed
+                $user->update([
+                    'name' => trim($validated['first_name'].' '.$validated['last_name']),
+                    'is_active' => true,
+                ]);
+            } else {
+                // New student - validate email uniqueness
+                $request->validate([
+                    'email' => 'unique:users,email',
+                ]);
+
+                $user = User::create([
+                    'name' => trim($validated['first_name'].' '.$validated['last_name']),
+                    'email' => $validated['email'],
+                    'password' => Hash::make('password123'),
+                    'role' => 'student',
+                    'is_active' => true,
+                ]);
+            }
+
+            // Generate student number for new students only
+            if (! $isUpdatingExisting) {
+                $studentNumber = $isReturningStudent && $archivedStudent->student_number
+                    ? $archivedStudent->student_number
+                    : $this->generateStudentNumber($validated['education_level']);
+            }
 
             // Extract numeric year level from string (e.g., "1st Year" -> 1, "Grade 11" -> 11)
             $numericYearLevel = $this->extractNumericYearLevel($validated['year_level'], $validated['education_level']);
@@ -182,7 +246,7 @@ class RegistrarController extends Controller
             }
 
             // Create student record
-            $student = Student::create([
+            $studentData = [
                 'user_id' => $user->id,
                 'program_id' => $validated['program_id'],
                 'student_number' => $studentNumber,
@@ -200,27 +264,60 @@ class RegistrarController extends Controller
                 'track' => $validated['track'],
                 'strand' => $validated['strand'],
                 'status' => 'active',
-                'enrolled_date' => now(),
-            ]);
+                'enrolled_date' => $isUpdatingExisting ? $existingStudent->enrolled_date : now(),
+            ];
 
-            // Create enrollment fee payment record
-            $academicYear = AcademicHelper::getCurrentAcademicYear();
-            $semester = AcademicHelper::getCurrentSemester();
+            // Create or update student record
+            if ($isUpdatingExisting) {
+                $existingStudent->update($studentData);
+                $student = $existingStudent;
+                $message = "Student {$user->name} updated successfully!";
+            } else {
+                $student = Student::create($studentData);
+                $message = "Student {$user->name} registered successfully! Student Number: {$studentNumber}. Default password: password123";
+            }
+
+            // Check if student has outstanding balances from previous semesters
+            $studentIdToCheck = $isReturningStudent ? $archivedStudent->original_student_id : $student->id;
+            $unpaidBalances = StudentSemesterPayment::where('student_id', $studentIdToCheck)
+                ->where('balance', '>', 0)
+                ->sum('balance');
+
+            if ($unpaidBalances > 0) {
+                return back()->withErrors([
+                    'student' => "Cannot enroll student. Outstanding balance of ₱" . number_format($unpaidBalances, 2) . " from previous semester(s) must be settled first."
+                ])->withInput();
+            }
+
+            // Create enrollment fee payment record for all students (new enrollment process)
+            $academicYear = SchoolSetting::getCurrentAcademicYear();
+            $semester = SchoolSetting::getCurrentSemester();
             $enrollmentFee = (float) $validated['enrollment_fee'];
             $paymentAmount = (float) $validated['payment_amount'];
 
-            // Create the payment record (without setting enrollment_paid yet)
-            $semesterPayment = StudentSemesterPayment::create([
+            // Check if payment record already exists for this semester
+            $existingPayment = StudentSemesterPayment::where([
                 'student_id' => $student->id,
                 'academic_year' => $academicYear,
                 'semester' => $semester,
-                'enrollment_fee' => $enrollmentFee,
-                'enrollment_paid' => false,
-                'enrollment_payment_date' => null,
-                'total_semester_fee' => $enrollmentFee,
-                'payment_plan' => 'installment',
-                // Note: total_paid and balance will be calculated by the model's booted() method
-            ]);
+            ])->first();
+
+            if (!$existingPayment) {
+                // Create the payment record (without setting enrollment_paid yet)
+                $semesterPayment = StudentSemesterPayment::create([
+                    'student_id' => $student->id,
+                    'academic_year' => $academicYear,
+                    'semester' => $semester,
+                    'enrollment_fee' => $enrollmentFee,
+                    'enrollment_paid' => false,
+                    'enrollment_payment_date' => null,
+                    'total_semester_fee' => $enrollmentFee,
+                    'payment_plan' => 'installment',
+                    // Note: total_paid and balance will be calculated by the model's booted() method
+                ]);
+            } else {
+                $semesterPayment = $existingPayment;
+            }
 
             // If there's an initial payment, create a payment transaction
             if ($paymentAmount > 0) {
@@ -232,11 +329,11 @@ class RegistrarController extends Controller
                     'payment_type' => 'enrollment_fee',
                     'payment_method' => 'cash',
                     'reference_number' => 'REG-'.now()->format('YmdHis').'-'.$student->id,
-                    'description' => 'Initial enrollment fee payment',
+                    'description' => 'Enrollment fee payment',
                     'payment_date' => now(),
                     'status' => 'completed',
                     'processed_by' => Auth::id(),
-                    'notes' => 'Payment made during student registration',
+                    'notes' => 'Payment made during student enrollment',
                 ]);
 
                 // Mark enrollment as paid since they registered (regardless of amount)
@@ -250,7 +347,7 @@ class RegistrarController extends Controller
 
             return redirect()
                 ->route('registrar.students')
-                ->with('success', "Student {$user->name} registered successfully! Student Number: {$studentNumber}. Default password: password123");
+                ->with('success', $message);
 
         } catch (\Exception $e) {
             DB::rollBack();
@@ -329,28 +426,5 @@ class RegistrarController extends Controller
         return Inertia::render('Registrar/Sections/Index', [
             'sections' => $sections,
         ]);
-    }
-
-    /**
-     * Show student enrollment form.
-     */
-    public function showEnrollment(): Response
-    {
-        $sections = Section::with('program')->where('status', 'active')->get();
-        $programs = \App\Models\Program::all();
-
-        return Inertia::render('Registrar/SimpleEnrollment', [
-            'sections' => $sections,
-            'programs' => $programs,
-        ]);
-    }
-
-    /**
-     * Process student enrollment.
-     */
-    public function processEnrollment(Request $request)
-    {
-        // Implementation for processing enrollment
-        // This would include validation and enrollment logic
     }
 }

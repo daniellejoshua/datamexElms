@@ -20,13 +20,13 @@ return new class extends Migration
             $table->enum('status', ['active', 'dropped', 'transferred'])->default('active');
             $table->date('transfer_date')->nullable();
             $table->foreignId('transfer_to')->nullable()->constrained('sections')->onDelete('set null');
-            
+
             // Academic period for this enrollment
             $table->string('academic_year'); // e.g., "2024-2025"
             $table->enum('semester', ['1st', '2nd', 'summer'])->default('1st');
-            
+
             $table->timestamps();
-            
+
             // Strategic indexes for common queries
             $table->index(['student_id', 'status']);
             $table->index(['section_id', 'status']);

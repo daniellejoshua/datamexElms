@@ -2,11 +2,10 @@
 
 namespace Database\Seeders;
 
-use Illuminate\Database\Console\Seeds\WithoutModelEvents;
-use Illuminate\Database\Seeder;
+use App\Models\Program;
 use App\Models\Student;
 use App\Models\User;
-use App\Models\Program;
+use Illuminate\Database\Seeder;
 
 class StudentSeeder extends Seeder
 {
@@ -16,13 +15,13 @@ class StudentSeeder extends Seeder
     public function run(): void
     {
         $studentUsers = User::where('role', 'student')->get();
-        
+
         // Get programs
         $csProgram = Program::where('program_code', 'CS')->first();
         $itProgram = Program::where('program_code', 'IT')->first();
         $stemProgram = Program::where('program_code', 'STEM')->first();
         $abmProgram = Program::where('program_code', 'ABM')->first();
-        
+
         $studentData = [
             [
                 'student_number' => '2024-001',
@@ -36,7 +35,7 @@ class StudentSeeder extends Seeder
                 'program_id' => $csProgram->id,
                 'parent_contact' => '09171234568',
                 'student_type' => 'regular',
-                'status' => 'active'
+                'status' => 'active',
             ],
             [
                 'student_number' => '2024-002',
@@ -50,7 +49,7 @@ class StudentSeeder extends Seeder
                 'program_id' => $itProgram->id,
                 'parent_contact' => '09182345679',
                 'student_type' => 'regular',
-                'status' => 'active'
+                'status' => 'active',
             ],
             [
                 'student_number' => '2023-003',
@@ -64,7 +63,7 @@ class StudentSeeder extends Seeder
                 'program_id' => $csProgram->id,
                 'parent_contact' => '09193456790',
                 'student_type' => 'irregular',
-                'status' => 'active'
+                'status' => 'active',
             ],
             [
                 'student_number' => '2024-004',
@@ -78,7 +77,7 @@ class StudentSeeder extends Seeder
                 'program_id' => $itProgram->id,
                 'parent_contact' => '09204567891',
                 'student_type' => 'regular',
-                'status' => 'active'
+                'status' => 'active',
             ],
             [
                 'student_number' => '2025-005',
@@ -92,7 +91,7 @@ class StudentSeeder extends Seeder
                 'program_id' => $stemProgram->id,
                 'parent_contact' => '09215678902',
                 'student_type' => 'regular',
-                'status' => 'active'
+                'status' => 'active',
             ],
             [
                 'student_number' => '2025-006',
@@ -106,8 +105,8 @@ class StudentSeeder extends Seeder
                 'program_id' => $abmProgram->id,
                 'parent_contact' => '09248901235',
                 'student_type' => 'regular',
-                'status' => 'active'
-            ]
+                'status' => 'active',
+            ],
         ];
 
         foreach ($studentUsers as $index => $user) {

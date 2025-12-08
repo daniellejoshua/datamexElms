@@ -2,10 +2,9 @@
 
 namespace Database\Seeders;
 
-use Illuminate\Database\Console\Seeds\WithoutModelEvents;
-use Illuminate\Database\Seeder;
 use App\Models\Student;
 use App\Models\User;
+use Illuminate\Database\Seeder;
 
 class StudentSeederUpdated extends Seeder
 {
@@ -15,7 +14,7 @@ class StudentSeederUpdated extends Seeder
     public function run(): void
     {
         $studentUsers = User::where('role', 'student')->get();
-        
+
         $studentData = [
             // College Students
             [
@@ -33,7 +32,7 @@ class StudentSeederUpdated extends Seeder
                 'education_level' => 'college',
                 'track' => null,
                 'strand' => null,
-                'status' => 'active'
+                'status' => 'active',
             ],
             [
                 'student_number' => '2024-002',
@@ -50,7 +49,7 @@ class StudentSeederUpdated extends Seeder
                 'education_level' => 'college',
                 'track' => null,
                 'strand' => null,
-                'status' => 'active'
+                'status' => 'active',
             ],
             [
                 'student_number' => '2023-003',
@@ -67,7 +66,7 @@ class StudentSeederUpdated extends Seeder
                 'education_level' => 'college',
                 'track' => null,
                 'strand' => null,
-                'status' => 'active'
+                'status' => 'active',
             ],
             [
                 'student_number' => '2024-004',
@@ -84,7 +83,7 @@ class StudentSeederUpdated extends Seeder
                 'education_level' => 'college',
                 'track' => null,
                 'strand' => null,
-                'status' => 'active'
+                'status' => 'active',
             ],
             [
                 'student_number' => '2024-005',
@@ -101,9 +100,9 @@ class StudentSeederUpdated extends Seeder
                 'education_level' => 'college',
                 'track' => null,
                 'strand' => null,
-                'status' => 'active'
+                'status' => 'active',
             ],
-            
+
             // SHS Students
             [
                 'student_number' => 'SHS2024-001',
@@ -120,7 +119,7 @@ class StudentSeederUpdated extends Seeder
                 'education_level' => 'shs',
                 'track' => 'STEM',
                 'strand' => 'Science, Technology, Engineering and Mathematics',
-                'status' => 'active'
+                'status' => 'active',
             ],
             [
                 'student_number' => 'SHS2024-002',
@@ -137,7 +136,7 @@ class StudentSeederUpdated extends Seeder
                 'education_level' => 'shs',
                 'track' => 'HUMSS',
                 'strand' => 'Humanities and Social Sciences',
-                'status' => 'active'
+                'status' => 'active',
             ],
             [
                 'student_number' => 'SHS2024-003',
@@ -154,7 +153,7 @@ class StudentSeederUpdated extends Seeder
                 'education_level' => 'shs',
                 'track' => 'ABM',
                 'strand' => 'Accountancy, Business and Management',
-                'status' => 'active'
+                'status' => 'active',
             ],
             [
                 'student_number' => 'SHS2023-004',
@@ -171,7 +170,7 @@ class StudentSeederUpdated extends Seeder
                 'education_level' => 'shs',
                 'track' => 'STEM',
                 'strand' => 'Science, Technology, Engineering and Mathematics',
-                'status' => 'active'
+                'status' => 'active',
             ],
             [
                 'student_number' => 'SHS2023-005',
@@ -188,8 +187,8 @@ class StudentSeederUpdated extends Seeder
                 'education_level' => 'shs',
                 'track' => 'HUMSS',
                 'strand' => 'Humanities and Social Sciences',
-                'status' => 'active'
-            ]
+                'status' => 'active',
+            ],
         ];
 
         foreach ($studentUsers as $index => $user) {

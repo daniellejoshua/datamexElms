@@ -15,14 +15,14 @@ return new class extends Migration
             $table->id();
             $table->foreignId('student_id')->constrained()->onDelete('cascade');
             $table->foreignId('material_id')->constrained('course_materials')->onDelete('cascade');
-            
+
             $table->timestamp('accessed_at')->default(now());
             $table->boolean('download_completed')->default(false);
             $table->string('ip_address')->nullable();
             $table->text('user_agent')->nullable();
-            
+
             $table->timestamps();
-            
+
             // Indexes for access tracking
             $table->index(['student_id', 'accessed_at']);
             $table->index(['material_id', 'accessed_at']);

@@ -2,8 +2,8 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Model;
 use App\Helpers\AcademicHelper;
+use Illuminate\Database\Eloquent\Model;
 
 class SchoolSetting extends Model
 {
@@ -46,11 +46,11 @@ class SchoolSetting extends Model
     public static function get(string $key, $default = null)
     {
         $setting = static::where('key', $key)->first();
-        
-        if (!$setting) {
+
+        if (! $setting) {
             return $default;
         }
-        
+
         return $setting->value;
     }
 
@@ -76,11 +76,11 @@ class SchoolSetting extends Model
     {
         // First try to get from settings (manual override)
         $setting = static::get('current_academic_year');
-        
+
         if ($setting) {
             return $setting;
         }
-        
+
         // Fall back to automatic calculation
         return AcademicHelper::getCurrentAcademicYear();
     }
@@ -92,11 +92,11 @@ class SchoolSetting extends Model
     {
         // First try to get from settings (manual override)
         $setting = static::get('current_semester');
-        
+
         if ($setting) {
             return $setting;
         }
-        
+
         // Fall back to automatic calculation
         return AcademicHelper::getCurrentSemester();
     }

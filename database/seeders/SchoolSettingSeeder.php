@@ -76,7 +76,7 @@ class SchoolSettingSeeder extends Seeder
         if ($autoMode) {
             $currentAcademicYear = AcademicHelper::getCurrentAcademicYear();
             $currentSemester = AcademicHelper::getCurrentSemester();
-            
+
             $this->command->info("Auto-detected current academic period: {$currentAcademicYear} - {$currentSemester}");
         }
     }

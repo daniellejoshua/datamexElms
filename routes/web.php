@@ -41,9 +41,7 @@ Route::middleware(['auth', 'verified', 'role:registrar'])->prefix('registrar')->
     Route::post('/students', [RegistrarController::class, 'store'])->name('students.store');
     Route::get('/teachers', [RegistrarController::class, 'teachers'])->name('teachers');
     Route::get('/sections', [RegistrarController::class, 'sections'])->name('sections');
-    Route::get('/enrollment', [RegistrarController::class, 'showEnrollment'])->name('enrollment.create');
-    Route::post('/enrollment', [RegistrarController::class, 'processEnrollment'])->name('enrollment.store');
-    Route::post('/simple-enrollment', [\App\Http\Controllers\Registrar\EnrollmentController::class, 'simpleEnrollment'])->name('enrollment.simple');
+    Route::get('/enrollments', [RegistrarController::class, 'students'])->name('enrollments.index');
 
     // College Payment Routes
     Route::prefix('payments/college')->name('payments.college.')->group(function () {
@@ -115,14 +113,9 @@ Route::middleware(['auth', 'verified'])->prefix('admin')->name('admin.')->group(
         // Section Management
         Route::resource('sections', SectionController::class);
         Route::get('sections/{section}/students', [SectionController::class, 'students'])->name('sections.students');
-        Route::post('sections/{section}/enroll', [SectionController::class, 'enrollStudent'])->name('sections.enroll');
-        Route::delete('sections/{section}/remove-student', [SectionController::class, 'removeStudent'])->name('sections.remove-student');
-        Route::patch('enrollments/{enrollment}/unenroll', [SectionController::class, 'unenrollStudent'])->name('enrollments.unenroll');
 
         // Subject-level Enrollment for Irregular Students
         Route::get('sections/{section}/students/{student}/subjects', [SectionController::class, 'subjectEnrollment'])->name('sections.subject-enrollment');
-        Route::post('sections/{section}/students/{student}/subjects', [SectionController::class, 'enrollStudentInSubjects'])->name('sections.enroll-subjects');
-        Route::delete('sections/{section}/students/{student}/subjects', [SectionController::class, 'removeStudentFromSubject'])->name('sections.remove-from-subject');
 
         // Subject Scheduling
         Route::get('sections/{section}/subjects', [SectionController::class, 'subjects'])->name('sections.subjects');
@@ -173,13 +166,8 @@ Route::prefix('registrar')->name('registrar.')->middleware(['auth'])->group(func
     Route::post('payments/{payment}/process', [App\Http\Controllers\Registrar\PaymentController::class, 'processPayment'])->name('payments.process');
     Route::get('transactions/{transaction}/receipt', [App\Http\Controllers\Registrar\PaymentController::class, 'receipt'])->name('payments.receipt');
 
-    // Enrollment Management
-    Route::get('enrollments', [App\Http\Controllers\Registrar\EnrollmentController::class, 'index'])->name('enrollments.index');
-    Route::get('students/{student}/enroll', [App\Http\Controllers\Registrar\EnrollmentController::class, 'create'])->name('enrollments.create');
-    Route::post('students/{student}/enroll', [App\Http\Controllers\Registrar\EnrollmentController::class, 'store'])->name('enrollments.store');
-    Route::get('students/{student}/subjects/enroll', [App\Http\Controllers\Registrar\EnrollmentController::class, 'createSubjectEnrollment'])->name('enrollments.subjects.create');
-    Route::post('students/{student}/subjects/enroll', [App\Http\Controllers\Registrar\EnrollmentController::class, 'storeSubjectEnrollment'])->name('enrollments.subjects.store');
-    Route::delete('enrollments/{enrollment}', [App\Http\Controllers\Registrar\EnrollmentController::class, 'destroy'])->name('enrollments.destroy');
+    // Clear hold on student (after payment reconciliation)
+    Route::post('students/{student}/clear-hold', [App\Http\Controllers\RegistrarController::class, 'clearHold'])->name('students.clear_hold');
 });
 
 Route::get('/dashboard', [DashboardController::class, 'index'])->middleware(['auth', 'verified'])->name('dashboard');
