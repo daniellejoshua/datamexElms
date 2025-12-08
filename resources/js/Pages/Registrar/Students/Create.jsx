@@ -1,4 +1,4 @@
-import { Head, Link, router, useForm } from '@inertiajs/react'
+import { Head, Link, router, useForm, usePage } from '@inertiajs/react'
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -11,6 +11,7 @@ import { UserPlus, ArrowLeft, GraduationCap, BookOpen, AlertTriangle, DollarSign
 import { useState, useEffect, useRef } from 'react'
 
 export default function CreateStudent({ programs, auth, currentAcademicYear, currentSemester }) {
+    const { flash } = usePage().props;
     const { data, setData, post, processing, errors, reset } = useForm({
         // Student Number (for checking existing students)
         student_number: '',
@@ -40,6 +41,9 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
         // Payment Information
         enrollment_fee: '',
         payment_amount: '',
+
+        // Course shifting confirmation
+        confirm_course_shift: false,
     })
 
     // Helper function to format dates for HTML date inputs
@@ -62,6 +66,8 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
     const [isReturningStudent, setIsReturningStudent] = useState(false)
     const [checkingStudent, setCheckingStudent] = useState(false)
     const [showErrorModal, setShowErrorModal] = useState(false)
+    const [showCourseShiftModal, setShowCourseShiftModal] = useState(false)
+    const [courseShiftData, setCourseShiftData] = useState(null)
     const [showPaymentModal, setShowPaymentModal] = useState(false)
     const [paymentHistory, setPaymentHistory] = useState(null)
     const [loadingPaymentHistory, setLoadingPaymentHistory] = useState(false)
@@ -99,6 +105,17 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
             lastErrorRef.current = ''
         }
     }, [errors.student])
+
+    // Show course shift confirmation modal when course_shift_required flash data exists
+    useEffect(() => {
+        if (flash?.course_shift_required) {
+            setCourseShiftData(flash.course_shift_required)
+            setShowCourseShiftModal(true)
+        } else {
+            setCourseShiftData(null)
+            setShowCourseShiftModal(false)
+        }
+    }, [flash?.course_shift_required])
 
     // Check for archived student when email changes
     useEffect(() => {
@@ -214,6 +231,19 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
         } finally {
             setCheckingStudent(false)
         }
+    }
+
+    const confirmCourseShift = () => {
+        setData('confirm_course_shift', true)
+        setShowCourseShiftModal(false)
+        // Submit the form again with confirmation
+        handleSubmit({ preventDefault: () => {} })
+    }
+
+    const cancelCourseShift = () => {
+        setData('confirm_course_shift', false)
+        setShowCourseShiftModal(false)
+        setCourseShiftData(null)
     }
 
     const handleSubmit = (e) => {
@@ -864,6 +894,50 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                         )}
                         <Button onClick={() => setShowErrorModal(false)}>
                             Close
+                        </Button>
+                    </div>
+                </DialogContent>
+            </Dialog>
+
+            {/* Course Shift Confirmation Modal */}
+            <Dialog open={showCourseShiftModal} onOpenChange={setShowCourseShiftModal}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle className="flex items-center gap-2 text-orange-600">
+                            <GraduationCap className="w-5 h-5" />
+                            Course Shifting Detected
+                        </DialogTitle>
+                        <DialogDescription>
+                            Student <strong>{courseShiftData?.student_name}</strong> is currently enrolled in <strong>{courseShiftData?.current_program}</strong> 
+                            but is being registered for <strong>{courseShiftData?.new_program}</strong>.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <div className="bg-orange-50 border border-orange-200 rounded-lg p-4 mb-4">
+                        <div className="flex items-start gap-3">
+                            <AlertTriangle className="w-5 h-5 text-orange-600 mt-0.5 flex-shrink-0" />
+                            <div>
+                                <h4 className="font-medium text-orange-800">Important Notice</h4>
+                                <p className="text-sm text-orange-700 mt-1">
+                                    Changing programs will mark this student as <strong>irregular</strong>. 
+                                    This action cannot be undone. Please confirm if you want to proceed with the course shift.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                    <div className="flex justify-end gap-3">
+                        <Button
+                            variant="outline"
+                            onClick={cancelCourseShift}
+                            disabled={processing}
+                        >
+                            Cancel
+                        </Button>
+                        <Button
+                            onClick={confirmCourseShift}
+                            disabled={processing}
+                            className="bg-orange-600 hover:bg-orange-700"
+                        >
+                            Confirm Course Shift
                         </Button>
                     </div>
                 </DialogContent>

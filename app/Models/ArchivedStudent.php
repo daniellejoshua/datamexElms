@@ -19,7 +19,7 @@ class ArchivedStudent extends Model
         'address',
         'phone',
         'year_level',
-        'program',
+        // 'program', // Removed redundant column
         'parent_contact',
         'student_type',
         'education_level',

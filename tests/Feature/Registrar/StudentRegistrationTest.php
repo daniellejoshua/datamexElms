@@ -140,21 +140,28 @@ it('creates user account with password123 as default password', function () {
     $studentData = [
         'first_name' => 'Test',
         'last_name' => 'Student',
+        'middle_name' => null,
         'birth_date' => '2001-03-10',
+        'address' => '123 Test St, City',
+        'phone' => '09123456789',
         'email' => 'test.student@example.com',
+        'parent_contact' => '09987654321',
         'program_id' => $this->program->id,
         'year_level' => '1st Year',
         'student_type' => 'regular',
         'education_level' => 'college',
+        'track' => null,
+        'strand' => null,
         'enrollment_fee' => 3000.00,
         'payment_amount' => 1000.00,
     ];
 
-    $this->post(route('registrar.students.store'), $studentData);
+    $response = $this->post(route('registrar.students.store'), $studentData);
+
+    $response->assertRedirect(route('registrar.students'));
+    $response->assertSessionHas('success');
 
     $user = User::where('email', 'test.student@example.com')->first();
-
-    expect($user)->not->toBeNull();
     expect(Hash::check('password123', $user->password))->toBeTrue();
 });
 
@@ -164,6 +171,7 @@ it('generates unique student numbers', function () {
     $studentData1 = [
         'first_name' => 'Student',
         'last_name' => 'One',
+        'middle_name' => null,
         'birth_date' => '2000-01-01',
         'email' => 'student1@example.com',
         'program_id' => $this->program->id,
@@ -177,6 +185,7 @@ it('generates unique student numbers', function () {
     $studentData2 = [
         'first_name' => 'Student',
         'last_name' => 'Two',
+        'middle_name' => null,
         'birth_date' => '2000-02-02',
         'email' => 'student2@example.com',
         'program_id' => $this->program->id,
@@ -225,11 +234,13 @@ it('validates email uniqueness', function () {
     $this->actingAs($this->user);
 
     // Create existing user
-    User::factory()->create(['email' => 'existing@example.com']);
+    $existingUser = User::factory()->create(['email' => 'existing@example.com']);
+    expect(User::where('email', 'existing@example.com')->exists())->toBeTrue();
 
     $studentData = [
         'first_name' => 'John',
         'last_name' => 'Doe',
+        'middle_name' => null,
         'birth_date' => '2000-01-15',
         'email' => 'existing@example.com',
         'program_id' => $this->program->id,
@@ -258,6 +269,7 @@ it('calculates enrollment balance correctly', function () {
         $studentData = [
             'first_name' => "Test{$index}",
             'last_name' => "Student{$index}",
+            'middle_name' => null,
             'birth_date' => '2000-01-01',
             'email' => "test{$index}@example.com",
             'program_id' => $this->program->id,
@@ -410,4 +422,121 @@ it('prevents duplicate enrollment when using email lookup', function () {
     $response->assertSessionHasErrors([
         'student' => "Student is already enrolled in the current semester (2025-2026 - 1st). Cannot enroll again."
     ]);
+});
+
+it('marks student as irregular when shifting courses', function () {
+    $this->actingAs($this->user);
+
+    // Create another program for testing course shifting
+    $differentProgram = Program::factory()->create([
+        'program_name' => 'Different Program',
+        'program_code' => 'DIFF3',
+        'education_level' => 'college',
+    ]);
+
+    // Create a student who was enrolled in a previous semester with one program
+    $student = Student::factory()->create([
+        'program_id' => $this->program->id,
+        'student_type' => 'regular',
+        'year_level' => '1st Year',
+        'status' => 'active',
+    ]);
+
+    // Create an enrollment record for a previous semester (not current)
+    StudentEnrollment::factory()->create([
+        'student_id' => $student->id,
+        'academic_year' => '2024-2025', // Previous academic year
+        'semester' => '2nd', // Previous semester
+    ]);
+
+    // Now try to enroll the same student in the current semester with a different program
+    $studentData = [
+        'first_name' => $student->first_name,
+        'last_name' => $student->last_name,
+        'middle_name' => $student->middle_name,
+        'birth_date' => $student->birth_date->format('Y-m-d'),
+        'address' => $student->address,
+        'phone' => $student->phone,
+        'email' => $student->user->email,
+        'parent_contact' => $student->parent_contact,
+        'program_id' => $differentProgram->id, // Different program - this should trigger course shifting
+        'year_level' => '1st Year',
+        'student_type' => 'regular', // Will be changed to irregular by the controller
+        'education_level' => 'college',
+        'track' => null,
+        'strand' => null,
+        'enrollment_fee' => 1000,
+        'payment_amount' => 1000,
+        'student_number' => $student->student_number, // Use existing student number
+        'confirm_course_shift' => true, // Confirm the course shift
+    ];
+
+    $response = $this->post(route('registrar.students.store'), $studentData)
+        ->assertRedirect(route('registrar.students'))
+        ->assertSessionHas('success');
+
+    // Check that the student was updated and marked as irregular
+    $updatedStudent = Student::find($student->id);
+    expect($updatedStudent->student_type)->toBe('irregular'); // Should now be irregular
+    expect($updatedStudent->program_id)->toBe($differentProgram->id); // Should have new program
+
+    // Check that success message mentions course shifting
+    $response->assertSessionHas('success', fn ($message) => str_contains($message, 'course shifting'));
+});
+
+it('requires confirmation for course shifting', function () {
+    $this->actingAs($this->user);
+
+    // Create another program for testing course shifting
+    $differentProgram = Program::factory()->create([
+        'program_name' => 'Different Program',
+        'program_code' => 'DIFF4',
+        'education_level' => 'college',
+    ]);
+
+    // Create a student who was enrolled in a previous semester with one program
+    $student = Student::factory()->create([
+        'program_id' => $this->program->id,
+        'student_type' => 'regular',
+        'year_level' => '1st Year',
+        'status' => 'active',
+    ]);
+
+    // Create an enrollment record for a previous semester (not current)
+    StudentEnrollment::factory()->create([
+        'student_id' => $student->id,
+        'academic_year' => '2024-2025', // Previous academic year
+        'semester' => '2nd', // Previous semester
+    ]);
+
+    // Try to enroll the same student in a different program without confirmation
+    $studentData = [
+        'first_name' => $student->first_name,
+        'last_name' => $student->last_name,
+        'middle_name' => $student->middle_name,
+        'birth_date' => $student->birth_date->format('Y-m-d'),
+        'address' => $student->address,
+        'phone' => $student->phone,
+        'email' => $student->user->email,
+        'parent_contact' => $student->parent_contact,
+        'program_id' => $differentProgram->id, // Different program - this should trigger course shifting
+        'year_level' => '1st Year',
+        'student_type' => 'regular',
+        'education_level' => 'college',
+        'track' => null,
+        'strand' => null,
+        'enrollment_fee' => 1000,
+        'payment_amount' => 1000,
+        'student_number' => $student->student_number,
+        'confirm_course_shift' => false, // No confirmation
+    ];
+
+    $response = $this->post(route('registrar.students.store'), $studentData)
+        ->assertRedirect() // Should redirect back with errors
+        ->assertSessionHas('course_shift_required');
+
+    // Check that the student was NOT marked as irregular
+    $unchangedStudent = Student::find($student->id);
+    expect($unchangedStudent->student_type)->toBe('regular'); // Should still be regular
+    expect($unchangedStudent->program_id)->toBe($this->program->id); // Should still have original program
 });

@@ -172,6 +172,9 @@ class RegistrarController extends Controller
             // Payment Information
             'enrollment_fee' => ['required', 'numeric', 'min:0'],
             'payment_amount' => ['required', 'numeric', 'min:0'],
+
+            // Course shifting confirmation
+            'confirm_course_shift' => ['nullable', 'boolean'],
         ]);
 
         try {
@@ -256,6 +259,52 @@ class RegistrarController extends Controller
                 $address = implode(', ', $addressParts);
             }
 
+            // Check if existing student is changing programs (shifting courses)
+            $isShiftingCourses = false;
+            $currentProgram = null;
+            $newProgram = null;
+
+            if ($isUpdatingExisting && $existingStudent->program_id != $validated['program_id']) {
+                $isShiftingCourses = true;
+                $currentProgram = $existingStudent->program;
+                $newProgram = Program::find($validated['program_id']);
+
+                // Check if course shift is confirmed
+                if (!$validated['confirm_course_shift']) {
+                    return back()->with([
+                        'course_shift_required' => [
+                            'current_program' => $currentProgram->program_name ?? 'Unknown',
+                            'new_program' => $newProgram->program_name ?? 'Unknown',
+                            'student_name' => $existingStudent->first_name . ' ' . $existingStudent->last_name,
+                        ]
+                    ])->withInput();
+                }
+
+                // Mark as irregular only if confirmed
+                $validated['student_type'] = 'irregular';
+            }
+
+            // Also check if returning archived student is changing programs
+            if ($isReturningStudent && $archivedStudent->program_id != $validated['program_id']) {
+                $isShiftingCourses = true;
+                $currentProgram = $archivedStudent->program;
+                $newProgram = Program::find($validated['program_id']);
+
+                // Check if course shift is confirmed
+                if (!$validated['confirm_course_shift']) {
+                    return back()->with([
+                        'course_shift_required' => [
+                            'current_program' => $currentProgram->program_name ?? 'Unknown',
+                            'new_program' => $newProgram->program_name ?? 'Unknown',
+                            'student_name' => $archivedStudent->first_name . ' ' . $archivedStudent->last_name,
+                        ]
+                    ])->withInput();
+                }
+
+                // Mark as irregular only if confirmed
+                $validated['student_type'] = 'irregular';
+            }
+
             // Create student record
             $studentData = [
                 'user_id' => $user->id,
@@ -283,9 +332,16 @@ class RegistrarController extends Controller
                 $existingStudent->update($studentData);
                 $student = $existingStudent;
                 $message = "Student {$user->name} updated successfully!";
+                if ($isShiftingCourses) {
+                    $message .= " Student marked as irregular due to course shifting.";
+                }
             } else {
                 $student = Student::create($studentData);
-                $message = "Student {$user->name} registered successfully! Student Number: {$studentNumber}. Default password: password123";
+                $baseMessage = "Student {$user->name} registered successfully! Student Number: {$studentNumber}. Default password: password123";
+                if ($isShiftingCourses) {
+                    $baseMessage .= " Student marked as irregular due to course shifting.";
+                }
+                $message = $baseMessage;
             }
 
             // Check if student has outstanding balances from previous semesters
