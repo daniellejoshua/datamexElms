@@ -10,9 +10,9 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { UserPlus, ArrowLeft, GraduationCap, BookOpen, AlertTriangle, DollarSign } from 'lucide-react'
 import { useState, useEffect, useRef } from 'react'
 
-export default function CreateStudent({ programs, auth, currentAcademicYear, currentSemester }) {
+export default function CreateStudent({ programs, auth, currentAcademicYear, currentSemester, course_shift_required, old }) {
     const { flash } = usePage().props;
-    const { data, setData, post, processing, errors, reset } = useForm({
+    const { data, setData, post, processing, errors, reset } = useForm(old || {
         // Student Number (for checking existing students)
         student_number: '',
         
@@ -106,16 +106,16 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
         }
     }, [errors.student])
 
-    // Show course shift confirmation modal when course_shift_required flash data exists
+    // Show course shift confirmation modal when course_shift_required prop exists
     useEffect(() => {
-        if (flash?.course_shift_required) {
-            setCourseShiftData(flash.course_shift_required)
+        if (course_shift_required) {
+            setCourseShiftData(course_shift_required)
             setShowCourseShiftModal(true)
         } else {
             setCourseShiftData(null)
             setShowCourseShiftModal(false)
         }
-    }, [flash?.course_shift_required])
+    }, [course_shift_required])
 
     // Check for archived student when email changes
     useEffect(() => {
@@ -273,8 +273,28 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
         post(route('registrar.students.store'), {
             preserveScroll: true,
             data: submitData,
-            onSuccess: (response) => {
-                console.log('Success response:', response)
+            onSuccess: (page) => {
+                console.log('Success response:', page)
+
+                // If the server re-rendered the Create page with course_shift_required,
+                // show the course shift modal and restore form data instead of
+                // treating it as a final success.
+                if (page.props && page.props.course_shift_required) {
+                    // Restore previous input if provided
+                    if (page.props.old) {
+                        try {
+                            setData(prev => ({ ...prev, ...page.props.old }));
+                        } catch (e) {
+                            console.error('Failed to restore old form data', e)
+                        }
+                    }
+
+                    setCourseShiftData(page.props.course_shift_required)
+                    setShowCourseShiftModal(true)
+                    return
+                }
+
+                // Normal successful registration
                 alert('Student registered successfully!')
                 router.visit(route('registrar.students'))
             },

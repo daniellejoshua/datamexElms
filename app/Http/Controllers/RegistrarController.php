@@ -271,13 +271,19 @@ class RegistrarController extends Controller
 
                 // Check if course shift is confirmed
                 if (!$validated['confirm_course_shift']) {
-                    return back()->with([
+                    return Inertia::render('Registrar/Students/Create', [
+                        'programs' => Program::orderBy('education_level')
+                            ->orderBy('program_name')
+                            ->get(),
+                        'currentAcademicYear' => SchoolSetting::getCurrentAcademicYear(),
+                        'currentSemester' => SchoolSetting::getCurrentSemester(),
                         'course_shift_required' => [
                             'current_program' => $currentProgram->program_name ?? 'Unknown',
                             'new_program' => $newProgram->program_name ?? 'Unknown',
                             'student_name' => $existingStudent->first_name . ' ' . $existingStudent->last_name,
-                        ]
-                    ])->withInput();
+                        ],
+                        'old' => $request->all(), // Preserve form input
+                    ]);
                 }
 
                 // Mark as irregular only if confirmed
@@ -292,13 +298,19 @@ class RegistrarController extends Controller
 
                 // Check if course shift is confirmed
                 if (!$validated['confirm_course_shift']) {
-                    return back()->with([
+                    return Inertia::render('Registrar/Students/Create', [
+                        'programs' => Program::orderBy('education_level')
+                            ->orderBy('program_name')
+                            ->get(),
+                        'currentAcademicYear' => SchoolSetting::getCurrentAcademicYear(),
+                        'currentSemester' => SchoolSetting::getCurrentSemester(),
                         'course_shift_required' => [
                             'current_program' => $currentProgram->program_name ?? 'Unknown',
                             'new_program' => $newProgram->program_name ?? 'Unknown',
                             'student_name' => $archivedStudent->first_name . ' ' . $archivedStudent->last_name,
-                        ]
-                    ])->withInput();
+                        ],
+                        'old' => $request->all(), // Preserve form input
+                    ]);
                 }
 
                 // Mark as irregular only if confirmed
