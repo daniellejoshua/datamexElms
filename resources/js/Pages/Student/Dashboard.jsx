@@ -290,6 +290,40 @@ export default function Dashboard({
                         )}
                     </CardContent>
                 </Card>
+
+                {/* Archived Grades */}
+                <Card>
+                    <CardHeader>
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <CardTitle className="flex items-center gap-2">
+                                    <GraduationCap className="w-5 h-5" />
+                                    Past Grades
+                                </CardTitle>
+                                <CardDescription>
+                                    View your archived grades from previous semesters
+                                </CardDescription>
+                            </div>
+                            <Button asChild variant="outline">
+                                <Link href={route('student.archived-grades')}>
+                                    <Eye className="w-4 h-4 mr-2" />
+                                    View Archived Grades
+                                </Link>
+                            </Button>
+                        </div>
+                    </CardHeader>
+                    <CardContent>
+                        <div className="text-center py-8">
+                            <GraduationCap className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                            <p className="text-gray-500 mb-4">Access your complete academic history</p>
+                            <Button asChild>
+                                <Link href={route('student.archived-grades')}>
+                                    View Past Grades
+                                </Link>
+                            </Button>
+                        </div>
+                    </CardContent>
+                </Card>
             </div>
         </AuthenticatedLayout>
     )

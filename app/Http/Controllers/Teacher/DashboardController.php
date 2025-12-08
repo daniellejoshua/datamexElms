@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Teacher;
 use App\Http\Controllers\Controller;
 use App\Models\Section;
 use App\Models\SectionSubject;
+use App\Models\StudentSubjectEnrollment;
 use App\Models\Teacher;
 use Illuminate\Support\Facades\Auth;
 use Inertia\Inertia;
@@ -23,7 +24,6 @@ class DashboardController extends Controller
         // Get teacher's sections with related data
         $teacherSections = SectionSubject::with([
             'section.program',
-            'section.enrollments.student',
             'subject',
         ])
             ->where('teacher_id', $teacher->id)
@@ -33,7 +33,11 @@ class DashboardController extends Controller
         // Calculate statistics
         $totalSections = $teacherSections->count();
         $totalStudents = $teacherSections->sum(function ($sectionSubject) {
-            return $sectionSubject->section->enrollments->count();
+            return \App\Models\StudentSubjectEnrollment::where('section_subject_id', $sectionSubject->id)
+                ->where('status', 'active')
+                ->where('academic_year', $sectionSubject->section->academic_year)
+                ->where('semester', $sectionSubject->section->semester)
+                ->count();
         });
         $totalSubjects = $teacherSections->pluck('subject_id')->unique()->count();
 
@@ -49,7 +53,12 @@ class DashboardController extends Controller
         // Prepare section overview data
         $sectionOverview = $teacherSections->map(function ($sectionSubject) {
             $section = $sectionSubject->section;
-            $studentCount = $section->enrollments->count();
+            // Count students enrolled in this specific subject
+            $studentCount = \App\Models\StudentSubjectEnrollment::where('section_subject_id', $sectionSubject->id)
+                ->where('status', 'active')
+                ->where('academic_year', $section->academic_year)
+                ->where('semester', $section->semester)
+                ->count();
 
             return [
                 'id' => $section->id,
@@ -58,7 +67,7 @@ class DashboardController extends Controller
                 'year_level' => $section->year_level,
                 'subject_name' => $sectionSubject->subject->subject_name,
                 'subject_code' => $sectionSubject->subject->subject_code,
-                'student_count' => $studentCount,
+                'enrolled_students_count' => $studentCount,
                 'room' => $sectionSubject->room,
                 'schedule' => $this->formatSchedule($sectionSubject),
                 'academic_year' => $section->academic_year,

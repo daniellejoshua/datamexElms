@@ -158,6 +158,45 @@ export default function TeacherDashboard({
                             </Button>
                         </CardContent>
                     </Card>
+
+                    {/* Archived Sections Card */}
+                    <Card className="group hover:shadow-xl transition-all duration-300 border-2 hover:border-green-300 relative overflow-hidden">
+                        <div className="absolute top-0 right-0 w-20 h-20 bg-gradient-to-br from-green-200/30 to-teal-300/30 rounded-bl-full transform translate-x-6 -translate-y-6 group-hover:scale-110 transition-transform duration-300"></div>
+                        
+                        <CardHeader className="pb-4 relative z-10">
+                            <div className="flex items-center gap-4">
+                                <div className="p-4 bg-gradient-to-br from-green-500 to-green-600 rounded-xl shadow-lg group-hover:shadow-xl transition-shadow">
+                                    <GraduationCap className="w-8 h-8 text-white" />
+                                </div>
+                                <div>
+                                    <CardTitle className="text-xl font-bold text-gray-900 group-hover:text-green-700 transition-colors">
+                                        Archived Sections
+                                    </CardTitle>
+                                    <CardDescription className="text-green-600 font-medium">
+                                        View past semester grades and student performance
+                                    </CardDescription>
+                                </div>
+                            </div>
+                        </CardHeader>
+                        
+                        <CardContent className="space-y-4 relative z-10">
+                            <div className="text-center p-3 bg-gradient-to-br from-green-50 to-emerald-100 rounded-xl border border-green-200">
+                                <div className="flex items-center justify-center gap-1 mb-1">
+                                    <BookOpen className="w-4 h-4 text-green-600" />
+                                </div>
+                                <span className="text-lg font-bold text-green-700">Historical Data</span>
+                                <p className="text-xs text-green-600 font-semibold">Past Semesters</p>
+                            </div>
+                            
+                            <Button asChild className="w-full bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white shadow-md hover:shadow-lg transition-all duration-200 font-semibold">
+                                <Link href={route('teacher.archived-sections')}>
+                                    <GraduationCap className="w-4 h-4 mr-2" />
+                                    View Archived Grades
+                                    <ChevronRight className="w-4 h-4 ml-auto" />
+                                </Link>
+                            </Button>
+                        </CardContent>
+                    </Card>
                 </div>
 
                 {/* Today's Schedule */}

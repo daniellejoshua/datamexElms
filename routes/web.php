@@ -31,6 +31,7 @@ Route::middleware(['auth', 'verified', 'role:student'])->prefix('student')->grou
     Route::get('/subjects', [StudentSubjectController::class, 'index'])->name('student.subjects');
     Route::get('/materials/{material}/download', [StudentSubjectController::class, 'downloadMaterial'])->name('student.materials.download');
     Route::post('/materials/{material}/mark-viewed', [StudentSubjectController::class, 'markMaterialAsViewed'])->name('student.materials.mark-viewed');
+    Route::get('/archived-grades', [\App\Http\Controllers\Student\ArchivedGradesController::class, 'index'])->name('student.archived-grades');
 });
 
 // Registrar Routes
@@ -102,6 +103,10 @@ Route::middleware(['auth', 'verified', 'role:teacher'])->prefix('teacher')->name
     Route::post('/sections/{section}/materials', [CourseMaterialController::class, 'store'])->name('materials.store');
     Route::delete('/sections/{section}/materials/{material}', [CourseMaterialController::class, 'destroy'])->name('materials.destroy');
     Route::get('/sections/{section}/materials/{material}/download', [CourseMaterialController::class, 'download'])->name('materials.download');
+
+    // Archived Grades
+    Route::get('/archived-sections', [\App\Http\Controllers\Teacher\ArchivedSectionsController::class, 'index'])->name('archived-sections');
+    Route::get('/archived-sections/{archivedSection}', [\App\Http\Controllers\Teacher\ArchivedSectionsController::class, 'show'])->name('archived-sections.show');
 });
 
 // Admin Routes
@@ -113,6 +118,11 @@ Route::middleware(['auth', 'verified'])->prefix('admin')->name('admin.')->group(
         // Section Management
         Route::resource('sections', SectionController::class);
         Route::get('sections/{section}/students', [SectionController::class, 'students'])->name('sections.students');
+        Route::post('sections/{section}/students', [SectionController::class, 'enrollStudent'])->name('sections.enroll');
+        Route::delete('sections/{section}/students', [SectionController::class, 'removeStudent'])->name('sections.remove-student');
+
+        // Enrollment Management
+        Route::patch('enrollments/{enrollment}/unenroll', [SectionController::class, 'unenrollStudent'])->name('enrollments.unenroll');
 
         // Subject-level Enrollment for Irregular Students
         Route::get('sections/{section}/students/{student}/subjects', [SectionController::class, 'subjectEnrollment'])->name('sections.subject-enrollment');

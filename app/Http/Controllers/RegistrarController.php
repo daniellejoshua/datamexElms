@@ -8,6 +8,8 @@ use App\Models\PaymentTransaction;
 use App\Models\Program;
 use App\Models\SchoolSetting;
 use App\Models\Section;
+use App\Models\ArchivedSection;
+use App\Models\ArchivedStudentEnrollment;
 use App\Models\Student;
 use App\Models\StudentEnrollment;
 use App\Models\StudentSemesterPayment;
@@ -246,6 +248,63 @@ class RegistrarController extends Controller
             // Extract numeric year level from string (e.g., "1st Year" -> 1, "Grade 11" -> 11)
             $numericYearLevel = $this->extractNumericYearLevel($validated['year_level'], $validated['education_level']);
 
+            // --- Year-level progression validation for existing/returning students ---
+            // Rule: 1 academic year == 2 semesters. We determine how many archived
+            // semesters have happened since the student's enrolled date (archived
+            // semesters imply completion). Existing or returning students cannot
+            // be advanced beyond the number of completed academic years + 1.
+            if ($isUpdatingExisting || $isReturningStudent) {
+                // Prevent decreasing year level for existing/returning students.
+                if ($isUpdatingExisting) {
+                    $existingNumeric = $existingStudent->current_year_level ?? $this->extractNumericYearLevel($existingStudent->year_level ?? '1', $existingStudent->education_level ?? $validated['education_level']);
+                    if ($numericYearLevel < $existingNumeric) {
+                        return back()->withErrors([
+                            'year_level' => "Invalid year level. Cannot decrease from {$existingNumeric} to {$numericYearLevel}."
+                        ])->withInput();
+                    }
+                    $enrolledDate = $existingStudent->enrolled_date ?? $existingStudent->created_at;
+                } else {
+                    $archivedNumeric = $this->extractNumericYearLevel($archivedStudent->year_level ?? '1', $archivedStudent->education_level ?? $validated['education_level']);
+                    if ($numericYearLevel < $archivedNumeric) {
+                        return back()->withErrors([
+                            'year_level' => "Invalid year level. Cannot decrease from {$archivedNumeric} to {$numericYearLevel}."
+                        ])->withInput();
+                    }
+                    $enrolledDate = $archivedStudent->enrolled_date ?? $archivedStudent->archived_at ?? now();
+                }
+
+                if ($enrolledDate) {
+                    // Count archived student enrollments for this student which represent
+                    // completed semesters. Use per-student archived enrollments rather
+                    // than global section archives.
+                    $studentIdForArchiveCount = $isUpdatingExisting ? $existingStudent->id : ($archivedStudent->original_student_id ?? null);
+
+                    // Count completed archived semesters for this student. Use only
+                    // archived enrollments with a final_status indicating completion
+                    // to avoid counting dropped/failed semesters.
+                    $archivedSemestersCount = 0;
+                    if ($studentIdForArchiveCount) {
+                        $archivedSemestersCount = ArchivedStudentEnrollment::where('student_id', $studentIdForArchiveCount)
+                            ->where('final_status', 'completed')
+                            ->count();
+                    }
+
+                    // Each academic year = 2 semesters. The allowed year is the
+                    // baseline starting year (1) plus completed full years.
+                    $completedAcademicYears = intdiv($archivedSemestersCount, 2);
+
+                    // Allowed year level is 1 + completed full academic years.
+                    $allowedYearLevel = 1 + $completedAcademicYears;
+
+                    if ($numericYearLevel > $allowedYearLevel) {
+                        return back()->withErrors([
+                            'year_level' => "Requested year level not allowed. Based on archived semesters, the student may only be up to '" . ($allowedYearLevel) . "' at this time."
+                        ])->withInput();
+                    }
+                }
+            }
+            // --- end year-level validation ---
+
             // Concatenate address parts if provided
             $address = $validated['address'] ?? '';
             if (empty($address)) {
@@ -279,7 +338,9 @@ class RegistrarController extends Controller
                         'currentSemester' => SchoolSetting::getCurrentSemester(),
                         'course_shift_required' => [
                             'current_program' => $currentProgram->program_name ?? 'Unknown',
+                            'current_program_code' => $currentProgram->program_code ?? null,
                             'new_program' => $newProgram->program_name ?? 'Unknown',
+                            'new_program_code' => $newProgram->program_code ?? null,
                             'student_name' => $existingStudent->first_name . ' ' . $existingStudent->last_name,
                         ],
                         'old' => $request->all(), // Preserve form input
@@ -306,7 +367,9 @@ class RegistrarController extends Controller
                         'currentSemester' => SchoolSetting::getCurrentSemester(),
                         'course_shift_required' => [
                             'current_program' => $currentProgram->program_name ?? 'Unknown',
+                            'current_program_code' => $currentProgram->program_code ?? null,
                             'new_program' => $newProgram->program_name ?? 'Unknown',
+                            'new_program_code' => $newProgram->program_code ?? null,
                             'student_name' => $archivedStudent->first_name . ' ' . $archivedStudent->last_name,
                         ],
                         'old' => $request->all(), // Preserve form input
@@ -331,6 +394,8 @@ class RegistrarController extends Controller
                 'parent_contact' => $validated['parent_contact'],
                 'year_level' => $validated['year_level'],
                 'current_year_level' => $numericYearLevel,
+                'current_academic_year' => \App\Models\SchoolSetting::getCurrentAcademicYear(),
+                'current_semester' => \App\Models\SchoolSetting::getCurrentSemester(),
                 'student_type' => $validated['student_type'],
                 'education_level' => $validated['education_level'],
                 'track' => $validated['track'],

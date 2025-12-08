@@ -1,10 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Head, router, usePage, Link } from '@inertiajs/react';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Check, X, Users, UserPlus, GraduationCap, ArrowLeft, Mail, Phone, MapPin, Calendar, BookOpen, User, Trash2, Settings } from 'lucide-react';
+import { Check, X, Users, UserPlus, GraduationCap, ArrowLeft, Mail, Phone, MapPin, Calendar, BookOpen, User, Trash2, Settings, AlertTriangle } from 'lucide-react';
 
 export default function Students({ section, enrolledStudents, availableStudents }) {
     const { flash } = usePage().props;
@@ -20,6 +20,13 @@ export default function Students({ section, enrolledStudents, availableStudents 
     console.log('Enrolled students count:', enrolledStudents?.length);
     console.log('Available students count:', availableStudents?.length);
 
+    // Clear selected students when enrollment/removal is successful
+    useEffect(() => {
+        if (flash?.success) {
+            setSelectedStudents([]);
+        }
+    }, [flash?.success]);
+
     const handleEnrollStudents = () => {
         if (selectedStudents.length === 0) {
             alert('Please select at least one student');
@@ -32,11 +39,6 @@ export default function Students({ section, enrolledStudents, availableStudents 
         router.post(route('admin.sections.enroll', section.id), {
             student_ids: selectedStudents
         }, {
-            onSuccess: () => {
-                alert('Students enrolled successfully!');
-                setSelectedStudents([]);
-                setIsEnrolling(false);
-            },
             onError: (errors) => {
                 console.error('Enrollment errors:', errors);
                 alert('Failed to enroll students. Please check the console for details.');
@@ -77,11 +79,6 @@ export default function Students({ section, enrolledStudents, availableStudents 
         router.delete(route('admin.sections.remove-student', section.id), {
             data: {
                 student_id: studentToRemove.id
-            },
-            onSuccess: () => {
-                alert('Student removed successfully!');
-                setIsRemoveModalOpen(false);
-                setStudentToRemove(null);
             },
             onError: (errors) => {
                 console.error('Remove student errors:', errors);
@@ -153,6 +150,13 @@ export default function Students({ section, enrolledStudents, availableStudents 
                         <div className="bg-green-50 border border-green-300 text-green-800 px-4 py-3 rounded mb-4 flex items-center gap-2">
                             <Check className="h-4 w-4" />
                             <span>{flash.success}</span>
+                        </div>
+                    )}
+                    
+                    {flash?.warning && (
+                        <div className="bg-yellow-50 border border-yellow-300 text-yellow-800 px-4 py-3 rounded mb-4 flex items-center gap-2">
+                            <AlertTriangle className="h-4 w-4" />
+                            <span>{flash.warning}</span>
                         </div>
                     )}
                     

@@ -27,7 +27,6 @@ class StudentFactory extends Factory
             'phone' => $this->faker->phoneNumber(),
             'year_level' => $this->faker->randomElement(['1st', '2nd', '3rd', '4th']),
             'current_year_level' => $this->faker->numberBetween(1, 4),
-            'program' => $this->faker->randomElement(['BSIT', 'BSCS', 'BSIS', 'BSBA']),
             'program_id' => \App\Models\Program::factory(),
             'parent_contact' => $this->faker->phoneNumber(),
             'student_type' => $this->faker->randomElement(['regular', 'irregular']),

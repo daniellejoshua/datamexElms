@@ -12,7 +12,6 @@ use App\Models\Section;
 use App\Models\SectionSubject;
 use App\Models\Student;
 use App\Models\StudentEnrollment;
-use App\Models\StudentSemesterPayment;
 use App\Models\StudentSubjectEnrollment;
 use App\Models\Subject;
 use App\Models\Teacher;
@@ -172,11 +171,36 @@ class SectionController extends Controller
             ->where('status', 'active')
             ->pluck('student_id');
 
-        $availableStudents = Student::with('user')
+        // Get available students that match the program and enrollment rules
+        // Irregular students are exempted from year level restrictions
+        $availableStudentsQuery = Student::with(['user', 'program', 'studentEnrollments' => function ($query) {
+            $query->where('status', 'active');
+        }])
             ->whereNotIn('id', $enrolledStudentIds)
-            ->where('status', 'active')
-            ->orderBy('student_number')
-            ->get();
+            ->where('program_id', $section->program_id) // Only students from same program
+            ->where('status', 'active') // Only active students
+            ->where(function ($query) use ($section) {
+                // Regular students must match year level, irregular students are exempt
+                $query->where('current_year_level', $section->year_level)
+                    ->orWhere('student_type', 'irregular');
+            });
+
+        // For non-irregular students, exclude those already enrolled in any section for current academic period
+        $availableStudents = $availableStudentsQuery->get()->filter(function ($student) use ($section) {
+            // If student is irregular, they can be in multiple sections
+            if ($student->student_type === 'irregular') {
+                return true;
+            }
+
+            // For regular students, check if they're already enrolled in any section for this academic period
+            $hasActiveEnrollment = $student->studentEnrollments()
+                ->where('status', 'active')
+                ->where('academic_year', $section->academic_year)
+                ->where('semester', $section->semester)
+                ->exists();
+
+            return ! $hasActiveEnrollment;
+        });
 
         return Inertia::render('Admin/Sections/Show', [
             'section' => $section,
@@ -286,6 +310,39 @@ class SectionController extends Controller
             'status' => 'active',
         ]);
 
+        // Get the newly created section subject
+        $sectionSubject = $section->sectionSubjects()->where('subject_id', $validated['subject_id'])->first();
+
+        // Enroll all active students in this section to this new subject
+        $activeEnrollments = StudentEnrollment::where('section_id', $section->id)
+            ->where('status', 'active')
+            ->where('academic_year', $section->academic_year)
+            ->where('semester', $section->semester)
+            ->get();
+
+        foreach ($activeEnrollments as $enrollment) {
+            // Check if student is already enrolled in this subject
+            $existingSubjectEnrollment = StudentSubjectEnrollment::where([
+                'student_id' => $enrollment->student_id,
+                'section_subject_id' => $sectionSubject->id,
+                'academic_year' => $section->academic_year,
+                'semester' => $section->semester,
+            ])->first();
+
+            if (! $existingSubjectEnrollment) {
+                StudentSubjectEnrollment::create([
+                    'student_id' => $enrollment->student_id,
+                    'section_subject_id' => $sectionSubject->id,
+                    'enrollment_type' => 'regular',
+                    'academic_year' => $section->academic_year,
+                    'semester' => $section->semester,
+                    'status' => 'active',
+                    'enrollment_date' => now(),
+                    'enrolled_by' => Auth::id(),
+                ]);
+            }
+        }
+
         return back()->with('success', 'Subject assigned to section successfully.');
     }
 
@@ -374,21 +431,22 @@ class SectionController extends Controller
                     ->orWhere('student_type', 'irregular');
             });
 
-        // For non-irregular students, exclude those already enrolled in any section for current academic period
+        // For non-irregular students, exclude those already enrolled in THIS SPECIFIC section for current academic period
         $availableStudents = $availableStudentsQuery->get()->filter(function ($student) use ($section) {
             // If student is irregular, they can be in multiple sections
             if ($student->student_type === 'irregular') {
                 return true;
             }
 
-            // For regular students, check if they're already enrolled in any section for this academic period
-            $hasActiveEnrollment = $student->studentEnrollments()
+            // For regular students, check if they're already enrolled in THIS SPECIFIC section for this academic period
+            $hasActiveEnrollmentInThisSection = $student->studentEnrollments()
                 ->where('status', 'active')
+                ->where('section_id', $section->id)
                 ->where('academic_year', $section->academic_year)
                 ->where('semester', $section->semester)
                 ->exists();
 
-            return ! $hasActiveEnrollment;
+            return ! $hasActiveEnrollmentInThisSection;
         });
 
         // Debug logging
@@ -436,17 +494,6 @@ class SectionController extends Controller
 
                 if (! $student) {
                     $errorStudents[] = "Student ID {$studentId} not found";
-
-                    continue;
-                }
-
-                // Check if student has any unpaid balances from previous semesters
-                $unpaidBalances = StudentSemesterPayment::where('student_id', $studentId)
-                    ->where('balance', '>', 0)
-                    ->sum('balance');
-
-                if ($unpaidBalances > 0) {
-                    $skippedStudents[] = $student->user->name.' (has unpaid balance of ₱'.number_format($unpaidBalances, 2).')';
 
                     continue;
                 }
@@ -573,7 +620,7 @@ class SectionController extends Controller
         }
     }
 
-    public function removeStudent(Request $request, Section $section): \Illuminate\Http\JsonResponse
+    public function removeStudent(Request $request, Section $section): RedirectResponse
     {
         $request->validate([
             'student_id' => 'required|exists:students,id',
@@ -586,7 +633,7 @@ class SectionController extends Controller
                 ->first();
 
             if (! $enrollment) {
-                return response()->json(['error' => 'Student not found in this section'], 404);
+                return redirect()->back()->with('error', 'Student not found in this section');
             }
 
             $enrollment->update(['status' => 'dropped']);
@@ -597,7 +644,7 @@ class SectionController extends Controller
                 'removed_by' => Auth::id(),
             ]);
 
-            return response()->json(['message' => 'Student removed successfully']);
+            return redirect()->back()->with('success', 'Student removed successfully');
 
         } catch (\Exception $e) {
             \Illuminate\Support\Facades\Log::error('Remove student error: '.$e->getMessage(), [
@@ -606,7 +653,7 @@ class SectionController extends Controller
                 'trace' => $e->getTraceAsString(),
             ]);
 
-            return response()->json(['error' => 'An error occurred while removing the student'], 500);
+            return redirect()->back()->with('error', 'An error occurred while removing the student');
         }
     }
 

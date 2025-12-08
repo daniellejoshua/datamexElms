@@ -176,6 +176,30 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                     province: addressParts[3] || '',
                     zip_code: addressParts[4] || '',
                 }))
+                // Fetch progress suggestion for existing student
+                try {
+                    const resp = await fetch(`/api/students/${result.student.id}/progress`)
+                    if (resp.ok) {
+                        const prog = await resp.json()
+                        // Map numeric to label based on education level
+                        const edu = result.student.education_level || 'college'
+                        let suggestedLabel = ''
+                        if (edu === 'college') {
+                            const map = ['1st Year', '2nd Year', '3rd Year', '4th Year']
+                            suggestedLabel = map[Math.max(0, Math.min(map.length - 1, prog.suggested_year_numeric - 1))]
+                        } else {
+                            // Senior High School: map to Grade 11/12
+                            const grade = 11 + Math.max(0, prog.suggested_year_numeric - 1)
+                            suggestedLabel = `Grade ${grade}`
+                        }
+
+                        if (suggestedLabel) {
+                            setData(prev => ({ ...prev, year_level: suggestedLabel }))
+                        }
+                    }
+                } catch (e) {
+                    console.error('Failed to fetch progress suggestion', e)
+                }
             } else if (result.archived) {
                 // Student exists in archived records
                 setStudentFound(result.archived)
@@ -201,6 +225,28 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                     province: result.archived.address?.split(',')[3]?.trim() || '',
                     zip_code: result.archived.address?.split(',')[4]?.trim() || '',
                 }))
+                // Fetch progress suggestion for returning (archived) student
+                try {
+                    const resp = await fetch(`/api/archived-students/${result.archived.id}/progress`)
+                    if (resp.ok) {
+                        const prog = await resp.json()
+                        const edu = result.archived.education_level || 'college'
+                        let suggestedLabel = ''
+                        if (edu === 'college') {
+                            const map = ['1st Year', '2nd Year', '3rd Year', '4th Year']
+                            suggestedLabel = map[Math.max(0, Math.min(map.length - 1, prog.suggested_year_numeric - 1))]
+                        } else {
+                            const grade = 11 + Math.max(0, prog.suggested_year_numeric - 1)
+                            suggestedLabel = `Grade ${grade}`
+                        }
+
+                        if (suggestedLabel) {
+                            setData(prev => ({ ...prev, year_level: suggestedLabel }))
+                        }
+                    }
+                } catch (e) {
+                    console.error('Failed to fetch archived progress suggestion', e)
+                }
             } else {
                 setStudentFound(null)
                 setIsExistingStudent(false)
@@ -738,6 +784,13 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
 
                             <div>
                                 <Label htmlFor="year_level" className="text-sm font-medium">Year Level *</Label>
+                                {errors.year_level && (
+                                    <div className="mt-2 p-2 bg-red-50 border border-red-200 rounded-md flex items-start gap-2">
+                                        <AlertTriangle className="w-4 h-4 text-red-600 mt-0.5" />
+                                        <p className="text-sm text-red-700">{errors.year_level}</p>
+                                    </div>
+                                )}
+
                                 <Select 
                                     value={data.year_level} 
                                     onValueChange={(value) => setData('year_level', value)}
@@ -754,9 +807,6 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                                         ))}
                                     </SelectContent>
                                 </Select>
-                                {errors.year_level && (
-                                    <p className="text-red-500 text-sm mt-1">{errors.year_level}</p>
-                                )}
                             </div>
                         </div>
 
@@ -927,12 +977,11 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                             <GraduationCap className="w-5 h-5" />
                             Course Shifting Detected
                         </DialogTitle>
-                        <DialogDescription>
-                            Student <strong>{courseShiftData?.student_name}</strong> is currently enrolled in <strong>{courseShiftData?.current_program}</strong> 
-                            but is being registered for <strong>{courseShiftData?.new_program}</strong>.
-                        </DialogDescription>
+                                <DialogDescription>
+                                    Student <strong>{courseShiftData?.student_name}</strong> is being registered to a different program.
+                                </DialogDescription>
                     </DialogHeader>
-                    <div className="bg-orange-50 border border-orange-200 rounded-lg p-4 mb-4">
+                            <div className="bg-orange-50 border border-orange-200 rounded-lg p-4 mb-4">
                         <div className="flex items-start gap-3">
                             <AlertTriangle className="w-5 h-5 text-orange-600 mt-0.5 flex-shrink-0" />
                             <div>
@@ -944,6 +993,29 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                             </div>
                         </div>
                     </div>
+                            {/* Program comparison */}
+                            <div className="mb-4">
+                                <div className="text-sm text-gray-600 mb-2">Program change</div>
+                                <div className="flex items-center gap-4">
+                                    <div className="flex-1">
+                                        <div className="text-xs text-gray-500">Current</div>
+                                        <div className="flex items-center gap-2 mt-1">
+                                            <Badge variant="outline">{courseShiftData?.current_program_code || (programs.find(p => p.program_name === courseShiftData?.current_program)?.program_code) || courseShiftData?.current_program}</Badge>
+                                            <div className="text-sm font-medium">{courseShiftData?.current_program}</div>
+                                        </div>
+                                    </div>
+
+                                    <div className="text-gray-400">→</div>
+
+                                    <div className="flex-1">
+                                        <div className="text-xs text-gray-500">New</div>
+                                        <div className="flex items-center gap-2 mt-1">
+                                            <Badge variant="outline">{courseShiftData?.new_program_code || (programs.find(p => p.program_name === courseShiftData?.new_program)?.program_code) || courseShiftData?.new_program}</Badge>
+                                            <div className="text-sm font-medium">{courseShiftData?.new_program}</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
                     <div className="flex justify-end gap-3">
                         <Button
                             variant="outline"

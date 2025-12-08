@@ -188,4 +188,38 @@ Route::middleware(['web', 'auth:web'])->group(function () {
             ],
         ]);
     })->middleware('role:registrar');
+
+    // Student progress route (completed archived semesters -> suggested year)
+    Route::get('/students/{student}/progress', function (\App\Models\Student $student) {
+        $completed = \App\Models\ArchivedStudentEnrollment::where('student_id', $student->id)
+            ->where('final_status', 'completed')
+            ->count();
+
+        $completedYears = intdiv($completed, 2);
+        $suggestedNumeric = 1 + $completedYears;
+
+        return response()->json([
+            'completed_semesters' => $completed,
+            'completed_years' => $completedYears,
+            'suggested_year_numeric' => $suggestedNumeric,
+        ]);
+    })->middleware('role:registrar');
+
+    // Archived student progress route
+    Route::get('/archived-students/{archived}/progress', function (\App\Models\ArchivedStudent $archived) {
+        $studentId = $archived->original_student_id ?? $archived->id;
+
+        $completed = \App\Models\ArchivedStudentEnrollment::where('student_id', $studentId)
+            ->where('final_status', 'completed')
+            ->count();
+
+        $completedYears = intdiv($completed, 2);
+        $suggestedNumeric = 1 + $completedYears;
+
+        return response()->json([
+            'completed_semesters' => $completed,
+            'completed_years' => $completedYears,
+            'suggested_year_numeric' => $suggestedNumeric,
+        ]);
+    })->middleware('role:registrar');
 });

@@ -284,7 +284,7 @@ export default function Show({ section, sectionSubject, enrollments, isCollegeLe
 
     // Save grades
     const handleSaveGrades = () => {
-        post(route('teacher.grades.store', section.id), {
+        post(route('teacher.grades.update', section.id), {
             onSuccess: () => {
                 setEditingGrades({});
                 alert('Grades saved successfully!');

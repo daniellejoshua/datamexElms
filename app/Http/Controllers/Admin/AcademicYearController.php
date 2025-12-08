@@ -242,97 +242,103 @@ class AcademicYearController extends Controller
                     $archivedStudentIds[] = $enrollment->student_id;
                 }
 
-                // Archive only sections with subjects
-                // if ($section->subjects->isNotEmpty()) {
-                //     // Calculate section statistics
-                //     $enrollments = $section->studentEnrollments;
-                //     $completedCount = $enrollments->where('status', 'active')->count();
-                //     $droppedCount = $enrollments->where('status', 'dropped')->count();
+                // Archive the section if it belongs to the period and has enrollments/subjects
+                $enrollments = $section->studentEnrollments;
 
-                //     // Calculate average grade if grades exist
-                //     $averageGrade = null;
-                //     $gradeSum = 0;
-                //     $gradeCount = 0;
+                // Calculate section statistics
+                $completedCount = $enrollments->where('status', 'active')->count();
+                $droppedCount = $enrollments->where('status', 'dropped')->count();
 
-                //     foreach ($enrollments as $enrollment) {
-                //         $grade = StudentGrade::where('student_enrollment_id', $enrollment->id)
-                //             ->where('overall_status', 'passed')
-                //             ->first();
+                // Calculate average grade if any
+                $averageGrade = null;
+                $gradeSum = 0;
+                $gradeCount = 0;
 
-                //         if ($grade && $grade->final_grade) {
-                //             $gradeSum += $grade->final_grade;
-                //             $gradeCount++;
-                //         }
-                //     }
+                foreach ($enrollments as $enrollment) {
+                    $grade = StudentGrade::where('student_enrollment_id', $enrollment->id)->first();
+                    if ($grade && $grade->final_grade) {
+                        $gradeSum += $grade->final_grade;
+                        $gradeCount++;
+                    }
+                }
 
-                //     if ($gradeCount > 0) {
-                //         $averageGrade = round($gradeSum / $gradeCount, 2);
-                //     }
+                if ($gradeCount > 0) {
+                    $averageGrade = round($gradeSum / $gradeCount, 2);
+                }
 
-                //     // Archive the section
-                //     $archivedSection = ArchivedSection::create([
-                //         'original_section_id' => $section->id,
-                //         'section_name' => $section->section_name,
-                //         'academic_year' => $academicYear,
-                //         'semester' => match ($semester) {
-                //             '1st' => 'first',
-                //             '2nd' => 'second',
-                //             'summer' => 'summer',
-                //         },
-                //         'room' => $section->subjects->first()->pivot->room ?? null, // Use room from first subject
-                //         'status' => 'completed',
-                //         'course_data' => $section->subjects->map(function ($subject) {
-                //             return [
-                //                 'id' => $subject->id,
-                //                 'course_code' => $subject->subject_code,
-                //                 'subject_name' => $subject->subject_name,
-                //                 'credits' => $subject->units,
-                //             ];
-                //         })->toArray(),
-                //         'total_enrolled_students' => $enrollments->count(),
-                //         'completed_students' => $completedCount,
-                //         'dropped_students' => $droppedCount,
-                //         'section_average_grade' => $averageGrade,
-                //         'archived_at' => now(),
-                //         'archived_by' => Auth::id(),
-                //         'archive_notes' => $notes,
-                //     ]);
+                // Create archived section record
+                $archivedSection = ArchivedSection::create([
+                    'original_section_id' => $section->id,
+                    'section_name' => $section->section_name,
+                    'academic_year' => $academicYear,
+                    'semester' => match ($semester) {
+                        '1st' => 'first',
+                        '2nd' => 'second',
+                        'summer' => 'summer',
+                    },
+                    'room' => ($section->subjects->first()?->pivot->room) ?? null,
+                    'status' => 'completed',
+                    'course_data' => $section->subjects->map(function ($subject) {
+                        return [
+                            'id' => $subject->id,
+                            'course_code' => $subject->subject_code,
+                            'subject_name' => $subject->subject_name,
+                            'credits' => $subject->units,
+                        ];
+                    })->toArray(),
+                    'total_enrolled_students' => $enrollments->count(),
+                    'completed_students' => $completedCount,
+                    'dropped_students' => $droppedCount,
+                    'section_average_grade' => $averageGrade,
+                    'archived_at' => now(),
+                    'archived_by' => Auth::id(),
+                    'archive_notes' => $notes,
+                ]);
 
-                //     // Archive student enrollments
-                //     foreach ($enrollments as $enrollment) {
-                //         $finalGrade = StudentGrade::where('student_enrollment_id', $enrollment->id)
-                //             ->first();
+                // Archive each student enrollment into ArchivedStudentEnrollment
+                foreach ($enrollments as $enrollment) {
+                    $finalGrade = StudentGrade::where('student_enrollment_id', $enrollment->id)->first();
 
-                //         ArchivedStudentEnrollment::create([
-                //             'archived_section_id' => $archivedSection->id,
-                //             'student_id' => $enrollment->student_id,
-                //             'original_enrollment_id' => $enrollment->id,
-                //             'academic_year' => $academicYear,
-                //             'semester' => match ($semester) {
-                //                 '1st' => 'first',
-                //                 '2nd' => 'second',
-                //                 'summer' => 'summer',
-                //             },
-                //             'enrolled_date' => $enrollment->enrollment_date,
-                //             'completion_date' => now()->toDateString(),
-                //             'final_status' => $enrollment->status === 'active' ? 'completed' : $enrollment->status,
-                //             'final_grades' => $finalGrade ? [
-                //                 'midterm' => $finalGrade->midterm_grade,
-                //                 'final' => $finalGrade->final_grade,
-                //                 'overall' => $finalGrade->final_grade,
-                //             ] : null,
-                //             'final_semester_grade' => $finalGrade?->final_grade,
-                //             'letter_grade' => null, // TODO: Implement letter grade calculation
-                //             'student_data' => [
-                //                 'name' => $enrollment->student->user->name,
-                //                 'student_id' => $enrollment->student->student_id,
-                //                 'email' => $enrollment->student->user->email,
-                //             ],
-                //         ]);
-                //     }
-                // } // End subjects check            // Delete the original section and enrollments for all sections in this period
-                $section->studentEnrollments()->delete();
-                $section->delete();
+                    ArchivedStudentEnrollment::create([
+                        'archived_section_id' => $archivedSection->id,
+                        'student_id' => $enrollment->student_id,
+                        'original_enrollment_id' => $enrollment->id,
+                        'academic_year' => $academicYear,
+                        'semester' => match ($semester) {
+                            '1st' => 'first',
+                            '2nd' => 'second',
+                            'summer' => 'summer',
+                        },
+                        'enrolled_date' => $enrollment->enrollment_date,
+                        'completion_date' => now()->toDateString(),
+                        'final_status' => $enrollment->status === 'active' ? 'completed' : $enrollment->status,
+                        'final_grades' => $finalGrade ? [
+                            'midterm' => $finalGrade->midterm_grade,
+                            'final' => $finalGrade->final_grade,
+                            'overall' => $finalGrade->final_grade,
+                        ] : null,
+                        'final_semester_grade' => $finalGrade?->final_grade,
+                        'letter_grade' => $this->calculateLetterGrade($finalGrade?->final_grade),
+                        'student_data' => [
+                            'name' => $enrollment->student->user->name,
+                            'student_number' => $enrollment->student->student_number,
+                            'email' => $enrollment->student->user->email,
+                            'year_level_at_completion' => $enrollment->student->year_level,
+                        ],
+                    ]);
+                }
+
+                    // Mark original enrollments and section as archived/completed (non-destructive)
+                    foreach ($enrollments as $enrollment) {
+                        if ($enrollment->status === 'active') {
+                            $enrollment->status = 'completed';
+                            $enrollment->completion_date = $enrollment->completion_date ?? now();
+                        }
+                        $enrollment->save();
+                    }
+
+                    $section->status = 'archived';
+                    $section->save();
             } // End period check
 
             // Archive students who were enrolled in archived sections
