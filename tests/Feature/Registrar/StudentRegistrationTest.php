@@ -2,7 +2,10 @@
 
 use App\Models\Program;
 use App\Models\Registrar;
+use App\Models\SchoolSetting;
+use App\Models\Section;
 use App\Models\Student;
+use App\Models\StudentEnrollment;
 use App\Models\StudentSemesterPayment;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -15,6 +18,9 @@ beforeEach(function () {
     $this->user = $this->registrar->user;
     $this->program = Program::factory()->create([
         'education_level' => 'college',
+    ]);
+    $this->section = Section::factory()->create([
+        'program_id' => $this->program->id,
     ]);
 });
 
@@ -282,4 +288,126 @@ it('only allows registrars to access registration form', function () {
     $response = $this->get(route('registrar.students.create'));
 
     $response->assertForbidden();
+});
+
+it('prevents duplicate enrollment in the same semester', function () {
+    $this->actingAs($this->user);
+
+    // Create a student first
+    $studentData = [
+        'first_name' => 'John',
+        'last_name' => 'Doe',
+        'middle_name' => 'Middle',
+        'birth_date' => '2000-01-01',
+        'address' => '123 Main St, City, Province',
+        'phone' => '1234567890',
+        'email' => 'john.doe@example.com',
+        'parent_contact' => '0987654321',
+        'program_id' => $this->program->id,
+        'year_level' => '1st Year',
+        'student_type' => 'regular',
+        'education_level' => 'college',
+        'track' => null,
+        'strand' => null,
+        'enrollment_fee' => 1000,
+        'payment_amount' => 1000,
+    ];
+
+    // First enrollment should succeed
+    $this->post(route('registrar.students.store'), $studentData)
+        ->assertRedirect(route('registrar.students'))
+        ->assertSessionHas('success');
+
+    // Get the created student
+    $student = Student::whereHas('user', fn ($query) => $query->where('email', 'john.doe@example.com'))->first();
+    expect($student)->not->toBeNull();
+
+    // Verify that enrollment record was created
+    $academicYear = SchoolSetting::getCurrentAcademicYear();
+    $semester = SchoolSetting::getCurrentSemester();
+    
+    $enrollment = StudentEnrollment::where([
+        'student_id' => $student->id,
+        'academic_year' => $academicYear,
+        'semester' => $semester,
+    ])->first();
+    
+    expect($enrollment)->not->toBeNull();
+    expect($enrollment->status)->toBe('active');
+    expect($enrollment->section_id)->toBeNull(); // Should be null initially
+
+    // Create an enrollment record for the current semester to simulate existing enrollment
+    $academicYear = SchoolSetting::getCurrentAcademicYear();
+    $semester = SchoolSetting::getCurrentSemester();
+
+    StudentEnrollment::create([
+        'student_id' => $student->id,
+        'section_id' => $this->section->id,
+        'enrollment_date' => now(),
+        'status' => 'active',
+        'academic_year' => $academicYear,
+        'semester' => $semester,
+        'enrolled_by' => $this->user->id,
+    ]);
+
+    // Try to enroll the same student again in the same semester
+    // Even though they paid their balance, they should still be blocked
+    // because they're already enrolled in the current semester
+    $studentData['student_number'] = $student->student_number;
+    $response = $this->post(route('registrar.students.store'), $studentData);
+
+    // Should redirect back with error
+    $response->assertRedirect()
+        ->assertSessionHasErrors(['student']);
+
+    // Check that the error message mentions duplicate enrollment
+    $response->assertSessionHasErrors([
+        'student' => "Student is already enrolled in the current semester ({$academicYear} - {$semester}). Cannot enroll again."
+    ]);
+});
+
+it('prevents duplicate enrollment when using email lookup', function () {
+    $this->actingAs($this->user);
+
+    // Create a student first
+    $studentData = [
+        'first_name' => 'Alice',
+        'last_name' => 'Wonder',
+        'middle_name' => 'Middle',
+        'birth_date' => '2000-01-01',
+        'address' => '123 Wonderland St, City, Province',
+        'phone' => '1234567890',
+        'email' => 'alice.wonder@example.com',
+        'parent_contact' => '0987654321',
+        'program_id' => $this->program->id,
+        'year_level' => '1st Year',
+        'student_type' => 'regular',
+        'education_level' => 'college',
+        'track' => null,
+        'strand' => null,
+        'enrollment_fee' => 1000,
+        'payment_amount' => 1000,
+    ];
+
+    // First enrollment should succeed
+    $this->post(route('registrar.students.store'), $studentData)
+        ->assertRedirect(route('registrar.students'))
+        ->assertSessionHas('success');
+
+    // Get the created student
+    $student = Student::whereHas('user', fn ($query) => $query->where('email', 'alice.wonder@example.com'))->first();
+    expect($student)->not->toBeNull();
+
+    // Now try to enroll the same student again using the same email (without student_number)
+    // This should find the existing student and prevent duplicate enrollment
+    $response = $this->post(route('registrar.students.store'), $studentData);
+
+    // Should redirect back with error
+    $response->assertRedirect()
+        ->assertSessionHasErrors(['student']);
+
+    // Check that the error message mentions duplicate enrollment
+    $response->assertSessionHasErrors([
+        'student' => "Student is already enrolled in the current semester (2025-2026 - 1st). Cannot enroll again."
+    ]);
 });

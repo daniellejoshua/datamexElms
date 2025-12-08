@@ -183,6 +183,17 @@ class RegistrarController extends Controller
                 $existingStudent = Student::where('student_number', $validated['student_number'])->first();
             }
 
+            // Also check if there's an existing active student with this email
+            if (!$existingStudent) {
+                $existingStudentByEmail = Student::whereHas('user', function ($query) use ($validated) {
+                    $query->where('email', $validated['email']);
+                })->first();
+                
+                if ($existingStudentByEmail) {
+                    $existingStudent = $existingStudentByEmail;
+                }
+            }
+
             // Check if this is a returning student from archived records
             $archivedStudent = ArchivedStudent::whereHas('user', function ($query) use ($validated) {
                 $query->where('email', $validated['email']);
@@ -278,9 +289,19 @@ class RegistrarController extends Controller
             }
 
             // Check if student has outstanding balances from previous semesters
+            $academicYear = SchoolSetting::getCurrentAcademicYear();
+            $semester = SchoolSetting::getCurrentSemester();
+
             $studentIdToCheck = $isReturningStudent ? $archivedStudent->original_student_id : $student->id;
             $unpaidBalances = StudentSemesterPayment::where('student_id', $studentIdToCheck)
                 ->where('balance', '>', 0)
+                ->where(function ($query) use ($academicYear, $semester) {
+                    $query->where('academic_year', '<', $academicYear)
+                        ->orWhere(function ($subQuery) use ($academicYear, $semester) {
+                            $subQuery->where('academic_year', $academicYear)
+                                    ->where('semester', '!=', $semester);
+                        });
+                })
                 ->sum('balance');
 
             if ($unpaidBalances > 0) {
@@ -289,9 +310,18 @@ class RegistrarController extends Controller
                 ])->withInput();
             }
 
-            // Create enrollment fee payment record for all students (new enrollment process)
-            $academicYear = SchoolSetting::getCurrentAcademicYear();
-            $semester = SchoolSetting::getCurrentSemester();
+            // Check if student is already enrolled in the current semester
+            $existingEnrollment = StudentEnrollment::where([
+                'student_id' => $student->id,
+                'academic_year' => $academicYear,
+                'semester' => $semester,
+            ])->first();
+
+            if ($existingEnrollment) {
+                return back()->withErrors([
+                    'student' => "Student is already enrolled in the current semester ({$academicYear} - {$semester}). Cannot enroll again."
+                ])->withInput();
+            }
             $enrollmentFee = (float) $validated['enrollment_fee'];
             $paymentAmount = (float) $validated['payment_amount'];
 
@@ -341,6 +371,26 @@ class RegistrarController extends Controller
                 $semesterPayment->enrollment_payment_date = now();
                 $semesterPayment->enrollment_paid = true; // Always true when they register
                 $semesterPayment->save(); // Trigger the booted() method to recalculate totals
+            }
+
+            // Create enrollment record to track student's enrollment in this semester
+            // Double-check that enrollment doesn't already exist (safety check)
+            $existingEnrollmentCheck = StudentEnrollment::where([
+                'student_id' => $student->id,
+                'academic_year' => $academicYear,
+                'semester' => $semester,
+            ])->first();
+
+            if (!$existingEnrollmentCheck) {
+                StudentEnrollment::create([
+                    'student_id' => $student->id,
+                    'section_id' => null, // Will be assigned later when sections are created
+                    'enrollment_date' => now(),
+                    'status' => 'active',
+                    'academic_year' => $academicYear,
+                    'semester' => $semester,
+                    'enrolled_by' => Auth::id(),
+                ]);
             }
 
             DB::commit();
