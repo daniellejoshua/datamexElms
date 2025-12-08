@@ -54,6 +54,10 @@ class RegistrarController extends Controller
         $status = request('status', 'all');
         $yearLevel = request('year_level', 'all');
         $studentType = request('student_type', 'all');
+        $enrollmentStatus = request('enrollment_status', 'enrolled'); // Default to 'enrolled'
+
+        $currentAcademicYear = SchoolSetting::getCurrentAcademicYear();
+        $currentSemester = SchoolSetting::getCurrentSemester();
 
         $query = Student::with(['user', 'program'])
             ->when($educationLevel !== 'all', function ($q) use ($educationLevel) {
@@ -72,21 +76,49 @@ class RegistrarController extends Controller
                 $q->where('student_type', $studentType);
             });
 
+        // Filter by enrollment status
+        if ($enrollmentStatus === 'enrolled') {
+            // Only show students currently enrolled in the current semester
+            $query->whereHas('studentEnrollments', function ($q) use ($currentAcademicYear, $currentSemester) {
+                $q->where('academic_year', $currentAcademicYear)
+                  ->where('semester', $currentSemester)
+                  ->where('status', 'active');
+            });
+        } elseif ($enrollmentStatus === 'not_enrolled') {
+            // Only show students NOT currently enrolled in the current semester
+            $query->whereDoesntHave('studentEnrollments', function ($q) use ($currentAcademicYear, $currentSemester) {
+                $q->where('academic_year', $currentAcademicYear)
+                  ->where('semester', $currentSemester)
+                  ->where('status', 'active');
+            });
+        }
+        // 'all' shows all students regardless of enrollment status
+
         $students = $query->paginate(15)->withQueryString();
 
         // Get current enrollment sections for each student
-        $currentAcademicYear = SchoolSetting::getCurrentAcademicYear();
-        $currentSemester = SchoolSetting::getCurrentSemester();
-
         $students->getCollection()->transform(function ($student) use ($currentAcademicYear, $currentSemester) {
+            // First try to find enrollment with a section assigned
             $enrollment = StudentEnrollment::with(['section.program'])
                 ->where('student_id', $student->id)
                 ->where('academic_year', $currentAcademicYear)
                 ->where('semester', $currentSemester)
                 ->where('status', 'active')
+                ->whereNotNull('section_id')
                 ->first();
 
+            // If no enrollment with section found, check if student has any active enrollment in current period
+            if (!$enrollment) {
+                $enrollment = StudentEnrollment::with(['section.program'])
+                    ->where('student_id', $student->id)
+                    ->where('academic_year', $currentAcademicYear)
+                    ->where('semester', $currentSemester)
+                    ->where('status', 'active')
+                    ->first();
+            }
+
             $student->current_section = $enrollment?->section;
+            $student->is_currently_enrolled = $enrollment !== null;
 
             return $student;
         });
@@ -104,6 +136,11 @@ class RegistrarController extends Controller
                 'status' => $status,
                 'year_level' => $yearLevel,
                 'student_type' => $studentType,
+                'enrollment_status' => $enrollmentStatus,
+            ],
+            'current_academic_period' => [
+                'academic_year' => $currentAcademicYear,
+                'semester' => $currentSemester,
             ],
         ]);
     }

@@ -172,9 +172,11 @@ class SectionController extends Controller
             ->pluck('student_id');
 
         // Get available students that match the program and enrollment rules
-        // Irregular students are exempted from year level restrictions
-        $availableStudentsQuery = Student::with(['user', 'program', 'studentEnrollments' => function ($query) {
-            $query->where('status', 'active');
+        // Only show students who are enrolled in the current academic period
+        $availableStudentsQuery = Student::with(['user', 'program', 'studentEnrollments' => function ($query) use ($section) {
+            $query->where('status', 'active')
+                  ->where('academic_year', $section->academic_year)
+                  ->where('semester', $section->semester);
         }])
             ->whereNotIn('id', $enrolledStudentIds)
             ->where('program_id', $section->program_id) // Only students from same program
@@ -183,23 +185,30 @@ class SectionController extends Controller
                 // Regular students must match year level, irregular students are exempt
                 $query->where('current_year_level', $section->year_level)
                     ->orWhere('student_type', 'irregular');
+            })
+            ->whereHas('studentEnrollments', function ($query) use ($section) {
+                // Only students enrolled in the current academic period
+                $query->where('academic_year', $section->academic_year)
+                      ->where('semester', $section->semester)
+                      ->where('status', 'active');
             });
 
-        // For non-irregular students, exclude those already enrolled in any section for current academic period
+        // For non-irregular students, exclude those already enrolled in THIS SPECIFIC section for current academic period
         $availableStudents = $availableStudentsQuery->get()->filter(function ($student) use ($section) {
             // If student is irregular, they can be in multiple sections
             if ($student->student_type === 'irregular') {
                 return true;
             }
 
-            // For regular students, check if they're already enrolled in any section for this academic period
-            $hasActiveEnrollment = $student->studentEnrollments()
+            // For regular students, check if they're already enrolled in THIS SPECIFIC section for this academic period
+            $hasActiveEnrollmentInThisSection = $student->studentEnrollments()
                 ->where('status', 'active')
+                ->where('section_id', $section->id)
                 ->where('academic_year', $section->academic_year)
                 ->where('semester', $section->semester)
                 ->exists();
 
-            return ! $hasActiveEnrollment;
+            return ! $hasActiveEnrollmentInThisSection;
         });
 
         return Inertia::render('Admin/Sections/Show', [
@@ -418,9 +427,11 @@ class SectionController extends Controller
         $enrolledStudentIds = $enrolledStudents->pluck('student.id')->toArray();
 
         // Get available students that match the program and enrollment rules
-        // Irregular students are exempted from year level restrictions
-        $availableStudentsQuery = Student::with(['user', 'program', 'studentEnrollments' => function ($query) {
-            $query->where('status', 'active');
+        // Only show students who are enrolled in the current academic period
+        $availableStudentsQuery = Student::with(['user', 'program', 'studentEnrollments' => function ($query) use ($section) {
+            $query->where('status', 'active')
+                  ->where('academic_year', $section->academic_year)
+                  ->where('semester', $section->semester);
         }])
             ->whereNotIn('id', $enrolledStudentIds)
             ->where('program_id', $section->program_id) // Only students from same program
@@ -429,6 +440,12 @@ class SectionController extends Controller
                 // Regular students must match year level, irregular students are exempt
                 $query->where('current_year_level', $section->year_level)
                     ->orWhere('student_type', 'irregular');
+            })
+            ->whereHas('studentEnrollments', function ($query) use ($section) {
+                // Only students enrolled in the current academic period
+                $query->where('academic_year', $section->academic_year)
+                      ->where('semester', $section->semester)
+                      ->where('status', 'active');
             });
 
         // For non-irregular students, exclude those already enrolled in THIS SPECIFIC section for current academic period

@@ -257,6 +257,19 @@ describe('Student Enrollment Management', function () {
             'program_id' => $program1->id,
             'current_year_level' => $yearLevel,
         ]);
+
+        // Create an active enrollment for the student in the section's academic period
+        $adminUser = \App\Models\User::factory()->create();
+        \App\Models\StudentEnrollment::create([
+            'student_id' => $studentSameProgram->id,
+            'section_id' => null,
+            'enrollment_date' => now(),
+            'enrolled_by' => $adminUser->id,
+            'status' => 'active',
+            'academic_year' => $section->academic_year,
+            'semester' => $section->semester,
+        ]);
+
         $studentDifferentProgram = Student::factory()->create([
             'program_id' => $program2->id,
             'current_year_level' => $yearLevel,
@@ -265,7 +278,9 @@ describe('Student Enrollment Management', function () {
         $response = $this->get(route('admin.sections.students', $section->id));
 
         $response->assertOk()
-            ->assertInertia(fn ($page) => $page->where('availableStudents.0.id', $studentSameProgram->id)
+            ->assertInertia(fn ($page) => $page
+                ->has('availableStudents', 1)
+                ->where('availableStudents.0.id', $studentSameProgram->id)
                 ->missing('availableStudents.1')
             );
     });

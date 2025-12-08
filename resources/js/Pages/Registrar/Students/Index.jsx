@@ -8,8 +8,10 @@ import { Users, Search, Eye, Edit, Filter, UserPlus } from 'lucide-react'
 import { useState } from 'react'
 
 // Helper function to format section name
-const formatSectionName = (section) => {
-    if (!section) return 'Not Enrolled';
+const formatSectionName = (section, isCurrentlyEnrolled) => {
+    if (!section) {
+        return isCurrentlyEnrolled ? 'Enrolled (No Section)' : 'Not Enrolled';
+    }
     if (section.program?.program_code && section.year_level) {
         const identifier = section.section_name;
         return `${section.program.program_code}-${section.year_level}${identifier}`;
@@ -17,12 +19,13 @@ const formatSectionName = (section) => {
     return section.section_name || 'N/A';
 };
 
-export default function StudentsIndex({ students, programs, filters, auth, on_hold_count }) {
+export default function StudentsIndex({ students, programs, filters, auth, on_hold_count, current_academic_period }) {
     const [searchTerm, setSearchTerm] = useState('')
     const [educationLevel, setEducationLevel] = useState(filters?.education_level || 'all')
     const [status, setStatus] = useState(filters?.status || 'all')
     const [yearLevel, setYearLevel] = useState(filters?.year_level || 'all')
     const [studentType, setStudentType] = useState(filters?.student_type || 'all')
+    const [enrollmentStatus, setEnrollmentStatus] = useState(filters?.enrollment_status || 'enrolled')
 
     const handleFilterChange = () => {
         router.get(route('registrar.students'), {
@@ -30,6 +33,7 @@ export default function StudentsIndex({ students, programs, filters, auth, on_ho
             status: status,
             year_level: yearLevel,
             student_type: studentType,
+            enrollment_status: enrollmentStatus,
         }, {
             preserveState: true,
             preserveScroll: true,
@@ -41,6 +45,7 @@ export default function StudentsIndex({ students, programs, filters, auth, on_ho
         setStatus('all')
         setYearLevel('all')
         setStudentType('all')
+        setEnrollmentStatus('enrolled')
         router.get(route('registrar.students'))
     }
 
@@ -137,7 +142,7 @@ export default function StudentsIndex({ students, programs, filters, auth, on_ho
                                     className="pl-10"
                                 />
                             </div>
-                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
                                 <div>
                                     <label className="text-xs font-medium text-gray-700 mb-1 block">Education Level</label>
                                     <select 
@@ -188,12 +193,31 @@ export default function StudentsIndex({ students, programs, filters, auth, on_ho
                                         <option value="4">4th Year</option>
                                     </select>
                                 </div>
+                                <div>
+                                    <label className="text-xs font-medium text-gray-700 mb-1 block">
+                                        Enrollment Status
+                                        {current_academic_period && (
+                                            <span className="text-xs text-gray-500 block">
+                                                {current_academic_period.academic_year} {current_academic_period.semester}
+                                            </span>
+                                        )}
+                                    </label>
+                                    <select 
+                                        className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm"
+                                        value={enrollmentStatus}
+                                        onChange={(e) => setEnrollmentStatus(e.target.value)}
+                                    >
+                                        <option value="enrolled">Currently Enrolled</option>
+                                        <option value="not_enrolled">Not Enrolled</option>
+                                        <option value="all">All Students</option>
+                                    </select>
+                                </div>
                             </div>
                             <div className="flex gap-2">
                                 <Button onClick={handleFilterChange} className="flex-1 sm:flex-initial">
                                     Apply Filters
                                 </Button>
-                                {(educationLevel !== 'all' || status !== 'all' || yearLevel !== 'all' || studentType !== 'all') && (
+                                {(educationLevel !== 'all' || status !== 'all' || yearLevel !== 'all' || studentType !== 'all' || enrollmentStatus !== 'enrolled') && (
                                     <Button variant="outline" onClick={handleResetFilters}>
                                         Reset Filters
                                     </Button>
@@ -225,7 +249,6 @@ export default function StudentsIndex({ students, programs, filters, auth, on_ho
                                     <tr className="border-b">
                                         <th className="text-left py-3 px-4 text-xs font-semibold text-gray-700 uppercase">Student Info</th>
                                         <th className="text-left py-3 px-4 text-xs font-semibold text-gray-700 uppercase">Student Number</th>
-                                        <th className="text-left py-3 px-4 text-xs font-semibold text-gray-700 uppercase">Program</th>
                                         <th className="text-left py-3 px-4 text-xs font-semibold text-gray-700 uppercase">Current Section</th>
                                         <th className="text-left py-3 px-4 text-xs font-semibold text-gray-700 uppercase">Year Level</th>
                                         <th className="text-left py-3 px-4 text-xs font-semibold text-gray-700 uppercase">Type</th>
@@ -252,19 +275,8 @@ export default function StudentsIndex({ students, programs, filters, auth, on_ho
                                                 </span>
                                             </td>
                                             <td className="py-3 px-4">
-                                                <div>
-                                                    <div className="font-medium text-gray-900">
-                                                        {student.program?.program_name || student.program?.name || 'N/A'}
-                                                    </div>
-                                                    <div className="text-xs text-gray-500">
-                                                        {student.program?.program_code || ''}
-                                                        {student.track && ` - ${student.track}`}
-                                                    </div>
-                                                </div>
-                                            </td>
-                                            <td className="py-3 px-4">
                                                 <div className="font-medium text-blue-600">
-                                                    {formatSectionName(student.current_section)}
+                                                    {formatSectionName(student.current_section, student.is_currently_enrolled)}
                                                 </div>
                                                 {student.current_section && (
                                                     <div className="text-xs text-gray-500">
@@ -301,21 +313,11 @@ export default function StudentsIndex({ students, programs, filters, auth, on_ho
                                                     >
                                                         {student.user?.is_active ? 'Active' : 'Inactive'}
                                                     </Badge>
-                                                    {student.is_on_hold && (
-                                                        <Badge className="bg-yellow-100 text-yellow-800">
-                                                            On Hold • ₱{Number(student.hold_balance || 0).toFixed(2)}
-                                                        </Badge>
-                                                    )}
+                                                   
                                                 </div>
                                             </td>
                                             <td className="py-3 px-4">
                                                 <div className="flex justify-end gap-2">
-                                                    <Link href={route('registrar.payments.show', student.id)}>
-                                                        <Button size="sm" variant="outline" className="hover:bg-blue-50 hover:border-blue-300">
-                                                            Payments
-                                                        </Button>
-                                                    </Link>
-
                                                     <Button
                                                         size="sm"
                                                         variant="outline"
@@ -334,11 +336,7 @@ export default function StudentsIndex({ students, programs, filters, auth, on_ho
                                                         <Edit className="w-4 h-4" />
                                                     </Button>
 
-                                                    {student.is_on_hold && (
-                                                        <Button size="sm" onClick={() => clearHold(student.id)} className="border-yellow-400 text-yellow-700 hover:bg-yellow-50">
-                                                            Clear Hold
-                                                        </Button>
-                                                    )}
+                                                 
                                                 </div>
                                             </td>
                                         </tr>
