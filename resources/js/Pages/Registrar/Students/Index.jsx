@@ -4,7 +4,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Users, Search, Eye, Edit, Filter, UserPlus } from 'lucide-react'
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Users, Search, Eye, Edit, Filter, UserPlus, Mail, Phone, MapPin, Calendar, GraduationCap, User, CreditCard } from 'lucide-react'
 import { useState } from 'react'
 
 // Helper function to format section name
@@ -26,6 +28,10 @@ export default function StudentsIndex({ students, programs, filters, auth, on_ho
     const [yearLevel, setYearLevel] = useState(filters?.year_level || 'all')
     const [studentType, setStudentType] = useState(filters?.student_type || 'all')
     const [enrollmentStatus, setEnrollmentStatus] = useState(filters?.enrollment_status || 'enrolled')
+    const [selectedStudent, setSelectedStudent] = useState(null)
+    const [isViewModalOpen, setIsViewModalOpen] = useState(false)
+    const [isEditMode, setIsEditMode] = useState(false)
+    const [editFormData, setEditFormData] = useState({})
 
     const handleFilterChange = () => {
         router.get(route('registrar.students'), {
@@ -56,27 +62,123 @@ export default function StudentsIndex({ students, programs, filters, auth, on_ho
         student.user?.email?.toLowerCase().includes(searchTerm.toLowerCase())
     )
 
-    const getStatusColor = (isActive) => {
-        return isActive ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+    const getStatusColor = (status) => {
+        switch (status) {
+            case 'active':
+                return 'bg-green-100 text-green-800';
+            case 'inactive':
+                return 'bg-red-100 text-red-800';
+            case 'graduated':
+                return 'bg-blue-100 text-blue-800';
+            case 'dropped':
+                return 'bg-yellow-100 text-yellow-800';
+            default:
+                return 'bg-gray-100 text-gray-800';
+        }
+    }
+
+    const getStatusText = (status) => {
+        switch (status) {
+            case 'active':
+                return 'Active';
+            case 'inactive':
+                return 'Inactive';
+            case 'graduated':
+                return 'Graduated';
+            case 'dropped':
+                return 'Dropped';
+            default:
+                return status || 'Unknown';
+        }
     }
 
     const handleViewStudent = (studentId) => {
-        router.visit(`/registrar/students/${studentId}`)
+        const student = filteredStudents.find(s => s.id === studentId)
+        if (student) {
+            setSelectedStudent(student)
+            setEditFormData({
+                first_name: student.first_name || '',
+                last_name: student.last_name || '',
+                middle_name: student.middle_name || '',
+                birth_date: student.birth_date || '',
+                address: student.address || '',
+                street: student.street || '',
+                barangay: student.barangay || '',
+                city: student.city || '',
+                province: student.province || '',
+                zip_code: student.zip_code || '',
+                phone: student.phone || '',
+                email: student.user?.email || '',
+                parent_contact: student.parent_contact || '',
+                status: student.status || 'active',
+            })
+            setIsViewModalOpen(true)
+            setIsEditMode(false)
+        }
     }
 
     const handleEditStudent = (studentId) => {
-        router.visit(`/registrar/students/${studentId}/edit`)
+        const student = filteredStudents.find(s => s.id === studentId)
+        if (student) {
+            setSelectedStudent(student)
+            setEditFormData({
+                first_name: student.first_name || '',
+                last_name: student.last_name || '',
+                middle_name: student.middle_name || '',
+                birth_date: student.birth_date ? new Date(student.birth_date).toISOString().split('T')[0] : '',
+                address: student.address || '',
+                street: student.street || '',
+                barangay: student.barangay || '',
+                city: student.city || '',
+                province: student.province || '',
+                zip_code: student.zip_code || '',
+                phone: student.phone || '',
+                email: student.user?.email || '',
+                parent_contact: student.parent_contact || '',
+                program_id: student.program_id || '',
+                year_level: student.year_level || '',
+                student_type: student.student_type || 'regular',
+                education_level: student.education_level || '',
+                track: student.track || '',
+                strand: student.strand || '',
+                status: student.status || 'active',
+            })
+            setIsViewModalOpen(true)
+            setIsEditMode(true)
+        }
     }
 
-    const clearHold = (studentId) => {
-        if (!confirm('Clear hold for this student? Ensure payment is reconciled.')) return;
-
-        router.post(route('registrar.students.clear_hold', studentId), {}, {
+    const handleSaveStudent = () => {
+        router.put(route('registrar.students.update', selectedStudent.id), editFormData, {
             onSuccess: () => {
-                // reload current page to refresh counts
-                router.reload();
+                setIsEditMode(false)
+                setIsViewModalOpen(false)
+                router.reload()
+            },
+            onError: (errors) => {
+                console.error('Update failed:', errors)
             }
-        });
+        })
+    }
+
+    const handleCancelEdit = () => {
+        setIsEditMode(false)
+        setEditFormData({
+            first_name: selectedStudent.first_name || '',
+            last_name: selectedStudent.last_name || '',
+            middle_name: selectedStudent.middle_name || '',
+            birth_date: selectedStudent.birth_date ? new Date(selectedStudent.birth_date).toISOString().split('T')[0] : '',
+            address: selectedStudent.address || '',
+            street: selectedStudent.street || '',
+            barangay: selectedStudent.barangay || '',
+            city: selectedStudent.city || '',
+            province: selectedStudent.province || '',
+            zip_code: selectedStudent.zip_code || '',
+            phone: selectedStudent.phone || '',
+            email: selectedStudent.user?.email || '',
+            parent_contact: selectedStudent.parent_contact || '',
+            status: selectedStudent.status || 'active',
+        })
     }
 
     return (
@@ -165,6 +267,8 @@ export default function StudentsIndex({ students, programs, filters, auth, on_ho
                                         <option value="all">All Status</option>
                                         <option value="active">Active</option>
                                         <option value="inactive">Inactive</option>
+                                        <option value="graduated">Graduated</option>
+                                        <option value="dropped">Dropped</option>
                                     </select>
                                 </div>
                                 <div>
@@ -309,9 +413,9 @@ export default function StudentsIndex({ students, programs, filters, auth, on_ho
                                                 <div className="flex items-center gap-2">
                                                     <Badge 
                                                         variant="secondary"
-                                                        className={getStatusColor(student.user?.is_active)}
+                                                        className={getStatusColor(student.status)}
                                                     >
-                                                        {student.user?.is_active ? 'Active' : 'Inactive'}
+                                                        {getStatusText(student.status)}
                                                     </Badge>
                                                    
                                                 </div>
@@ -388,6 +492,422 @@ export default function StudentsIndex({ students, programs, filters, auth, on_ho
                     </CardContent>
                 </Card>
             </div>
+
+            {/* Student View/Edit Modal */}
+            <Dialog open={isViewModalOpen} onOpenChange={(open) => {
+                setIsViewModalOpen(open)
+                if (!open) {
+                    setIsEditMode(false)
+                }
+            }}>
+                <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+                    <DialogHeader>
+                        <div className="flex justify-between items-center">
+                            <div>
+                                <DialogTitle className="flex items-center gap-3">
+                                    <User className="w-6 h-6 text-purple-600" />
+                                    {isEditMode ? 'Edit Student' : 'Student Details'}
+                                </DialogTitle>
+                                <DialogDescription>
+                                    {isEditMode ? 'Update student information and settings' : 'View complete student information and enrollment details'}
+                                </DialogDescription>
+                            </div>
+                            {!isEditMode && (
+                                <Button
+                                    onClick={() => setIsEditMode(true)}
+                                    className="bg-green-600 hover:bg-green-700"
+                                >
+                                    <Edit className="w-4 h-4 mr-2" />
+                                    Edit
+                                </Button>
+                            )}
+                        </div>
+                    </DialogHeader>
+
+                    {selectedStudent && (
+                        <div className="space-y-6">
+                            {/* Basic Information */}
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <Card>
+                                    <CardHeader>
+                                        <CardTitle className="text-lg flex items-center gap-2">
+                                            <User className="w-5 h-5" />
+                                            Personal Information
+                                        </CardTitle>
+                                    </CardHeader>
+                                    <CardContent className="space-y-3">
+                                        {isEditMode ? (
+                                            <div className="grid grid-cols-1 gap-3">
+                                                <div className="grid grid-cols-2 gap-3">
+                                                    <div>
+                                                        <label className="text-sm font-medium text-gray-700">First Name</label>
+                                                        <Input
+                                                            value={editFormData.first_name}
+                                                            onChange={(e) => setEditFormData({...editFormData, first_name: e.target.value})}
+                                                        />
+                                                    </div>
+                                                    <div>
+                                                        <label className="text-sm font-medium text-gray-700">Last Name</label>
+                                                        <Input
+                                                            value={editFormData.last_name}
+                                                            onChange={(e) => setEditFormData({...editFormData, last_name: e.target.value})}
+                                                        />
+                                                    </div>
+                                                </div>
+                                                <div>
+                                                    <label className="text-sm font-medium text-gray-700">Middle Name</label>
+                                                    <Input
+                                                        value={editFormData.middle_name}
+                                                        onChange={(e) => setEditFormData({...editFormData, middle_name: e.target.value})}
+                                                    />
+                                                </div>
+                                                <div>
+                                                    <label className="text-sm font-medium text-gray-700">Email</label>
+                                                    <Input
+                                                        type="email"
+                                                        value={editFormData.email}
+                                                        onChange={(e) => setEditFormData({...editFormData, email: e.target.value})}
+                                                    />
+                                                </div>
+                                                <div>
+                                                    <label className="text-sm font-medium text-gray-700">Birth Date</label>
+                                                    <Input
+                                                        type="date"
+                                                        value={editFormData.birth_date}
+                                                        onChange={(e) => setEditFormData({...editFormData, birth_date: e.target.value})}
+                                                    />
+                                                </div>
+                                                <div>
+                                                    <label className="text-sm font-medium text-gray-700">Phone</label>
+                                                    <Input
+                                                        value={editFormData.phone}
+                                                        onChange={(e) => setEditFormData({...editFormData, phone: e.target.value})}
+                                                    />
+                                                </div>
+                                                <div>
+                                                    <label className="text-sm font-medium text-gray-700">Parent Contact</label>
+                                                    <Input
+                                                        value={editFormData.parent_contact}
+                                                        onChange={(e) => setEditFormData({...editFormData, parent_contact: e.target.value})}
+                                                    />
+                                                </div>
+                                                <div className="grid grid-cols-2 gap-3">
+                                                    <div>
+                                                        <label className="text-sm font-medium text-gray-700">Street</label>
+                                                        <Input
+                                                            value={editFormData.street}
+                                                            onChange={(e) => setEditFormData({...editFormData, street: e.target.value})}
+                                                        />
+                                                    </div>
+                                                    <div>
+                                                        <label className="text-sm font-medium text-gray-700">Barangay</label>
+                                                        <Input
+                                                            value={editFormData.barangay}
+                                                            onChange={(e) => setEditFormData({...editFormData, barangay: e.target.value})}
+                                                        />
+                                                    </div>
+                                                </div>
+                                                <div className="grid grid-cols-3 gap-3">
+                                                    <div>
+                                                        <label className="text-sm font-medium text-gray-700">City</label>
+                                                        <Input
+                                                            value={editFormData.city}
+                                                            onChange={(e) => setEditFormData({...editFormData, city: e.target.value})}
+                                                        />
+                                                    </div>
+                                                    <div>
+                                                        <label className="text-sm font-medium text-gray-700">Province</label>
+                                                        <Input
+                                                            value={editFormData.province}
+                                                            onChange={(e) => setEditFormData({...editFormData, province: e.target.value})}
+                                                        />
+                                                    </div>
+                                                    <div>
+                                                        <label className="text-sm font-medium text-gray-700">Zip Code</label>
+                                                        <Input
+                                                            value={editFormData.zip_code}
+                                                            onChange={(e) => setEditFormData({...editFormData, zip_code: e.target.value})}
+                                                        />
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        ) : (
+                                            <>
+                                                <div className="flex justify-between items-center">
+                                                    <span className="font-medium text-gray-600">Full Name:</span>
+                                                    <span className="font-semibold">
+                                                        {selectedStudent.first_name} {selectedStudent.middle_name} {selectedStudent.last_name}
+                                                    </span>
+                                                </div>
+                                                <div className="flex justify-between items-center">
+                                                    <span className="font-medium text-gray-600">Student Number:</span>
+                                                    <Badge variant="outline" className="font-mono">
+                                                        {selectedStudent.student_number}
+                                                    </Badge>
+                                                </div>
+                                                <div className="flex justify-between items-center">
+                                                    <span className="font-medium text-gray-600">Email:</span>
+                                                    <div className="flex items-center gap-1">
+                                                        <Mail className="w-4 h-4 text-gray-400" />
+                                                        <span>{selectedStudent.user?.email}</span>
+                                                    </div>
+                                                </div>
+                                                {selectedStudent.birth_date && (
+                                                    <div className="flex justify-between items-center">
+                                                        <span className="font-medium text-gray-600">Birth Date:</span>
+                                                        <div className="flex items-center gap-1">
+                                                            <Calendar className="w-4 h-4 text-gray-400" />
+                                                            <span>{new Date(selectedStudent.birth_date).toLocaleDateString()}</span>
+                                                        </div>
+                                                    </div>
+                                                )}
+                                                {selectedStudent.phone && (
+                                                    <div className="flex justify-between items-center">
+                                                        <span className="font-medium text-gray-600">Phone:</span>
+                                                        <div className="flex items-center gap-1">
+                                                            <Phone className="w-4 h-4 text-gray-400" />
+                                                            <span>{selectedStudent.phone}</span>
+                                                        </div>
+                                                    </div>
+                                                )}
+                                                {selectedStudent.address && (
+                                                    <div className="flex justify-between items-start">
+                                                        <span className="font-medium text-gray-600">Address:</span>
+                                                        <div className="flex items-start gap-1 max-w-xs">
+                                                            <MapPin className="w-4 h-4 text-gray-400 mt-0.5" />
+                                                            <span className="text-right">{selectedStudent.address}</span>
+                                                        </div>
+                                                    </div>
+                                                )}
+                                                {selectedStudent.parent_contact && (
+                                                    <div className="flex justify-between items-center">
+                                                        <span className="font-medium text-gray-600">Parent Contact:</span>
+                                                        <span>{selectedStudent.parent_contact}</span>
+                                                    </div>
+                                                )}
+                                            </>
+                                        )}
+                                    </CardContent>
+                                </Card>
+
+                                <Card>
+                                    <CardHeader>
+                                        <CardTitle className="text-lg flex items-center gap-2">
+                                            <GraduationCap className="w-5 h-5" />
+                                            Academic Information
+                                        </CardTitle>
+                                        {isEditMode && (
+                                            <p className="text-sm text-gray-500 mt-2">
+                                                Academic information cannot be edited for security reasons.
+                                            </p>
+                                        )}
+                                    </CardHeader>
+                                    <CardContent className="space-y-3">
+                                        {isEditMode ? (
+                                            <>
+                                                {selectedStudent.program?.program_code && (
+                                                    <div className="flex justify-between items-center">
+                                                        <span className="font-medium text-gray-600">Program Code:</span>
+                                                        <Badge variant="outline">{selectedStudent.program.program_code}</Badge>
+                                                    </div>
+                                                )}
+                                                <div className="flex justify-between items-center">
+                                                    <span className="font-medium text-gray-600">Education Level:</span>
+                                                    <Badge variant="secondary" className="capitalize">
+                                                        {selectedStudent.education_level}
+                                                    </Badge>
+                                                </div>
+                                                <div className="flex justify-between items-center">
+                                                    <span className="font-medium text-gray-600">Year Level:</span>
+                                                    <Badge variant="outline">
+                                                        {selectedStudent.education_level === 'college' 
+                                                            ? `${selectedStudent.current_year_level || selectedStudent.year_level} Year`
+                                                            : `Grade ${selectedStudent.year_level}`
+                                                        }
+                                                    </Badge>
+                                                </div>
+                                                <div className="flex justify-between items-center">
+                                                    <span className="font-medium text-gray-600">Student Type:</span>
+                                                    <Badge 
+                                                        variant="secondary"
+                                                        className={selectedStudent.student_type === 'regular' 
+                                                            ? 'bg-blue-100 text-blue-800' 
+                                                            : 'bg-orange-100 text-orange-800'
+                                                        }
+                                                    >
+                                                        {selectedStudent.student_type}
+                                                    </Badge>
+                                                </div>
+                                                {selectedStudent.track && (
+                                                    <div className="flex justify-between items-center">
+                                                        <span className="font-medium text-gray-600">Track:</span>
+                                                        <span>{selectedStudent.track}</span>
+                                                    </div>
+                                                )}
+                                                {selectedStudent.strand && (
+                                                    <div className="flex justify-between items-center">
+                                                        <span className="font-medium text-gray-600">Strand:</span>
+                                                        <span>{selectedStudent.strand}</span>
+                                                    </div>
+                                                )}
+                                                <div className="flex justify-between items-center">
+                                                    <span className="font-medium text-gray-600">Status:</span>
+                                                    <Select
+                                                        value={editFormData.status}
+                                                        onValueChange={(value) => setEditFormData({...editFormData, status: value})}
+                                                    >
+                                                        <SelectTrigger className="w-32">
+                                                            <SelectValue />
+                                                        </SelectTrigger>
+                                                        <SelectContent>
+                                                            <SelectItem value="active">
+                                                                <div className="flex items-center gap-2">
+                                                                    <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                                                                    Active
+                                                                </div>
+                                                            </SelectItem>
+                                                            <SelectItem value="inactive">
+                                                                <div className="flex items-center gap-2">
+                                                                    <div className="w-2 h-2 bg-red-500 rounded-full"></div>
+                                                                    Inactive
+                                                                </div>
+                                                            </SelectItem>
+                                                            <SelectItem value="graduated">
+                                                                <div className="flex items-center gap-2">
+                                                                    <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                                                                    Graduated
+                                                                </div>
+                                                            </SelectItem>
+                                                            <SelectItem value="dropped">
+                                                                <div className="flex items-center gap-2">
+                                                                    <div className="w-2 h-2 bg-yellow-500 rounded-full"></div>
+                                                                    Dropped
+                                                                </div>
+                                                            </SelectItem>
+                                                        </SelectContent>
+                                                    </Select>
+                                                </div>
+                                                {selectedStudent.enrolled_date && (
+                                                    <div className="flex justify-between items-center">
+                                                        <span className="font-medium text-gray-600">Enrolled Date:</span>
+                                                        <span>{new Date(selectedStudent.enrolled_date).toLocaleDateString()}</span>
+                                                    </div>
+                                                )}
+                                            </>
+                                        ) : (
+                                            <>
+                                                {selectedStudent.program?.program_code && (
+                                                    <div className="flex justify-between items-center">
+                                                        <span className="font-medium text-gray-600">Program Code:</span>
+                                                        <Badge variant="outline">{selectedStudent.program.program_code}</Badge>
+                                                    </div>
+                                                )}
+                                                <div className="flex justify-between items-center">
+                                                    <span className="font-medium text-gray-600">Education Level:</span>
+                                                    <Badge variant="secondary" className="capitalize">
+                                                        {selectedStudent.education_level}
+                                                    </Badge>
+                                                </div>
+                                                <div className="flex justify-between items-center">
+                                                    <span className="font-medium text-gray-600">Year Level:</span>
+                                                    <Badge variant="outline">
+                                                        {selectedStudent.education_level === 'college' 
+                                                            ? `${selectedStudent.current_year_level || selectedStudent.year_level} Year`
+                                                            : `Grade ${selectedStudent.year_level}`
+                                                        }
+                                                    </Badge>
+                                                </div>
+                                                <div className="flex justify-between items-center">
+                                                    <span className="font-medium text-gray-600">Student Type:</span>
+                                                    <Badge 
+                                                        variant="secondary"
+                                                        className={selectedStudent.student_type === 'regular' 
+                                                            ? 'bg-blue-100 text-blue-800' 
+                                                            : 'bg-orange-100 text-orange-800'
+                                                        }
+                                                    >
+                                                        {selectedStudent.student_type}
+                                                    </Badge>
+                                                </div>
+                                                {selectedStudent.track && (
+                                                    <div className="flex justify-between items-center">
+                                                        <span className="font-medium text-gray-600">Track:</span>
+                                                        <span>{selectedStudent.track}</span>
+                                                    </div>
+                                                )}
+                                                {selectedStudent.strand && (
+                                                    <div className="flex justify-between items-center">
+                                                        <span className="font-medium text-gray-600">Strand:</span>
+                                                        <span>{selectedStudent.strand}</span>
+                                                    </div>
+                                                )}
+                                                <div className="flex justify-between items-center">
+                                                    <span className="font-medium text-gray-600">Status:</span>
+                                                    <Badge className={getStatusColor(selectedStudent.status)}>
+                                                        {getStatusText(selectedStudent.status)}
+                                                    </Badge>
+                                                </div>
+                                                {selectedStudent.enrolled_date && (
+                                                    <div className="flex justify-between items-center">
+                                                        <span className="font-medium text-gray-600">Enrolled Date:</span>
+                                                        <span>{new Date(selectedStudent.enrolled_date).toLocaleDateString()}</span>
+                                                    </div>
+                                                )}
+                                            </>
+                                        )}
+                                    </CardContent>
+                                </Card>
+                            </div>
+
+                            {/* Enrollment Information */}
+                            <Card>
+                                <CardHeader>
+                                    <CardTitle className="text-lg">Current Enrollment</CardTitle>
+                                </CardHeader>
+                                <CardContent>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <div>
+                                            <span className="font-medium text-gray-600">Current Section:</span>
+                                            <div className="mt-1">
+                                                <span className="font-semibold text-blue-600">
+                                                    {formatSectionName(selectedStudent.current_section, selectedStudent.is_currently_enrolled)}
+                                                </span>
+                                                {selectedStudent.current_section && (
+                                                    <div className="text-sm text-gray-500 mt-1">
+                                                        {selectedStudent.current_section.academic_year} - {selectedStudent.current_section.semester}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <span className="font-medium text-gray-600">Enrollment Status:</span>
+                                            <div className="mt-1">
+                                                <Badge 
+                                                    variant={selectedStudent.is_currently_enrolled ? "default" : "secondary"}
+                                                    className={selectedStudent.is_currently_enrolled ? "bg-green-100 text-green-800" : ""}
+                                                >
+                                                    {selectedStudent.is_currently_enrolled ? "Currently Enrolled" : "Not Enrolled"}
+                                                </Badge>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </CardContent>
+                            </Card>
+                        </div>
+                    )}
+
+                    {isEditMode && (
+                        <div className="flex justify-end gap-3 pt-4 border-t">
+                            <Button variant="outline" onClick={handleCancelEdit}>
+                                Cancel
+                            </Button>
+                            <Button onClick={handleSaveStudent} className="bg-green-600 hover:bg-green-700">
+                                Save Changes
+                            </Button>
+                        </div>
+                    )}
+                </DialogContent>
+            </Dialog>
         </AuthenticatedLayout>
     )
 }

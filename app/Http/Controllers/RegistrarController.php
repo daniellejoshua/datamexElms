@@ -64,10 +64,7 @@ class RegistrarController extends Controller
                 $q->where('education_level', $educationLevel);
             })
             ->when($status !== 'all', function ($q) use ($status) {
-                $isActive = $status === 'active';
-                $q->whereHas('user', function ($query) use ($isActive) {
-                    $query->where('is_active', $isActive);
-                });
+                $q->where('status', $status);
             })
             ->when($yearLevel !== 'all', function ($q) use ($yearLevel) {
                 $q->where('year_level', $yearLevel);
@@ -574,6 +571,103 @@ class RegistrarController extends Controller
 
             return back()
                 ->withErrors(['error' => 'Failed to register student: '.$e->getMessage()])
+                ->withInput();
+        }
+    }
+
+    /**
+     * Show the form for editing a student.
+     */
+    public function edit(Student $student): Response
+    {
+        $student->load(['user', 'program', 'currentEnrollment.section.program']);
+
+        return Inertia::render('Registrar/Students/Edit', [
+            'student' => $student,
+            'programs' => Program::all(),
+        ]);
+    }
+
+    /**
+     * Update the specified student.
+     */
+    public function update(Request $request, Student $student)
+    {
+        $validated = $request->validate([
+            // Personal Information only (academic info cannot be edited)
+            'first_name' => ['required', 'string', 'max:255'],
+            'last_name' => ['required', 'string', 'max:255'],
+            'middle_name' => ['nullable', 'string', 'max:255'],
+            'birth_date' => ['required', 'date'],
+            'address' => ['nullable', 'string'],
+            'street' => ['nullable', 'string', 'max:255'],
+            'barangay' => ['nullable', 'string', 'max:255'],
+            'city' => ['nullable', 'string', 'max:255'],
+            'province' => ['nullable', 'string', 'max:255'],
+            'zip_code' => ['nullable', 'string', 'max:10'],
+            'phone' => ['nullable', 'string', 'max:20'],
+            'email' => ['required', 'email', Rule::unique('users')->ignore($student->user_id)],
+            'parent_contact' => ['nullable', 'string', 'max:20'],
+
+            // Status only (academic fields cannot be edited)
+            'status' => ['required', Rule::in(['active', 'inactive', 'graduated', 'dropped'])],
+        ]);
+
+        try {
+            DB::beginTransaction();
+
+            // Update user information
+            $student->user->update([
+                'name' => trim($validated['first_name'] . ' ' . $validated['last_name']),
+                'email' => $validated['email'],
+            ]);
+
+            // Concatenate address parts if provided
+            $address = $validated['address'] ?? '';
+            if (empty($address)) {
+                $addressParts = array_filter([
+                    $validated['street'] ?? null,
+                    $validated['barangay'] ?? null,
+                    $validated['city'] ?? null,
+                    $validated['province'] ?? null,
+                    $validated['zip_code'] ?? null,
+                ]);
+                $address = implode(', ', $addressParts);
+            }
+
+            // Update student information (only personal info and status)
+            $student->update([
+                'first_name' => $validated['first_name'],
+                'last_name' => $validated['last_name'],
+                'middle_name' => $validated['middle_name'],
+                'birth_date' => $validated['birth_date'],
+                'address' => $address,
+                'street' => $validated['street'],
+                'barangay' => $validated['barangay'],
+                'city' => $validated['city'],
+                'province' => $validated['province'],
+                'zip_code' => $validated['zip_code'],
+                'phone' => $validated['phone'],
+                'parent_contact' => $validated['parent_contact'],
+                'status' => $validated['status'],
+            ]);
+
+            // Deactivate user account if student status is dropped or inactive
+            if (in_array($validated['status'], ['dropped', 'inactive'])) {
+                $student->user->update(['is_active' => false]);
+            } elseif ($validated['status'] === 'active') {
+                // Reactivate user account if status is changed to active
+                $student->user->update(['is_active' => true]);
+            }
+
+            DB::commit();
+
+            return redirect()->route('registrar.students')->with('success', 'Student updated successfully.');
+        } catch (\Exception $e) {
+            DB::rollBack();
+
+            return back()
+                ->withErrors(['error' => 'Failed to update student: ' . $e->getMessage()])
                 ->withInput();
         }
     }

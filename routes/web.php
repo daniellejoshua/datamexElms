@@ -40,6 +40,8 @@ Route::middleware(['auth', 'verified', 'role:registrar'])->prefix('registrar')->
     Route::get('/students', [RegistrarController::class, 'students'])->name('students');
     Route::get('/students/create', [RegistrarController::class, 'create'])->name('students.create');
     Route::post('/students', [RegistrarController::class, 'store'])->name('students.store');
+    Route::get('/students/{student}/edit', [RegistrarController::class, 'edit'])->name('students.edit');
+    Route::put('/students/{student}', [RegistrarController::class, 'update'])->name('students.update');
     Route::get('/teachers', [RegistrarController::class, 'teachers'])->name('teachers');
     Route::get('/sections', [RegistrarController::class, 'sections'])->name('sections');
     Route::get('/enrollments', [RegistrarController::class, 'students'])->name('enrollments.index');
