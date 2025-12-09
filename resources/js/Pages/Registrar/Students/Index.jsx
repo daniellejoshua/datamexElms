@@ -8,6 +8,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Users, Search, Eye, Edit, Filter, UserPlus, Mail, Phone, MapPin, Calendar, GraduationCap, User, CreditCard } from 'lucide-react'
 import { useState } from 'react'
+import { ChevronDown, ChevronUp } from 'lucide-react'
 
 // Helper function to format section name
 const formatSectionName = (section, isCurrentlyEnrolled) => {
@@ -32,6 +33,7 @@ export default function StudentsIndex({ students, programs, filters, auth, on_ho
     const [isViewModalOpen, setIsViewModalOpen] = useState(false)
     const [isEditMode, setIsEditMode] = useState(false)
     const [editFormData, setEditFormData] = useState({})
+    const [isFiltersExpanded, setIsFiltersExpanded] = useState(false)
 
     const handleFilterChange = () => {
         router.get(route('registrar.students'), {
@@ -162,23 +164,7 @@ export default function StudentsIndex({ students, programs, filters, auth, on_ho
     }
 
     const handleCancelEdit = () => {
-        setIsEditMode(false)
-        setEditFormData({
-            first_name: selectedStudent.first_name || '',
-            last_name: selectedStudent.last_name || '',
-            middle_name: selectedStudent.middle_name || '',
-            birth_date: selectedStudent.birth_date ? new Date(selectedStudent.birth_date).toISOString().split('T')[0] : '',
-            address: selectedStudent.address || '',
-            street: selectedStudent.street || '',
-            barangay: selectedStudent.barangay || '',
-            city: selectedStudent.city || '',
-            province: selectedStudent.province || '',
-            zip_code: selectedStudent.zip_code || '',
-            phone: selectedStudent.phone || '',
-            email: selectedStudent.user?.email || '',
-            parent_contact: selectedStudent.parent_contact || '',
-            status: selectedStudent.status || 'active',
-        })
+        setIsViewModalOpen(false)
     }
 
     return (
@@ -200,135 +186,167 @@ export default function StudentsIndex({ students, programs, filters, auth, on_ho
             <Head title="Student Management" />
 
             <div className="space-y-6">
-                {/* On-hold summary */}
-                {/* If controller provided on_hold_count prop, show it */}
-                {typeof on_hold_count !== 'undefined' && (
-                    <Card>
-                        <CardContent>
-                            <div className="flex items-center justify-between">
-                                <div>
-                                    <h3 className="text-sm font-semibold">Students on Hold</h3>
-                                    <p className="text-xs text-gray-500">Students prevented from enrolling due to unpaid balances</p>
-                                </div>
-                                <div className="text-right">
-                                    <div className="text-lg font-bold text-yellow-700">{on_hold_count}</div>
-                                </div>
-                            </div>
-                        </CardContent>
-                    </Card>
-                )}
-                {/* Search and Filters */}
+                {/* Search and Filters - Collapsible */}
                 <Card>
-                    <CardHeader>
+                    <CardHeader className="pb-3">
                         <div className="flex items-center justify-between">
                             <div className="flex items-center gap-2">
                                 <Filter className="w-5 h-5 text-purple-600" />
                                 <CardTitle className="text-lg">Search & Filter Students</CardTitle>
                             </div>
-                            <Link href={route('registrar.students.create')}>
-                                <Button className="gap-2">
-                                    <UserPlus className="w-4 h-4" />
-                                    Add Student
+                            <div className="flex items-center gap-2">
+                                <Link href={route('registrar.students.create')}>
+                                    <Button size="sm" className="gap-2">
+                                        <UserPlus className="w-4 h-4" />
+                                        Add Student
+                                    </Button>
+                                </Link>
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => setIsFiltersExpanded(!isFiltersExpanded)}
+                                    className="gap-2"
+                                >
+                                    {isFiltersExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                                    {isFiltersExpanded ? 'Hide' : 'Show'} Filters
                                 </Button>
-                            </Link>
+                            </div>
                         </div>
                     </CardHeader>
-                    <CardContent>
-                        <div className="flex flex-col gap-4">
-                            <div className="relative flex-1">
-                                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
-                                <Input
-                                    placeholder="Search by name, student number, or email..."
-                                    value={searchTerm}
-                                    onChange={(e) => setSearchTerm(e.target.value)}
-                                    className="pl-10"
-                                />
-                            </div>
-                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
-                                <div>
-                                    <label className="text-xs font-medium text-gray-700 mb-1 block">Education Level</label>
-                                    <select 
-                                        className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm"
-                                        value={educationLevel}
-                                        onChange={(e) => setEducationLevel(e.target.value)}
-                                    >
-                                        <option value="all">All Levels</option>
-                                        <option value="college">College</option>
-                                        <option value="shs">Senior High School</option>
-                                    </select>
+                    {isFiltersExpanded && (
+                        <CardContent className="pt-0">
+                            <div className="space-y-6">
+                                {/* Filter Grid */}
+                                <div className="space-y-4">
+                                    <h4 className="text-sm font-medium text-gray-900 flex items-center gap-2">
+                                        <Filter className="w-4 h-4" />
+                                        Advanced Filters
+                                    </h4>
+                                    {/* Search Input */}
+                                    <div className="space-y-1.5">
+                                        <label className="text-xs font-medium text-gray-600 uppercase tracking-wide">Search Students</label>
+                                        <Input
+                                            type="text"
+                                            placeholder="Search by name, student number, or email..."
+                                            value={searchTerm}
+                                            onChange={(e) => setSearchTerm(e.target.value)}
+                                            className="h-8"
+                                        />
+                                    </div>
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-3">
+                                        <div className="space-y-1.5">
+                                            <label className="text-xs font-medium text-gray-600 uppercase tracking-wide">Education Level</label>
+                                            <Select value={educationLevel} onValueChange={setEducationLevel}>
+                                                <SelectTrigger className="w-full h-8">
+                                                    <SelectValue placeholder="All Levels" />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    <SelectItem value="all">All Levels</SelectItem>
+                                                    <SelectItem value="college">College</SelectItem>
+                                                    <SelectItem value="shs">Senior High School</SelectItem>
+                                                </SelectContent>
+                                            </Select>
+                                        </div>
+
+                                        <div className="space-y-1.5">
+                                            <label className="text-xs font-medium text-gray-600 uppercase tracking-wide">Status</label>
+                                            <Select value={status} onValueChange={setStatus}>
+                                                <SelectTrigger className="w-full h-8">
+                                                    <SelectValue placeholder="All Status" />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    <SelectItem value="all">All Status</SelectItem>
+                                                    <SelectItem value="active">
+                                                        <div className="flex items-center gap-2">
+                                                            <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                                                            Active
+                                                        </div>
+                                                    </SelectItem>
+                                                    <SelectItem value="inactive">
+                                                        <div className="flex items-center gap-2">
+                                                            <div className="w-2 h-2 bg-red-500 rounded-full"></div>
+                                                            Inactive
+                                                        </div>
+                                                    </SelectItem>
+                                                    <SelectItem value="graduated">
+                                                        <div className="flex items-center gap-2">
+                                                            <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                                                            Graduated
+                                                        </div>
+                                                    </SelectItem>
+                                                    <SelectItem value="dropped">
+                                                        <div className="flex items-center gap-2">
+                                                            <div className="w-2 h-2 bg-yellow-500 rounded-full"></div>
+                                                            Dropped
+                                                        </div>
+                                                    </SelectItem>
+                                                </SelectContent>
+                                            </Select>
+                                        </div>
+
+                                        <div className="space-y-1.5">
+                                            <label className="text-xs font-medium text-gray-600 uppercase tracking-wide">Student Type</label>
+                                            <Select value={studentType} onValueChange={setStudentType}>
+                                                <SelectTrigger className="w-full h-8">
+                                                    <SelectValue placeholder="All Types" />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    <SelectItem value="all">All Types</SelectItem>
+                                                    <SelectItem value="regular">Regular</SelectItem>
+                                                    <SelectItem value="irregular">Irregular</SelectItem>
+                                                </SelectContent>
+                                            </Select>
+                                        </div>
+
+                                        <div className="space-y-1.5">
+                                            <label className="text-xs font-medium text-gray-600 uppercase tracking-wide">Year Level</label>
+                                            <Select value={yearLevel} onValueChange={setYearLevel}>
+                                                <SelectTrigger className="w-full h-8">
+                                                    <SelectValue placeholder="All Years" />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    <SelectItem value="all">All Years</SelectItem>
+                                                    <SelectItem value="1">1st Year / Grade 11</SelectItem>
+                                                    <SelectItem value="2">2nd Year / Grade 12</SelectItem>
+                                                    <SelectItem value="3">3rd Year</SelectItem>
+                                                    <SelectItem value="4">4th Year</SelectItem>
+                                                </SelectContent>
+                                            </Select>
+                                        </div>
+
+                                        <div className="space-y-1.5">
+                                            <label className="text-xs font-medium text-gray-600 uppercase tracking-wide">
+                                                Enrollment Status
+                                            </label>
+                                            <Select value={enrollmentStatus} onValueChange={setEnrollmentStatus}>
+                                                <SelectTrigger className="w-full h-8">
+                                                    <SelectValue placeholder="Currently Enrolled" />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    <SelectItem value="enrolled">Currently Enrolled</SelectItem>
+                                                    <SelectItem value="not_enrolled">Not Enrolled</SelectItem>
+                                                    <SelectItem value="all">All Students</SelectItem>
+                                                </SelectContent>
+                                            </Select>
+                                        </div>
+                                    </div>
                                 </div>
-                                <div>
-                                    <label className="text-xs font-medium text-gray-700 mb-1 block">Status</label>
-                                    <select 
-                                        className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm"
-                                        value={status}
-                                        onChange={(e) => setStatus(e.target.value)}
-                                    >
-                                        <option value="all">All Status</option>
-                                        <option value="active">Active</option>
-                                        <option value="inactive">Inactive</option>
-                                        <option value="graduated">Graduated</option>
-                                        <option value="dropped">Dropped</option>
-                                    </select>
-                                </div>
-                                <div>
-                                    <label className="text-xs font-medium text-gray-700 mb-1 block">Student Type</label>
-                                    <select 
-                                        className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm"
-                                        value={studentType}
-                                        onChange={(e) => setStudentType(e.target.value)}
-                                    >
-                                        <option value="all">All Types</option>
-                                        <option value="regular">Regular</option>
-                                        <option value="irregular">Irregular</option>
-                                    </select>
-                                </div>
-                                <div>
-                                    <label className="text-xs font-medium text-gray-700 mb-1 block">Year Level</label>
-                                    <select 
-                                        className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm"
-                                        value={yearLevel}
-                                        onChange={(e) => setYearLevel(e.target.value)}
-                                    >
-                                        <option value="all">All Years</option>
-                                        <option value="1">1st Year / Grade 11</option>
-                                        <option value="2">2nd Year / Grade 12</option>
-                                        <option value="3">3rd Year</option>
-                                        <option value="4">4th Year</option>
-                                    </select>
-                                </div>
-                                <div>
-                                    <label className="text-xs font-medium text-gray-700 mb-1 block">
-                                        Enrollment Status
-                                        {current_academic_period && (
-                                            <span className="text-xs text-gray-500 block">
-                                                {current_academic_period.academic_year} {current_academic_period.semester}
-                                            </span>
-                                        )}
-                                    </label>
-                                    <select 
-                                        className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm"
-                                        value={enrollmentStatus}
-                                        onChange={(e) => setEnrollmentStatus(e.target.value)}
-                                    >
-                                        <option value="enrolled">Currently Enrolled</option>
-                                        <option value="not_enrolled">Not Enrolled</option>
-                                        <option value="all">All Students</option>
-                                    </select>
-                                </div>
-                            </div>
-                            <div className="flex gap-2">
-                                <Button onClick={handleFilterChange} className="flex-1 sm:flex-initial">
-                                    Apply Filters
-                                </Button>
-                                {(educationLevel !== 'all' || status !== 'all' || yearLevel !== 'all' || studentType !== 'all' || enrollmentStatus !== 'enrolled') && (
-                                    <Button variant="outline" onClick={handleResetFilters}>
-                                        Reset Filters
+
+                                {/* Action Buttons */}
+                                <div className="flex flex-col sm:flex-row gap-3 pt-4 border-t">
+                                    <Button onClick={handleFilterChange} className="flex-1 sm:flex-initial">
+                                        <Filter className="w-4 h-4 mr-2" />
+                                        Apply Filters
                                     </Button>
-                                )}
+                                    {(educationLevel !== 'all' || status !== 'all' || yearLevel !== 'all' || studentType !== 'all' || enrollmentStatus !== 'enrolled') && (
+                                        <Button variant="outline" onClick={handleResetFilters} className="flex-1 sm:flex-initial">
+                                            Reset All Filters
+                                        </Button>
+                                    )}
+                                </div>
                             </div>
-                        </div>
-                    </CardContent>
+                        </CardContent>
+                    )}
                 </Card>
 
                 {/* Students List */}
@@ -346,122 +364,125 @@ export default function StudentsIndex({ students, programs, filters, auth, on_ho
                             </div>
                         </div>
                     </CardHeader>
-                    <CardContent>
-                        <div className="overflow-x-auto">
-                            <table className="w-full">
-                                <thead className="bg-gray-50">
-                                    <tr className="border-b">
-                                        <th className="text-left py-3 px-4 text-xs font-semibold text-gray-700 uppercase">Student Info</th>
-                                        <th className="text-left py-3 px-4 text-xs font-semibold text-gray-700 uppercase">Student Number</th>
-                                        <th className="text-left py-3 px-4 text-xs font-semibold text-gray-700 uppercase">Current Section</th>
-                                        <th className="text-left py-3 px-4 text-xs font-semibold text-gray-700 uppercase">Year Level</th>
-                                        <th className="text-left py-3 px-4 text-xs font-semibold text-gray-700 uppercase">Type</th>
-                                        <th className="text-left py-3 px-4 text-xs font-semibold text-gray-700 uppercase">Status</th>
-                                        <th className="text-right py-3 px-4 text-xs font-semibold text-gray-700 uppercase">Actions</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {filteredStudents.map((student) => (
-                                        <tr key={student.id} className="border-b hover:bg-gray-50 transition-colors">
-                                            <td className="py-3 px-4">
-                                                <div>
-                                                    <div className="font-semibold text-gray-900">
-                                                        {student.first_name} {student.middle_name} {student.last_name}
-                                                    </div>
-                                                    <div className="text-sm text-gray-500">
-                                                        {student.user?.email}
-                                                    </div>
-                                                </div>
-                                            </td>
-                                            <td className="py-3 px-4">
-                                                <span className="font-mono text-sm font-medium bg-gray-100 px-2 py-1 rounded">
-                                                    {student.student_number}
-                                                </span>
-                                            </td>
-                                            <td className="py-3 px-4">
-                                                <div className="font-medium text-blue-600">
-                                                    {formatSectionName(student.current_section, student.is_currently_enrolled)}
-                                                </div>
-                                                {student.current_section && (
-                                                    <div className="text-xs text-gray-500">
-                                                        {student.current_section.academic_year} - {student.current_section.semester}
-                                                    </div>
-                                                )}
-                                            </td>
-                                            <td className="py-3 px-4">
-                                                <Badge variant="outline" className="font-medium">
-                                                    {student.education_level === 'college' 
-                                                        ? `${student.current_year_level || student.year_level} Year`
-                                                        : `Grade ${student.year_level}`
-                                                    }
-                                                </Badge>
-                                            </td>
-                                            <td className="py-3 px-4">
-                                                {student.student_type && (
-                                                    <Badge 
-                                                        variant="secondary"
-                                                        className={student.student_type === 'regular' 
-                                                            ? 'bg-blue-100 text-blue-800' 
-                                                            : 'bg-orange-100 text-orange-800'
-                                                        }
-                                                    >
-                                                        {student.student_type}
-                                                    </Badge>
-                                                )}
-                                            </td>
-                                            <td className="py-3 px-4">
-                                                <div className="flex items-center gap-2">
-                                                    <Badge 
-                                                        variant="secondary"
-                                                        className={getStatusColor(student.status)}
-                                                    >
-                                                        {getStatusText(student.status)}
-                                                    </Badge>
-                                                   
-                                                </div>
-                                            </td>
-                                            <td className="py-3 px-4">
-                                                <div className="flex justify-end gap-2">
-                                                    <Button
-                                                        size="sm"
-                                                        variant="outline"
-                                                        onClick={() => handleViewStudent(student.id)}
-                                                        className="hover:bg-blue-50 hover:border-blue-300"
-                                                    >
-                                                        <Eye className="w-4 h-4" />
-                                                    </Button>
-
-                                                    <Button
-                                                        size="sm"
-                                                        variant="outline"
-                                                        onClick={() => handleEditStudent(student.id)}
-                                                        className="hover:bg-green-50 hover:border-green-300"
-                                                    >
-                                                        <Edit className="w-4 h-4" />
-                                                    </Button>
-
-                                                 
-                                                </div>
-                                            </td>
+                    <CardContent className="p-0">
+                        {/* Table with fixed height */}
+                        <div className="max-h-96 overflow-y-auto">
+                            <div className="overflow-x-auto">
+                                <table className="w-full">
+                                    <thead className="bg-gray-50 sticky top-0 z-10">
+                                        <tr className="border-b">
+                                            <th className="text-left py-3 px-6 text-xs font-semibold text-gray-700 uppercase">Student Info</th>
+                                            <th className="text-left py-3 px-4 text-xs font-semibold text-gray-700 uppercase">Student Number</th>
+                                            <th className="text-left py-3 px-4 text-xs font-semibold text-gray-700 uppercase">Current Section</th>
+                                            <th className="text-left py-3 px-4 text-xs font-semibold text-gray-700 uppercase">Year Level</th>
+                                            <th className="text-left py-3 px-4 text-xs font-semibold text-gray-700 uppercase">Type</th>
+                                            <th className="text-left py-3 px-4 text-xs font-semibold text-gray-700 uppercase">Status</th>
+                                            <th className="text-right py-3 px-6 text-xs font-semibold text-gray-700 uppercase">Actions</th>
                                         </tr>
-                                    ))}
-                                </tbody>
-                            </table>
+                                    </thead>
+                                    <tbody>
+                                        {filteredStudents.map((student) => (
+                                            <tr key={student.id} className="border-b hover:bg-gray-50 transition-colors">
+                                                <td className="py-3 px-6">
+                                                    <div>
+                                                        <div className="font-semibold text-gray-900">
+                                                            {student.first_name} {student.middle_name} {student.last_name}
+                                                        </div>
+                                                        <div className="text-sm text-gray-500">
+                                                            {student.user?.email}
+                                                        </div>
+                                                    </div>
+                                                </td>
+                                                <td className="py-3 px-4">
+                                                    <span className="font-mono text-sm font-medium bg-gray-100 px-2 py-1 rounded">
+                                                        {student.student_number}
+                                                    </span>
+                                                </td>
+                                                <td className="py-3 px-4">
+                                                    <div className="font-medium text-blue-600">
+                                                        {formatSectionName(student.current_section, student.is_currently_enrolled)}
+                                                    </div>
+                                                    {student.current_section && (
+                                                        <div className="text-xs text-gray-500">
+                                                            {student.current_section.academic_year} - {student.current_section.semester}
+                                                        </div>
+                                                    )}
+                                                </td>
+                                                <td className="py-3 px-4">
+                                                    <Badge variant="outline" className="font-medium">
+                                                        {student.education_level === 'college' 
+                                                            ? `${student.current_year_level || student.year_level} Year`
+                                                            : `Grade ${student.year_level}`
+                                                        }
+                                                    </Badge>
+                                                </td>
+                                                <td className="py-3 px-4">
+                                                    {student.student_type && (
+                                                        <Badge 
+                                                            variant="secondary"
+                                                            className={student.student_type === 'regular' 
+                                                                ? 'bg-blue-100 text-blue-800' 
+                                                                : 'bg-orange-100 text-orange-800'
+                                                            }
+                                                        >
+                                                            {student.student_type}
+                                                        </Badge>
+                                                    )}
+                                                </td>
+                                                <td className="py-3 px-4">
+                                                    <div className="flex items-center gap-2">
+                                                        <Badge 
+                                                            variant="secondary"
+                                                            className={getStatusColor(student.status)}
+                                                        >
+                                                            {getStatusText(student.status)}
+                                                        </Badge>
+                                                       
+                                                    </div>
+                                                </td>
+                                                <td className="py-3 px-6">
+                                                    <div className="flex justify-end gap-2">
+                                                        <Button
+                                                            size="sm"
+                                                            variant="outline"
+                                                            onClick={() => handleViewStudent(student.id)}
+                                                            className="hover:bg-blue-50 hover:border-blue-300"
+                                                        >
+                                                            <Eye className="w-4 h-4" />
+                                                        </Button>
 
-                            {filteredStudents.length === 0 && (
-                                <div className="text-center py-8">
-                                    <Users className="mx-auto h-12 w-12 text-gray-400" />
-                                    <h3 className="mt-2 text-sm font-medium text-gray-900">No students found</h3>
-                                    <p className="mt-1 text-sm text-gray-500">
-                                        {searchTerm ? 'Try adjusting your search criteria.' : 'Get started by adding a new student.'}
-                                    </p>
-                                </div>
-                            )}
+                                                        <Button
+                                                            size="sm"
+                                                            variant="outline"
+                                                            onClick={() => handleEditStudent(student.id)}
+                                                            className="hover:bg-green-50 hover:border-green-300"
+                                                        >
+                                                            <Edit className="w-4 h-4" />
+                                                        </Button>
+
+                                                     
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+
+                                {filteredStudents.length === 0 && (
+                                    <div className="text-center py-12">
+                                        <Users className="mx-auto h-12 w-12 text-gray-400" />
+                                        <h3 className="mt-2 text-sm font-medium text-gray-900">No students found</h3>
+                                        <p className="mt-1 text-sm text-gray-500">
+                                            {searchTerm ? 'Try adjusting your search criteria.' : 'Get started by adding a new student.'}
+                                        </p>
+                                    </div>
+                                )}
+                            </div>
                         </div>
 
                         {/* Pagination */}
                         {students.links && students.links.length > 3 && (
-                            <div className="mt-6 flex justify-between items-center">
+                            <div className="px-6 py-4 border-t bg-gray-50 flex justify-between items-center">
                                 <p className="text-sm text-gray-700">
                                     Showing {students.from} to {students.to} of {students.total} results
                                 </p>
@@ -512,15 +533,6 @@ export default function StudentsIndex({ students, programs, filters, auth, on_ho
                                     {isEditMode ? 'Update student information and settings' : 'View complete student information and enrollment details'}
                                 </DialogDescription>
                             </div>
-                            {!isEditMode && (
-                                <Button
-                                    onClick={() => setIsEditMode(true)}
-                                    className="bg-green-600 hover:bg-green-700"
-                                >
-                                    <Edit className="w-4 h-4 mr-2" />
-                                    Edit
-                                </Button>
-                            )}
                         </div>
                     </DialogHeader>
 
