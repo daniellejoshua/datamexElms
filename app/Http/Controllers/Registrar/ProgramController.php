@@ -14,7 +14,7 @@ class ProgramController extends Controller
      */
     public function index()
     {
-        $programs = Program::with('subjects')->withCount('students')->get();
+        $programs = Program::with(['subjects', 'programFees'])->withCount('students')->get();
 
         return Inertia::render('Registrar/Programs/Index', [
             'programs' => $programs,
@@ -56,19 +56,9 @@ class ProgramController extends Controller
      */
     public function show(Program $program)
     {
-        $program->load(['subjects', 'sections', 'students']);
+        $program->load(['subjects', 'sections', 'students', 'programFees']);
 
         return Inertia::render('Registrar/Programs/Show', [
-            'program' => $program,
-        ]);
-    }
-
-    /**
-     * Show the form for editing the specified resource.
-     */
-    public function edit(Program $program)
-    {
-        return Inertia::render('Registrar/Programs/Edit', [
             'program' => $program,
         ]);
     }
@@ -79,17 +69,40 @@ class ProgramController extends Controller
     public function update(Request $request, Program $program)
     {
         $validated = $request->validate([
-            'program_code' => 'required|string|max:20|unique:programs,program_code,'.$program->id,
-            'program_name' => 'required|string|max:255',
+            'name' => 'required|string|max:255',
+            'code' => 'required|string|max:20|unique:programs,code,'.$program->id,
             'description' => 'nullable|string',
-            'education_level' => 'required|in:college,shs',
-            'track' => 'nullable|string|max:255',
-            'total_years' => 'required|integer|min:1|max:6',
-            'semester_fee' => 'required|numeric|min:0',
-            'status' => 'required|in:active,inactive',
+            'education_level' => 'required|in:college,masteral,shs',
+            'semester_fee' => 'nullable|numeric|min:0',
+            'program_fees' => 'required|array',
+            'program_fees.*.year_level' => 'required|integer|min:1|max:4',
+            'program_fees.*.fee_type' => 'required|in:regular',
+            'program_fees.*.semester_fee' => 'required|numeric|min:0',
         ]);
 
-        $program->update($validated);
+        // Update program basic info
+        $program->update([
+            'name' => $validated['name'],
+            'code' => $validated['code'],
+            'description' => $validated['description'],
+            'education_level' => $validated['education_level'],
+        ]);
+
+        // Remove any existing irregular fees since they're not managed here
+        $program->programFees()->where('fee_type', 'irregular')->delete();
+
+        // Update or create program fees (only regular fees)
+        foreach ($validated['program_fees'] as $feeData) {
+            $program->programFees()->updateOrCreate(
+                [
+                    'year_level' => $feeData['year_level'],
+                    'fee_type' => $feeData['fee_type'],
+                ],
+                [
+                    'semester_fee' => $feeData['semester_fee'],
+                ]
+            );
+        }
 
         return redirect()->route('registrar.programs.index')
             ->with('success', 'Program updated successfully.');
@@ -110,5 +123,38 @@ class ProgramController extends Controller
 
         return redirect()->route('registrar.programs.index')
             ->with('success', 'Program deleted successfully.');
+    }
+
+    /**
+     * Get subjects by education level for program assignment
+     */
+    public function getSubjectsByEducationLevel($educationLevel)
+    {
+        $subjects = \App\Models\Subject::where('education_level', $educationLevel)
+            ->where('status', 'active')
+            ->orderBy('year_level')
+            ->orderBy('semester')
+            ->orderBy('subject_code')
+            ->get()
+            ->groupBy(['year_level', 'semester']);
+
+        return response()->json($subjects);
+    }
+
+    /**
+     * Store a subject for a program (assign existing subject)
+     */
+    public function storeSubject(Request $request, Program $program)
+    {
+        $validated = $request->validate([
+            'subject_ids' => 'required|array',
+            'subject_ids.*' => 'exists:subjects,id',
+        ]);
+
+        // Sync subjects with the program
+        $program->subjects()->sync($validated['subject_ids']);
+
+        return redirect()->route('registrar.programs.index')
+            ->with('success', 'Program subjects updated successfully.');
     }
 }

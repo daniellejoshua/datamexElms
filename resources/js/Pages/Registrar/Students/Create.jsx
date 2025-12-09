@@ -78,18 +78,36 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
     const shsPrograms = programs.filter(p => p.education_level === 'shs')
 
     useEffect(() => {
-        if (data.program_id) {
+        if (data.program_id && data.year_level && data.student_type) {
             const program = programs.find(p => p.id === parseInt(data.program_id))
             setSelectedProgram(program)
-            setData(prev => ({
-                ...prev,
-                education_level: program?.education_level || '',
-                track: program?.track || '',
-                strand: program?.strand || '',
-                enrollment_fee: program?.semester_fee || '',
-            }))
+
+            // Only auto-populate fee for regular students
+            if (data.student_type === 'regular') {
+                // Find the appropriate fee for this year level and student type
+                const programFee = program?.program_fees?.find(fee =>
+                    fee.year_level === parseInt(data.year_level) &&
+                    fee.fee_type === 'regular'
+                )
+                setData(prev => ({
+                    ...prev,
+                    education_level: program?.education_level || '',
+                    track: program?.track || '',
+                    strand: program?.strand || '',
+                    enrollment_fee: programFee?.semester_fee || '',
+                }))
+            } else {
+                // For irregular students, don't auto-populate fee
+                setData(prev => ({
+                    ...prev,
+                    education_level: program?.education_level || '',
+                    track: program?.track || '',
+                    strand: program?.strand || '',
+                    // enrollment_fee remains as user input
+                }))
+            }
         }
-    }, [data.program_id])
+    }, [data.program_id, data.year_level, data.student_type])
 
     useEffect(() => {
         const enrollmentFee = parseFloat(data.enrollment_fee) || 0
@@ -860,14 +878,17 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                                     onChange={e => setData('enrollment_fee', e.target.value)}
                                     required
                                     placeholder="0.00"
-                                    readOnly
-                                    className="bg-gray-50"
+                                    readOnly={data.student_type === 'regular'}
+                                    className={data.student_type === 'regular' ? 'bg-gray-50' : ''}
                                 />
                                 {errors.enrollment_fee && (
                                     <p className="text-red-500 text-sm mt-1">{errors.enrollment_fee}</p>
                                 )}
                                 <p className="text-xs text-gray-500 mt-1">
-                                    Automatically set based on selected program's semester fee
+                                    {data.student_type === 'regular'
+                                        ? 'Automatically set based on selected program and year level'
+                                        : 'Enter enrollment fee manually for irregular students'
+                                    }
                                 </p>
                             </div>
 

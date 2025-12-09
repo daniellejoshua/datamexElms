@@ -69,9 +69,12 @@ Route::middleware(['auth', 'verified', 'role:registrar'])->prefix('registrar')->
         Route::get('/create', [ProgramController::class, 'create'])->name('create');
         Route::post('/', [ProgramController::class, 'store'])->name('store');
         Route::get('/{program}', [ProgramController::class, 'show'])->name('show');
-        Route::get('/{program}/edit', [ProgramController::class, 'edit'])->name('edit');
         Route::put('/{program}', [ProgramController::class, 'update'])->name('update');
         Route::delete('/{program}', [ProgramController::class, 'destroy'])->name('destroy');
+
+        // Subject Management within Programs
+        Route::post('/{program}/subjects', [ProgramController::class, 'storeSubject'])->name('subjects.store');
+        Route::get('/subjects/{educationLevel}', [ProgramController::class, 'getSubjectsByEducationLevel'])->name('subjects.by-education-level');
     });
 
     // Student Progression Routes

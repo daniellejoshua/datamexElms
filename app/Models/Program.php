@@ -36,6 +36,11 @@ class Program extends Model
         return $this->hasMany(Subject::class);
     }
 
+    public function programFees(): HasMany
+    {
+        return $this->hasMany(ProgramFee::class);
+    }
+
     public function scopeActive($query)
     {
         return $query->where('status', 'active');

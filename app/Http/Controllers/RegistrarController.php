@@ -2,14 +2,12 @@
 
 namespace App\Http\Controllers;
 
-use App\Helpers\AcademicHelper;
 use App\Models\ArchivedStudent;
+use App\Models\ArchivedStudentEnrollment;
 use App\Models\PaymentTransaction;
 use App\Models\Program;
 use App\Models\SchoolSetting;
 use App\Models\Section;
-use App\Models\ArchivedSection;
-use App\Models\ArchivedStudentEnrollment;
 use App\Models\Student;
 use App\Models\StudentEnrollment;
 use App\Models\StudentSemesterPayment;
@@ -78,15 +76,15 @@ class RegistrarController extends Controller
             // Only show students currently enrolled in the current semester
             $query->whereHas('studentEnrollments', function ($q) use ($currentAcademicYear, $currentSemester) {
                 $q->where('academic_year', $currentAcademicYear)
-                  ->where('semester', $currentSemester)
-                  ->where('status', 'active');
+                    ->where('semester', $currentSemester)
+                    ->where('status', 'active');
             });
         } elseif ($enrollmentStatus === 'not_enrolled') {
             // Only show students NOT currently enrolled in the current semester
             $query->whereDoesntHave('studentEnrollments', function ($q) use ($currentAcademicYear, $currentSemester) {
                 $q->where('academic_year', $currentAcademicYear)
-                  ->where('semester', $currentSemester)
-                  ->where('status', 'active');
+                    ->where('semester', $currentSemester)
+                    ->where('status', 'active');
             });
         }
         // 'all' shows all students regardless of enrollment status
@@ -105,7 +103,7 @@ class RegistrarController extends Controller
                 ->first();
 
             // If no enrollment with section found, check if student has any active enrollment in current period
-            if (!$enrollment) {
+            if (! $enrollment) {
                 $enrollment = StudentEnrollment::with(['section.program'])
                     ->where('student_id', $student->id)
                     ->where('academic_year', $currentAcademicYear)
@@ -147,7 +145,7 @@ class RegistrarController extends Controller
      */
     public function create(): Response
     {
-        $programs = Program::orderBy('education_level')
+        $programs = Program::with('programFees')->orderBy('education_level')
             ->orderBy('program_name')
             ->get();
 
@@ -223,11 +221,11 @@ class RegistrarController extends Controller
             }
 
             // Also check if there's an existing active student with this email
-            if (!$existingStudent) {
+            if (! $existingStudent) {
                 $existingStudentByEmail = Student::whereHas('user', function ($query) use ($validated) {
                     $query->where('email', $validated['email']);
                 })->first();
-                
+
                 if ($existingStudentByEmail) {
                     $existingStudent = $existingStudentByEmail;
                 }
@@ -293,7 +291,7 @@ class RegistrarController extends Controller
                     $existingNumeric = $existingStudent->current_year_level ?? $this->extractNumericYearLevel($existingStudent->year_level ?? '1', $existingStudent->education_level ?? $validated['education_level']);
                     if ($numericYearLevel < $existingNumeric) {
                         return back()->withErrors([
-                            'year_level' => "Invalid year level. Cannot decrease from {$existingNumeric} to {$numericYearLevel}."
+                            'year_level' => "Invalid year level. Cannot decrease from {$existingNumeric} to {$numericYearLevel}.",
                         ])->withInput();
                     }
                     $enrolledDate = $existingStudent->enrolled_date ?? $existingStudent->created_at;
@@ -301,7 +299,7 @@ class RegistrarController extends Controller
                     $archivedNumeric = $this->extractNumericYearLevel($archivedStudent->year_level ?? '1', $archivedStudent->education_level ?? $validated['education_level']);
                     if ($numericYearLevel < $archivedNumeric) {
                         return back()->withErrors([
-                            'year_level' => "Invalid year level. Cannot decrease from {$archivedNumeric} to {$numericYearLevel}."
+                            'year_level' => "Invalid year level. Cannot decrease from {$archivedNumeric} to {$numericYearLevel}.",
                         ])->withInput();
                     }
                     $enrolledDate = $archivedStudent->enrolled_date ?? $archivedStudent->archived_at ?? now();
@@ -332,7 +330,7 @@ class RegistrarController extends Controller
 
                     if ($numericYearLevel > $allowedYearLevel) {
                         return back()->withErrors([
-                            'year_level' => "Requested year level not allowed. Based on archived semesters, the student may only be up to '" . ($allowedYearLevel) . "' at this time."
+                            'year_level' => "Requested year level not allowed. Based on archived semesters, the student may only be up to '".($allowedYearLevel)."' at this time.",
                         ])->withInput();
                     }
                 }
@@ -363,7 +361,7 @@ class RegistrarController extends Controller
                 $newProgram = Program::find($validated['program_id']);
 
                 // Check if course shift is confirmed
-                if (!$validated['confirm_course_shift']) {
+                if (! $validated['confirm_course_shift']) {
                     return Inertia::render('Registrar/Students/Create', [
                         'programs' => Program::orderBy('education_level')
                             ->orderBy('program_name')
@@ -375,7 +373,7 @@ class RegistrarController extends Controller
                             'current_program_code' => $currentProgram->program_code ?? null,
                             'new_program' => $newProgram->program_name ?? 'Unknown',
                             'new_program_code' => $newProgram->program_code ?? null,
-                            'student_name' => $existingStudent->first_name . ' ' . $existingStudent->last_name,
+                            'student_name' => $existingStudent->first_name.' '.$existingStudent->last_name,
                         ],
                         'old' => $request->all(), // Preserve form input
                     ]);
@@ -392,7 +390,7 @@ class RegistrarController extends Controller
                 $newProgram = Program::find($validated['program_id']);
 
                 // Check if course shift is confirmed
-                if (!$validated['confirm_course_shift']) {
+                if (! $validated['confirm_course_shift']) {
                     return Inertia::render('Registrar/Students/Create', [
                         'programs' => Program::orderBy('education_level')
                             ->orderBy('program_name')
@@ -404,7 +402,7 @@ class RegistrarController extends Controller
                             'current_program_code' => $currentProgram->program_code ?? null,
                             'new_program' => $newProgram->program_name ?? 'Unknown',
                             'new_program_code' => $newProgram->program_code ?? null,
-                            'student_name' => $archivedStudent->first_name . ' ' . $archivedStudent->last_name,
+                            'student_name' => $archivedStudent->first_name.' '.$archivedStudent->last_name,
                         ],
                         'old' => $request->all(), // Preserve form input
                     ]);
@@ -444,13 +442,13 @@ class RegistrarController extends Controller
                 $student = $existingStudent;
                 $message = "Student {$user->name} updated successfully!";
                 if ($isShiftingCourses) {
-                    $message .= " Student marked as irregular due to course shifting.";
+                    $message .= ' Student marked as irregular due to course shifting.';
                 }
             } else {
                 $student = Student::create($studentData);
                 $baseMessage = "Student {$user->name} registered successfully! Student Number: {$studentNumber}. Default password: password123";
                 if ($isShiftingCourses) {
-                    $baseMessage .= " Student marked as irregular due to course shifting.";
+                    $baseMessage .= ' Student marked as irregular due to course shifting.';
                 }
                 $message = $baseMessage;
             }
@@ -466,14 +464,14 @@ class RegistrarController extends Controller
                     $query->where('academic_year', '<', $academicYear)
                         ->orWhere(function ($subQuery) use ($academicYear, $semester) {
                             $subQuery->where('academic_year', $academicYear)
-                                    ->where('semester', '!=', $semester);
+                                ->where('semester', '!=', $semester);
                         });
                 })
                 ->sum('balance');
 
             if ($unpaidBalances > 0) {
                 return back()->withErrors([
-                    'student' => "Cannot enroll student. Outstanding balance of ₱" . number_format($unpaidBalances, 2) . " from previous semester(s) must be settled first."
+                    'student' => 'Cannot enroll student. Outstanding balance of ₱'.number_format($unpaidBalances, 2).' from previous semester(s) must be settled first.',
                 ])->withInput();
             }
 
@@ -486,7 +484,7 @@ class RegistrarController extends Controller
 
             if ($existingEnrollment) {
                 return back()->withErrors([
-                    'student' => "Student is already enrolled in the current semester ({$academicYear} - {$semester}). Cannot enroll again."
+                    'student' => "Student is already enrolled in the current semester ({$academicYear} - {$semester}). Cannot enroll again.",
                 ])->withInput();
             }
             $enrollmentFee = (float) $validated['enrollment_fee'];
@@ -499,7 +497,7 @@ class RegistrarController extends Controller
                 'semester' => $semester,
             ])->first();
 
-            if (!$existingPayment) {
+            if (! $existingPayment) {
                 // Create the payment record (without setting enrollment_paid yet)
                 $semesterPayment = StudentSemesterPayment::create([
                     'student_id' => $student->id,
@@ -548,7 +546,7 @@ class RegistrarController extends Controller
                 'semester' => $semester,
             ])->first();
 
-            if (!$existingEnrollmentCheck) {
+            if (! $existingEnrollmentCheck) {
                 StudentEnrollment::create([
                     'student_id' => $student->id,
                     'section_id' => null, // Will be assigned later when sections are created
@@ -618,7 +616,7 @@ class RegistrarController extends Controller
 
             // Update user information
             $student->user->update([
-                'name' => trim($validated['first_name'] . ' ' . $validated['last_name']),
+                'name' => trim($validated['first_name'].' '.$validated['last_name']),
                 'email' => $validated['email'],
             ]);
 
@@ -667,7 +665,7 @@ class RegistrarController extends Controller
             DB::rollBack();
 
             return back()
-                ->withErrors(['error' => 'Failed to update student: ' . $e->getMessage()])
+                ->withErrors(['error' => 'Failed to update student: '.$e->getMessage()])
                 ->withInput();
         }
     }
