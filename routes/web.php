@@ -11,8 +11,8 @@ use App\Http\Controllers\Admin\ShsSubjectController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\Registrar\CollegePaymentController;
+use App\Http\Controllers\Registrar\ProgramController;
 use App\Http\Controllers\Registrar\ShsPaymentController;
-use App\Http\Controllers\Registrar\StudentBalanceController;
 use App\Http\Controllers\RegistrarController;
 use App\Http\Controllers\Student\StudentDashboardController;
 use App\Http\Controllers\Student\SubjectController as StudentSubjectController;
@@ -63,17 +63,15 @@ Route::middleware(['auth', 'verified', 'role:registrar'])->prefix('registrar')->
         Route::get('/fee-structure', [ShsPaymentController::class, 'getFeeStructure'])->name('fee-structure');
     });
 
-    // Student Balance Management Routes
-    Route::prefix('balances')->name('balances.')->group(function () {
-        Route::get('/', [StudentBalanceController::class, 'index'])->name('index');
-        Route::get('/create', [StudentBalanceController::class, 'create'])->name('create');
-        Route::post('/', [StudentBalanceController::class, 'store'])->name('store');
-        Route::get('/{balance}', [StudentBalanceController::class, 'show'])->name('show');
-        Route::get('/{balance}/edit', [StudentBalanceController::class, 'edit'])->name('edit');
-        Route::put('/{balance}', [StudentBalanceController::class, 'update'])->name('update');
-        Route::post('/{balance}/payment', [StudentBalanceController::class, 'recordPayment'])->name('payment');
-        Route::post('/{balance}/set-exact', [StudentBalanceController::class, 'setExactBalance'])->name('set-exact');
-        Route::get('/student/{student}/summary', [StudentBalanceController::class, 'getStudentBalanceSummary'])->name('student.summary');
+    // Program Management Routes
+    Route::prefix('programs')->name('programs.')->group(function () {
+        Route::get('/', [ProgramController::class, 'index'])->name('index');
+        Route::get('/create', [ProgramController::class, 'create'])->name('create');
+        Route::post('/', [ProgramController::class, 'store'])->name('store');
+        Route::get('/{program}', [ProgramController::class, 'show'])->name('show');
+        Route::get('/{program}/edit', [ProgramController::class, 'edit'])->name('edit');
+        Route::put('/{program}', [ProgramController::class, 'update'])->name('update');
+        Route::delete('/{program}', [ProgramController::class, 'destroy'])->name('destroy');
     });
 
     // Student Progression Routes

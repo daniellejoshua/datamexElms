@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Subject extends Model
@@ -11,6 +12,7 @@ class Subject extends Model
     use HasFactory;
 
     protected $fillable = [
+        'program_id',
         'subject_code',
         'subject_name',
         'description',
@@ -33,6 +35,11 @@ class Subject extends Model
     public function sections(): HasMany
     {
         return $this->hasMany(Section::class);
+    }
+
+    public function program(): BelongsTo
+    {
+        return $this->belongsTo(Program::class);
     }
 
     public function scopeActive($query)

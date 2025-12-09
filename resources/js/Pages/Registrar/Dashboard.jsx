@@ -221,22 +221,22 @@ export default function RegistrarDashboard({ stats, auth }) {
                     </Card>
 
                     <Card className="hover:shadow-lg transition-shadow cursor-pointer">
-                        <Link href={route('registrar.balances.index')} className="block">
+                        <Link href={route('registrar.programs.index')} className="block">
                             <CardHeader>
                                 <CardTitle className="flex items-center text-lg">
                                     <Calendar className="w-5 h-5 mr-2 text-purple-600" />
-                                    Student Balances
+                                    Course Management
                                 </CardTitle>
                                 <CardDescription>
-                                    Set exact balances for specific courses and track payments
+                                    Manage courses, set semester fees, and handle related subjects
                                 </CardDescription>
                             </CardHeader>
                             <CardContent>
                                 <div className="flex justify-between items-center">
                                     <span className="text-sm text-gray-600">
-                                        Balance management
+                                        Program and subject management
                                     </span>
-                                    <Badge variant="default">Course Specific</Badge>
+                                    <Badge variant="default">Course Management</Badge>
                                 </div>
                             </CardContent>
                         </Link>

@@ -17,6 +17,7 @@ class Program extends Model
         'education_level',
         'track',
         'total_years',
+        'semester_fee',
         'status',
     ];
 
@@ -28,6 +29,11 @@ class Program extends Model
     public function students(): HasMany
     {
         return $this->hasMany(Student::class);
+    }
+
+    public function subjects(): HasMany
+    {
+        return $this->hasMany(Subject::class);
     }
 
     public function scopeActive($query)
