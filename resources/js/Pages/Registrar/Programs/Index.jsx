@@ -1,4 +1,4 @@
-import { Head, Link, useForm } from '@inertiajs/react'
+import { Head, Link, useForm, router } from '@inertiajs/react'
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -9,10 +9,10 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Loader2, Save } from 'lucide-react'
-import { Plus, Eye, Edit, BookOpen, Users, DollarSign } from 'lucide-react'
+import { Plus, Eye, Edit, BookOpen, Users, DollarSign, Filter, Search, GraduationCap, Building2, ChevronRight, Star } from 'lucide-react'
 import { useState, useEffect } from 'react'
 
-export default function ProgramsIndex({ programs, auth }) {
+export default function ProgramsIndex({ programs, auth, filters = {} }) {
     const [editModalOpen, setEditModalOpen] = useState(false);
     const [selectedProgram, setSelectedProgram] = useState(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -20,6 +20,11 @@ export default function ProgramsIndex({ programs, auth }) {
     const [subjectModalOpen, setSubjectModalOpen] = useState(false);
     const [availableSubjects, setAvailableSubjects] = useState([]);
     const [selectedSubjects, setSelectedSubjects] = useState(new Set());
+
+    // Filter states
+    const [selectedEducationLevel, setSelectedEducationLevel] = useState(filters.education_level || '');
+    const [selectedStatus, setSelectedStatus] = useState(filters.status || '');
+    const [searchQuery, setSearchQuery] = useState(filters.search || '');
 
     const { data, setData, put, processing, errors, reset } = useForm({
         name: '',
@@ -31,9 +36,38 @@ export default function ProgramsIndex({ programs, auth }) {
 
     const educationLevels = [
         { value: 'college', label: 'College' },
-        { value: 'masteral', label: 'Masteral' },
         { value: 'shs', label: 'Senior High School' },
     ];
+
+    const statusOptions = [
+        { value: 'active', label: 'Active' },
+        { value: 'inactive', label: 'Inactive' },
+    ];
+
+    const handleFilterChange = (type, value) => {
+        const newFilters = { ...filters };
+
+        if (value === 'all' || value === '') {
+            delete newFilters[type];
+        } else {
+            newFilters[type] = value;
+        }
+
+        // Update local state
+        if (type === 'education_level') {
+            setSelectedEducationLevel(value === 'all' ? '' : value);
+        } else if (type === 'status') {
+            setSelectedStatus(value === 'all' ? '' : value);
+        } else if (type === 'search') {
+            setSearchQuery(value);
+        }
+
+        // Navigate with filters
+        router.get(route('registrar.programs.index'), newFilters, {
+            preserveState: true,
+            preserveScroll: true,
+        });
+    };
 
     const openEditModal = (program) => {
         setSelectedProgram(program);
@@ -125,126 +159,307 @@ export default function ProgramsIndex({ programs, auth }) {
     return (
         <AuthenticatedLayout
             header={
-                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
-                    <div className="flex items-center gap-3">
-                        <div className="bg-blue-100 p-2 rounded-lg">
-                            <BookOpen className="w-6 h-6 text-blue-600" />
+                <div className="flex items-center justify-between px-2 py-1">
+                    <div className="flex items-center gap-2">
+                        <div className="bg-blue-100 p-1.5 rounded-md">
+                            <GraduationCap className="w-4 h-4 text-blue-600" />
                         </div>
                         <div>
-                            <h2 className="text-2xl font-bold text-gray-900">Course Management</h2>
-                            <p className="text-sm text-blue-600 font-medium mt-1">
-                                Manage programs, set semester fees, and handle subjects
-                            </p>
+                            <h2 className="text-lg font-semibold text-gray-900">Programs</h2>
+                            <p className="text-xs text-gray-500 mt-0.5">Manage academic programs and curriculum</p>
                         </div>
                     </div>
-                    <Link href={route('registrar.programs.create')}>
-                        <Button className="mt-4 sm:mt-0">
-                            <Plus className="w-4 h-4 mr-2" />
-                            Add Program
-                        </Button>
-                    </Link>
+                    <Button asChild size="sm" className="bg-red-600 hover:bg-red-700 text-white text-xs h-7 px-2">
+                        <Link href={route('registrar.programs.create')}>
+                            <Plus className="w-3 h-3 mr-1" />
+                            Create
+                        </Link>
+                    </Button>
                 </div>
             }
         >
             <Head title="Course Management" />
 
             <div className="space-y-6">
+                {/* Filters */}
+                <Card className="border-0 shadow-sm bg-gradient-to-r from-blue-50 to-indigo-50">
+                    <CardContent className="pt-4 pb-4">
+                        <div className="flex items-center gap-3 mb-3">
+                            <Filter className="w-4 h-4 text-blue-600" />
+                            <span className="text-sm font-medium text-blue-900">Filter Programs</span>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            {/* Search Filter */}
+                            <div className="space-y-2">
+                                <label className="text-xs font-medium text-gray-600 flex items-center gap-1 h-4">
+                                    <Search className="w-3 h-3" />
+                                    Search Programs
+                                </label>
+                                <Input
+                                    placeholder="Search by name or code..."
+                                    value={searchQuery}
+                                    onChange={(e) => handleFilterChange('search', e.target.value)}
+                                    className="h-8 text-sm border-blue-200 hover:border-blue-400 focus:border-blue-500 focus:ring-blue-200"
+                                />
+                            </div>
+
+                            {/* Education Level Filter */}
+                            <div className="space-y-2">
+                                <label className="text-xs font-medium text-gray-600 h-4 flex items-center">Education Level</label>
+                                <Select
+                                    value={selectedEducationLevel || 'all'}
+                                    onValueChange={(value) => handleFilterChange('education_level', value)}
+                                >
+                                    <SelectTrigger className="h-8 text-sm border-blue-200 hover:border-blue-400 focus:border-blue-500 focus:ring-blue-200">
+                                        <SelectValue placeholder="All Levels" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="all">All Education Levels</SelectItem>
+                                        {educationLevels.map((level) => (
+                                            <SelectItem key={level.value} value={level.value}>
+                                                {level.label}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+
+                            {/* Status Filter */}
+                            <div className="space-y-2">
+                                <label className="text-xs font-medium text-gray-600 h-4 flex items-center">Status</label>
+                                <Select
+                                    value={selectedStatus || 'all'}
+                                    onValueChange={(value) => handleFilterChange('status', value)}
+                                >
+                                    <SelectTrigger className="h-8 text-sm border-blue-200 hover:border-blue-400 focus:border-blue-500 focus:ring-blue-200">
+                                        <SelectValue placeholder="All Status" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="all">All Status</SelectItem>
+                                        {statusOptions.map((status) => (
+                                            <SelectItem key={status.value} value={status.value}>
+                                                {status.label}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                        </div>
+                    </CardContent>
+                </Card>
+
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {programs.map((program) => (
-                        <Card key={program.id} className="hover:shadow-lg transition-shadow">
-                            <CardHeader>
-                                <div className="flex items-center justify-between">
-                                    <CardTitle className="text-lg">{program.program_name}</CardTitle>
-                                    <Badge variant={program.status === 'active' ? 'default' : 'secondary'}>
-                                        {program.status}
-                                    </Badge>
+                    {programs.data.map((program) => (
+                        <Card key={program.id} className="group hover:shadow-xl transition-all duration-300 border-2 hover:border-blue-300 relative overflow-hidden">
+                            {/* Status Badge */}
+                            <div className="absolute top-4 right-4">
+                                <Badge
+                                    className={`shadow-md font-semibold ${
+                                        program.status === 'active'
+                                            ? 'bg-white text-green-600 border-green-600'
+                                            : 'bg-white text-red-600 border-red-600'
+                                    }`}
+                                >
+                                    {program.status}
+                                </Badge>
+                            </div>
+
+                            <CardHeader className="pb-4">
+                                <div className="flex items-start space-x-3">
+                                    <div className="p-3 bg-blue-600 rounded-xl flex-shrink-0 shadow-md group-hover:scale-110 transition-transform duration-300">
+                                        <GraduationCap className="w-6 h-6 text-white" />
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                        <CardTitle className="text-lg font-bold text-gray-900 truncate group-hover:text-blue-700 transition-colors">
+                                            {program.program_code}
+                                        </CardTitle>
+                                        <CardDescription className="text-blue-600 font-semibold truncate">
+                                            {program.program_name}
+                                        </CardDescription>
+                                    </div>
                                 </div>
-                                <CardDescription>
-                                    {program.program_code} • {program.education_level.toUpperCase()}
-                                    {program.track && ` • ${program.track}`}
-                                </CardDescription>
                             </CardHeader>
-                            <CardContent>
-                                <div className="space-y-3">
-                                    <div>
-                                        <span className="text-sm text-gray-600">Semester Fees by Year (per semester):</span>
-                                        <div className="mt-1 space-y-1">
-                                            {program.program_fees
-                                                ?.filter(fee => fee.fee_type === 'regular')
-                                                ?.sort((a, b) => a.year_level - b.year_level)
-                                                ?.map(fee => (
-                                                <div key={fee.id} className="flex justify-between text-xs">
-                                                    <span>Year {fee.year_level}:</span>
-                                                    <span className="font-semibold text-green-600">
-                                                        {formatCurrency(fee.semester_fee)}
-                                                    </span>
-                                                </div>
-                                            ))}
+
+                            <CardContent className="space-y-6">
+                                {/* Program Details */}
+                                <div className="space-y-4">
+                                    <Card className="p-3 bg-gradient-to-r from-green-50 to-blue-50 border border-green-200">
+                                        <div className="flex items-center text-sm">
+                                            <Building2 className="w-4 h-4 text-green-600 mr-3 flex-shrink-0" />
+                                            <span className="text-gray-700 font-medium truncate">
+                                                {program.education_level.toUpperCase()} • {program.total_years} Years
+                                            </span>
                                         </div>
+                                    </Card>
+
+                                    <div className="grid grid-cols-2 gap-2">
+                                        <Card className="p-2 text-center bg-orange-50 border-orange-200">
+                                            <div className="flex flex-col items-center">
+                                                <BookOpen className="w-4 h-4 text-orange-600 mb-1" />
+                                                <span className="text-xs font-semibold text-gray-700">
+                                                    {program.subjects.length}
+                                                </span>
+                                                <span className="text-xs text-gray-600">Subjects</span>
+                                            </div>
+                                        </Card>
+
+                                        <Card className="p-2 text-center bg-purple-50 border-purple-200">
+                                            <div className="flex flex-col items-center">
+                                                <Users className="w-4 h-4 text-purple-600 mb-1" />
+                                                <span className="text-xs font-semibold text-gray-700">
+                                                    {program.students_count}
+                                                </span>
+                                                <span className="text-xs text-gray-600">Students</span>
+                                            </div>
+                                        </Card>
                                     </div>
-                                    <div className="flex items-center justify-between text-sm">
-                                        <span className="text-gray-600">Duration:</span>
-                                        <span>{program.total_years} years</span>
-                                    </div>
-                                    <div className="flex items-center justify-between text-sm">
-                                        <span className="text-gray-600">Students:</span>
-                                        <span className="flex items-center">
-                                            <Users className="w-4 h-4 mr-1" />
-                                            {program.students_count}
-                                        </span>
-                                    </div>
-                                    <div className="flex items-center justify-between text-sm">
-                                        <span className="text-gray-600">Subjects:</span>
-                                        <span className="flex items-center">
-                                            <BookOpen className="w-4 h-4 mr-1" />
-                                            {program.subjects.length}
-                                        </span>
-                                    </div>
-                                    {program.description && (
-                                        <p className="text-sm text-gray-600 mt-2">
-                                            {program.description}
-                                        </p>
-                                    )}
+
+                                    {/* Fee Information */}
+                                    <Card className="p-3 bg-blue-50 border-blue-200">
+                                        <div className="flex items-center text-sm">
+                                            <DollarSign className="w-4 h-4 text-blue-600 mr-3 flex-shrink-0" />
+                                            <div className="flex-1">
+                                                <span className="text-gray-700 font-medium">Semester Fees (per semester)</span>
+                                                <div className="mt-1 space-y-1">
+                                                    {program.program_fees
+                                                        ?.filter(fee => fee.fee_type === 'regular')
+                                                        ?.sort((a, b) => a.year_level - b.year_level)
+                                                        ?.slice(0, 2) // Show only first 2 years for brevity
+                                                        ?.map(fee => (
+                                                        <div key={fee.id} className="flex justify-between text-xs">
+                                                            <span>Year {fee.year_level}:</span>
+                                                            <span className="font-semibold text-green-600">
+                                                                {formatCurrency(fee.semester_fee)}
+                                                            </span>
+                                                        </div>
+                                                    ))}
+                                                    {program.program_fees?.filter(fee => fee.fee_type === 'regular').length > 2 && (
+                                                        <div className="text-xs text-gray-500">
+                                                            +{program.program_fees.filter(fee => fee.fee_type === 'regular').length - 2} more years
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </Card>
                                 </div>
-                                <div className="flex gap-2 mt-4">
-                                    <Link href={route('registrar.programs.show', program.id)}>
-                                        <Button variant="outline" size="sm">
-                                            <Eye className="w-4 h-4 mr-1" />
-                                            View
-                                        </Button>
-                                    </Link>
+
+                                {/* Action Buttons */}
+                                <div className="space-y-3">
                                     <Button
-                                        variant="outline"
-                                        size="sm"
-                                        onClick={() => openEditModal(program)}
+                                        onClick={() => openSubjectModal(program)}
+                                        className="w-full bg-blue-600 hover:bg-blue-700 text-white shadow-md"
                                     >
-                                        <Edit className="w-4 h-4 mr-1" />
-                                        Edit
+                                        <BookOpen className="w-4 h-4 mr-2" />
+                                        Manage Subjects
+                                        <ChevronRight className="w-4 h-4 ml-auto" />
                                     </Button>
+
+                                    <div className="grid grid-cols-2 gap-2">
+                                        <Button asChild variant="outline" className="border-2 border-blue-300 text-blue-700 hover:bg-blue-50 font-medium">
+                                            <Link href={route('registrar.programs.show', program.id)}>
+                                                <Eye className="w-3 h-3 mr-1" />
+                                                View
+                                            </Link>
+                                        </Button>
+                                        <Button variant="outline" className="border-2 border-gray-300 text-gray-700 hover:bg-gray-50 font-medium" onClick={() => openEditModal(program)}>
+                                            <Edit className="w-3 h-3 mr-1" />
+                                            Edit
+                                        </Button>
+                                    </div>
                                 </div>
                             </CardContent>
                         </Card>
                     ))}
                 </div>
 
-                {programs.length === 0 && (
-                    <Card>
-                        <CardContent className="flex flex-col items-center justify-center py-12">
-                            <BookOpen className="w-12 h-12 text-gray-400 mb-4" />
-                            <h3 className="text-lg font-medium text-gray-900 mb-2">No Programs Found</h3>
-                            <p className="text-gray-600 text-center mb-4">
-                                Get started by creating your first program.
-                            </p>
-                            <Link href={route('registrar.programs.create')}>
-                                <Button>
-                                    <Plus className="w-4 h-4 mr-2" />
-                                    Add Program
-                                </Button>
-                            </Link>
-                        </CardContent>
+                {programs.data.length === 0 && (
+                    <div className="col-span-full">
+                        <Card className="p-16 text-center border-2 border-dashed border-gray-300 hover:border-blue-400 transition-colors bg-gradient-to-br from-gray-50 to-blue-50">
+                            <div className="space-y-6">
+                                <div className="p-6 bg-gradient-to-br from-blue-100 to-green-100 rounded-full w-24 h-24 mx-auto flex items-center justify-center shadow-lg">
+                                    <GraduationCap className="w-10 h-10 text-blue-600" />
+                                </div>
+                                <div>
+                                    <h3 className="text-2xl font-bold text-gray-900 mb-3">No programs found</h3>
+                                    <p className="text-gray-600 mb-8 max-w-md mx-auto leading-relaxed">
+                                        {Object.keys(filters).length > 0
+                                            ? "No programs match your current filters. Try adjusting your search criteria."
+                                            : "Create your first program to get started with managing academic programs and student enrollments."
+                                        }
+                                    </p>
+                                    {Object.keys(filters).length > 0 ? (
+                                        <Button
+                                            onClick={() => {
+                                                setSelectedEducationLevel('');
+                                                setSelectedStatus('');
+                                                setSearchQuery('');
+                                                router.get(route('registrar.programs.index'), {}, {
+                                                    preserveState: true,
+                                                    preserveScroll: true,
+                                                });
+                                            }}
+                                            className="bg-blue-600 hover:bg-blue-700 text-white shadow-lg px-8 py-3 text-base mr-4"
+                                        >
+                                            Clear Filters
+                                        </Button>
+                                    ) : (
+                                        <Button asChild className="bg-blue-600 hover:bg-blue-700 text-white shadow-lg px-8 py-3 text-base">
+                                            <Link href={route('registrar.programs.create')}>
+                                                <Plus className="w-5 h-5 mr-2" />
+                                                Create First Program
+                                            </Link>
+                                        </Button>
+                                    )}
+                                </div>
+                            </div>
+                        </Card>
+                    </div>
+                )}
+                </div>
+
+                {/* Pagination */}
+                {programs.links && programs.links.length > 3 && (
+                    <Card className="p-3 mt-6">
+                        <div className="flex justify-center">
+                            <nav className="flex items-center space-x-1">
+                                {programs.links.map((link, index) => {
+                                    if (link.url) {
+                                        return (
+                                            <Button
+                                                key={index}
+                                                asChild
+                                                variant={link.active ? "default" : "outline"}
+                                                size="sm"
+                                                className={`h-7 px-2 text-xs ${
+                                                    link.active
+                                                        ? "bg-blue-600 hover:bg-blue-700 text-white"
+                                                        : "border-gray-300 hover:border-blue-300 text-gray-700"
+                                                }`}
+                                            >
+                                                <Link href={link.url}>
+                                                    <span dangerouslySetInnerHTML={{ __html: link.label }} />
+                                                </Link>
+                                            </Button>
+                                        );
+                                    } else {
+                                        return (
+                                            <Button
+                                                key={index}
+                                                variant="outline"
+                                                size="sm"
+                                                disabled
+                                                className="border-gray-200 text-gray-400 h-7 px-2 text-xs"
+                                            >
+                                                <span dangerouslySetInnerHTML={{ __html: link.label }} />
+                                            </Button>
+                                        );
+                                    }
+                                })}
+                            </nav>
+                        </div>
                     </Card>
                 )}
-            </div>
 
             {/* Edit Program Modal */}
             <Dialog open={editModalOpen} onOpenChange={setEditModalOpen}>
@@ -360,53 +575,6 @@ export default function ProgramsIndex({ programs, auth }) {
                                     </AlertDescription>
                                 </Alert>
                             )}
-                        </div>
-
-                        <div>
-                            <Label className="text-base font-semibold">Program Subjects</Label>
-                            <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-                                Manage subjects for this program. Subjects define the curriculum and course offerings.
-                            </p>
-
-                            {/* Existing Subjects */}
-                            {selectedProgram?.subjects && selectedProgram.subjects.length > 0 && (
-                                <div className="mb-4">
-                                    <h4 className="text-sm font-medium mb-2">Current Subjects ({selectedProgram.subjects.length})</h4>
-                                    <div className="space-y-2 max-h-40 overflow-y-auto">
-                                        {selectedProgram.subjects.map((subject) => (
-                                            <div key={subject.id} className="flex items-center justify-between p-2 bg-gray-50 dark:bg-gray-800 rounded">
-                                                <div>
-                                                    <span className="font-medium">{subject.subject_code}</span>
-                                                    <span className="text-sm text-gray-600 dark:text-gray-400 ml-2">
-                                                        {subject.subject_name}
-                                                    </span>
-                                                    <Badge variant="outline" className="ml-2">
-                                                        Year {subject.year_level}, {subject.semester === 1 ? '1st' : '2nd'} Sem
-                                                    </Badge>
-                                                </div>
-                                                <div className="text-sm text-gray-500">
-                                                    {subject.units} units
-                                                </div>
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
-                            )}
-
-                            {/* Manage Subjects Button */}
-                            <Button
-                                type="button"
-                                variant="outline"
-                                className="w-full"
-                                onClick={() => openSubjectModal(selectedProgram)}
-                            >
-                                <BookOpen className="w-4 h-4 mr-2" />
-                                Manage Program Subjects
-                            </Button>
-
-                            <p className="text-xs text-gray-500 mt-2">
-                                Select subjects from the available subject pool to assign to this program.
-                            </p>
                         </div>
 
                         <div className="flex justify-end space-x-4">

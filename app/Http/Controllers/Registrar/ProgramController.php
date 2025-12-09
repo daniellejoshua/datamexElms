@@ -12,12 +12,32 @@ class ProgramController extends Controller
     /**
      * Display a listing of the resource.
      */
-    public function index()
+    public function index(Request $request)
     {
-        $programs = Program::with(['subjects', 'programFees'])->withCount('students')->get();
+        $query = Program::with(['subjects', 'programFees'])->withCount('students');
+
+        // Apply filters
+        if ($request->filled('education_level') && $request->education_level !== 'all') {
+            $query->where('education_level', $request->education_level);
+        }
+
+        if ($request->filled('status') && $request->status !== 'all') {
+            $query->where('status', $request->status);
+        }
+
+        if ($request->filled('search')) {
+            $search = $request->search;
+            $query->where(function ($q) use ($search) {
+                $q->where('program_name', 'like', "%{$search}%")
+                    ->orWhere('program_code', 'like', "%{$search}%");
+            });
+        }
+
+        $programs = $query->paginate(6)->appends($request->query());
 
         return Inertia::render('Registrar/Programs/Index', [
             'programs' => $programs,
+            'filters' => $request->only(['education_level', 'status', 'search']),
         ]);
     }
 
