@@ -86,6 +86,7 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                 education_level: program?.education_level || '',
                 track: program?.track || '',
                 strand: program?.strand || '',
+                enrollment_fee: program?.semester_fee || '',
             }))
         }
     }, [data.program_id])
@@ -850,7 +851,7 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div>
                                 <Label htmlFor="enrollment_fee">Enrollment Fee *</Label>
-                                <Input 
+                                <Input
                                     id="enrollment_fee"
                                     type="number"
                                     step="0.01"
@@ -859,12 +860,14 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                                     onChange={e => setData('enrollment_fee', e.target.value)}
                                     required
                                     placeholder="0.00"
+                                    readOnly
+                                    className="bg-gray-50"
                                 />
                                 {errors.enrollment_fee && (
                                     <p className="text-red-500 text-sm mt-1">{errors.enrollment_fee}</p>
                                 )}
                                 <p className="text-xs text-gray-500 mt-1">
-                                    Total enrollment fee amount for this semester
+                                    Automatically set based on selected program's semester fee
                                 </p>
                             </div>
 
