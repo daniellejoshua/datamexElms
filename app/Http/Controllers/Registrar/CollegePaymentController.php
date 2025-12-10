@@ -2,7 +2,6 @@
 
 namespace App\Http\Controllers\Registrar;
 
-use App\Helpers\AcademicHelper;
 use App\Http\Controllers\Controller;
 use App\Models\SchoolSetting;
 use App\Models\Student;
@@ -42,11 +41,13 @@ class CollegePaymentController extends Controller
         $payments = $query->get()
             ->map(function ($payment) {
                 // Get the enrollment for this payment period to find section
+                // Prefer enrollments that have sections (section_id is not null)
                 $enrollment = StudentEnrollment::with(['section.program'])
                     ->where('student_id', $payment->student_id)
                     ->where('academic_year', $payment->academic_year)
                     ->where('semester', $payment->semester)
                     ->where('status', 'active')
+                    ->orderByRaw('section_id IS NULL ASC')
                     ->first();
 
                 $payment->section = $enrollment?->section;
@@ -119,7 +120,7 @@ class CollegePaymentController extends Controller
             ->toArray();
 
         // Ensure current academic year is included even if no payments exist yet
-        if (!in_array($currentAcademicYear, $academicYears)) {
+        if (! in_array($currentAcademicYear, $academicYears)) {
             $academicYears[] = $currentAcademicYear;
             sort($academicYears);
         }

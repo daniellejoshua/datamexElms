@@ -3,9 +3,7 @@
 namespace App\Http\Controllers\Student;
 
 use App\Http\Controllers\Controller;
-use App\Models\CourseMaterial;
-use App\Models\MaterialAccessLog;
-use App\Models\Student;
+use App\Models\ArchivedStudentEnrollment;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
@@ -24,8 +22,9 @@ class SubjectController extends Controller
 
         $student = $user->student;
 
-        // Get all active enrollments with subject details
+        // Get all active enrollments with subject details (only those with sections)
         $enrollments = $student->studentEnrollments()
+            ->whereNotNull('section_id')
             ->with([
                 'section' => function ($query) {
                     $query->select('id', 'section_name', 'year_level', 'program_id', 'academic_year', 'semester');
@@ -57,6 +56,11 @@ class SubjectController extends Controller
         // Transform the data for easier frontend consumption
         $subjects = [];
         foreach ($enrollments as $enrollment) {
+            // Skip enrollments without sections
+            if (! $enrollment->section) {
+                continue;
+            }
+
             foreach ($enrollment->section->sectionSubjects as $sectionSubject) {
                 $subject = $sectionSubject->subject;
                 $teacher = $sectionSubject->teacher;
@@ -119,9 +123,17 @@ class SubjectController extends Controller
             }
         }
 
+        // Get archived enrollments for the student
+        $archivedEnrollments = ArchivedStudentEnrollment::with('archivedSection')
+            ->where('student_id', $student->id)
+            ->orderBy('academic_year', 'desc')
+            ->orderBy('semester', 'desc')
+            ->get();
+
         return Inertia::render('Student/Subjects/Index', [
             'subjects' => $subjects,
             'student' => $student->load('user'),
+            'archivedEnrollments' => $archivedEnrollments,
         ]);
     }
 

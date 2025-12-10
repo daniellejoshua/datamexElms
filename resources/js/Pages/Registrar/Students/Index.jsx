@@ -399,12 +399,30 @@ export default function StudentsIndex({ students, programs, filters, auth, on_ho
                                                     </span>
                                                 </td>
                                                 <td className="py-3 px-4">
-                                                    <div className="font-medium text-blue-600">
-                                                        {formatSectionName(student.current_section, student.is_currently_enrolled)}
-                                                    </div>
-                                                    {student.current_section && (
-                                                        <div className="text-xs text-gray-500">
-                                                            {student.current_section.academic_year} - {student.current_section.semester}
+                                                    {student.archived_enrollments?.length > 0 ? (
+                                                        <div>
+                                                            <div className="font-medium text-blue-600">
+                                                                {formatSectionName(student.current_section, student.is_currently_enrolled)}
+                                                            </div>
+                                                            {student.current_section && (
+                                                                <div className="text-xs text-gray-500">
+                                                                    {student.current_section.academic_year} - {student.current_section.semester}
+                                                                </div>
+                                                            )}
+                                                            <div className="text-xs text-purple-600 mt-1">
+                                                                {student.archived_enrollments.length} archived grade{student.archived_enrollments.length > 1 ? 's' : ''}
+                                                            </div>
+                                                        </div>
+                                                    ) : (
+                                                        <div>
+                                                            <div className="font-medium text-blue-600">
+                                                                {formatSectionName(student.current_section, student.is_currently_enrolled)}
+                                                            </div>
+                                                            {student.current_section && (
+                                                                <div className="text-xs text-gray-500">
+                                                                    {student.current_section.academic_year} - {student.current_section.semester}
+                                                                </div>
+                                                            )}
                                                         </div>
                                                     )}
                                                 </td>
@@ -870,6 +888,74 @@ export default function StudentsIndex({ students, programs, filters, auth, on_ho
                                     </CardContent>
                                 </Card>
                             </div>
+
+                            {/* Archived Grades - Only show for students with archived enrollments */}
+                            {selectedStudent.archived_enrollments?.length > 0 && (
+                                <Card>
+                                    <CardHeader>
+                                        <CardTitle className="text-lg flex items-center gap-2">
+                                            <GraduationCap className="w-5 h-5" />
+                                            Archived Grades ({selectedStudent.archived_enrollments.length})
+                                        </CardTitle>
+                                    </CardHeader>
+                                    <CardContent>
+                                        <div className="space-y-4">
+                                            {selectedStudent.archived_enrollments.map((enrollment, index) => (
+                                                <div key={index} className="border rounded-lg p-4 bg-gray-50">
+                                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                                        <div>
+                                                            <span className="font-medium text-gray-600">Academic Year:</span>
+                                                            <div className="text-sm">{enrollment.academic_year}</div>
+                                                        </div>
+                                                        <div>
+                                                            <span className="font-medium text-gray-600">Semester:</span>
+                                                            <div className="text-sm">{enrollment.semester}</div>
+                                                        </div>
+                                                        <div>
+                                                            <span className="font-medium text-gray-600">Section:</span>
+                                                            <div className="text-sm">{enrollment.archived_section?.section_name || 'N/A'}</div>
+                                                        </div>
+                                                        <div>
+                                                            <span className="font-medium text-gray-600">Final Grade:</span>
+                                                            <div className="text-sm font-semibold">{enrollment.final_semester_grade || 'N/A'}</div>
+                                                        </div>
+                                                        <div>
+                                                            <span className="font-medium text-gray-600">Letter Grade:</span>
+                                                            <div className="text-sm">{enrollment.letter_grade || 'N/A'}</div>
+                                                        </div>
+                                                        <div>
+                                                            <span className="font-medium text-gray-600">Status:</span>
+                                                            <Badge 
+                                                                variant="secondary"
+                                                                className={enrollment.final_status === 'completed' 
+                                                                    ? 'bg-green-100 text-green-800' 
+                                                                    : enrollment.final_status === 'dropped' 
+                                                                    ? 'bg-yellow-100 text-yellow-800' 
+                                                                    : 'bg-red-100 text-red-800'
+                                                                }
+                                                            >
+                                                                {enrollment.final_status}
+                                                            </Badge>
+                                                        </div>
+                                                    </div>
+                                                    {enrollment.final_grades && Object.keys(enrollment.final_grades).length > 0 && (
+                                                        <div className="mt-4">
+                                                            <span className="font-medium text-gray-600">Subject Grades:</span>
+                                                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2 mt-2">
+                                                                {Object.entries(enrollment.final_grades).map(([subject, grade]) => (
+                                                                    <div key={subject} className="text-sm bg-white p-2 rounded border">
+                                                                        <span className="font-medium">{subject}:</span> {grade}
+                                                                    </div>
+                                                                ))}
+                                                            </div>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </CardContent>
+                                </Card>
+                            )}
 
                             {/* Enrollment Information */}
                             <Card>

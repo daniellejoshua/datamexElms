@@ -627,8 +627,8 @@ export default function ProgramsIndex({ programs, auth, filters = {} }) {
                                     <div>
                                         <h4 className="text-md font-medium mb-3 text-blue-600">1st Semester</h4>
                                         <div className="space-y-2">
-                                            {availableSubjects[year]?.[1]?.length > 0 ? (
-                                                availableSubjects[year][1].map(subject => {
+                                            {availableSubjects[year]?.['first']?.length > 0 ? (
+                                                availableSubjects[year]['first'].map(subject => {
                                                     const isSelected = selectedSubjects.has(subject.id);
                                                     return (
                                                         <div
@@ -680,8 +680,8 @@ export default function ProgramsIndex({ programs, auth, filters = {} }) {
                                     <div>
                                         <h4 className="text-md font-medium mb-3 text-green-600">2nd Semester</h4>
                                         <div className="space-y-2">
-                                            {availableSubjects[year]?.[2]?.length > 0 ? (
-                                                availableSubjects[year][2].map(subject => {
+                                            {availableSubjects[year]?.['second']?.length > 0 ? (
+                                                availableSubjects[year]['second'].map(subject => {
                                                     const isSelected = selectedSubjects.has(subject.id);
                                                     return (
                                                         <div

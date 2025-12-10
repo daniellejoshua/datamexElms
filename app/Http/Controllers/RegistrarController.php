@@ -115,6 +115,13 @@ class RegistrarController extends Controller
             $student->current_section = $enrollment?->section;
             $student->is_currently_enrolled = $enrollment !== null;
 
+            // Add archived enrollments for all students who have them
+            $student->archived_enrollments = ArchivedStudentEnrollment::with('archivedSection')
+                ->where('student_id', $student->id)
+                ->orderBy('academic_year', 'desc')
+                ->orderBy('semester', 'desc')
+                ->get();
+
             return $student;
         });
 

@@ -13,6 +13,7 @@ use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\Registrar\CollegePaymentController;
 use App\Http\Controllers\Registrar\ProgramController;
 use App\Http\Controllers\Registrar\ShsPaymentController;
+use App\Http\Controllers\Registrar\SubjectController;
 use App\Http\Controllers\RegistrarController;
 use App\Http\Controllers\Student\StudentDashboardController;
 use App\Http\Controllers\Student\SubjectController as StudentSubjectController;
@@ -75,6 +76,17 @@ Route::middleware(['auth', 'verified', 'role:registrar'])->prefix('registrar')->
         // Subject Management within Programs
         Route::post('/{program}/subjects', [ProgramController::class, 'storeSubject'])->name('subjects.store');
         Route::get('/subjects/{educationLevel}', [ProgramController::class, 'getSubjectsByEducationLevel'])->name('subjects.by-education-level');
+    });
+
+    // Subject Management Routes
+    Route::prefix('subjects')->name('subjects.')->group(function () {
+        Route::get('/', [SubjectController::class, 'index'])->name('index');
+        Route::get('/create', [SubjectController::class, 'create'])->name('create');
+        Route::post('/', [SubjectController::class, 'store'])->name('store');
+        Route::get('/{subject}', [SubjectController::class, 'show'])->name('show');
+        Route::get('/{subject}/edit', [SubjectController::class, 'edit'])->name('edit');
+        Route::put('/{subject}', [SubjectController::class, 'update'])->name('update');
+        Route::delete('/{subject}', [SubjectController::class, 'destroy'])->name('destroy');
     });
 
     // Student Progression Routes

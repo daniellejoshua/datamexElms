@@ -21,7 +21,7 @@ import {
     ArrowLeft
 } from 'lucide-react';
 
-export default function StudentSubjectsIndex({ subjects, student }) {
+export default function StudentSubjectsIndex({ subjects, student, archivedEnrollments }) {
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedSubject, setSelectedSubject] = useState(null);
     const [isGradesModalOpen, setIsGradesModalOpen] = useState(false);
@@ -265,6 +265,93 @@ export default function StudentSubjectsIndex({ subjects, student }) {
                     </Card>
                 )}
             </div>
+
+            {/* Archived Grades Section */}
+            {archivedEnrollments && archivedEnrollments.length > 0 && (
+                <div className="space-y-6">
+                    <Card>
+                        <CardHeader>
+                            <CardTitle className="text-xl flex items-center gap-3">
+                                <GraduationCap className="w-6 h-6 text-blue-600" />
+                                Archived Grades
+                                <Badge variant="secondary" className="bg-blue-100 text-blue-800">
+                                    {archivedEnrollments.length} semester{archivedEnrollments.length > 1 ? 's' : ''}
+                                </Badge>
+                            </CardTitle>
+                            <CardDescription>
+                                View your academic history from previous semesters
+                            </CardDescription>
+                        </CardHeader>
+                    </Card>
+
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                        {archivedEnrollments.map((enrollment, index) => (
+                            <Card key={index} className="border-2 border-gray-200 hover:border-blue-300 transition-colors">
+                                <CardHeader className="pb-4">
+                                    <div className="flex items-center justify-between">
+                                        <div className="flex items-center gap-3">
+                                            <div className="bg-gradient-to-br from-green-500 to-green-600 p-2.5 rounded-xl shadow-md">
+                                                <GraduationCap className="w-5 h-5 text-white" />
+                                            </div>
+                                            <div>
+                                                <CardTitle className="text-lg font-bold text-gray-900">
+                                                    {enrollment.academic_year} - {enrollment.semester} Semester
+                                                </CardTitle>
+                                                <div className="text-sm text-gray-600 mt-1">
+                                                    {enrollment.archived_section?.section_name || 'Section N/A'}
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <Badge 
+                                            variant="secondary"
+                                            className={enrollment.final_status === 'completed' 
+                                                ? 'bg-green-100 text-green-800' 
+                                                : enrollment.final_status === 'dropped' 
+                                                ? 'bg-yellow-100 text-yellow-800' 
+                                                : 'bg-red-100 text-red-800'
+                                            }
+                                        >
+                                            {enrollment.final_status}
+                                        </Badge>
+                                    </div>
+                                </CardHeader>
+                                <CardContent className="space-y-4">
+                                    {/* Overall Grades */}
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div className="bg-gray-50 p-3 rounded-lg">
+                                            <div className="text-sm font-medium text-gray-600">Final Grade</div>
+                                            <div className="text-lg font-bold text-gray-900">
+                                                {enrollment.final_semester_grade || 'N/A'}
+                                            </div>
+                                        </div>
+                                        <div className="bg-gray-50 p-3 rounded-lg">
+                                            <div className="text-sm font-medium text-gray-600">Letter Grade</div>
+                                            <div className="text-lg font-bold text-gray-900">
+                                                {enrollment.letter_grade || 'N/A'}
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* Subject Grades */}
+                                    {enrollment.final_grades && Object.keys(enrollment.final_grades).length > 0 && (
+                                        <div>
+                                            <div className="text-sm font-medium text-gray-600 mb-2">Subject Grades</div>
+                                            <div className="grid grid-cols-1 gap-2">
+                                                {Object.entries(enrollment.final_grades).map(([subject, grade]) => (
+                                                    <div key={subject} className="flex justify-between items-center bg-white p-2 rounded border text-sm">
+                                                        <span className="font-medium text-gray-800">{subject}</span>
+                                                        <span className="font-semibold text-gray-900">{grade}</span>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+                                </CardContent>
+                            </Card>
+                        ))}
+                    </div>
+                </div>
+            )}
             
             {/* Grades Modal */}
             <GradesModal 
