@@ -20,6 +20,7 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
         first_name: '',
         last_name: '',
         middle_name: '',
+        suffix: '',
         birth_date: '',
         street: '',
         barangay: '',
@@ -72,6 +73,8 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
     const [showPaymentModal, setShowPaymentModal] = useState(false)
     const [paymentHistory, setPaymentHistory] = useState(null)
     const [loadingPaymentHistory, setLoadingPaymentHistory] = useState(false)
+    const [suffixType, setSuffixType] = useState('none') // 'none', 'selected', 'other'
+    const [customSuffix, setCustomSuffix] = useState('')
     const lastErrorRef = useRef('')
 
     // Group programs by education level
@@ -160,6 +163,35 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
             setArchivedStudent(null)
         }
     }, [data.email])
+
+    // Handle suffix changes
+    useEffect(() => {
+        if (suffixType === 'none') {
+            setData('suffix', '')
+        } else if (suffixType === 'other') {
+            setData('suffix', customSuffix)
+        } else {
+            // Handle predefined suffixes like 'Jr.', 'Sr.', etc.
+            setData('suffix', suffixType)
+        }
+    }, [suffixType, customSuffix, setData])
+
+    // Initialize suffix type based on existing data
+    useEffect(() => {
+        if (data.suffix) {
+            const predefinedSuffixes = ['Jr.', 'Sr.', 'II', 'III', 'IV', 'V']
+            if (predefinedSuffixes.includes(data.suffix)) {
+                setSuffixType(data.suffix)
+                setCustomSuffix('')
+            } else {
+                setSuffixType('other')
+                setCustomSuffix(data.suffix)
+            }
+        } else {
+            setSuffixType('none')
+            setCustomSuffix('')
+        }
+    }, [data.suffix])
 
     const checkArchivedStudent = async () => {
         if (!data.email) return
@@ -492,7 +524,7 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                                         Existing Student Found
                                     </p>
                                     <p className="text-sm text-green-600">
-                                        {studentFound.first_name} {studentFound.middle_name} {studentFound.last_name} - {studentFound.program?.name}
+                                        {[studentFound.first_name, studentFound.middle_name, studentFound.last_name, studentFound.suffix].filter(Boolean).join(' ')} - {studentFound.program?.name}
                                     </p>
                                     <p className="text-xs text-green-500 mt-1">
                                         Student data has been auto-filled. You can modify if needed.
@@ -507,7 +539,7 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                                         Returning Student Found
                                     </p>
                                     <p className="text-sm text-orange-600">
-                                        {studentFound.first_name} {studentFound.middle_name} {studentFound.last_name} - Archived records restored
+                                        {[studentFound.first_name, studentFound.middle_name, studentFound.last_name, studentFound.suffix].filter(Boolean).join(' ')} - Archived records restored
                                     </p>
                                     <p className="text-xs text-orange-500 mt-1">
                                         Student data has been auto-filled from archived records.
@@ -544,7 +576,7 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                         </div>
                     </CardHeader>
                     <CardContent className="space-y-6 pt-6">
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                             <div>
                                 <Label htmlFor="first_name">First Name *</Label>
                                 <Input 
@@ -583,9 +615,49 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                                     <p className="text-red-500 text-sm mt-1">{errors.last_name}</p>
                                 )}
                             </div>
+
+                             <div>
+                                <Label htmlFor="suffix">Suffix</Label>
+                                <Select 
+                                    value={suffixType} 
+                                    onValueChange={(value) => {
+                                        setSuffixType(value)
+                                        if (value === 'other') {
+                                            // Keep customSuffix for 'other' case
+                                        } else {
+                                            setCustomSuffix('')
+                                        }
+                                    }}
+                                >
+                                    <SelectTrigger>
+                                        <SelectValue placeholder="Select suffix (optional)" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="none">None</SelectItem>
+                                        <SelectItem value="Jr.">Jr.</SelectItem>
+                                        <SelectItem value="Sr.">Sr.</SelectItem>
+                                        <SelectItem value="II">II</SelectItem>
+                                        <SelectItem value="III">III</SelectItem>
+                                        <SelectItem value="IV">IV</SelectItem>
+                                        <SelectItem value="V">V</SelectItem>
+                                        <SelectItem value="other">Other</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                                {suffixType === 'other' && (
+                                    <Input 
+                                        placeholder="Enter custom suffix"
+                                        value={customSuffix}
+                                        onChange={(e) => setCustomSuffix(e.target.value)}
+                                        className="mt-2"
+                                    />
+                                )}
+                                {errors.suffix && (
+                                    <p className="text-red-500 text-sm mt-1">{errors.suffix}</p>
+                                )}
+                            </div>
                         </div>
 
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                             <div>
                                 <Label htmlFor="birth_date">Birth Date *</Label>
                                 <Input 
@@ -622,7 +694,7 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                                             Returning Student Found!
                                         </p>
                                         <p className="text-green-700 text-sm mt-1">
-                                            Student #{archivedStudent.student_number} - {archivedStudent.first_name} {archivedStudent.last_name}
+                                            Student #{archivedStudent.student_number} - {[archivedStudent.first_name, archivedStudent.middle_name, archivedStudent.last_name, archivedStudent.suffix].filter(Boolean).join(' ')}
                                         </p>
                                         <p className="text-green-600 text-xs mt-1">
                                             Last enrolled: {archivedStudent.archived_at}
@@ -656,7 +728,7 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                             </div>
                         </div>
 
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                             <div>
                                 <Label htmlFor="phone">Phone Number</Label>
                                 <Input 
@@ -686,7 +758,7 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
 
                         <div>
                             <Label className="text-base font-semibold text-gray-900 mb-3 block">Address</Label>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                                 <div>
                                     <Label htmlFor="street">Street/House No.</Label>
                                     <Input 
@@ -771,7 +843,7 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                         </div>
                     </CardHeader>
                     <CardContent className="space-y-6 pt-6">
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                             <div>
                                 <Label htmlFor="program_id" className="text-sm font-medium">Program *</Label>
                                 <Select value={data.program_id.toString()} onValueChange={(value) => setData('program_id', value)}>
@@ -896,7 +968,7 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                             </div>
                         </CardHeader>
                     <CardContent className="space-y-6 pt-6">
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                             <div>
                                 <Label htmlFor="enrollment_fee">Enrollment Fee *</Label>
                                 <Input
@@ -1095,7 +1167,7 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                     <DialogHeader>
                         <DialogTitle className="flex items-center gap-2">
                             <DollarSign className="w-5 h-5" />
-                            Payment History - {paymentHistory?.student?.first_name} {paymentHistory?.student?.last_name}
+                            Payment History - {[paymentHistory?.student?.first_name, paymentHistory?.student?.middle_name, paymentHistory?.student?.last_name, paymentHistory?.student?.suffix].filter(Boolean).join(' ')}
                         </DialogTitle>
                         <DialogDescription>
                             Student ID: {paymentHistory?.student?.student_number}
@@ -1198,7 +1270,7 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                         <div className="grid grid-cols-2 gap-4 p-4 bg-gray-50 rounded-lg">
                             <div>
                                 <span className="text-sm font-medium text-gray-600">Full Name</span>
-                                <p className="text-sm font-semibold">{data.first_name} {data.middle_name} {data.last_name}</p>
+                                <p className="text-sm font-semibold">{data.first_name} {data.middle_name} {data.last_name}{data.suffix ? ` ${data.suffix}` : ''}</p>
                             </div>
                             <div>
                                 <span className="text-sm font-medium text-gray-600">Student Number</span>

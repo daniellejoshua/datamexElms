@@ -12,6 +12,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Button } from '@/components/ui/button';
 import { ChevronDown, ChevronRight, User, LogOut } from 'lucide-react';
+import { Toaster } from '@/components/ui/sonner';
 
 export default function AuthenticatedLayout({ header, children }) {
     const user = usePage().props.auth.user;
@@ -338,6 +339,7 @@ export default function AuthenticatedLayout({ header, children }) {
                     {children}
                 </main>
             </div>
+            <Toaster />
         </div>
     );
 }

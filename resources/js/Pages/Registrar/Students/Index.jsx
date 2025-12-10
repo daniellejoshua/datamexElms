@@ -6,8 +6,10 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
+import { toast } from 'sonner'
 import { Users, Search, Eye, Edit, Filter, UserPlus, Mail, Phone, MapPin, Calendar, GraduationCap, User, CreditCard } from 'lucide-react'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { ChevronDown, ChevronUp } from 'lucide-react'
 
 // Helper function to format section name
@@ -22,6 +24,21 @@ const formatSectionName = (section, isCurrentlyEnrolled) => {
     return section.section_name || 'N/A';
 };
 
+// Helper function to format student full name with suffix
+const formatStudentName = (student) => {
+    const parts = [student.first_name, student.middle_name, student.last_name];
+    if (student.suffix) {
+        parts.push(student.suffix);
+    }
+    return parts.filter(Boolean).join(' ');
+};
+
+// Helper function to truncate text with ellipsis
+const truncateText = (text, maxLength = 25) => {
+    if (text.length <= maxLength) return text;
+    return text.substring(0, maxLength - 3) + '...';
+};
+
 export default function StudentsIndex({ students, programs, filters, auth, on_hold_count, current_academic_period }) {
     const [searchTerm, setSearchTerm] = useState('')
     const [educationLevel, setEducationLevel] = useState(filters?.education_level || 'all')
@@ -34,6 +51,8 @@ export default function StudentsIndex({ students, programs, filters, auth, on_ho
     const [isEditMode, setIsEditMode] = useState(false)
     const [editFormData, setEditFormData] = useState({})
     const [isFiltersExpanded, setIsFiltersExpanded] = useState(false)
+    const [suffixType, setSuffixType] = useState('none') // 'none', 'selected', 'other'
+    const [customSuffix, setCustomSuffix] = useState('')
 
     const handleFilterChange = () => {
         router.get(route('registrar.students'), {
@@ -94,6 +113,18 @@ export default function StudentsIndex({ students, programs, filters, auth, on_ho
         }
     }
 
+    // Handle suffix changes
+    useEffect(() => {
+        if (suffixType === 'none') {
+            setEditFormData(prev => ({ ...prev, suffix: '' }))
+        } else if (suffixType === 'other') {
+            setEditFormData(prev => ({ ...prev, suffix: customSuffix }))
+        } else {
+            // Handle predefined suffixes like 'Jr.', 'Sr.', etc.
+            setEditFormData(prev => ({ ...prev, suffix: suffixType }))
+        }
+    }, [suffixType, customSuffix])
+
     const handleViewStudent = (studentId) => {
         const student = filteredStudents.find(s => s.id === studentId)
         if (student) {
@@ -127,6 +158,7 @@ export default function StudentsIndex({ students, programs, filters, auth, on_ho
                 first_name: student.first_name || '',
                 last_name: student.last_name || '',
                 middle_name: student.middle_name || '',
+                suffix: student.suffix || '',
                 birth_date: student.birth_date ? new Date(student.birth_date).toISOString().split('T')[0] : '',
                 address: student.address || '',
                 street: student.street || '',
@@ -145,6 +177,22 @@ export default function StudentsIndex({ students, programs, filters, auth, on_ho
                 strand: student.strand || '',
                 status: student.status || 'active',
             })
+            
+            // Initialize suffix type based on existing data
+            if (student.suffix) {
+                const predefinedSuffixes = ['Jr.', 'Sr.', 'II', 'III', 'IV', 'V']
+                if (predefinedSuffixes.includes(student.suffix)) {
+                    setSuffixType(student.suffix)
+                    setCustomSuffix('')
+                } else {
+                    setSuffixType('other')
+                    setCustomSuffix(student.suffix)
+                }
+            } else {
+                setSuffixType('none')
+                setCustomSuffix('')
+            }
+            
             setIsViewModalOpen(true)
             setIsEditMode(true)
         }
@@ -153,11 +201,13 @@ export default function StudentsIndex({ students, programs, filters, auth, on_ho
     const handleSaveStudent = () => {
         router.put(route('registrar.students.update', selectedStudent.id), editFormData, {
             onSuccess: () => {
+                toast.success('Student updated successfully!')
                 setIsEditMode(false)
                 setIsViewModalOpen(false)
                 router.reload()
             },
             onError: (errors) => {
+                toast.error('Failed to update student. Please check the form and try again.')
                 console.error('Update failed:', errors)
             }
         })
@@ -165,6 +215,8 @@ export default function StudentsIndex({ students, programs, filters, auth, on_ho
 
     const handleCancelEdit = () => {
         setIsViewModalOpen(false)
+        setSuffixType('none')
+        setCustomSuffix('')
     }
 
     return (
@@ -183,6 +235,7 @@ export default function StudentsIndex({ students, programs, filters, auth, on_ho
                 </div>
             }
         >
+            <TooltipProvider>
             <Head title="Student Management" />
 
             <div className="space-y-6">
@@ -386,7 +439,16 @@ export default function StudentsIndex({ students, programs, filters, auth, on_ho
                                                 <td className="py-3 px-6">
                                                     <div>
                                                         <div className="font-semibold text-gray-900">
-                                                            {student.first_name} {student.middle_name} {student.last_name}
+                                                            <Tooltip>
+                                                                <TooltipTrigger asChild>
+                                                                    <span className="cursor-pointer">
+                                                                        {truncateText(formatStudentName(student))}
+                                                                    </span>
+                                                                </TooltipTrigger>
+                                                                <TooltipContent>
+                                                                    <p>{formatStudentName(student)}</p>
+                                                                </TooltipContent>
+                                                            </Tooltip>
                                                         </div>
                                                         <div className="text-sm text-gray-500">
                                                             {student.user?.email}
@@ -592,6 +654,42 @@ export default function StudentsIndex({ students, programs, filters, auth, on_ho
                                                     />
                                                 </div>
                                                 <div>
+                                                    <label className="text-sm font-medium text-gray-700">Suffix</label>
+                                                    <Select 
+                                                        value={suffixType} 
+                                                        onValueChange={(value) => {
+                                                            setSuffixType(value)
+                                                            if (value === 'other') {
+                                                                // Keep customSuffix for 'other' case
+                                                            } else {
+                                                                setCustomSuffix('')
+                                                            }
+                                                        }}
+                                                    >
+                                                        <SelectTrigger>
+                                                            <SelectValue placeholder="Select suffix (optional)" />
+                                                        </SelectTrigger>
+                                                        <SelectContent>
+                                                            <SelectItem value="none">None</SelectItem>
+                                                            <SelectItem value="Jr.">Jr.</SelectItem>
+                                                            <SelectItem value="Sr.">Sr.</SelectItem>
+                                                            <SelectItem value="II">II</SelectItem>
+                                                            <SelectItem value="III">III</SelectItem>
+                                                            <SelectItem value="IV">IV</SelectItem>
+                                                            <SelectItem value="V">V</SelectItem>
+                                                            <SelectItem value="other">Other</SelectItem>
+                                                        </SelectContent>
+                                                    </Select>
+                                                    {suffixType === 'other' && (
+                                                        <Input 
+                                                            placeholder="Enter custom suffix"
+                                                            value={customSuffix}
+                                                            onChange={(e) => setCustomSuffix(e.target.value)}
+                                                            className="mt-2"
+                                                        />
+                                                    )}
+                                                </div>
+                                                <div>
                                                     <label className="text-sm font-medium text-gray-700">Email</label>
                                                     <Input
                                                         type="email"
@@ -666,7 +764,7 @@ export default function StudentsIndex({ students, programs, filters, auth, on_ho
                                                 <div className="flex justify-between items-center">
                                                     <span className="font-medium text-gray-600">Full Name:</span>
                                                     <span className="font-semibold">
-                                                        {selectedStudent.first_name} {selectedStudent.middle_name} {selectedStudent.last_name}
+                                                        {formatStudentName(selectedStudent)}
                                                     </span>
                                                 </div>
                                                 <div className="flex justify-between items-center">
@@ -1006,6 +1104,7 @@ export default function StudentsIndex({ students, programs, filters, auth, on_ho
                     )}
                 </DialogContent>
             </Dialog>
+        </TooltipProvider>
         </AuthenticatedLayout>
     )
 }

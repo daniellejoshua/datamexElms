@@ -27,8 +27,8 @@ export default function ProgramsIndex({ programs, auth, filters = {} }) {
     const [searchQuery, setSearchQuery] = useState(filters.search || '');
 
     const { data, setData, put, processing, errors, reset } = useForm({
-        name: '',
-        code: '',
+        program_name: '',
+        program_code: '',
         description: '',
         education_level: '',
         program_fees: [],
@@ -72,8 +72,8 @@ export default function ProgramsIndex({ programs, auth, filters = {} }) {
     const openEditModal = (program) => {
         setSelectedProgram(program);
         setData({
-            name: program.name || '',
-            code: program.code || '',
+            program_name: program.program_name || program.name || '',
+            program_code: program.program_code || program.code || '',
             description: program.description || '',
             education_level: program.education_level || '',
             program_fees: program.program_fees || [],
@@ -100,9 +100,10 @@ export default function ProgramsIndex({ programs, auth, filters = {} }) {
     }, [data.education_level, selectedProgram]);
 
     const updateFee = (yearLevel, amount) => {
+        const numericAmount = amount === '' ? 0 : parseFloat(amount) || 0;
         const updatedFees = data.program_fees.map(fee =>
             fee.year_level === yearLevel && fee.fee_type === 'regular'
-                ? { ...fee, semester_fee: parseFloat(amount) || 0 }
+                ? { ...fee, semester_fee: numericAmount }
                 : fee
         );
         setData('program_fees', updatedFees);
@@ -118,8 +119,11 @@ export default function ProgramsIndex({ programs, auth, filters = {} }) {
                 onSuccess: () => {
                     setEditModalOpen(false);
                     setSelectedProgram(null);
-                    reset();
-                    window.location.reload(); // Refresh to show updated data
+                    // Don't reset here, let the modal close first
+                    setTimeout(() => {
+                        reset();
+                        window.location.reload(); // Refresh to show updated data
+                    }, 100);
                 },
                 onError: (errors) => {
                     setFeeErrors(errors);
@@ -463,36 +467,36 @@ export default function ProgramsIndex({ programs, auth, filters = {} }) {
 
             {/* Edit Program Modal */}
             <Dialog open={editModalOpen} onOpenChange={setEditModalOpen}>
-                <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+                <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto">
                     <DialogHeader>
                         <DialogTitle>Edit Program</DialogTitle>
                     </DialogHeader>
 
-                    <form onSubmit={handleSubmit} className="space-y-6">
+                    <form onSubmit={handleSubmit} className="space-y-4">
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div>
-                                <Label htmlFor="name">Program Name</Label>
+                                <Label htmlFor="program_name">Program Name</Label>
                                 <Input
-                                    id="name"
-                                    value={data.name}
-                                    onChange={(e) => setData('name', e.target.value)}
+                                    id="program_name"
+                                    value={data.program_name}
+                                    onChange={(e) => setData('program_name', e.target.value)}
                                     required
                                 />
-                                {errors.name && (
-                                    <p className="text-sm text-red-600 mt-1">{errors.name}</p>
+                                {errors.program_name && (
+                                    <p className="text-sm text-red-600 mt-1">{errors.program_name}</p>
                                 )}
                             </div>
 
                             <div>
-                                <Label htmlFor="code">Program Code</Label>
+                                <Label htmlFor="program_code">Program Code</Label>
                                 <Input
-                                    id="code"
-                                    value={data.code}
-                                    onChange={(e) => setData('code', e.target.value)}
+                                    id="program_code"
+                                    value={data.program_code}
+                                    onChange={(e) => setData('program_code', e.target.value)}
                                     required
                                 />
-                                {errors.code && (
-                                    <p className="text-sm text-red-600 mt-1">{errors.code}</p>
+                                {errors.program_code && (
+                                    <p className="text-sm text-red-600 mt-1">{errors.program_code}</p>
                                 )}
                             </div>
                         </div>
@@ -533,11 +537,11 @@ export default function ProgramsIndex({ programs, auth, filters = {} }) {
 
                         <div>
                             <Label className="text-base font-semibold">Regular Student Fees by Year Level</Label>
-                            <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+                            <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
                                 Set different fees for each year level. These fees will be automatically applied to regular students during enrollment.
                             </p>
 
-                            <div className="space-y-4">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 {Array.from({ length: data.education_level === 'masteral' ? 2 : 4 }, (_, i) => i + 1).map((year) => {
                                     const fee = data.program_fees.find(
                                         f => f.year_level === year && f.fee_type === 'regular'
@@ -545,24 +549,25 @@ export default function ProgramsIndex({ programs, auth, filters = {} }) {
                                     const amount = fee ? fee.semester_fee : 0;
 
                                     return (
-                                        <div key={year} className="flex items-center gap-4 p-4 border rounded-lg">
-                                            <Label className="w-32">
-                                                {year}{year === 1 ? 'st' : year === 2 ? 'nd' : year === 3 ? 'rd' : 'th'} Year (per semester):
+                                        <div key={year} className="flex items-center gap-3 p-3 border rounded-lg bg-gray-50">
+                                            <Label className="text-sm font-medium w-24 flex-shrink-0">
+                                                {year}{year === 1 ? 'st' : year === 2 ? 'nd' : year === 3 ? 'rd' : 'th'} Year:
                                             </Label>
-                                            <div className="relative flex-1">
-                                                <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500">
+                                            <div className="relative flex-1 max-w-32">
+                                                <span className="absolute left-2 top-1/2 transform -translate-y-1/2 text-gray-500 text-xs">
                                                     ₱
                                                 </span>
                                                 <Input
                                                     type="number"
                                                     step="0.01"
                                                     min="0"
-                                                    value={amount}
+                                                    value={amount || ''}
                                                     onChange={(e) => updateFee(year, e.target.value)}
-                                                    className="pl-8"
+                                                    className="pl-6 h-8 text-sm"
                                                     placeholder="0.00"
                                                 />
                                             </div>
+                                            <span className="text-xs text-gray-500">per semester</span>
                                         </div>
                                     );
                                 })}

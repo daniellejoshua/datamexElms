@@ -89,8 +89,8 @@ class ProgramController extends Controller
     public function update(Request $request, Program $program)
     {
         $validated = $request->validate([
-            'name' => 'required|string|max:255',
-            'code' => 'required|string|max:20|unique:programs,code,'.$program->id,
+            'program_name' => 'required|string|max:255',
+            'program_code' => 'required|string|max:20|unique:programs,program_code,'.$program->id,
             'description' => 'nullable|string',
             'education_level' => 'required|in:college,masteral,shs',
             'semester_fee' => 'nullable|numeric|min:0',
@@ -102,8 +102,8 @@ class ProgramController extends Controller
 
         // Update program basic info
         $program->update([
-            'name' => $validated['name'],
-            'code' => $validated['code'],
+            'program_name' => $validated['program_name'],
+            'program_code' => $validated['program_code'],
             'description' => $validated['description'],
             'education_level' => $validated['education_level'],
         ]);
@@ -126,6 +126,18 @@ class ProgramController extends Controller
 
         return redirect()->route('registrar.programs.index')
             ->with('success', 'Program updated successfully.');
+    }
+
+    /**
+     * Show the form for editing the specified resource.
+     */
+    public function edit(Program $program)
+    {
+        $program->load(['subjects', 'programFees']);
+
+        return Inertia::render('Registrar/Programs/Edit', [
+            'program' => $program,
+        ]);
     }
 
     /**
