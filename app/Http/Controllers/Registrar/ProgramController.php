@@ -124,7 +124,7 @@ class ProgramController extends Controller
             );
         }
 
-        return redirect()->route('registrar.programs.index')
+        return redirect()->route('registrar.programs.show', $program)
             ->with('success', 'Program updated successfully.');
     }
 

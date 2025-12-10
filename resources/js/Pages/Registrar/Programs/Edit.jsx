@@ -61,9 +61,6 @@ export default function ProgramsEdit({ program, auth }) {
 
         try {
             await put(route('registrar.programs.update', program.id), {
-                onSuccess: () => {
-                    window.location.href = route('registrar.programs.show', program.id);
-                },
                 onError: (errors) => {
                     setFeeErrors(errors);
                 }
