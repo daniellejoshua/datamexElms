@@ -4,6 +4,9 @@ namespace App\Http\Controllers\Student;
 
 use App\Http\Controllers\Controller;
 use App\Models\ArchivedStudentEnrollment;
+use App\Models\CourseMaterial;
+use App\Models\MaterialAccessLog;
+use App\Models\Student;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;

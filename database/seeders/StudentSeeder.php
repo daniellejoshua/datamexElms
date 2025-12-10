@@ -17,8 +17,8 @@ class StudentSeeder extends Seeder
         $studentUsers = User::where('role', 'student')->get();
 
         // Get programs
-        $csProgram = Program::where('program_code', 'CS')->first();
-        $itProgram = Program::where('program_code', 'IT')->first();
+        $csProgram = Program::where('program_code', 'BSCS')->first();
+        $itProgram = Program::where('program_code', 'BSIT')->first();
         $stemProgram = Program::where('program_code', 'STEM')->first();
         $abmProgram = Program::where('program_code', 'ABM')->first();
 

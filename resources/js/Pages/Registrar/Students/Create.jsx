@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { UserPlus, ArrowLeft, GraduationCap, BookOpen, AlertTriangle, DollarSign } from 'lucide-react'
 import { useState, useEffect, useRef } from 'react'
 
@@ -68,6 +68,7 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
     const [showErrorModal, setShowErrorModal] = useState(false)
     const [showCourseShiftModal, setShowCourseShiftModal] = useState(false)
     const [courseShiftData, setCourseShiftData] = useState(null)
+    const [showSummaryModal, setShowSummaryModal] = useState(false)
     const [showPaymentModal, setShowPaymentModal] = useState(false)
     const [paymentHistory, setPaymentHistory] = useState(null)
     const [loadingPaymentHistory, setLoadingPaymentHistory] = useState(false)
@@ -78,9 +79,17 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
     const shsPrograms = programs.filter(p => p.education_level === 'shs')
 
     useEffect(() => {
-        if (data.program_id && data.year_level && data.student_type) {
+        if (data.program_id) {
             const program = programs.find(p => p.id === parseInt(data.program_id))
             setSelectedProgram(program)
+        } else {
+            setSelectedProgram(null)
+        }
+    }, [data.program_id, programs])
+
+    useEffect(() => {
+        if (data.program_id && data.year_level && data.student_type) {
+            const program = programs.find(p => p.id === parseInt(data.program_id))
 
             // Only auto-populate fee for regular students
             if (data.student_type === 'regular') {
@@ -114,6 +123,13 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
         const paymentAmount = parseFloat(data.payment_amount) || 0
         setCalculatedBalance(enrollmentFee - paymentAmount)
     }, [data.enrollment_fee, data.payment_amount])
+
+    // Auto-correct student type for new first-year first-semester students
+    useEffect(() => {
+        if (!isExistingStudent && !isReturningStudent && data.year_level === '1' && currentSemester === 'first' && data.student_type === 'irregular') {
+            setData('student_type', 'regular')
+        }
+    }, [data.year_level, data.student_type, isExistingStudent, isReturningStudent, currentSemester])
 
     // Show error modal when student error exists
     useEffect(() => {
@@ -314,7 +330,13 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
     const handleSubmit = (e) => {
         e.preventDefault()
         
+        // Show summary modal instead of direct submission
+        setShowSummaryModal(true)
+    }
+
+    const handleConfirmRegistration = () => {
         // Reset modal state before submission
+        setShowSummaryModal(false)
         setShowErrorModal(false)
         
         // Concatenate address parts
@@ -837,7 +859,15 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                                 </SelectTrigger>
                                 <SelectContent>
                                     <SelectItem value="regular">✓ Regular Student</SelectItem>
-                                    <SelectItem value="irregular">⚠ Irregular Student</SelectItem>
+                                    <SelectItem 
+                                        value="irregular" 
+                                        disabled={!isExistingStudent && !isReturningStudent && data.year_level === '1' && currentSemester === 'first'}
+                                    >
+                                        ⚠ Irregular Student
+                                        {!isExistingStudent && !isReturningStudent && data.year_level === '1' && currentSemester === 'first' && (
+                                            <span className="text-xs text-gray-400 ml-2">(Not available for new 1st year 1st semester students)</span>
+                                        )}
+                                    </SelectItem>
                                 </SelectContent>
                             </Select>
                             {errors.student_type && (
@@ -946,7 +976,7 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                 </Card>
 
                 {/* Submit Button */}
-                <div className="flex justify-end gap-3">
+                <div className="flex justify-end gap-3 mt-8">
                     <Button
                         type="button"
                         variant="outline"
@@ -1147,6 +1177,115 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                             Close
                         </Button>
                     </div>
+                </DialogContent>
+            </Dialog>
+
+            {/* Summary Modal */}
+            <Dialog open={showSummaryModal} onOpenChange={setShowSummaryModal}>
+                <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+                    <DialogHeader>
+                        <DialogTitle className="flex items-center gap-2">
+                            <GraduationCap className="w-5 h-5 text-blue-600" />
+                            Student Registration Summary
+                        </DialogTitle>
+                        <DialogDescription>
+                            Please review the student details before confirming registration.
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    <div className="space-y-4 py-4">
+                        {/* Personal Information */}
+                        <div className="grid grid-cols-2 gap-4 p-4 bg-gray-50 rounded-lg">
+                            <div>
+                                <span className="text-sm font-medium text-gray-600">Full Name</span>
+                                <p className="text-sm font-semibold">{data.first_name} {data.middle_name} {data.last_name}</p>
+                            </div>
+                            <div>
+                                <span className="text-sm font-medium text-gray-600">Student Number</span>
+                                <p className="text-sm font-semibold">{data.student_number || 'Auto-generated'}</p>
+                            </div>
+                            <div>
+                                <span className="text-sm font-medium text-gray-600">Birth Date</span>
+                                <p className="text-sm">{data.birth_date ? new Date(data.birth_date).toLocaleDateString() : 'Not provided'}</p>
+                            </div>
+                            <div>
+                                <span className="text-sm font-medium text-gray-600">Phone</span>
+                                <p className="text-sm">{data.phone || 'Not provided'}</p>
+                            </div>
+                        </div>
+
+                        {/* Address */}
+                        {(data.street || data.barangay || data.city) && (
+                            <div className="p-4 bg-blue-50 rounded-lg">
+                                <span className="text-sm font-medium text-gray-600">Address</span>
+                                <p className="text-sm">
+                                    {[data.street, data.barangay, data.city, data.province, data.zip_code].filter(Boolean).join(', ')}
+                                </p>
+                            </div>
+                        )}
+
+                        {/* Academic Information */}
+                        <div className="grid grid-cols-2 gap-4 p-4 bg-green-50 rounded-lg">
+                            <div>
+                                <span className="text-sm font-medium text-gray-600">Program</span>
+                                <p className="text-sm font-semibold">{selectedProgram?.program_name || 'Not selected'}</p>
+                            </div>
+                            <div>
+                                <span className="text-sm font-medium text-gray-600">Year Level</span>
+                                <p className="text-sm font-semibold">{data.year_level || 'Not selected'}</p>
+                            </div>
+                            <div>
+                                <span className="text-sm font-medium text-gray-600">Student Type</span>
+                                <p className="text-sm font-semibold">{data.student_type === 'regular' ? 'Regular Student' : 'Irregular Student'}</p>
+                            </div>
+                            <div>
+                                <span className="text-sm font-medium text-gray-600">Education Level</span>
+                                <p className="text-sm">{data.education_level === 'college' ? 'College' : 'Senior High School'}</p>
+                            </div>
+                        </div>
+
+                        {/* Payment Information */}
+                        <div className="p-4 bg-orange-50 rounded-lg">
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <span className="text-sm font-medium text-gray-600">Enrollment Fee</span>
+                                    <p className="text-sm font-semibold">₱{data.enrollment_fee || '0.00'}</p>
+                                </div>
+                                <div>
+                                    <span className="text-sm font-medium text-gray-600">Payment Amount</span>
+                                    <p className="text-sm font-semibold">₱{data.payment_amount || '0.00'}</p>
+                                </div>
+                            </div>
+                            {calculatedBalance !== 0 && (
+                                <div className="mt-2 pt-2 border-t border-orange-200">
+                                    <span className="text-sm font-medium text-gray-600">Balance</span>
+                                    <p className={`text-sm font-semibold ${calculatedBalance > 0 ? 'text-red-600' : 'text-green-600'}`}>
+                                        ₱{Math.abs(calculatedBalance).toFixed(2)} {calculatedBalance > 0 ? 'Due' : 'Overpayment'}
+                                    </p>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+
+                    <DialogFooter className="flex gap-3 pt-4">
+                        <Button
+                            type="button"
+                            variant="outline"
+                            onClick={() => setShowSummaryModal(false)}
+                            disabled={processing}
+                            className="mr-2"
+                        >
+                            Cancel
+                        </Button>
+                        <Button
+                            onClick={handleConfirmRegistration}
+                            disabled={processing}
+                            className="bg-blue-600 hover:bg-blue-700"
+                        >
+                            <UserPlus className="w-4 h-4 mr-2" />
+                            {processing ? 'Processing...' : 'Confirm Registration'}
+                        </Button>
+                    </DialogFooter>
                 </DialogContent>
             </Dialog>
         </AuthenticatedLayout>

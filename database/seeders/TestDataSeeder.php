@@ -2,12 +2,12 @@
 
 namespace Database\Seeders;
 
-use App\Models\User;
-use App\Models\Teacher;
 use App\Models\Program;
 use App\Models\Section;
-use App\Models\Subject;
 use App\Models\SectionSubject;
+use App\Models\Subject;
+use App\Models\Teacher;
+use App\Models\User;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Hash;
 
@@ -48,9 +48,9 @@ class TestDataSeeder extends Seeder
 
             $teachers[] = Teacher::create([
                 'user_id' => $user->id,
-                'employee_number' => 'EMP' . str_pad(count($teachers) + 1, 4, '0', STR_PAD_LEFT),
+                'employee_number' => 'EMP'.str_pad(count($teachers) + 1, 4, '0', STR_PAD_LEFT),
                 'first_name' => explode(' ', $userData['name'])[1] ?? 'John',
-                'last_name' => explode(' ', $userData['name'])[2] ?? 'Doe', 
+                'last_name' => explode(' ', $userData['name'])[2] ?? 'Doe',
                 'middle_name' => null,
                 'department' => fake()->randomElement(['Computer Science', 'Mathematics', 'Physics', 'Chemistry', 'English']),
                 'specialization' => fake()->randomElement(['Programming', 'Database Systems', 'Web Development', 'Data Science']),
@@ -69,7 +69,7 @@ class TestDataSeeder extends Seeder
         ]);
 
         // Get existing programs (assuming they were created by ProgramSeeder)
-        $createdPrograms = Program::whereIn('program_code', ['CS', 'IT', 'STEM', 'ABM'])->get();
+        $createdPrograms = Program::whereIn('program_code', ['BSCS', 'BSIT', 'STEM', 'ABM'])->get();
 
         // Create Sections
         $sections = [];
@@ -90,6 +90,8 @@ class TestDataSeeder extends Seeder
 
         // Create Subjects with different hour requirements
         $existingSubjects = Subject::all();
+        $createdSubjects = $existingSubjects; // Use existing subjects
+
         if ($existingSubjects->isEmpty()) {
             $subjects = [
                 // CS Subjects
@@ -97,33 +99,32 @@ class TestDataSeeder extends Seeder
                 ['code' => 'CS102', 'name' => 'Data Structures', 'units' => 4, 'year' => 1, 'type' => 'major'],
                 ['code' => 'CS201', 'name' => 'Object Oriented Programming', 'units' => 3, 'year' => 2, 'type' => 'major'],
                 ['code' => 'CS202', 'name' => 'Database Systems', 'units' => 4, 'year' => 2, 'type' => 'major'],
-                
+
                 // Math Subjects
                 ['code' => 'MATH101', 'name' => 'College Algebra', 'units' => 3, 'year' => 1, 'type' => 'general'],
-            ['code' => 'MATH102', 'name' => 'Calculus I', 'units' => 4, 'year' => 1, 'type' => 'general'],
-            ['code' => 'MATH201', 'name' => 'Statistics', 'units' => 3, 'year' => 2, 'type' => 'general'],
-            
-            // General Subjects
-            ['code' => 'ENG101', 'name' => 'English Composition', 'units' => 3, 'year' => 1, 'type' => 'general'],
-            ['code' => 'PE101', 'name' => 'Physical Education', 'units' => 2, 'year' => 1, 'type' => 'general'],
-            ['code' => 'HIST101', 'name' => 'Philippine History', 'units' => 3, 'year' => 1, 'type' => 'general'],
-        ];
+                ['code' => 'MATH102', 'name' => 'Calculus I', 'units' => 4, 'year' => 1, 'type' => 'general'],
+                ['code' => 'MATH201', 'name' => 'Statistics', 'units' => 3, 'year' => 2, 'type' => 'general'],
 
-        $createdSubjects = [];
-        foreach ($subjects as $subjectData) {
-            $createdSubjects[] = Subject::create([
-                'subject_code' => $subjectData['code'],
-                'subject_name' => $subjectData['name'],
-                'description' => 'Sample description for ' . $subjectData['name'],
-                'units' => $subjectData['units'],
-                'year_level' => $subjectData['year'],
-                'semester' => 1,
-                'subject_type' => $subjectData['type'],
-                'status' => 'active',
-            ]);
-        }
+                // General Subjects
+                ['code' => 'ENG101', 'name' => 'English Composition', 'units' => 3, 'year' => 1, 'type' => 'general'],
+                ['code' => 'PE101', 'name' => 'Physical Education', 'units' => 2, 'year' => 1, 'type' => 'general'],
+                ['code' => 'HIST101', 'name' => 'Philippine History', 'units' => 3, 'year' => 1, 'type' => 'general'],
+            ];
 
-        // Create some sample schedule assignments to demonstrate conflicts
+            $createdSubjects = [];
+            foreach ($subjects as $subjectData) {
+                $createdSubjects[] = Subject::create([
+                    'subject_code' => $subjectData['code'],
+                    'subject_name' => $subjectData['name'],
+                    'description' => 'Sample description for '.$subjectData['name'],
+                    'units' => $subjectData['units'],
+                    'year_level' => $subjectData['year'],
+                    'semester' => 1,
+                    'subject_type' => $subjectData['type'],
+                    'status' => 'active',
+                ]);
+            }
+        }        // Create some sample schedule assignments to demonstrate conflicts
         $firstSection = $sections[0]; // CS 1A
         $firstTeacher = $teachers[0];
 
