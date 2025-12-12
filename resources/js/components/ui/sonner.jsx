@@ -18,6 +18,8 @@ const Toaster = ({
     <Sonner
       theme={theme}
       className="toaster group"
+      position="top-right"
+      swipeToDismiss={false}
       icons={{
         success: <CircleCheck className="h-4 w-4" />,
         info: <Info className="h-4 w-4" />,

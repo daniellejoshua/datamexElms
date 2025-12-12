@@ -11,7 +11,7 @@ import { UserPlus, ArrowLeft, GraduationCap, BookOpen, AlertTriangle, DollarSign
 import { useState, useEffect, useRef } from 'react'
 import { toast } from 'sonner'
 
-export default function CreateStudent({ programs, auth, currentAcademicYear, currentSemester, course_shift_required, old }) {
+export default function EditStudent({ student, programs, auth }) {
     const { flash } = usePage().props;
     const { data, setData, post, processing, errors, reset } = useForm(old || {
         // Student Number (for checking existing students)
@@ -408,49 +408,26 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
         
         console.log('Form submitting with data:', submitData)
         
-        // Submit using Inertia's post with the form data directly
-        post(route('registrar.students.store'), {
+        // Submit using Inertia's put with the form data directly
+        put(route('registrar.students.update', student.id), {
             preserveScroll: true,
             data: submitData,
             onSuccess: (page) => {
                 console.log('Success response:', page)
 
-                // If the server re-rendered the Create page with course_shift_required,
-                // show the course shift modal and restore form data instead of
-                // treating it as a final success.
-                if (page.props && page.props.course_shift_required) {
-                    // Restore previous input if provided
-                    if (page.props.old) {
-                        try {
-                            setData(prev => ({ ...prev, ...page.props.old }));
-                        } catch (e) {
-                            console.error('Failed to restore old form data', e)
-                        }
-                    }
-
-                    setCourseShiftData(page.props.course_shift_required)
-                    setShowCourseShiftModal(true)
-                    return
-                }
-
-                // Normal successful registration
-                toast.success('Student registered successfully!', {
+                // Normal successful update
+                toast.success('Student updated successfully!', {
                     style: { border: '1px solid #10b981', color: '#10b981' }
                 })
                 router.visit(route('registrar.students'))
             },
             onError: (errors) => {
                 console.error('Validation errors:', errors)
-                // Show error modal if there's a student balance error
-                if (errors.student) {
-                    setShowErrorModal(true)
-                } else {
-                    // Extract the first error message
-                    const errorMessage = Object.values(errors).find(error => error) || 'An unknown error occurred'
-                    toast.error(`${errorMessage}`, {
-                        style: { border: '1px solid #ef4444', color: '#ef4444' }
-                    })
-                }
+                // Extract the first error message
+                const errorMessage = Object.values(errors).find(error => error) || 'An unknown error occurred'
+                toast.error(`Failed to update student: ${errorMessage}`, {
+                    style: { border: '1px solid #ef4444', color: '#ef4444' }
+                })
             },
         })
     }
@@ -503,7 +480,7 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
             }
         >
         
-            <Head title="Register New Student" />
+            <Head title={`Edit ${student.first_name} ${student.last_name} - Student Management`} />
 
             <form onSubmit={handleSubmit} className="space-y-6">
                 {/* Student Number Check */}

@@ -201,13 +201,18 @@ export default function StudentsIndex({ students, programs, filters, auth, on_ho
     const handleSaveStudent = () => {
         router.put(route('registrar.students.update', selectedStudent.id), editFormData, {
             onSuccess: () => {
-                toast.success('Student updated successfully!')
+                toast.success('Student updated successfully!', {
+                    style: { border: '1px solid #10b981', color: '#10b981' }
+                })
                 setIsEditMode(false)
                 setIsViewModalOpen(false)
                 router.reload()
             },
             onError: (errors) => {
-                toast.error('Failed to update student. Please check the form and try again.')
+                const errorMessage = Object.values(errors).find(error => error) || 'An unknown error occurred'
+                toast.error(`Failed to update student: ${errorMessage}`, {
+                    style: { border: '1px solid #ef4444', color: '#ef4444' }
+                })
                 console.error('Update failed:', errors)
             }
         })
