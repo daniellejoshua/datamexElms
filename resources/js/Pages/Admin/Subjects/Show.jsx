@@ -30,7 +30,7 @@ export default function SubjectsShow({ auth, subject }) {
                 <div className="flex items-center justify-between px-2 py-1">
                     <div className="flex items-center gap-2">
                         <Button asChild variant="ghost" size="sm" className="text-xs h-7 px-2">
-                            <Link href={route('registrar.subjects.index')}>
+                            <Link href={route('admin.subjects.index')}>
                                 <ArrowLeft className="w-3 h-3 mr-1" />
                                 Back to Subjects
                             </Link>
@@ -44,7 +44,7 @@ export default function SubjectsShow({ auth, subject }) {
                         </div>
                     </div>
                     <Button asChild size="sm" className="bg-green-600 hover:bg-green-700 text-white text-xs h-7 px-2">
-                        <Link href={route('registrar.subjects.edit', subject.id)}>
+                        <Link href={route('admin.subjects.edit', subject.id)}>
                             <Edit className="w-3 h-3 mr-1" />
                             Edit Subject
                         </Link>

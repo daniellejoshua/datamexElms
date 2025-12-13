@@ -50,7 +50,7 @@ export default function SubjectsIndex({ subjects, auth, filters = {} }) {
         }
 
         // Navigate with filters
-        router.get(route('registrar.subjects.index'), newFilters, {
+        router.get(route('admin.subjects.index'), newFilters, {
             preserveState: true,
             preserveScroll: true,
         });
@@ -94,7 +94,7 @@ export default function SubjectsIndex({ subjects, auth, filters = {} }) {
                         </div>
                     </div>
                     <Button asChild size="sm" className="bg-green-600 hover:bg-green-700 text-white text-xs h-7 px-2">
-                        <Link href={route('registrar.subjects.create')}>
+                        <Link href={route('admin.subjects.create')}>
                             <Plus className="w-3 h-3 mr-1" />
                             Create Subject
                         </Link>
@@ -285,7 +285,7 @@ export default function SubjectsIndex({ subjects, auth, filters = {} }) {
                                 }
                             </p>
                             <Button asChild>
-                                <Link href={route('registrar.subjects.create')}>
+                                <Link href={route('admin.subjects.create')}>
                                     <Plus className="w-4 h-4 mr-2" />
                                     Create Subject
                                 </Link>
@@ -428,7 +428,7 @@ export default function SubjectsIndex({ subjects, auth, filters = {} }) {
                             const formData = new FormData(e.target);
                             const data = Object.fromEntries(formData.entries());
 
-                            router.put(route('registrar.subjects.update', selectedSubject.id), data, {
+                            router.put(route('admin.subjects.update', selectedSubject.id), data, {
                                 onSuccess: () => {
                                     setEditModalOpen(false);
                                     router.reload();

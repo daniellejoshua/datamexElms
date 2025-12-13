@@ -53,7 +53,8 @@ class UserSeeder extends Seeder
             ]);
         }
 
-        // Create Sample Students
+        // Create Sample Students - COMMENTED OUT as per user request
+        /*
         $students = [
             ['name' => 'Juan Dela Cruz', 'email' => 'juan.delacruz@student.datamex.edu'],
             ['name' => 'Maria Garcia', 'email' => 'maria.garcia@student.datamex.edu'],
@@ -75,5 +76,6 @@ class UserSeeder extends Seeder
                 'email_verified_at' => now(),
             ]);
         }
+        */
     }
 }

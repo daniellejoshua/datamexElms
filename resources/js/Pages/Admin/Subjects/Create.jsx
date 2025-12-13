@@ -9,18 +9,18 @@ import { Textarea } from '@/components/ui/textarea'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { ArrowLeft, Save, BookOpen } from 'lucide-react'
 
-export default function SubjectsEdit({ auth, subject }) {
-    const { data, setData, put, processing, errors, reset } = useForm({
-        subject_code: subject.subject_code || '',
-        subject_name: subject.subject_name || '',
-        description: subject.description || '',
-        education_level: subject.education_level || '',
-        year_level: subject.year_level || '',
-        semester: subject.semester || '',
-        units: subject.units || '',
-        subject_type: subject.subject_type || '',
-        prerequisites: subject.prerequisites || '',
-        status: subject.status || 'active',
+export default function SubjectsCreate({ auth }) {
+    const { data, setData, post, processing, errors, reset } = useForm({
+        subject_code: '',
+        subject_name: '',
+        description: '',
+        education_level: '',
+        year_level: '',
+        semester: '',
+        units: '',
+        subject_type: '',
+        prerequisites: '',
+        status: 'active',
     });
 
     const educationLevels = [
@@ -42,7 +42,7 @@ export default function SubjectsEdit({ auth, subject }) {
 
     const handleSubmit = (e) => {
         e.preventDefault();
-        put(route('registrar.subjects.update', subject.id));
+        post(route('admin.subjects.store'));
     };
 
     return (
@@ -51,7 +51,7 @@ export default function SubjectsEdit({ auth, subject }) {
                 <div className="flex items-center justify-between px-2 py-1">
                     <div className="flex items-center gap-2">
                         <Button asChild variant="ghost" size="sm" className="text-xs h-7 px-2">
-                            <Link href={route('registrar.subjects.index')}>
+                            <Link href={route('admin.subjects.index')}>
                                 <ArrowLeft className="w-3 h-3 mr-1" />
                                 Back to Subjects
                             </Link>
@@ -60,14 +60,14 @@ export default function SubjectsEdit({ auth, subject }) {
                             <BookOpen className="w-4 h-4 text-green-600" />
                         </div>
                         <div>
-                            <h2 className="text-lg font-semibold text-gray-900">Edit Subject</h2>
-                            <p className="text-xs text-gray-500 mt-0.5">Update subject information</p>
+                            <h2 className="text-lg font-semibold text-gray-900">Create Subject</h2>
+                            <p className="text-xs text-gray-500 mt-0.5">Add a new academic subject</p>
                         </div>
                     </div>
                 </div>
             }
         >
-            <Head title={`Edit ${subject.subject_name}`} />
+            <Head title="Create Subject" />
 
             <div className="max-w-2xl mx-auto">
                 <form onSubmit={handleSubmit}>
@@ -75,7 +75,7 @@ export default function SubjectsEdit({ auth, subject }) {
                         <CardHeader>
                             <CardTitle>Subject Information</CardTitle>
                             <CardDescription>
-                                Update the subject details. All fields marked with * are required.
+                                Enter the details for the new subject. All fields marked with * are required.
                             </CardDescription>
                         </CardHeader>
                         <CardContent className="space-y-6">
@@ -278,7 +278,7 @@ export default function SubjectsEdit({ auth, subject }) {
                             variant="outline"
                             asChild
                         >
-                            <Link href={route('registrar.subjects.index')}>
+                            <Link href={route('admin.subjects.index')}>
                                 Cancel
                             </Link>
                         </Button>
@@ -288,7 +288,7 @@ export default function SubjectsEdit({ auth, subject }) {
                             className="bg-green-600 hover:bg-green-700"
                         >
                             <Save className="w-4 h-4 mr-2" />
-                            {processing ? 'Updating...' : 'Update Subject'}
+                            {processing ? 'Creating...' : 'Create Subject'}
                         </Button>
                     </div>
                 </form>

@@ -14,10 +14,6 @@ class DatabaseSeeder extends Seeder
         $this->call([
             UserSeeder::class,
             ProgramSeeder::class,
-            SubjectSeeder::class,
-            TestDataSeeder::class,
-            SectionSubjectSeeder::class,
-            RealisticStudentSeeder::class,
         ]);
     }
 }

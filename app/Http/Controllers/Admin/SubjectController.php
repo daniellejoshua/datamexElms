@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Http\Controllers\Registrar;
+namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\Subject;
@@ -40,7 +40,7 @@ class SubjectController extends Controller
             ->paginate(8)
             ->appends($request->query());
 
-        return Inertia::render('Registrar/Subjects/Index', [
+        return Inertia::render('Admin/Subjects/Index', [
             'subjects' => $subjects,
             'filters' => $request->only(['education_level', 'status', 'search']),
         ]);
@@ -51,7 +51,7 @@ class SubjectController extends Controller
      */
     public function create()
     {
-        return Inertia::render('Registrar/Subjects/Create');
+        return Inertia::render('Admin/Subjects/Create');
     }
 
     /**
@@ -85,7 +85,7 @@ class SubjectController extends Controller
     {
         $subject->load(['programs']);
 
-        return Inertia::render('Registrar/Subjects/Show', [
+        return Inertia::render('Admin/Subjects/Show', [
             'subject' => $subject,
         ]);
     }
@@ -95,7 +95,7 @@ class SubjectController extends Controller
      */
     public function edit(Subject $subject)
     {
-        return Inertia::render('Registrar/Subjects/Edit', [
+        return Inertia::render('Admin/Subjects/Edit', [
             'subject' => $subject,
         ]);
     }
