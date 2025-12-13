@@ -8,10 +8,10 @@ use App\Models\Student;
 use App\Models\StudentEnrollment;
 use App\Models\StudentSemesterPayment;
 use App\Models\User;
-use Illuminate\Foundation\Testing\RefreshDatabase;
+// use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
 
-uses(RefreshDatabase::class);
+// uses(RefreshDatabase::class);
 
 beforeEach(function () {
     $this->registrar = Registrar::factory()->create();
@@ -337,13 +337,13 @@ it('prevents duplicate enrollment in the same semester', function () {
     // Verify that enrollment record was created
     $academicYear = SchoolSetting::getCurrentAcademicYear();
     $semester = SchoolSetting::getCurrentSemester();
-    
+
     $enrollment = StudentEnrollment::where([
         'student_id' => $student->id,
         'academic_year' => $academicYear,
         'semester' => $semester,
     ])->first();
-    
+
     expect($enrollment)->not->toBeNull();
     expect($enrollment->status)->toBe('active');
     expect($enrollment->section_id)->toBeNull(); // Should be null initially
@@ -374,7 +374,7 @@ it('prevents duplicate enrollment in the same semester', function () {
 
     // Check that the error message mentions duplicate enrollment
     $response->assertSessionHasErrors([
-        'student' => "Student is already enrolled in the current semester ({$academicYear} - {$semester}). Cannot enroll again."
+        'student' => "Student is already enrolled in the current semester ({$academicYear} - {$semester}). Cannot enroll again.",
     ]);
 });
 
@@ -420,7 +420,7 @@ it('prevents duplicate enrollment when using email lookup', function () {
 
     // Check that the error message mentions duplicate enrollment
     $response->assertSessionHasErrors([
-        'student' => "Student is already enrolled in the current semester (2025-2026 - 1st). Cannot enroll again."
+        'student' => 'Student is already enrolled in the current semester (2025-2026 - 1st). Cannot enroll again.',
     ]);
 });
 

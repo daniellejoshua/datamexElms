@@ -48,18 +48,14 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
         confirm_course_shift: false,
     })
 
-    // Helper function to format dates for HTML date inputs
-    const formatDateForInput = (dateString) => {
-        if (!dateString) return ''
-        try {
-            const date = new Date(dateString)
-            return date.toISOString().split('T')[0]
-        } catch {
-            return dateString
-        }
+    // Helper function to extract numeric year level
+    const getNumericYearLevel = (yearLevel, educationLevel) => {
+        const match = yearLevel.match(/(\d+)/)
+        return match ? parseInt(match[1]) : 1
     }
 
     const [selectedProgram, setSelectedProgram] = useState(null)
+    const [selectedCurriculum, setSelectedCurriculum] = useState(null)
     const [calculatedBalance, setCalculatedBalance] = useState(0)
     const [archivedStudent, setArchivedStudent] = useState(null)
     const [checkingArchived, setCheckingArchived] = useState(false)
@@ -90,6 +86,22 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
             setSelectedProgram(null)
         }
     }, [data.program_id, programs])
+
+    useEffect(() => {
+        if (selectedProgram && data.year_level) {
+            // Calculate batch year: for new students, batch_year = current - (year_level - 1)
+            const numericYearLevel = getNumericYearLevel(data.year_level, selectedProgram.education_level)
+            const batchYear = currentAcademicYear - (numericYearLevel - 1)
+            
+            // Find curriculum for this batch year
+            const curriculum = selectedProgram.curriculums?.find(c => c.academic_year == batchYear && c.status === 'active')
+            
+            // If no curriculum for batch year, use the active one
+            setSelectedCurriculum(curriculum || selectedProgram.active_curriculum)
+        } else {
+            setSelectedCurriculum(null)
+        }
+    }, [selectedProgram, data.year_level, currentAcademicYear])
 
     useEffect(() => {
         if (data.program_id && data.year_level && data.student_type) {
@@ -919,6 +931,11 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                                         <p className="text-xs font-medium text-blue-800">
                                             {selectedProgram.education_level === 'college' ? '🎓 College Program' : '📚 Senior High School'}
                                         </p>
+                                        {selectedCurriculum && (
+                                            <p className="text-xs text-blue-600 mt-1">
+                                                📖 Curriculum: {selectedCurriculum.curriculum_name} ({selectedCurriculum.curriculum_code}) - Batch {selectedCurriculum.academic_year}
+                                            </p>
+                                        )}
                                     </div>
                                 )}
                             </div>
@@ -1329,6 +1346,15 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                             <div>
                                 <span className="text-sm font-medium text-gray-600">Program</span>
                                 <p className="text-sm font-semibold">{selectedProgram?.program_name || 'Not selected'}</p>
+                            </div>
+                            <div>
+                                <span className="text-sm font-medium text-gray-600">Curriculum</span>
+                                <p className="text-sm font-semibold">
+                                    {selectedCurriculum ? 
+                                        `${selectedCurriculum.curriculum_name} (${selectedCurriculum.curriculum_code}) - Batch ${selectedCurriculum.academic_year}` : 
+                                        'No curriculum assigned'
+                                    }
+                                </p>
                             </div>
                             <div>
                                 <span className="text-sm font-medium text-gray-600">Year Level</span>

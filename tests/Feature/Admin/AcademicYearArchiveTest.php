@@ -3,12 +3,13 @@
 use App\Models\ArchivedSection;
 use App\Models\Section;
 use App\Models\User;
-use Illuminate\Foundation\Testing\RefreshDatabase;
+
+// use Illuminate\Foundation\Testing\RefreshDatabase;
 
 use function Pest\Laravel\actingAs;
 use function Pest\Laravel\post;
 
-uses(RefreshDatabase::class);
+// uses(RefreshDatabase::class);
 
 describe('AcademicYearController archiving', function () {
     it('only head teacher can archive a semester with password confirmation', function () {

@@ -7,10 +7,10 @@ use App\Models\Subject;
 use App\Models\Teacher;
 use App\Models\User;
 use App\Rules\TeacherScheduleConflict;
-use Illuminate\Foundation\Testing\RefreshDatabase;
+// use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Validator;
 
-uses(RefreshDatabase::class);
+// uses(RefreshDatabase::class);
 
 it('detects time conflicts for the same teacher', function () {
     // Setup

@@ -14,24 +14,28 @@ class UserSeeder extends Seeder
     public function run(): void
     {
         // Create Head Teacher
-        User::create([
-            'name' => 'Dr. Maria Santos',
-            'email' => 'headteacher@datamex.edu',
-            'password' => Hash::make('password'),
-            'role' => 'head_teacher',
-            'is_active' => true,
-            'email_verified_at' => now(),
-        ]);
+        User::updateOrCreate(
+            ['email' => 'headteacher@datamex.edu'],
+            [
+                'name' => 'Dr. Maria Santos',
+                'password' => Hash::make('password'),
+                'role' => 'head_teacher',
+                'is_active' => true,
+                'email_verified_at' => now(),
+            ]
+        );
 
         // Create Registrar
-        User::create([
-            'name' => 'John Rodriguez',
-            'email' => 'registrar@datamex.edu',
-            'password' => Hash::make('password'),
-            'role' => 'registrar',
-            'is_active' => true,
-            'email_verified_at' => now(),
-        ]);
+        User::updateOrCreate(
+            ['email' => 'registrar@datamex.edu'],
+            [
+                'name' => 'John Rodriguez',
+                'password' => Hash::make('password'),
+                'role' => 'registrar',
+                'is_active' => true,
+                'email_verified_at' => now(),
+            ]
+        );
 
         // Create Sample Teachers
         $teachers = [
@@ -43,14 +47,16 @@ class UserSeeder extends Seeder
         ];
 
         foreach ($teachers as $teacher) {
-            User::create([
-                'name' => $teacher['name'],
-                'email' => $teacher['email'],
-                'password' => Hash::make('password'),
-                'role' => 'teacher',
-                'is_active' => true,
-                'email_verified_at' => now(),
-            ]);
+            User::updateOrCreate(
+                ['email' => $teacher['email']],
+                [
+                    'name' => $teacher['name'],
+                    'password' => Hash::make('password'),
+                    'role' => 'teacher',
+                    'is_active' => true,
+                    'email_verified_at' => now(),
+                ]
+            );
         }
 
         // Create Sample Students - COMMENTED OUT as per user request

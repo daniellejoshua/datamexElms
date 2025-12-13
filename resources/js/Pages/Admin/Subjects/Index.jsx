@@ -10,7 +10,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Plus, Eye, Edit, Trash2, Search, Filter, BookOpen, GraduationCap, Building2, ChevronRight, Star, Users, Calendar } from 'lucide-react'
 import { useState } from 'react'
 
-export default function SubjectsIndex({ subjects, auth, filters = {} }) {
+export default function SubjectsIndex({ subjects, programs, auth, filters = {} }) {
+    const [selectedProgram, setSelectedProgram] = useState(filters.program_id || '');
     const [selectedEducationLevel, setSelectedEducationLevel] = useState(filters.education_level || '');
     const [selectedStatus, setSelectedStatus] = useState(filters.status || '');
     const [searchQuery, setSearchQuery] = useState(filters.search || '');
@@ -41,7 +42,9 @@ export default function SubjectsIndex({ subjects, auth, filters = {} }) {
         }
 
         // Update local state
-        if (type === 'education_level') {
+        if (type === 'program_id') {
+            setSelectedProgram(value === 'all' ? '' : value);
+        } else if (type === 'education_level') {
             setSelectedEducationLevel(value === 'all' ? '' : value);
         } else if (type === 'status') {
             setSelectedStatus(value === 'all' ? '' : value);
@@ -114,7 +117,29 @@ export default function SubjectsIndex({ subjects, auth, filters = {} }) {
                         </CardTitle>
                     </CardHeader>
                     <CardContent>
-                        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                        <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">
+                                    Program
+                                </label>
+                                <Select
+                                    value={selectedProgram}
+                                    onValueChange={(value) => handleFilterChange('program_id', value)}
+                                >
+                                    <SelectTrigger>
+                                        <SelectValue placeholder="All Programs" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="all">All Programs</SelectItem>
+                                        {programs.map(program => (
+                                            <SelectItem key={program.id} value={program.id}>
+                                                {program.program_code} - {program.program_name}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-1">
                                     Education Level
@@ -181,7 +206,7 @@ export default function SubjectsIndex({ subjects, auth, filters = {} }) {
                 {/* Subjects Grid */}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                     {subjects.data.map((subject) => (
-                        <Card key={subject.id} className="hover:shadow-lg transition-shadow">
+                        <Card key={subject.id} className="hover:shadow-lg transition-shadow h-full">
                             <CardHeader className="pb-3">
                                 <div className="flex items-start justify-between">
                                     <div className="flex-1">

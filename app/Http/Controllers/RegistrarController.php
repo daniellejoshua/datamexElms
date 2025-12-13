@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\ArchivedStudent;
 use App\Models\ArchivedStudentEnrollment;
+use App\Models\Curriculum;
 use App\Models\PaymentTransaction;
 use App\Models\Program;
 use App\Models\SchoolSetting;
@@ -152,7 +153,7 @@ class RegistrarController extends Controller
      */
     public function create(): Response
     {
-        $programs = Program::with('programFees')->orderBy('education_level')
+        $programs = Program::with(['programFees', 'curriculums'])->orderBy('education_level')
             ->orderBy('program_name')
             ->get();
 
@@ -420,11 +421,52 @@ class RegistrarController extends Controller
                 $validated['student_type'] = 'irregular';
             }
 
+            // Calculate batch year
+            $currentAcademicYear = SchoolSetting::getCurrentAcademicYear();
+            $batchYear = $currentAcademicYear;
+
+            if ($isUpdatingExisting) {
+                // For existing students, keep their batch year
+                $batchYear = $existingStudent->batch_year ?? $currentAcademicYear;
+            } elseif ($isReturningStudent) {
+                // For returning students, keep their batch year
+                $batchYear = $archivedStudent->batch_year ?? $archivedStudent->academic_year ?? $currentAcademicYear;
+            } else {
+                // For new students, if they are transferring at a higher year level, adjust batch year
+                if ($numericYearLevel > 1) {
+                    $batchYear = $currentAcademicYear - ($numericYearLevel - 1);
+                }
+            }
+
+            // Find curriculum for the program and batch year
+            $curriculum = Curriculum::where('program_id', $validated['program_id'])
+                ->where('academic_year', $batchYear)
+                ->active()
+                ->first();
+
+            // If no curriculum for batch year, fall back to active curriculum
+            if (! $curriculum) {
+                $program = Program::with('activeCurriculum')->find($validated['program_id']);
+                $curriculum = $program->activeCurriculum;
+            }
+
+            $curriculumId = $curriculum?->id;
+
             // Create student record
             $studentData = [
                 'user_id' => $user->id,
                 'program_id' => $validated['program_id'],
+                'curriculum_id' => $curriculumId,
+                'batch_year' => $batchYear,
                 'student_number' => $studentNumber,
+                'first_name' => $validated['first_name'],
+                'last_name' => $validated['last_name'],
+                'middle_name' => $validated['middle_name'],
+                'suffix' => $validated['suffix'],
+                'birth_date' => $validated['birth_date'],
+                'address' => $address,
+                'phone' => $validated['phone'],
+                'parent_contact' => $validated['parent_contact'],
                 'first_name' => $validated['first_name'],
                 'last_name' => $validated['last_name'],
                 'middle_name' => $validated['middle_name'],

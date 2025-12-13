@@ -42,6 +42,11 @@ class Subject extends Model
         return $this->belongsTo(Program::class);
     }
 
+    public function curriculumSubjects(): HasMany
+    {
+        return $this->hasMany(CurriculumSubject::class);
+    }
+
     public function scopeActive($query)
     {
         return $query->where('status', 'active');

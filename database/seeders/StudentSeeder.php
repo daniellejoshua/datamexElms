@@ -17,10 +17,8 @@ class StudentSeeder extends Seeder
         $studentUsers = User::where('role', 'student')->get();
 
         // Get programs
-        $csProgram = Program::where('program_code', 'BSCS')->first();
-        $itProgram = Program::where('program_code', 'BSIT')->first();
-        $stemProgram = Program::where('program_code', 'STEM')->first();
-        $abmProgram = Program::where('program_code', 'ABM')->first();
+        $bsitProgram = Program::where('program_code', 'BSIT')->first();
+        $bshmProgram = Program::where('program_code', 'BSHM')->first();
 
         $studentData = [
             [
@@ -32,7 +30,7 @@ class StudentSeeder extends Seeder
                 'address' => '123 Rizal Street, Manila',
                 'phone' => '09171234567',
                 'year_level' => 1,
-                'program_id' => $csProgram->id,
+                'program_id' => $bsitProgram->id,
                 'parent_contact' => '09171234568',
                 'student_type' => 'regular',
                 'status' => 'active',
@@ -46,7 +44,7 @@ class StudentSeeder extends Seeder
                 'address' => '456 Del Pilar Street, Quezon City',
                 'phone' => '09182345678',
                 'year_level' => 1,
-                'program_id' => $itProgram->id,
+                'program_id' => $bsitProgram->id,
                 'parent_contact' => '09182345679',
                 'student_type' => 'regular',
                 'status' => 'active',
@@ -60,7 +58,7 @@ class StudentSeeder extends Seeder
                 'address' => '789 Mabini Street, Pasig City',
                 'phone' => '09193456789',
                 'year_level' => 2,
-                'program_id' => $csProgram->id,
+                'program_id' => $bshmProgram->id,
                 'parent_contact' => '09193456790',
                 'student_type' => 'irregular',
                 'status' => 'active',
@@ -74,7 +72,7 @@ class StudentSeeder extends Seeder
                 'address' => '321 Bonifacio Avenue, Makati City',
                 'phone' => '09204567890',
                 'year_level' => 1,
-                'program_id' => $itProgram->id,
+                'program_id' => $bshmProgram->id,
                 'parent_contact' => '09204567891',
                 'student_type' => 'regular',
                 'status' => 'active',
@@ -88,7 +86,7 @@ class StudentSeeder extends Seeder
                 'address' => '654 Aguinaldo Highway, Cavite',
                 'phone' => '09215678901',
                 'year_level' => 1,
-                'program_id' => $stemProgram->id,
+                'program_id' => $bsitProgram->id,
                 'parent_contact' => '09215678902',
                 'student_type' => 'regular',
                 'status' => 'active',
@@ -102,7 +100,7 @@ class StudentSeeder extends Seeder
                 'address' => '258 Escolta Street, Binondo',
                 'phone' => '09248901234',
                 'year_level' => 1,
-                'program_id' => $abmProgram->id,
+                'program_id' => $bshmProgram->id,
                 'parent_contact' => '09248901235',
                 'student_type' => 'regular',
                 'status' => 'active',

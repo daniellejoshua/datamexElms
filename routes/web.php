@@ -5,6 +5,8 @@ use App\Http\Controllers\Admin\AdminDashboardController;
 use App\Http\Controllers\Admin\ClassScheduleController;
 use App\Http\Controllers\Admin\CollegeSectionController;
 use App\Http\Controllers\Admin\CollegeSubjectController;
+use App\Http\Controllers\Admin\CurriculumController;
+use App\Http\Controllers\Admin\ProgramCurriculumController;
 use App\Http\Controllers\Admin\SectionController;
 use App\Http\Controllers\Admin\ShsSectionController;
 use App\Http\Controllers\Admin\ShsSubjectController;
@@ -178,6 +180,15 @@ Route::middleware(['auth', 'verified'])->prefix('admin')->name('admin.')->group(
             Route::put('/{subject}', [SubjectController::class, 'update'])->name('update');
             Route::delete('/{subject}', [SubjectController::class, 'destroy'])->name('destroy');
         });
+
+        // Curriculum Management Routes
+        Route::resource('curriculum', CurriculumController::class)->except(['destroy']);
+
+        // Program Curriculum Mapping Routes
+        Route::resource('program-curricula', ProgramCurriculumController::class);
+
+        // Subject Management Routes
+        Route::resource('subjects', SubjectController::class);
     });
 });
 

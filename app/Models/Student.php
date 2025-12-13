@@ -16,6 +16,8 @@ class Student extends Model
     protected $fillable = [
         'user_id',
         'program_id',
+        'curriculum_id',
+        'batch_year',
         'current_year_level',
         'current_academic_year',
         'current_semester',
@@ -54,6 +56,11 @@ class Student extends Model
     public function program(): BelongsTo
     {
         return $this->belongsTo(Program::class, 'program_id', 'id');
+    }
+
+    public function curriculum(): BelongsTo
+    {
+        return $this->belongsTo(Curriculum::class);
     }
 
     public function enrollments(): HasMany
@@ -203,6 +210,26 @@ class Student extends Model
                 'balance' => $totalSemesterFee,
                 'status' => 'pending',
             ]);
+        }
+    }
+
+    /**
+     * Assign the initial curriculum to a student based on their enrollment academic year
+     */
+    public function assignInitialCurriculum()
+    {
+        if ($this->curriculum_id) {
+            return; // Already assigned
+        }
+
+        // Find the program curriculum for this student's program and enrollment year
+        $programCurriculum = ProgramCurriculum::where('program_id', $this->program_id)
+            ->where('academic_year', $this->current_academic_year)
+            ->first();
+
+        if ($programCurriculum) {
+            $this->curriculum_id = $programCurriculum->curriculum_id;
+            $this->save();
         }
     }
 }

@@ -36,6 +36,16 @@ class Program extends Model
         return $this->hasMany(Subject::class);
     }
 
+    public function curriculums(): HasMany
+    {
+        return $this->hasMany(Curriculum::class);
+    }
+
+    public function activeCurriculum()
+    {
+        return $this->hasOne(Curriculum::class)->active()->latest();
+    }
+
     public function programFees(): HasMany
     {
         return $this->hasMany(ProgramFee::class);

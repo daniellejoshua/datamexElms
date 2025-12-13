@@ -2,9 +2,10 @@
 
 use App\Models\Registrar;
 use App\Models\User;
-use Illuminate\Foundation\Testing\RefreshDatabase;
 
-uses(RefreshDatabase::class);
+// use Illuminate\Foundation\Testing\RefreshDatabase;
+
+// uses(RefreshDatabase::class);
 
 it('can create a registrar account', function () {
     $registrarData = [

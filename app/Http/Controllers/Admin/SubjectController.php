@@ -17,6 +17,12 @@ class SubjectController extends Controller
         $query = Subject::query();
 
         // Apply filters
+        if ($request->filled('program_id') && $request->program_id !== 'all') {
+            $query->whereHas('curriculumSubjects.curriculum', function ($q) use ($request) {
+                $q->where('program_id', $request->program_id);
+            });
+        }
+
         if ($request->filled('education_level') && $request->education_level !== 'all') {
             $query->where('education_level', $request->education_level);
         }
@@ -33,16 +39,16 @@ class SubjectController extends Controller
             });
         }
 
-        $subjects = $query->orderBy('education_level')
-            ->orderBy('year_level')
-            ->orderBy('semester')
-            ->orderBy('subject_code')
+        $subjects = $query->orderBy('subject_code')
             ->paginate(8)
             ->appends($request->query());
 
+        $programs = \App\Models\Program::active()->get();
+
         return Inertia::render('Admin/Subjects/Index', [
             'subjects' => $subjects,
-            'filters' => $request->only(['education_level', 'status', 'search']),
+            'programs' => $programs,
+            'filters' => $request->only(['program_id', 'education_level', 'status', 'search']),
         ]);
     }
 
@@ -74,7 +80,7 @@ class SubjectController extends Controller
 
         Subject::create($validated);
 
-        return redirect()->route('registrar.subjects.index')
+        return redirect()->route('admin.subjects.index')
             ->with('success', 'Subject created successfully.');
     }
 
@@ -120,7 +126,7 @@ class SubjectController extends Controller
 
         $subject->update($validated);
 
-        return redirect()->route('registrar.subjects.index')
+        return redirect()->route('admin.subjects.index')
             ->with('success', 'Subject updated successfully.');
     }
 
@@ -131,13 +137,13 @@ class SubjectController extends Controller
     {
         // Check if subject is assigned to any programs
         if ($subject->programs()->count() > 0) {
-            return redirect()->route('registrar.subjects.index')
+            return redirect()->route('admin.subjects.index')
                 ->with('error', 'Cannot delete subject that is assigned to programs.');
         }
 
         $subject->delete();
 
-        return redirect()->route('registrar.subjects.index')
+        return redirect()->route('admin.subjects.index')
             ->with('success', 'Subject deleted successfully.');
     }
 }

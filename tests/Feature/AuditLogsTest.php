@@ -4,9 +4,10 @@ use App\Models\AuditLog;
 use App\Models\User;
 use App\Traits\Auditable;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Foundation\Testing\RefreshDatabase;
 
-uses(RefreshDatabase::class);
+// use Illuminate\Foundation\Testing\RefreshDatabase;
+
+// uses(RefreshDatabase::class);
 
 // Create a test model with auditing
 class TestAuditableModel extends Model
