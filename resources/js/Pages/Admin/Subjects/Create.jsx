@@ -21,14 +21,12 @@ export default function SubjectsCreate({ auth, programs }) {
     }, [page.props.flash]);
 
     const { data, setData, post, processing, errors, reset } = useForm({
-        subject_classification: '',
+        subject_type: 'minor',
         program_id: '',
         subject_code: '',
         subject_name: '',
         description: '',
         education_level: '',
-        year_level: '',
-        semester: '',
         units: '',
         status: 'active',
     }, {
@@ -47,9 +45,6 @@ export default function SubjectsCreate({ auth, programs }) {
             const selectedProgram = programs?.find(p => p.id.toString() === data.program_id);
             if (selectedProgram && selectedProgram.education_level) {
                 setData('education_level', selectedProgram.education_level);
-                // Reset year_level and semester when education level changes
-                setData('year_level', '');
-                setData('semester', '');
             }
         }
     }, [data.program_id, programs]);
@@ -63,27 +58,6 @@ export default function SubjectsCreate({ auth, programs }) {
         { value: 'college', label: 'College' },
         { value: 'senior_high', label: 'Senior High School' },
     ];
-
-    const semesters = [
-        { value: 'first', label: '1st Semester' },
-        { value: 'second', label: '2nd Semester' },
-    ];
-
-    // Dynamic year levels based on education level
-    const getYearLevels = () => {
-        if (data.education_level === 'senior_high') {
-            return [
-                { value: 11, label: 'Grade 11' },
-                { value: 12, label: 'Grade 12' },
-            ];
-        }
-        return [
-            { value: 1, label: '1st Year' },
-            { value: 2, label: '2nd Year' },
-            { value: 3, label: '3rd Year' },
-            { value: 4, label: '4th Year' },
-        ];
-    };
 
     const handleSubmit = (e) => {
         e.preventDefault();
@@ -133,12 +107,12 @@ export default function SubjectsCreate({ auth, programs }) {
                                         <div
                                             key={classification.value}
                                                 className={`border rounded-lg p-4 cursor-pointer transition-all ${
-                                                data.subject_classification === classification.value
+                                                data.subject_type === classification.value
                                                     ? 'border-blue-500 bg-blue-50'
                                                     : 'border-gray-200 hover:border-gray-300'
                                             }`}
                                                 onClick={() => {
-                                                setData('subject_classification', classification.value);
+                                                setData('subject_type', classification.value);
                                                 // Reset program_id when switching to minor
                                                 if (classification.value === 'minor') {
                                                     setData('program_id', '');
@@ -147,11 +121,11 @@ export default function SubjectsCreate({ auth, programs }) {
                                         >
                                             <div className="flex items-center space-x-3">
                                                 <div className={`w-4 h-4 rounded-full border-2 ${
-                                                    data.subject_classification === classification.value
+                                                    data.subject_type === classification.value
                                                         ? 'border-blue-500 bg-blue-500'
                                                         : 'border-gray-300'
                                                 }`}>
-                                                    {data.subject_classification === classification.value && (
+                                                    {data.subject_type === classification.value && (
                                                         <div className="w-2 h-2 bg-white rounded-full mx-auto mt-0.5"></div>
                                                     )}
                                                 </div>
@@ -163,13 +137,13 @@ export default function SubjectsCreate({ auth, programs }) {
                                         </div>
                                     ))}
                                 </div>
-                                {errors.subject_classification && (
-                                    <p className="text-sm text-red-600 mt-2">{errors.subject_classification}</p>
+                                {errors.subject_type && (
+                                    <p className="text-sm text-red-600 mt-2">{errors.subject_type}</p>
                                 )}
                             </div>
 
                             {/* Program Selection - Only show for major subjects */}
-                            {data.subject_classification === 'major' && (
+                            {data.subject_type === 'major' && (
                                 <div>
                                     <Label htmlFor="program_id">Program *</Label>
                                     <Select 
@@ -188,7 +162,18 @@ export default function SubjectsCreate({ auth, programs }) {
                                                         <Badge variant="secondary" className="font-mono text-xs">
                                                             {program.program_code}
                                                         </Badge>
-                                                        <span className="text-sm">{program.program_name}</span>
+                                                        <div className="flex flex-col">
+                                                            <span className="text-sm font-medium">{program.program_name}</span>
+                                                            <div className="flex items-center gap-2 text-xs text-gray-500">
+                                                                <span>{program.education_level === 'college' ? 'College' : 'Senior High'}</span>
+                                                                {program.track && (
+                                                                    <>
+                                                                        <span>•</span>
+                                                                        <span>{program.track}</span>
+                                                                    </>
+                                                                )}
+                                                            </div>
+                                                        </div>
                                                     </div>
                                                 </SelectItem>
                                             ))}
@@ -251,21 +236,15 @@ export default function SubjectsCreate({ auth, programs }) {
                                 </div>
                             </div>
 
-                            {/* Row 2: Education Level and Year Level */}
+                            {/* Row 2: Education Level */}
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <div>
                                     <Label htmlFor="education_level">Education Level *</Label>
                                     <Select
                                         value={data.education_level}
-                                        disabled={data.subject_classification === 'major' && data.program_id}
+                                        disabled={data.subject_type === 'major' && data.program_id}
                                         onValueChange={(value) => {
                                             setData('education_level', value);
-                                            // Reset year level when education level changes
-                                            setData('year_level', '');
-                                            // Reset semester for SHS
-                                            if (value === 'senior_high') {
-                                                setData('semester', '');
-                                            }
                                         }}
                                     >
                                         <SelectTrigger className="mt-1">
@@ -283,57 +262,7 @@ export default function SubjectsCreate({ auth, programs }) {
                                         <p className="text-sm text-red-600 mt-1">{errors.education_level}</p>
                                     )}
                                 </div>
-
-                                <div>
-                                    <Label htmlFor="year_level">Year Level *</Label>
-                                    <Select
-                                        value={data.year_level}
-                                        onValueChange={(value) => setData('year_level', value)}
-                                        disabled={!data.education_level}
-                                    >
-                                        <SelectTrigger className="mt-1">
-                                            <SelectValue placeholder="Select year level" />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            {getYearLevels().map(year => (
-                                                <SelectItem key={year.value} value={year.value.toString()}>
-                                                    {year.label}
-                                                </SelectItem>
-                                            ))}
-                                        </SelectContent>
-                                    </Select>
-                                    {errors.year_level && (
-                                        <p className="text-sm text-red-600 mt-1">{errors.year_level}</p>
-                                    )}
-                                </div>
-                            </div>
-
-                            {/* Row 3: Semester (only for College) */}
-                            {data.education_level === 'college' && (
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    <div>
-                                        <Label htmlFor="semester">Semester *</Label>
-                                        <Select
-                                            value={data.semester}
-                                            onValueChange={(value) => setData('semester', value)}
-                                        >
-                                            <SelectTrigger className="mt-1">
-                                                <SelectValue placeholder="Select semester" />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                {semesters.map(semester => (
-                                                    <SelectItem key={semester.value} value={semester.value}>
-                                                        {semester.label}
-                                                    </SelectItem>
-                                                ))}
-                                            </SelectContent>
-                                        </Select>
-                                        {errors.semester && (
-                                            <p className="text-sm text-red-600 mt-1">{errors.semester}</p>
-                                        )}
-                                    </div>
-                                </div>
-                            )}                            {/* Description - Full Width */}
+                            </div>                            {/* Description - Full Width */}
                             <div>
                                 <Label htmlFor="description">Description</Label>
                                 <Textarea
@@ -388,7 +317,7 @@ export default function SubjectsCreate({ auth, programs }) {
                     </div>
                 </form>
             </div>
-            <Toaster position="top-right" richColors />
+            <Toaster position="top-right" richColors theme="light" />
         </AuthenticatedLayout>
     )
 }

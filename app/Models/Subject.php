@@ -17,8 +17,6 @@ class Subject extends Model
         'subject_name',
         'description',
         'units',
-        'year_level',
-        'semester',
         'subject_type',
         'education_level',
         'prerequisites',

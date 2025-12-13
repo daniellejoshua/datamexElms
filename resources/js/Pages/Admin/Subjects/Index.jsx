@@ -1,16 +1,29 @@
-import { Head, Link, router } from '@inertiajs/react'
+import { Head, Link, router, useForm, usePage } from '@inertiajs/react'
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Textarea } from '@/components/ui/textarea'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { Plus, Eye, Edit, Trash2, Search, Filter, BookOpen, GraduationCap, Building2, ChevronRight, Star, Users, Calendar } from 'lucide-react'
-import { useState } from 'react'
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Plus, Eye, Edit, Search, Filter, BookOpen, Users, Calendar } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { Toaster, toast } from 'sonner'
 
 export default function SubjectsIndex({ subjects, programs, auth, filters = {} }) {
+    const page = usePage();
+
+    useEffect(() => {
+        if (page.props.flash?.success) {
+            toast.success(page.props.flash.success);
+        }
+        if (page.props.flash?.error) {
+            toast.error(page.props.flash.error);
+        }
+    }, [page.props.flash]);
     const [selectedProgram, setSelectedProgram] = useState(filters.program_id || '');
     const [selectedEducationLevel, setSelectedEducationLevel] = useState(filters.education_level || '');
     const [selectedStatus, setSelectedStatus] = useState(filters.status || '');
@@ -19,20 +32,280 @@ export default function SubjectsIndex({ subjects, programs, auth, filters = {} }
     const [editModalOpen, setEditModalOpen] = useState(false);
     const [selectedSubject, setSelectedSubject] = useState(null);
 
-    const educationLevels = [
-        { value: 'college', label: 'College' },
-        { value: 'shs', label: 'Senior High School' },
-    ];
+  
 
     const statusOptions = [
         { value: 'active', label: 'Active' },
         { value: 'inactive', label: 'Inactive' },
     ];
 
+    const subjectClassifications = [
+        { value: 'minor', label: 'Minor Subject', description: 'General subjects not tied to a specific program' },
+        { value: 'major', label: 'Major Subject', description: 'Specialized subjects for a specific program' },
+    ];
+
+    const educationLevels = [
+        { value: 'college', label: 'College' },
+        { value: 'senior_high', label: 'Senior High School' },
+    ];
+
+    const EditSubjectForm = ({ subject, programs, onClose }) => {
+    const { data, setData, put, processing, errors } = useForm({
+        subject_type: subject.subject_type || 'minor',
+        program_id: subject.program_id ? String(subject.program_id) : '',
+        subject_code: subject.subject_code || '',
+        subject_name: subject.subject_name || '',
+        description: subject.description || '',
+        education_level: subject.education_level || '',
+        units: subject.units || '',
+        status: subject.status || 'active',
+    });        // Auto-set education level when program is selected
+        useEffect(() => {
+            if (data.program_id) {
+                const selectedProgram = programs?.find(p => p.id.toString() === data.program_id);
+                if (selectedProgram && selectedProgram.education_level) {
+                    setData('education_level', selectedProgram.education_level);
+                }
+            }
+        }, [data.program_id, programs]);
+
+        const handleSubmit = (e) => {
+            e.preventDefault();
+            put(route('admin.subjects.update', subject.id), {
+                onSuccess: () => {
+                    onClose();
+                    router.reload();
+                }
+            });
+        };
+
+        return (
+            <form onSubmit={handleSubmit}>
+                <div className="space-y-6">
+                    {/* Subject Classification */}
+                    <div>
+                        <Label className="text-base font-medium">Subject Classification *</Label>
+                        <p className="text-sm text-gray-600 mb-3">Choose whether this is a minor or major subject</p>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            {subjectClassifications.map((classification) => (
+                                <div
+                                    key={classification.value}
+                                    className={`border rounded-lg p-4 cursor-pointer transition-all ${
+                                        data.subject_type === classification.value
+                                            ? 'border-blue-500 bg-blue-50'
+                                            : 'border-gray-200 hover:border-gray-300'
+                                    }`}
+                                    onClick={() => {
+                                        setData('subject_type', classification.value);
+                                        // Reset program_id when switching to minor
+                                        if (classification.value === 'minor') {
+                                            setData('program_id', '');
+                                        }
+                                    }}
+                                >
+                                    <div className="flex items-center space-x-3">
+                                        <div className={`w-4 h-4 rounded-full border-2 ${
+                                            data.subject_type === classification.value
+                                                ? 'border-blue-500 bg-blue-500'
+                                                : 'border-gray-300'
+                                        }`}>
+                                            {data.subject_type === classification.value && (
+                                                <div className="w-2 h-2 bg-white rounded-full mx-auto mt-0.5"></div>
+                                            )}
+                                        </div>
+                                        <div>
+                                            <div className="font-medium text-gray-900">{classification.label}</div>
+                                            <div className="text-sm text-gray-600">{classification.description}</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                        {errors.subject_type && (
+                            <p className="text-sm text-red-600 mt-2">{errors.subject_type}</p>
+                        )}
+                    </div>
+
+                    {/* Program Selection - Only show for major subjects */}
+                    {data.subject_type === 'major' && (
+                        <div>
+                            <Label htmlFor="program_id">Program *</Label>
+                            <Select 
+                                value={data.program_id} 
+                                onValueChange={(value) => {
+                                    setData('program_id', value);
+                                }}
+                            >
+                                <SelectTrigger className="mt-1">
+                                    <SelectValue placeholder="Select a program" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {programs?.map((program) => (
+                                        <SelectItem key={program.id} value={program.id.toString()}>
+                                            <div className="flex items-center gap-2">
+                                                <Badge variant="secondary" className="font-mono text-xs">
+                                                    {program.program_code}
+                                                </Badge>
+                                                <div className="flex flex-col">
+                                                    <span className="text-sm font-medium">{program.program_name}</span>
+                                                    <div className="flex items-center gap-2 text-xs text-gray-500">
+                                                        <span>{program.education_level === 'college' ? 'College' : 'Senior High'}</span>
+                                                        {program.track && (
+                                                            <>
+                                                                <span>•</span>
+                                                                <span>{program.track}</span>
+                                                            </>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                            {errors.program_id && (
+                                <p className="text-sm text-red-600 mt-1">{errors.program_id}</p>
+                            )}
+                        </div>
+                    )}
+
+                    {/* Row 1: Subject Code, Subject Name, and Units */}
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div>
+                            <Label htmlFor="subject_code">Subject Code *</Label>
+                            <Input
+                                id="subject_code"
+                                type="text"
+                                value={data.subject_code}
+                                onChange={(e) => setData('subject_code', e.target.value.toUpperCase())}
+                                placeholder="e.g., CS101"
+                                className="mt-1"
+                            />
+                            {errors.subject_code && (
+                                <p className="text-sm text-red-600 mt-1">{errors.subject_code}</p>
+                            )}
+                        </div>
+
+                        <div>
+                            <Label htmlFor="subject_name">Subject Name *</Label>
+                            <Input
+                                id="subject_name"
+                                type="text"
+                                value={data.subject_name}
+                                onChange={(e) => setData('subject_name', e.target.value)}
+                                placeholder="e.g., Introduction to Computer Science"
+                                className="mt-1"
+                            />
+                            {errors.subject_name && (
+                                <p className="text-sm text-red-600 mt-1">{errors.subject_name}</p>
+                            )}
+                        </div>
+
+                        <div>
+                            <Label htmlFor="units">Units *</Label>
+                            <Input
+                                id="units"
+                                type="number"
+                                min="0"
+                                max="10"
+                                step="0.5"
+                                value={data.units}
+                                onChange={(e) => setData('units', e.target.value)}
+                                placeholder="e.g., 3"
+                                className="mt-1"
+                            />
+                            {errors.units && (
+                                <p className="text-sm text-red-600 mt-1">{errors.units}</p>
+                            )}
+                        </div>
+                    </div>
+
+                    {/* Row 2: Education Level */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <Label htmlFor="education_level">Education Level *</Label>
+                            <Select
+                                value={data.education_level}
+                                disabled={data.subject_type === 'major' && data.program_id}
+                                onValueChange={(value) => {
+                                    setData('education_level', value);
+                                }}
+                            >
+                                <SelectTrigger className="mt-1">
+                                    <SelectValue placeholder="Select education level" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {educationLevels.map(level => (
+                                        <SelectItem key={level.value} value={level.value}>
+                                            {level.label}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                            {errors.education_level && (
+                                <p className="text-sm text-red-600 mt-1">{errors.education_level}</p>
+                            )}
+                        </div>
+                    </div>
+
+                    {/* Description - Full Width */}
+                    <div>
+                        <Label htmlFor="description">Description</Label>
+                        <Textarea
+                            id="description"
+                            value={data.description}
+                            onChange={(e) => setData('description', e.target.value)}
+                            placeholder="Brief description of the subject..."
+                            rows={2}
+                            className="mt-1"
+                        />
+                        {errors.description && (
+                            <p className="text-sm text-red-600 mt-1">{errors.description}</p>
+                        )}
+                    </div>
+
+                    {/* Major Confirmation */}
+                    {data.subject_type === 'major' && data.program_id && (
+                        <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                            <div className="flex items-center gap-2">
+                                <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                                <span className="text-sm font-medium text-blue-900">Major Subject:</span>
+                                <span className="text-sm text-blue-700">
+                                    {programs?.find(p => p.id.toString() === data.program_id)?.program_name}
+                                </span>
+                            </div>
+                            <p className="text-xs text-blue-600 mt-1">
+                                This subject will be considered a major subject for the selected program.
+                            </p>
+                        </div>
+                    )}
+                </div>
+
+                <div className="flex justify-end gap-4 mt-6">
+                    <Button
+                        type="button"
+                        variant="outline"
+                        onClick={onClose}
+                    >
+                        Cancel
+                    </Button>
+                    <Button
+                        type="submit"
+                        disabled={processing}
+                        className="bg-green-600 hover:bg-green-700"
+                    >
+                        <Edit className="w-4 h-4 mr-2" />
+                        {processing ? 'Updating...' : 'Update Subject'}
+                    </Button>
+                </div>
+            </form>
+        );
+    };
+
     const handleFilterChange = (type, value) => {
         const newFilters = {};
         Object.keys(filters).forEach(key => {
-            if (filters[key] && filters[key] !== '') {
+            if (key !== type && filters[key] && filters[key] !== '') {
                 newFilters[key] = filters[key];
             }
         });
@@ -79,10 +352,6 @@ export default function SubjectsIndex({ subjects, programs, auth, filters = {} }
         }
     };
 
-    const getSemesterColor = (semester) => {
-        return semester === 'first' ? 'bg-blue-100 text-blue-800' : 'bg-green-100 text-green-800';
-    };
-
     return (
         <AuthenticatedLayout
             header={
@@ -120,7 +389,7 @@ export default function SubjectsIndex({ subjects, programs, auth, filters = {} }
                         <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                                    Program
+                                    Program Major Subjects
                                 </label>
                                 <Select
                                     value={selectedProgram}
@@ -132,8 +401,10 @@ export default function SubjectsIndex({ subjects, programs, auth, filters = {} }
                                     <SelectContent>
                                         <SelectItem value="all">All Programs</SelectItem>
                                         {programs.map(program => (
-                                            <SelectItem key={program.id} value={program.id}>
-                                                {program.program_code} - {program.program_name}
+                                            <SelectItem key={program.id} value={program.id.toString()}>
+                                                <Badge variant="secondary" className="font-mono text-xs">
+                                                    {program.program_code}
+                                                </Badge>
                                             </SelectItem>
                                         ))}
                                     </SelectContent>
@@ -230,14 +501,7 @@ export default function SubjectsIndex({ subjects, programs, auth, filters = {} }
                                     <div className="flex items-center justify-between text-sm">
                                         <span className="text-gray-600">Level:</span>
                                         <Badge variant="outline" className="text-xs">
-                                            {subject.education_level === 'college' ? 'College' : 'SHS'} - Year {subject.year_level}
-                                        </Badge>
-                                    </div>
-
-                                    <div className="flex items-center justify-between text-sm">
-                                        <span className="text-gray-600">Semester:</span>
-                                        <Badge className={`text-xs ${getSemesterColor(subject.semester)}`}>
-                                            {subject.semester === 'first' ? '1st' : '2nd'} Semester
+                                            {subject.education_level === 'college' ? 'College' : 'Senior High'}
                                         </Badge>
                                     </div>
 
@@ -366,16 +630,6 @@ export default function SubjectsIndex({ subjects, programs, auth, filters = {} }
                                             <p>{selectedSubject.education_level === 'college' ? 'College' : 'Senior High School'}</p>
                                         </div>
                                         <div>
-                                            <label className="text-sm font-medium text-gray-600">Year Level</label>
-                                            <p>Year {selectedSubject.year_level}</p>
-                                        </div>
-                                        <div>
-                                            <label className="text-sm font-medium text-gray-600">Semester</label>
-                                            <Badge className={selectedSubject.semester === 'first' ? 'bg-blue-100 text-blue-800' : 'bg-green-100 text-green-800'}>
-                                                {selectedSubject.semester === 'first' ? '1st Semester' : '2nd Semester'}
-                                            </Badge>
-                                        </div>
-                                        <div>
                                             <label className="text-sm font-medium text-gray-600">Subject Type</label>
                                             <Badge className={getSubjectTypeColor(selectedSubject.subject_type)}>
                                                 {selectedSubject.subject_type.charAt(0).toUpperCase() + selectedSubject.subject_type.slice(1)}
@@ -445,162 +699,21 @@ export default function SubjectsIndex({ subjects, programs, auth, filters = {} }
                             <Edit className="w-5 h-5" />
                             Edit Subject: {selectedSubject?.subject_name}
                         </DialogTitle>
+                        <DialogDescription>
+                            Update the subject details below.
+                        </DialogDescription>
                     </DialogHeader>
 
                     {selectedSubject && (
-                        <form onSubmit={(e) => {
-                            e.preventDefault();
-                            const formData = new FormData(e.target);
-                            const data = Object.fromEntries(formData.entries());
-
-                            router.put(route('admin.subjects.update', selectedSubject.id), data, {
-                                onSuccess: () => {
-                                    setEditModalOpen(false);
-                                    router.reload();
-                                }
-                            });
-                        }}>
-                            <div className="space-y-6">
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-1">Subject Code *</label>
-                                        <Input
-                                            name="subject_code"
-                                            defaultValue={selectedSubject.subject_code}
-                                            placeholder="e.g., CS101"
-                                            required
-                                        />
-                                    </div>
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-1">Units *</label>
-                                        <Input
-                                            name="units"
-                                            type="number"
-                                            min="0"
-                                            max="10"
-                                            step="0.5"
-                                            defaultValue={selectedSubject.units}
-                                            placeholder="e.g., 3"
-                                            required
-                                        />
-                                    </div>
-                                </div>
-
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">Subject Name *</label>
-                                    <Input
-                                        name="subject_name"
-                                        defaultValue={selectedSubject.subject_name}
-                                        placeholder="e.g., Introduction to Computer Science"
-                                        required
-                                    />
-                                </div>
-
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
-                                    <textarea
-                                        name="description"
-                                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
-                                        rows={3}
-                                        defaultValue={selectedSubject.description || ''}
-                                        placeholder="Brief description of the subject..."
-                                    />
-                                </div>
-
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-1">Education Level *</label>
-                                        <Select name="education_level" defaultValue={selectedSubject.education_level}>
-                                            <SelectTrigger>
-                                                <SelectValue />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                <SelectItem value="college">College</SelectItem>
-                                                <SelectItem value="shs">Senior High School</SelectItem>
-                                            </SelectContent>
-                                        </Select>
-                                    </div>
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-1">Year Level *</label>
-                                        <Select name="year_level" defaultValue={selectedSubject.year_level.toString()}>
-                                            <SelectTrigger>
-                                                <SelectValue />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                <SelectItem value="1">Year 1</SelectItem>
-                                                <SelectItem value="2">Year 2</SelectItem>
-                                                <SelectItem value="3">Year 3</SelectItem>
-                                                <SelectItem value="4">Year 4</SelectItem>
-                                            </SelectContent>
-                                        </Select>
-                                    </div>
-                                </div>
-
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-1">Semester *</label>
-                                        <Select name="semester" defaultValue={selectedSubject.semester}>
-                                            <SelectTrigger>
-                                                <SelectValue />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                <SelectItem value="first">1st Semester</SelectItem>
-                                                <SelectItem value="second">2nd Semester</SelectItem>
-                                            </SelectContent>
-                                        </Select>
-                                    </div>
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-1">Subject Type *</label>
-                                        <Select name="subject_type" defaultValue={selectedSubject.subject_type}>
-                                            <SelectTrigger>
-                                                <SelectValue />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                <SelectItem value="major">Major</SelectItem>
-                                                <SelectItem value="minor">Minor</SelectItem>
-                                                <SelectItem value="general">General Education</SelectItem>
-                                                <SelectItem value="elective">Elective</SelectItem>
-                                            </SelectContent>
-                                        </Select>
-                                    </div>
-                                </div>
-
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">Prerequisites</label>
-                                    <Input
-                                        name="prerequisites"
-                                        defaultValue={selectedSubject.prerequisites || ''}
-                                        placeholder="e.g., CS101, MATH101"
-                                    />
-                                </div>
-
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">Status *</label>
-                                    <Select name="status" defaultValue={selectedSubject.status}>
-                                        <SelectTrigger>
-                                            <SelectValue />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            <SelectItem value="active">Active</SelectItem>
-                                            <SelectItem value="inactive">Inactive</SelectItem>
-                                        </SelectContent>
-                                    </Select>
-                                </div>
-
-                                <div className="flex justify-end gap-3 pt-4 border-t">
-                                    <Button type="button" variant="outline" onClick={() => setEditModalOpen(false)}>
-                                        Cancel
-                                    </Button>
-                                    <Button type="submit" className="bg-green-600 hover:bg-green-700">
-                                        <Edit className="w-4 h-4 mr-2" />
-                                        Update Subject
-                                    </Button>
-                                </div>
-                            </div>
-                        </form>
+                        <EditSubjectForm 
+                            subject={selectedSubject} 
+                            programs={programs} 
+                            onClose={() => setEditModalOpen(false)} 
+                        />
                     )}
                 </DialogContent>
             </Dialog>
+            <Toaster position="top-right" richColors theme="light" />
         </AuthenticatedLayout>
     )
 }

@@ -12,7 +12,8 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('subjects', function (Blueprint $table) {
-            $table->dropColumn('major_to');
+            $table->dropIndex(['year_level', 'semester', 'status']);
+            $table->dropColumn(['year_level', 'semester']);
         });
     }
 
@@ -22,7 +23,9 @@ return new class extends Migration
     public function down(): void
     {
         Schema::table('subjects', function (Blueprint $table) {
-            $table->unsignedBigInteger('major_to')->nullable();
+            $table->integer('year_level'); // 1, 2, 3, 4
+            $table->enum('semester', ['first', 'second', 'summer']);
+            $table->index(['year_level', 'semester', 'status']);
         });
     }
 };
