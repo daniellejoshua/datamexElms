@@ -33,9 +33,15 @@ class CurriculumController extends Controller
     {
         $programs = Program::active()->get();
 
+        // Load all minor subjects initially
+        $minorSubjects = Subject::where('subject_type', 'minor')
+            ->where('status', 'active')
+            ->orderBy('subject_code')
+            ->get();
+
         return Inertia::render('Admin/Curriculum/Create', [
             'programs' => $programs,
-            'subjects' => [], // Load subjects dynamically based on program selection
+            'subjects' => $minorSubjects,
         ]);
     }
 
@@ -66,28 +72,11 @@ class CurriculumController extends Controller
     {
         $request->validate([
             'program_id' => 'required|exists:programs,id',
-            'major' => 'nullable|string',
         ]);
 
-        $query = Subject::where('program_id', $request->program_id)
-            ->where('status', 'active');
-
-        // If major is specified, get major subjects for that major + general/minor subjects
-        if ($request->filled('major')) {
-            $query->where(function ($q) use ($request) {
-                $q->where(function ($subQ) use ($request) {
-                    $subQ->where('subject_type', 'major')
-                        ->where('major', $request->major);
-                })->orWhereIn('subject_type', ['general', 'minor']);
-            });
-        } else {
-            // If no major specified, get all subjects for the program
-            $query->whereIn('subject_type', ['major', 'general', 'minor']);
-        }
-
-        $subjects = $query->orderBy('subject_type')
-            ->orderBy('year_level')
-            ->orderBy('semester')
+        $subjects = Subject::where('program_id', $request->program_id)
+            ->where('subject_type', 'major')
+            ->where('status', 'active')
             ->orderBy('subject_code')
             ->get();
 
