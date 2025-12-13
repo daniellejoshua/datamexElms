@@ -32,6 +32,11 @@ class Subject extends Model
         ];
     }
 
+    public function getMajorNameAttribute(): ?string
+    {
+        return $this->major?->program_name;
+    }
+
     public function sections(): HasMany
     {
         return $this->hasMany(Section::class);
@@ -40,6 +45,11 @@ class Subject extends Model
     public function program(): BelongsTo
     {
         return $this->belongsTo(Program::class);
+    }
+
+    public function major(): BelongsTo
+    {
+        return $this->belongsTo(Program::class, 'program_id');
     }
 
     public function curriculumSubjects(): HasMany

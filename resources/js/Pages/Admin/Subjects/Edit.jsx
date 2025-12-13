@@ -9,24 +9,45 @@ import { Textarea } from '@/components/ui/textarea'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { ArrowLeft, Save, BookOpen } from 'lucide-react'
 
-export default function SubjectsEdit({ auth, subject }) {
+export default function SubjectsEdit({ auth, subject, programs }) {
     const { data, setData, put, processing, errors, reset } = useForm({
+        subject_classification: subject.program_id ? 'major' : 'minor', // Determine based on existing program_id
+        program_id: subject.program_id?.toString() || '',
         subject_code: subject.subject_code || '',
         subject_name: subject.subject_name || '',
         description: subject.description || '',
         education_level: subject.education_level || '',
-        year_level: subject.year_level || '',
+        year_level: subject.year_level?.toString() || '',
         semester: subject.semester || '',
         units: subject.units || '',
-        subject_type: subject.subject_type || '',
-        prerequisites: subject.prerequisites || '',
         status: subject.status || 'active',
     });
+
+    const subjectClassifications = [
+        { value: 'minor', label: 'Minor Subject', description: 'General subjects not tied to a specific program' },
+        { value: 'major', label: 'Major Subject', description: 'Specialized subjects for a specific program' },
+    ];
 
     const educationLevels = [
         { value: 'college', label: 'College' },
         { value: 'shs', label: 'Senior High School' },
     ];
+
+    // Dynamic year levels based on education level
+    const getYearLevels = () => {
+        if (data.education_level === 'shs') {
+            return [
+                { value: 11, label: 'Grade 11' },
+                { value: 12, label: 'Grade 12' },
+            ];
+        }
+        return [
+            { value: 1, label: '1st Year' },
+            { value: 2, label: '2nd Year' },
+            { value: 3, label: '3rd Year' },
+            { value: 4, label: '4th Year' },
+        ];
+    };
 
     const semesters = [
         { value: 'first', label: '1st Semester' },
@@ -79,7 +100,80 @@ export default function SubjectsEdit({ auth, subject }) {
                             </CardDescription>
                         </CardHeader>
                         <CardContent className="space-y-6">
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            {/* Subject Classification */}
+                            <div>
+                                <Label className="text-base font-medium">Subject Classification *</Label>
+                                <p className="text-sm text-gray-600 mb-3">Choose whether this is a minor or major subject</p>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    {subjectClassifications.map((classification) => (
+                                        <div
+                                            key={classification.value}
+                                            className={`border rounded-lg p-4 cursor-pointer transition-all ${
+                                                data.subject_classification === classification.value
+                                                    ? 'border-blue-500 bg-blue-50'
+                                                    : 'border-gray-200 hover:border-gray-300'
+                                            }`}
+                                            onClick={() => {
+                                                setData('subject_classification', classification.value);
+                                                // Reset program_id when switching to minor
+                                                if (classification.value === 'minor') {
+                                                    setData('program_id', '');
+                                                }
+                                            }}
+                                        >
+                                            <div className="flex items-center space-x-3">
+                                                <div className={`w-4 h-4 rounded-full border-2 ${
+                                                    data.subject_classification === classification.value
+                                                        ? 'border-blue-500 bg-blue-500'
+                                                        : 'border-gray-300'
+                                                }`}>
+                                                    {data.subject_classification === classification.value && (
+                                                        <div className="w-2 h-2 bg-white rounded-full mx-auto mt-0.5"></div>
+                                                    )}
+                                                </div>
+                                                <div>
+                                                    <div className="font-medium text-gray-900">{classification.label}</div>
+                                                    <div className="text-sm text-gray-600">{classification.description}</div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                                {errors.subject_classification && (
+                                    <p className="text-sm text-red-600 mt-2">{errors.subject_classification}</p>
+                                )}
+                            </div>
+
+                            {/* Program Selection - Only show for major subjects */}
+                            {data.subject_classification === 'major' && (
+                                <div>
+                                    <Label htmlFor="program_id">Program *</Label>
+                                    <Select 
+                                        value={data.program_id} 
+                                        onValueChange={(value) => {
+                                            setData('program_id', value);
+                                        }}
+                                    >
+                                        <SelectTrigger className="mt-1">
+                                            <SelectValue placeholder="Select a program" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {programs?.map((program) => (
+                                                <SelectItem key={program.id} value={program.id.toString()}>
+                                                    {program.program_code} - {program.program_name}
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                    {errors.program_id && (
+                                        <p className="text-sm text-red-600 mt-1">{errors.program_id}</p>
+                                    )}
+                                </div>
+                            )}
+
+                            {/* Row 1: Subject Code and Subject Name */}
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+
                                 <div>
                                     <Label htmlFor="subject_code">Subject Code *</Label>
                                     <Input
@@ -94,7 +188,26 @@ export default function SubjectsEdit({ auth, subject }) {
                                         <p className="text-sm text-red-600 mt-1">{errors.subject_code}</p>
                                     )}
                                 </div>
+                            </div>
 
+                            {/* Subject Name - Full Width */}
+                            <div>
+                                <Label htmlFor="subject_name">Subject Name *</Label>
+                                <Input
+                                    id="subject_name"
+                                    type="text"
+                                    value={data.subject_name}
+                                    onChange={(e) => setData('subject_name', e.target.value)}
+                                    placeholder="e.g., Introduction to Computer Science"
+                                    className="mt-1"
+                                />
+                                {errors.subject_name && (
+                                    <p className="text-sm text-red-600 mt-1">{errors.subject_name}</p>
+                                )}
+                            </div>
+
+                            {/* Row 2: Units and Description */}
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <div>
                                     <Label htmlFor="units">Units *</Label>
                                     <Input
@@ -112,44 +225,33 @@ export default function SubjectsEdit({ auth, subject }) {
                                         <p className="text-sm text-red-600 mt-1">{errors.units}</p>
                                     )}
                                 </div>
+
+                                <div>
+                                    <Label htmlFor="description">Description</Label>
+                                    <Input
+                                        id="description"
+                                        value={data.description}
+                                        onChange={(e) => setData('description', e.target.value)}
+                                        placeholder="Optional subject description"
+                                        className="mt-1"
+                                    />
+                                    {errors.description && (
+                                        <p className="text-sm text-red-600 mt-1">{errors.description}</p>
+                                    )}
+                                </div>
                             </div>
 
-                            <div>
-                                <Label htmlFor="subject_name">Subject Name *</Label>
-                                <Input
-                                    id="subject_name"
-                                    type="text"
-                                    value={data.subject_name}
-                                    onChange={(e) => setData('subject_name', e.target.value)}
-                                    placeholder="e.g., Introduction to Computer Science"
-                                    className="mt-1"
-                                />
-                                {errors.subject_name && (
-                                    <p className="text-sm text-red-600 mt-1">{errors.subject_name}</p>
-                                )}
-                            </div>
-
-                            <div>
-                                <Label htmlFor="description">Description</Label>
-                                <Textarea
-                                    id="description"
-                                    value={data.description}
-                                    onChange={(e) => setData('description', e.target.value)}
-                                    placeholder="Brief description of the subject..."
-                                    rows={3}
-                                    className="mt-1"
-                                />
-                                {errors.description && (
-                                    <p className="text-sm text-red-600 mt-1">{errors.description}</p>
-                                )}
-                            </div>
-
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            {/* Row 3: Education Level and Year Level */}
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <div>
                                     <Label htmlFor="education_level">Education Level *</Label>
                                     <Select
                                         value={data.education_level}
-                                        onValueChange={(value) => setData('education_level', value)}
+                                        onValueChange={(value) => {
+                                            setData('education_level', value);
+                                            // Reset year level when education level changes
+                                            setData('year_level', '');
+                                        }}
                                     >
                                         <SelectTrigger className="mt-1">
                                             <SelectValue placeholder="Select education level" />
@@ -172,14 +274,15 @@ export default function SubjectsEdit({ auth, subject }) {
                                     <Select
                                         value={data.year_level}
                                         onValueChange={(value) => setData('year_level', value)}
+                                        disabled={!data.education_level}
                                     >
                                         <SelectTrigger className="mt-1">
                                             <SelectValue placeholder="Select year level" />
                                         </SelectTrigger>
                                         <SelectContent>
-                                            {[1, 2, 3, 4].map(year => (
-                                                <SelectItem key={year} value={year.toString()}>
-                                                    Year {year}
+                                            {getYearLevels().map(year => (
+                                                <SelectItem key={year.value} value={year.value.toString()}>
+                                                    {year.label}
                                                 </SelectItem>
                                             ))}
                                         </SelectContent>
@@ -190,7 +293,8 @@ export default function SubjectsEdit({ auth, subject }) {
                                 </div>
                             </div>
 
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            {/* Row 4: Semester and Status */}
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <div>
                                     <Label htmlFor="semester">Semester *</Label>
                                     <Select
@@ -214,61 +318,56 @@ export default function SubjectsEdit({ auth, subject }) {
                                 </div>
 
                                 <div>
-                                    <Label htmlFor="subject_type">Subject Type *</Label>
+                                    <Label htmlFor="status">Status *</Label>
                                     <Select
-                                        value={data.subject_type}
-                                        onValueChange={(value) => setData('subject_type', value)}
+                                        value={data.status}
+                                        onValueChange={(value) => setData('status', value)}
                                     >
                                         <SelectTrigger className="mt-1">
-                                            <SelectValue placeholder="Select subject type" />
+                                            <SelectValue placeholder="Select status" />
                                         </SelectTrigger>
                                         <SelectContent>
-                                            {subjectTypes.map(type => (
-                                                <SelectItem key={type.value} value={type.value}>
-                                                    {type.label}
-                                                </SelectItem>
-                                            ))}
+                                            <SelectItem value="active">Active</SelectItem>
+                                            <SelectItem value="inactive">Inactive</SelectItem>
                                         </SelectContent>
                                     </Select>
-                                    {errors.subject_type && (
-                                        <p className="text-sm text-red-600 mt-1">{errors.subject_type}</p>
+                                    {errors.status && (
+                                        <p className="text-sm text-red-600 mt-1">{errors.status}</p>
                                     )}
                                 </div>
                             </div>
 
+                            {/* Description - Full Width */}
                             <div>
-                                <Label htmlFor="prerequisites">Prerequisites</Label>
-                                <Input
-                                    id="prerequisites"
-                                    type="text"
-                                    value={data.prerequisites}
-                                    onChange={(e) => setData('prerequisites', e.target.value)}
-                                    placeholder="e.g., CS101, MATH101"
+                                <Label htmlFor="description">Description</Label>
+                                <Textarea
+                                    id="description"
+                                    value={data.description}
+                                    onChange={(e) => setData('description', e.target.value)}
+                                    placeholder="Brief description of the subject..."
+                                    rows={2}
                                     className="mt-1"
                                 />
-                                {errors.prerequisites && (
-                                    <p className="text-sm text-red-600 mt-1">{errors.prerequisites}</p>
+                                {errors.description && (
+                                    <p className="text-sm text-red-600 mt-1">{errors.description}</p>
                                 )}
                             </div>
 
-                            <div>
-                                <Label htmlFor="status">Status *</Label>
-                                <Select
-                                    value={data.status}
-                                    onValueChange={(value) => setData('status', value)}
-                                >
-                                    <SelectTrigger className="mt-1">
-                                        <SelectValue placeholder="Select status" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="active">Active</SelectItem>
-                                        <SelectItem value="inactive">Inactive</SelectItem>
-                                    </SelectContent>
-                                </Select>
-                                {errors.status && (
-                                    <p className="text-sm text-red-600 mt-1">{errors.status}</p>
-                                )}
-                            </div>
+                            {/* Major Confirmation */}
+                            {data.subject_classification === 'major' && data.program_id && (
+                                <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                                    <div className="flex items-center gap-2">
+                                        <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                                        <span className="text-sm font-medium text-blue-900">Major Subject:</span>
+                                        <span className="text-sm text-blue-700">
+                                            {programs?.find(p => p.id.toString() === data.program_id)?.program_name}
+                                        </span>
+                                    </div>
+                                    <p className="text-xs text-blue-600 mt-1">
+                                        This subject will be considered a major subject for the selected program.
+                                    </p>
+                                </div>
+                            )}
                         </CardContent>
                     </Card>
 

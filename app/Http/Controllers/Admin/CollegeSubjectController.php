@@ -64,7 +64,7 @@ class CollegeSubjectController extends Controller
             'description' => 'nullable|string',
             'units' => 'required|integer|min:1|max:6',
             'year_level' => 'required|integer|in:1,2,3,4',
-            'semester' => 'required|in:first,second,summer',
+            'semester' => 'required|in:first,second,summer,whole_year',
             'subject_type' => 'required|in:major,minor,general,elective',
             'prerequisites' => 'nullable|array',
             'status' => 'required|in:active,inactive',
@@ -75,8 +75,8 @@ class CollegeSubjectController extends Controller
 
         Subject::create($validated);
 
-        return redirect()->route('admin.college.subjects.index')
-            ->with('success', 'College subject created successfully.');
+        return back()
+            ->with('success', 'Subject created successfully.');
     }
 
     public function show(Subject $subject): Response
@@ -113,7 +113,7 @@ class CollegeSubjectController extends Controller
             'description' => 'nullable|string',
             'units' => 'required|integer|min:1|max:6',
             'year_level' => 'required|integer|in:1,2,3,4',
-            'semester' => 'required|in:first,second,summer',
+            'semester' => 'required|in:first,second,summer,whole_year',
             'subject_type' => 'required|in:major,minor,general,elective',
             'prerequisites' => 'nullable|array',
             'status' => 'required|in:active,inactive',

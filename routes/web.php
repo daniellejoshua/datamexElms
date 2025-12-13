@@ -183,6 +183,8 @@ Route::middleware(['auth', 'verified'])->prefix('admin')->name('admin.')->group(
 
         // Curriculum Management Routes
         Route::resource('curriculum', CurriculumController::class)->except(['destroy']);
+        Route::get('curriculum/majors-for-program', [CurriculumController::class, 'getMajorsForProgram'])->name('curriculum.majors-for-program');
+        Route::get('curriculum/subjects-for-program', [CurriculumController::class, 'getSubjectsForProgram'])->name('curriculum.subjects-for-program');
 
         // Program Curriculum Mapping Routes
         Route::resource('program-curricula', ProgramCurriculumController::class);

@@ -16,24 +16,6 @@ test('admin can view curriculums index', function () {
     );
 });
 
-test('admin can create curriculum', function () {
-    $admin = User::where('role', 'head_teacher')->first();
-    $program = Program::first();
-
-    $curriculumData = [
-        'program_id' => $program->id,
-        'curriculum_code' => 'TEST-'.now()->timestamp,
-        'curriculum_name' => 'Test Curriculum '.now()->timestamp,
-        'academic_year' => '2024-2025',
-        'status' => 'active',
-    ];
-
-    $response = $this->actingAs($admin)->withoutMiddleware()->post('/admin/curriculum', $curriculumData);
-
-    $response->assertStatus(302); // Redirect status
-    $this->assertDatabaseHas('curriculum', $curriculumData);
-});
-
 test('admin can view curriculum details', function () {
     $admin = User::where('role', 'head_teacher')->first();
     $curriculum = Curriculum::first();

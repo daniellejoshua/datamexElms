@@ -57,7 +57,11 @@ class SubjectController extends Controller
      */
     public function create()
     {
-        return Inertia::render('Admin/Subjects/Create');
+        $programs = \App\Models\Program::active()->get();
+
+        return Inertia::render('Admin/Subjects/Create', [
+            'programs' => $programs,
+        ]);
     }
 
     /**
@@ -66,21 +70,21 @@ class SubjectController extends Controller
     public function store(Request $request)
     {
         $validated = $request->validate([
+            'subject_classification' => 'required|in:major,minor',
+            'program_id' => 'required_if:subject_classification,major|nullable|exists:programs,id',
             'subject_code' => 'required|string|max:20|unique:subjects',
             'subject_name' => 'required|string|max:255',
             'description' => 'nullable|string',
-            'education_level' => 'required|in:college,shs',
-            'year_level' => 'required|integer|min:1|max:4',
-            'semester' => 'required|in:first,second',
+            'education_level' => 'required|in:college,senior_high',
+            'year_level' => 'required|integer|min:1|max:12',
+            'semester' => 'nullable|in:first,second,summer,whole_year',
             'units' => 'required|numeric|min:0|max:10',
-            'subject_type' => 'required|in:major,minor,general,elective',
-            'prerequisites' => 'nullable|string|max:500',
             'status' => 'required|in:active,inactive',
         ]);
 
         Subject::create($validated);
 
-        return redirect()->route('admin.subjects.index')
+        return back()
             ->with('success', 'Subject created successfully.');
     }
 
@@ -101,8 +105,11 @@ class SubjectController extends Controller
      */
     public function edit(Subject $subject)
     {
+        $programs = \App\Models\Program::active()->get();
+
         return Inertia::render('Admin/Subjects/Edit', [
             'subject' => $subject,
+            'programs' => $programs,
         ]);
     }
 
@@ -112,15 +119,15 @@ class SubjectController extends Controller
     public function update(Request $request, Subject $subject)
     {
         $validated = $request->validate([
+            'subject_classification' => 'required|in:major,minor',
+            'program_id' => 'required_if:subject_classification,major|nullable|exists:programs,id',
             'subject_code' => 'required|string|max:20|unique:subjects,subject_code,'.$subject->id,
             'subject_name' => 'required|string|max:255',
             'description' => 'nullable|string',
-            'education_level' => 'required|in:college,shs',
-            'year_level' => 'required|integer|min:1|max:4',
-            'semester' => 'required|in:first,second',
+            'education_level' => 'required|in:college,senior_high',
+            'year_level' => 'required|integer|min:1|max:12',
+            'semester' => 'nullable|in:first,second,summer,whole_year',
             'units' => 'required|numeric|min:0|max:10',
-            'subject_type' => 'required|in:major,minor,general,elective',
-            'prerequisites' => 'nullable|string|max:500',
             'status' => 'required|in:active,inactive',
         ]);
 

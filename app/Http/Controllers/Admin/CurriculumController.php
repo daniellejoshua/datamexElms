@@ -4,7 +4,9 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\Curriculum;
+use App\Models\CurriculumSubject;
 use App\Models\Program;
+use App\Models\Subject;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 
@@ -33,7 +35,63 @@ class CurriculumController extends Controller
 
         return Inertia::render('Admin/Curriculum/Create', [
             'programs' => $programs,
+            'subjects' => [], // Load subjects dynamically based on program selection
         ]);
+    }
+
+    /**
+     * Get majors for a specific program (API endpoint)
+     */
+    public function getMajorsForProgram(Request $request)
+    {
+        $request->validate([
+            'program_id' => 'required|exists:programs,id',
+        ]);
+
+        $majors = Subject::where('program_id', $request->program_id)
+            ->where('subject_type', 'major')
+            ->whereNotNull('major')
+            ->where('status', 'active')
+            ->distinct()
+            ->pluck('major')
+            ->toArray();
+
+        return response()->json($majors);
+    }
+
+    /**
+     * Get subjects for a specific program (API endpoint)
+     */
+    public function getSubjectsForProgram(Request $request)
+    {
+        $request->validate([
+            'program_id' => 'required|exists:programs,id',
+            'major' => 'nullable|string',
+        ]);
+
+        $query = Subject::where('program_id', $request->program_id)
+            ->where('status', 'active');
+
+        // If major is specified, get major subjects for that major + general/minor subjects
+        if ($request->filled('major')) {
+            $query->where(function ($q) use ($request) {
+                $q->where(function ($subQ) use ($request) {
+                    $subQ->where('subject_type', 'major')
+                        ->where('major', $request->major);
+                })->orWhereIn('subject_type', ['general', 'minor']);
+            });
+        } else {
+            // If no major specified, get all subjects for the program
+            $query->whereIn('subject_type', ['major', 'general', 'minor']);
+        }
+
+        $subjects = $query->orderBy('subject_type')
+            ->orderBy('year_level')
+            ->orderBy('semester')
+            ->orderBy('subject_code')
+            ->get();
+
+        return response()->json($subjects);
     }
 
     /**
@@ -48,9 +106,30 @@ class CurriculumController extends Controller
             'academic_year' => 'required|string',
             'description' => 'nullable|string',
             'status' => 'required|in:active,inactive',
+            'curriculum_subjects' => 'required|array',
+            'curriculum_subjects.*.subject_id' => 'required|exists:subjects,id',
+            'curriculum_subjects.*.year_level' => 'required|integer|min:1',
+            'curriculum_subjects.*.semester' => 'required|in:first,second',
         ]);
 
-        $curriculum = Curriculum::create($validated);
+        $curriculum = Curriculum::create([
+            'program_id' => $validated['program_id'],
+            'curriculum_code' => $validated['curriculum_code'],
+            'curriculum_name' => $validated['curriculum_name'],
+            'academic_year' => $validated['academic_year'],
+            'description' => $request->input('description'),
+            'status' => $validated['status'],
+        ]);
+
+        // Create curriculum subjects
+        foreach ($validated['curriculum_subjects'] as $subjectData) {
+            CurriculumSubject::create([
+                'curriculum_id' => $curriculum->id,
+                'subject_id' => $subjectData['subject_id'],
+                'year_level' => $subjectData['year_level'],
+                'semester' => $subjectData['semester'],
+            ]);
+        }
 
         return redirect()->route('admin.curriculum.index')
             ->with('message', 'Curriculum created successfully.');
