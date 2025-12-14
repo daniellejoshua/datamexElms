@@ -4,9 +4,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { ArrowLeft, FileText, AlertCircle } from 'lucide-react';
+import { ArrowLeft, FileText, AlertCircle, CheckCircle, XCircle } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Badge } from '@/components/ui/badge';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { useEffect } from 'react';
 import { toast } from 'sonner';
@@ -16,6 +18,8 @@ export default function Edit({ curriculum, programs }) {
         program_id: curriculum.program_id,
         curriculum_code: curriculum.curriculum_code,
         curriculum_name: curriculum.curriculum_name,
+        status: curriculum.status || 'active',
+        is_current: curriculum.is_current || false,
     });
 
     const page = usePage();
@@ -63,7 +67,77 @@ export default function Edit({ curriculum, programs }) {
             <Head title="Edit Curriculum" />
 
             <div className="py-12">
-                <div className="max-w-2xl mx-auto sm:px-6 lg:px-8">
+                <div className="max-w-4xl mx-auto sm:px-6 lg:px-8 space-y-6">
+                    {/* Current Curriculum Info */}
+                    <Card className="border-blue-200 bg-blue-50">
+                        <CardHeader>
+                            <CardTitle className="flex items-center gap-2 text-blue-900">
+                                <FileText className="w-5 h-5" />
+                                Current Curriculum Information
+                            </CardTitle>
+                            <CardDescription className="text-blue-700">
+                                Review the current curriculum details before making changes
+                            </CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <div className="space-y-4">
+                                    <div>
+                                        <Label className="text-sm font-medium text-gray-700">Curriculum Name</Label>
+                                        <p className="text-lg font-semibold text-gray-900">{curriculum.curriculum_name}</p>
+                                    </div>
+                                    <div>
+                                        <Label className="text-sm font-medium text-gray-700">Curriculum Code</Label>
+                                        <p className="text-lg font-semibold text-gray-900">{curriculum.curriculum_code}</p>
+                                    </div>
+                                    <div>
+                                        <Label className="text-sm font-medium text-gray-700">Program</Label>
+                                        <p className="text-lg font-semibold text-gray-900">
+                                            {curriculum.program.program_name} ({curriculum.program.program_code})
+                                        </p>
+                                    </div>
+                                </div>
+                                <div className="space-y-4">
+                                    <div>
+                                        <Label className="text-sm font-medium text-gray-700">Status</Label>
+                                        <div className="flex items-center gap-2">
+                                            {curriculum.status === 'active' || curriculum.status === 1 || curriculum.status === true ? (
+                                                <Badge className="bg-green-500 text-white">
+                                                    <CheckCircle className="w-3 h-3 mr-1" />
+                                                    Active
+                                                </Badge>
+                                            ) : (
+                                                <Badge variant="destructive">
+                                                    <XCircle className="w-3 h-3 mr-1" />
+                                                    Inactive
+                                                </Badge>
+                                            )}
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <Label className="text-sm font-medium text-gray-700">Current Status</Label>
+                                        <div className="flex items-center gap-2">
+                                            {curriculum.is_current === 1 || curriculum.is_current === true ? (
+                                                <Badge className="bg-gradient-to-r from-yellow-400 to-orange-500 text-white border-yellow-300">
+                                                    <span className="w-2 h-2 bg-white rounded-full animate-pulse mr-1"></span>
+                                                    Current Curriculum
+                                                </Badge>
+                                            ) : (
+                                                <Badge variant="outline" className="text-gray-600 border-gray-400">
+                                                    Not Current
+                                                </Badge>
+                                            )}
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <Label className="text-sm font-medium text-gray-700">Created</Label>
+                                        <p className="text-sm text-gray-600">{new Date(curriculum.created_at).toLocaleDateString()}</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </CardContent>
+                    </Card>
+
                     <Card>
                         <CardHeader>
                             <CardTitle className="flex items-center gap-2">
@@ -71,7 +145,7 @@ export default function Edit({ curriculum, programs }) {
                                 Edit Curriculum Details
                             </CardTitle>
                             <CardDescription>
-                                Create a new curriculum for a program. Subjects will be automatically populated based on the program structure.
+                                Modify the curriculum information and status as needed.
                             </CardDescription>
                         </CardHeader>
                         <CardContent>
@@ -117,6 +191,37 @@ export default function Edit({ curriculum, programs }) {
                                         <p className="text-sm text-red-600">{errors.curriculum_name}</p>
                                     )}
                                 </div>
+
+                                <div className="space-y-2">
+                                    <Label htmlFor="status">Status</Label>
+                                    <Select value={data.status} onValueChange={(value) => setData('status', value)}>
+                                        <SelectTrigger>
+                                            <SelectValue placeholder="Select status" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="active">Active</SelectItem>
+                                            <SelectItem value="inactive">Inactive</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                    {errors.status && (
+                                        <p className="text-sm text-red-600">{errors.status}</p>
+                                    )}
+                                </div>
+
+                                <div className="flex items-center space-x-2">
+                                    <Checkbox
+                                        id="is_current"
+                                        checked={data.is_current}
+                                        onCheckedChange={(checked) => setData('is_current', checked)}
+                                    />
+                                    <Label htmlFor="is_current" className="text-sm font-medium">
+                                        Set as Current Curriculum for Program
+                                    </Label>
+                                </div>
+                                <p className="text-xs text-gray-500">
+                                    When checked, all new students in this program will be assigned to this curriculum.
+                                    Only one curriculum per program can be current at a time.
+                                </p>
 
                                 <Alert>
                                     <AlertCircle className="h-4 w-4" />

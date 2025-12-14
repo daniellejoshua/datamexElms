@@ -88,20 +88,14 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
     }, [data.program_id, programs])
 
     useEffect(() => {
-        if (selectedProgram && data.year_level) {
-            // Calculate batch year: for new students, batch_year = current - (year_level - 1)
-            const numericYearLevel = getNumericYearLevel(data.year_level, selectedProgram.education_level)
-            const batchYear = currentAcademicYear - (numericYearLevel - 1)
-            
-            // Find curriculum for this batch year
-            const curriculum = selectedProgram.curriculums?.find(c => c.academic_year == batchYear && c.status === 'active')
-            
-            // If no curriculum for batch year, use the active one
-            setSelectedCurriculum(curriculum || selectedProgram.active_curriculum)
+        if (selectedProgram) {
+            // Use the current curriculum for the program
+            // This ensures all new students get the current curriculum
+            setSelectedCurriculum(selectedProgram.current_curriculum)
         } else {
             setSelectedCurriculum(null)
         }
-    }, [selectedProgram, data.year_level, currentAcademicYear])
+    }, [selectedProgram])
 
     useEffect(() => {
         if (data.program_id && data.year_level && data.student_type) {
@@ -933,7 +927,9 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                                         </p>
                                         {selectedCurriculum && (
                                             <p className="text-xs text-blue-600 mt-1">
-                                                📖 Curriculum: {selectedCurriculum.curriculum_name} ({selectedCurriculum.curriculum_code}) - Batch {selectedCurriculum.academic_year}
+                                                📖 Active Curriculum: {selectedCurriculum.curriculum_name} ({selectedCurriculum.curriculum_code})
+                                                <br />
+                                                <span className="text-blue-500">All new students will be assigned to this curriculum</span>
                                             </p>
                                         )}
                                     </div>
@@ -1351,7 +1347,7 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                                 <span className="text-sm font-medium text-gray-600">Curriculum</span>
                                 <p className="text-sm font-semibold">
                                     {selectedCurriculum ? 
-                                        `${selectedCurriculum.curriculum_name} (${selectedCurriculum.curriculum_code}) - Batch ${selectedCurriculum.academic_year}` : 
+                                        `${selectedCurriculum.curriculum_name} (${selectedCurriculum.curriculum_code}) - Active` : 
                                         'No curriculum assigned'
                                     }
                                 </p>

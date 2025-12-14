@@ -20,6 +20,7 @@ class Curriculum extends Model
         'academic_year',
         'description',
         'status',
+        'is_current',
     ];
 
     public function program(): BelongsTo
@@ -35,6 +36,11 @@ class Curriculum extends Model
     public function scopeActive($query)
     {
         return $query->where('status', 'active');
+    }
+
+    public function scopeIsCurrent($query)
+    {
+        return $query->where('is_current', true);
     }
 
     public function scopeByProgram($query, int $programId)

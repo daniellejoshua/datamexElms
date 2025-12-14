@@ -12,7 +12,8 @@ test('admin can view curriculums index', function () {
     $response->assertStatus(200);
     $response->assertInertia(fn ($page) => $page
         ->component('Admin/Curriculum/Index')
-        ->has('curriculums')
+        ->has('curricula')
+        ->has('programs')
     );
 });
 
@@ -64,6 +65,31 @@ test('active scope returns only active curriculums', function () {
     // Should have at least some active curriculums from our seed data
     expect($activeCount)->toBeGreaterThan(0);
     expect($activeCount)->toBeLessThanOrEqual($totalCount);
+});
+
+test('current scope returns only current curriculums', function () {
+    // Create a test curriculum and set it as current
+    $program = Program::first();
+    $curriculum = Curriculum::factory()->create([
+        'program_id' => $program->id,
+        'is_current' => true,
+    ]);
+
+    $currentCount = Curriculum::isCurrent()->count();
+    expect($currentCount)->toBeGreaterThan(0);
+
+    // Verify the current curriculum is returned
+    $currentCurriculums = Curriculum::isCurrent()->get();
+    expect($currentCurriculums->contains($curriculum))->toBeTrue();
+
+    // Verify non-current curricula are not returned
+    $nonCurrentCurriculum = Curriculum::factory()->create([
+        'program_id' => $program->id,
+        'is_current' => false,
+    ]);
+
+    $currentCurriculums = Curriculum::isCurrent()->get();
+    expect($currentCurriculums->contains($nonCurrentCurriculum))->toBeFalse();
 });
 
 test('student curriculum assignment works correctly', function () {

@@ -15,14 +15,37 @@ class CurriculumController extends Controller
     /**
      * Display a listing of the resource.
      */
-    public function index()
+    public function index(Request $request)
     {
-        $curricula = Curriculum::with('program')
-            ->orderBy('created_at', 'desc')
-            ->paginate(10);
+        $query = Curriculum::with('program');
+
+        // Apply filters
+        if ($request->filled('program_id') && $request->program_id !== 'all') {
+            $query->where('program_id', $request->program_id);
+        }
+
+        if ($request->filled('status') && $request->status !== 'all') {
+            $query->where('status', $request->status);
+        }
+
+        if ($request->filled('search')) {
+            $search = $request->search;
+            $query->where(function ($q) use ($search) {
+                $q->where('curriculum_name', 'like', "%{$search}%")
+                    ->orWhere('curriculum_code', 'like', "%{$search}%")
+                    ->orWhereHas('program', function ($programQuery) use ($search) {
+                        $programQuery->where('program_name', 'like', "%{$search}%");
+                    });
+            });
+        }
+
+        $curricula = $query->orderBy('created_at', 'desc')->paginate(12);
+        $programs = Program::active()->get();
 
         return Inertia::render('Admin/Curriculum/Index', [
-            'curriculums' => $curricula,
+            'curricula' => $curricula,
+            'programs' => $programs,
+            'filters' => $request->only(['program_id', 'status', 'search']),
         ]);
     }
 
@@ -168,7 +191,7 @@ class CurriculumController extends Controller
         $programs = Program::active()->get();
 
         return Inertia::render('Admin/Curriculum/Edit', [
-            'curriculum' => $curriculum,
+            'curriculum' => $curriculum->load('program'),
             'programs' => $programs,
         ]);
     }
@@ -182,7 +205,15 @@ class CurriculumController extends Controller
             'program_id' => 'required|exists:programs,id',
             'curriculum_code' => 'required|string|unique:curriculum,curriculum_code,'.$curriculum->id,
             'curriculum_name' => 'required|string',
+            'is_current' => 'boolean',
         ]);
+
+        // If setting this curriculum as current, deactivate all other curricula for this program
+        if ($validated['is_current']) {
+            Curriculum::where('program_id', $curriculum->program_id)
+                ->where('id', '!=', $curriculum->id)
+                ->update(['is_current' => false]);
+        }
 
         $curriculum->update($validated);
 

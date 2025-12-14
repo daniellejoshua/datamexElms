@@ -153,7 +153,7 @@ class RegistrarController extends Controller
      */
     public function create(): Response
     {
-        $programs = Program::with(['programFees', 'curriculums'])->orderBy('education_level')
+        $programs = Program::with(['programFees', 'curriculums', 'currentCurriculum'])->orderBy('education_level')
             ->orderBy('program_name')
             ->get();
 
@@ -444,10 +444,10 @@ class RegistrarController extends Controller
                 ->active()
                 ->first();
 
-            // If no curriculum for batch year, fall back to active curriculum
+            // If no curriculum for batch year, fall back to current curriculum
             if (! $curriculum) {
-                $program = Program::with('activeCurriculum')->find($validated['program_id']);
-                $curriculum = $program->activeCurriculum;
+                $program = Program::with('currentCurriculum')->find($validated['program_id']);
+                $curriculum = $program->currentCurriculum;
             }
 
             $curriculumId = $curriculum?->id;

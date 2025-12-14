@@ -21,8 +21,8 @@ class CurriculumFactory extends Factory
             'program_id' => Program::factory(),
             'curriculum_code' => $this->faker->unique()->regexify('[A-Z]{4}-[0-9]{4}'),
             'curriculum_name' => $this->faker->sentence(3),
-            'academic_year' => $this->faker->year().'-'.($this->faker->year() + 1),
             'status' => $this->faker->randomElement(['active', 'inactive']),
+            'is_current' => false,
         ];
     }
 }

@@ -53,6 +53,11 @@ class DeleteStudentData extends Command
         DB::beginTransaction();
 
         try {
+            // Collect student user IDs BEFORE deleting students
+            $studentUserIds = Student::pluck('user_id')->toArray();
+            $archivedStudentUserIds = ArchivedStudent::pluck('user_id')->toArray();
+            $allStudentUserIds = array_merge($studentUserIds, $archivedStudentUserIds);
+
             // Delete in order to respect foreign key constraints
             // Delete child records first
             DB::table('student_academic_transcripts')->delete();
@@ -82,10 +87,21 @@ class DeleteStudentData extends Command
 
             // Delete user accounts that belong to students only
             // We need to be careful here - only delete users that were students
-            $studentUserIds = DB::table('students')->pluck('user_id')->toArray();
-            if (! empty($studentUserIds)) {
-                User::whereIn('id', $studentUserIds)->delete();
+            if (! empty($allStudentUserIds)) {
+                User::whereIn('id', $allStudentUserIds)->delete();
                 $this->info('✓ Deleted student user accounts');
+            }
+
+            // Also delete any orphaned student user accounts (users with student role but no student record)
+            $orphanedStudentUsers = DB::table('users')
+                ->leftJoin('students', 'users.id', '=', 'students.user_id')
+                ->where('users.role', 'student')
+                ->whereNull('students.id')
+                ->pluck('users.id');
+
+            if ($orphanedStudentUsers->isNotEmpty()) {
+                User::whereIn('id', $orphanedStudentUsers)->delete();
+                $this->info('✓ Deleted orphaned student user accounts ('.$orphanedStudentUsers->count().')');
             }
 
             DB::commit();

@@ -41,9 +41,9 @@ class Program extends Model
         return $this->hasMany(Curriculum::class);
     }
 
-    public function activeCurriculum()
+    public function currentCurriculum()
     {
-        return $this->hasOne(Curriculum::class)->active()->latest();
+        return $this->hasOne(Curriculum::class)->isCurrent();
     }
 
     public function programFees(): HasMany
