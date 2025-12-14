@@ -52,7 +52,6 @@ test('curriculum code must be unique', function () {
             'program_id' => $program->id,
             'curriculum_code' => $existingCurriculum->curriculum_code, // Same code should fail
             'curriculum_name' => 'Duplicate Test Curriculum',
-            'academic_year' => '2024-2025',
             'status' => 'active',
         ]);
     })->toThrow(\Illuminate\Database\QueryException::class);

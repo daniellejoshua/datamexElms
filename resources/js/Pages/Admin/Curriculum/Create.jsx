@@ -1,4 +1,4 @@
-import { Head, Link, useForm, router } from '@inertiajs/react';
+import { Head, Link, useForm, router, usePage } from '@inertiajs/react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -12,6 +12,7 @@ import { ArrowLeft, FileText, AlertCircle, ChevronRight, ChevronLeft, BookOpen, 
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { useState, useEffect } from 'react';
+import { toast } from 'sonner';
 
 export default function Create({ programs, subjects: initialSubjects }) {
     const [currentStep, setCurrentStep] = useState(1);
@@ -34,8 +35,29 @@ export default function Create({ programs, subjects: initialSubjects }) {
         curriculum_subjects: [],
     });
 
+    const page = usePage();
+
+    useEffect(() => {
+        if (page.props.flash?.success) {
+            toast.success(page.props.flash.success, {
+                style: {
+                    color: '#10b981', // green-500
+                    border: '1px solid #10b981',
+                },
+            });
+        }
+        if (page.props.flash?.error) {
+            toast.error(page.props.flash.error, {
+                style: {
+                    color: '#ef4444', // red-500
+                    border: '1px solid #ef4444',
+                },
+            });
+        }
+    }, [page.props.flash]);
+
     // Constants
-    const semesters = ['first', 'second'];
+    const semesters = ['1st', '2nd'];
     const selectedProgram = programs?.find(p => p.id.toString() === data.program_id);
     const years = selectedProgram ? Array.from({ length: selectedProgram.total_years }, (_, i) => i + 1) : [];
 
@@ -293,7 +315,7 @@ export default function Create({ programs, subjects: initialSubjects }) {
                                                             >
                                                                 <div className="flex items-center justify-between mb-3">
                                                                     <h4 className="font-medium text-gray-700 capitalize flex items-center gap-2">
-                                                                        <div className={`w-3 h-3 rounded-full ${semester === 'first' ? 'bg-green-400' : 'bg-orange-400'}`}></div>
+                                                                        <div className={`w-3 h-3 rounded-full ${semester === '1st' ? 'bg-green-400' : 'bg-orange-400'}`}></div>
                                                                         {semester} Semester
                                                                     </h4>
                                                                     <Badge variant="outline" className="text-xs">
@@ -350,15 +372,25 @@ export default function Create({ programs, subjects: initialSubjects }) {
                     )}
 
                     {currentStep === 2 && (
-                        <div className="flex justify-between mt-6">
-                            <Button variant="outline" onClick={prevStep}>
-                                <ChevronLeft className="w-4 h-4 mr-2" />
-                                Previous Step
-                            </Button>
-                            <Button onClick={submit} disabled={processing}>
-                                Create Curriculum
-                            </Button>
-                        </div>
+                        <>
+                            {errors.curriculum_subjects && (
+                                <Alert className="mb-4">
+                                    <AlertCircle className="h-4 w-4" />
+                                    <AlertDescription>
+                                        {errors.curriculum_subjects}
+                                    </AlertDescription>
+                                </Alert>
+                            )}
+                            <div className="flex justify-between mt-6">
+                                <Button variant="outline" onClick={prevStep}>
+                                    <ChevronLeft className="w-4 h-4 mr-2" />
+                                    Previous Step
+                                </Button>
+                                <Button onClick={submit} disabled={processing}>
+                                    Create Curriculum
+                                </Button>
+                            </div>
+                        </>
                     )}
                 </div>
             </div>
@@ -370,7 +402,7 @@ export default function Create({ programs, subjects: initialSubjects }) {
                         <DialogTitle className="flex items-center gap-3">
                             <BookOpen className="w-5 h-5 text-blue-600" />
                             <span>
-                                Select Subjects for <Badge variant="secondary" className="font-semibold">Year {selectedYear}</Badge> - <Badge variant="outline" className="font-semibold">{selectedSemester?.charAt(0).toUpperCase() + selectedSemester?.slice(1)} Semester</Badge>
+                                Select Subjects for <Badge variant="secondary" className="font-semibold">Year {selectedYear}</Badge> - <Badge variant="outline" className="font-semibold">{selectedSemester} Semester</Badge>
                             </span>
                         </DialogTitle>
                         <DialogDescription>

@@ -1,4 +1,4 @@
-import { Head, Link, useForm } from '@inertiajs/react';
+import { Head, Link, useForm, usePage } from '@inertiajs/react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -8,16 +8,36 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { ArrowLeft, FileText, AlertCircle } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
+import { useEffect } from 'react';
+import { toast } from 'sonner';
 
 export default function Edit({ curriculum, programs }) {
     const { data, setData, put, processing, errors } = useForm({
         program_id: curriculum.program_id,
         curriculum_code: curriculum.curriculum_code,
         curriculum_name: curriculum.curriculum_name,
-        academic_year: curriculum.academic_year,
-        description: curriculum.description,
-        status: curriculum.status,
     });
+
+    const page = usePage();
+
+    useEffect(() => {
+        if (page.props.flash?.success) {
+            toast.success(page.props.flash.success, {
+                style: {
+                    color: '#10b981', // green-500
+                    border: '1px solid #10b981',
+                },
+            });
+        }
+        if (page.props.flash?.error) {
+            toast.error(page.props.flash.error, {
+                style: {
+                    color: '#ef4444', // red-500
+                    border: '1px solid #ef4444',
+                },
+            });
+        }
+    }, [page.props.flash]);
 
     const submit = (e) => {
         e.preventDefault();
@@ -59,24 +79,14 @@ export default function Edit({ curriculum, programs }) {
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                     <div className="space-y-2">
                                         <Label htmlFor="program_id">Program</Label>
-                                        <Select
-                                            value={data.program_id}
-                                            onValueChange={(value) => setData('program_id', value)}
-                                        >
-                                            <SelectTrigger>
-                                                <SelectValue placeholder="Select a program" />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                {programs.map((program) => (
-                                                    <SelectItem key={program.id} value={program.id.toString()}>
-                                                        {program.program_name} ({program.program_code})
-                                                    </SelectItem>
-                                                ))}
-                                            </SelectContent>
-                                        </Select>
-                                        {errors.program_id && (
-                                            <p className="text-sm text-red-600">{errors.program_id}</p>
-                                        )}
+                                        <Input
+                                            id="program_id"
+                                            type="text"
+                                            value={programs.find(p => p.id == curriculum.program_id)?.program_name + ' (' + programs.find(p => p.id == curriculum.program_id)?.program_code + ')' || 'Unknown Program'}
+                                            readOnly
+                                            className="bg-gray-50 cursor-not-allowed"
+                                        />
+                                        <p className="text-sm text-gray-500">Program cannot be changed after curriculum creation</p>
                                     </div>
 
                                     <div className="space-y-2">
@@ -108,60 +118,10 @@ export default function Edit({ curriculum, programs }) {
                                     )}
                                 </div>
 
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                    <div className="space-y-2">
-                                        <Label htmlFor="academic_year">Academic Year</Label>
-                                        <Input
-                                            id="academic_year"
-                                            type="text"
-                                            value={data.academic_year}
-                                            onChange={(e) => setData('academic_year', e.target.value)}
-                                            placeholder="e.g., 2025-2026"
-                                        />
-                                        {errors.academic_year && (
-                                            <p className="text-sm text-red-600">{errors.academic_year}</p>
-                                        )}
-                                    </div>
-
-                                    <div className="space-y-2">
-                                        <Label htmlFor="status">Status</Label>
-                                        <Select
-                                            value={data.status}
-                                            onValueChange={(value) => setData('status', value)}
-                                        >
-                                            <SelectTrigger>
-                                                <SelectValue />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                <SelectItem value="active">Active</SelectItem>
-                                                <SelectItem value="inactive">Inactive</SelectItem>
-                                            </SelectContent>
-                                        </Select>
-                                        {errors.status && (
-                                            <p className="text-sm text-red-600">{errors.status}</p>
-                                        )}
-                                    </div>
-                                </div>
-
-                                <div className="space-y-2">
-                                    <Label htmlFor="description">Description (Optional)</Label>
-                                    <Textarea
-                                        id="description"
-                                        value={data.description}
-                                        onChange={(e) => setData('description', e.target.value)}
-                                        placeholder="Brief description of this curriculum..."
-                                        rows={3}
-                                    />
-                                    {errors.description && (
-                                        <p className="text-sm text-red-600">{errors.description}</p>
-                                    )}
-                                </div>
-
                                 <Alert>
                                     <AlertCircle className="h-4 w-4" />
                                     <AlertDescription>
-                                        <strong>Note:</strong> Once created, curriculum subjects cannot be modified.
-                                        This ensures academic integrity and consistency across the program.
+                                        <strong>Note:</strong> Only the curriculum code and name can be edited. The program association and subjects cannot be modified to maintain academic integrity.
                                     </AlertDescription>
                                 </Alert>
 

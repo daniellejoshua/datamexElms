@@ -92,31 +92,37 @@ class CurriculumController extends Controller
             'program_id' => 'required|exists:programs,id',
             'curriculum_code' => 'required|string|unique:curriculum',
             'curriculum_name' => 'required|string',
-            'academic_year' => 'required|string',
             'description' => 'nullable|string',
             'status' => 'required|in:active,inactive',
             'curriculum_subjects' => 'required|array',
             'curriculum_subjects.*.subject_id' => 'required|exists:subjects,id',
             'curriculum_subjects.*.year_level' => 'required|integer|min:1',
-            'curriculum_subjects.*.semester' => 'required|in:first,second',
+            'curriculum_subjects.*.semester' => 'required|in:1st,2nd',
         ]);
 
         $curriculum = Curriculum::create([
             'program_id' => $validated['program_id'],
             'curriculum_code' => $validated['curriculum_code'],
             'curriculum_name' => $validated['curriculum_name'],
-            'academic_year' => $validated['academic_year'],
             'description' => $request->input('description'),
             'status' => $validated['status'],
         ]);
 
         // Create curriculum subjects
         foreach ($validated['curriculum_subjects'] as $subjectData) {
+            $subject = Subject::find($subjectData['subject_id']);
             CurriculumSubject::create([
                 'curriculum_id' => $curriculum->id,
                 'subject_id' => $subjectData['subject_id'],
+                'subject_code' => $subject->subject_code,
+                'subject_name' => $subject->subject_name,
+                'description' => $subject->description,
+                'units' => $subject->units,
                 'year_level' => $subjectData['year_level'],
                 'semester' => $subjectData['semester'],
+                'subject_type' => $subject->subject_type,
+                'is_lab' => $subject->is_lab ?? false,
+                'status' => 'active',
             ]);
         }
 
@@ -176,14 +182,11 @@ class CurriculumController extends Controller
             'program_id' => 'required|exists:programs,id',
             'curriculum_code' => 'required|string|unique:curriculum,curriculum_code,'.$curriculum->id,
             'curriculum_name' => 'required|string',
-            'academic_year' => 'required|string',
-            'description' => 'nullable|string',
-            'status' => 'required|in:active,inactive',
         ]);
 
         $curriculum->update($validated);
 
         return redirect()->route('admin.curriculum.index')
-            ->with('message', 'Curriculum updated successfully.');
+            ->with('success', 'Curriculum updated successfully.');
     }
 }

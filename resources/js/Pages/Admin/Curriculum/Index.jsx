@@ -1,11 +1,34 @@
-import { Head, Link } from '@inertiajs/react';
+import { Head, Link, usePage } from '@inertiajs/react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Plus, Eye, Edit, FileText } from 'lucide-react';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
+import { useEffect } from 'react';
+import { toast } from 'sonner';
 
 export default function Index({ curriculums }) {
+    const page = usePage();
+
+    useEffect(() => {
+        if (page.props.flash?.success) {
+            toast.success(page.props.flash.success, {
+                style: {
+                    color: '#10b981', // green-500
+                    border: '1px solid #10b981',
+                },
+            });
+        }
+        if (page.props.flash?.error) {
+            toast.error(page.props.flash.error, {
+                style: {
+                    color: '#ef4444', // red-500
+                    border: '1px solid #ef4444',
+                },
+            });
+        }
+    }, [page.props.flash]);
+
     return (
         <AuthenticatedLayout
             header={
@@ -37,7 +60,7 @@ export default function Index({ curriculums }) {
                                                 {curriculum.curriculum_name}
                                             </CardTitle>
                                             <CardDescription>
-                                                {curriculum.curriculum_code} • {curriculum.academic_year}
+                                                {curriculum.curriculum_code} • Created {new Date(curriculum.created_at).toLocaleDateString()}
                                             </CardDescription>
                                         </div>
                                         <Badge variant={curriculum.status === 'active' ? 'default' : 'secondary'}>
