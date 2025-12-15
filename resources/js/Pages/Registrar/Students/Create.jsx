@@ -200,6 +200,17 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
         }
     }, [data.suffix])
 
+    // Handle success flash message from server redirect
+    useEffect(() => {
+        if (flash?.success) {
+            toast.success(flash.success, {
+                style: { border: '1px solid #10b981', color: '#10b981' }
+            })
+            // Clear the form after successful registration
+            reset()
+        }
+    }, [flash?.success, reset])
+
     const checkArchivedStudent = async () => {
         if (!data.email) return
         
@@ -443,7 +454,8 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                 toast.success('Student registered successfully!', {
                     style: { border: '1px solid #10b981', color: '#10b981' }
                 })
-                router.visit(route('registrar.students'))
+                // Clear the form instead of redirecting
+                reset()
             },
             onError: (errors) => {
                 console.error('Validation errors:', errors)

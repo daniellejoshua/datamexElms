@@ -113,22 +113,22 @@ class StudentSemesterPayment extends Model
         $total = 0;
 
         if ($this->enrollment_paid) {
-            $total += $this->enrollment_fee;
+            $total += (float) $this->enrollment_fee;
         }
         if ($this->prelim_paid) {
-            $total += $this->prelim_amount;
+            $total += (float) $this->prelim_amount;
         }
         if ($this->midterm_paid) {
-            $total += $this->midterm_amount;
+            $total += (float) $this->midterm_amount;
         }
         if ($this->prefinal_paid) {
-            $total += $this->prefinal_amount;
+            $total += (float) $this->prefinal_amount;
         }
         if ($this->final_paid) {
-            $total += $this->final_amount;
+            $total += (float) $this->final_amount;
         }
 
-        return $total;
+        return (float) $total;
     }
 
     /**
@@ -136,7 +136,10 @@ class StudentSemesterPayment extends Model
      */
     public function calculateBalance(): float
     {
-        return $this->total_semester_fee - $this->calculateTotalPaid();
+        $totalFee = (float) $this->total_semester_fee;
+        $totalPaid = (float) $this->calculateTotalPaid();
+
+        return max(0, $totalFee - $totalPaid);
     }
 
     /**

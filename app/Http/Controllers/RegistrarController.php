@@ -438,17 +438,9 @@ class RegistrarController extends Controller
                 }
             }
 
-            // Find curriculum for the program and batch year
-            $curriculum = Curriculum::where('program_id', $validated['program_id'])
-                ->where('academic_year', $batchYear)
-                ->active()
-                ->first();
-
-            // If no curriculum for batch year, fall back to current curriculum
-            if (! $curriculum) {
-                $program = Program::with('currentCurriculum')->find($validated['program_id']);
-                $curriculum = $program->currentCurriculum;
-            }
+            // Get the current curriculum for the program
+            $program = Program::with('currentCurriculum')->find($validated['program_id']);
+            $curriculum = $program->currentCurriculum;
 
             $curriculumId = $curriculum?->id;
 
@@ -541,6 +533,25 @@ class RegistrarController extends Controller
             $enrollmentFee = (float) $validated['enrollment_fee'];
             $paymentAmount = (float) $validated['payment_amount'];
 
+            // Ensure values are numeric and non-negative
+            if (!is_numeric($validated['enrollment_fee']) || $enrollmentFee < 0) {
+                return back()->withErrors([
+                    'enrollment_fee' => 'Enrollment fee must be a valid positive number.',
+                ])->withInput();
+            }
+
+            if (!is_numeric($validated['payment_amount']) || $paymentAmount < 0) {
+                return back()->withErrors([
+                    'payment_amount' => 'Payment amount must be a valid positive number.',
+                ])->withInput();
+            }
+
+            if ($enrollmentFee == 0) {
+                return back()->withErrors([
+                    'enrollment_fee' => 'Enrollment fee cannot be zero.',
+                ])->withInput();
+            }
+
             // Check if payment record already exists for this semester
             $existingPayment = StudentSemesterPayment::where([
                 'student_id' => $student->id,
@@ -612,7 +623,7 @@ class RegistrarController extends Controller
             DB::commit();
 
             return redirect()
-                ->route('registrar.students')
+                ->route('registrar.students.create')
                 ->with('success', $message);
 
         } catch (\Exception $e) {
