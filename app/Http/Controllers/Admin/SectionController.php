@@ -6,6 +6,7 @@ use App\Helpers\AcademicHelper;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\StoreSectionRequest;
 use App\Http\Requests\Admin\UpdateSectionRequest;
+use App\Models\CurriculumSubject;
 use App\Models\Program;
 use App\Models\SchoolSetting;
 use App\Models\Section;
@@ -134,9 +135,11 @@ class SectionController extends Controller
         $currentSemester = SchoolSetting::getCurrentSemester();
 
         $programs = Program::where('status', 'active')->orderBy('program_code')->get();
+        $curricula = \App\Models\Curriculum::where('status', 'active')->with('program')->orderBy('curriculum_code')->get();
 
         return Inertia::render('Admin/Sections/Create', [
             'programs' => $programs,
+            'curricula' => $curricula,
             'currentAcademicPeriod' => [
                 'academic_year' => $currentAcademicYear,
                 'semester' => $currentSemester,
@@ -149,6 +152,22 @@ class SectionController extends Controller
     public function store(StoreSectionRequest $request): RedirectResponse
     {
         $section = Section::create($request->validated());
+
+        // Automatically attach subjects from the curriculum that match the section's year level and semester
+        if ($request->curriculum_id) {
+            $curriculumSubjects = \App\Models\CurriculumSubject::where('curriculum_id', $request->curriculum_id)
+                ->where('year_level', $request->year_level)
+                ->where('semester', $request->semester)
+                ->where('status', 'active')
+                ->get();
+
+            foreach ($curriculumSubjects as $curriculumSubject) {
+                $section->sectionSubjects()->create([
+                    'subject_id' => $curriculumSubject->subject_id,
+                    'status' => 'active',
+                ]);
+            }
+        }
 
         return redirect()->route('admin.sections.index')
             ->with('success', 'Section created successfully.');
@@ -180,6 +199,7 @@ class SectionController extends Controller
         }])
             ->whereNotIn('id', $enrolledStudentIds)
             ->where('program_id', $section->program_id) // Only students from same program
+            ->where('curriculum_id', $section->curriculum_id) // Only students from same curriculum
             ->where('status', 'active') // Only active students
             ->where(function ($query) use ($section) {
                 // Regular students must match year level, irregular students are exempt
@@ -435,6 +455,7 @@ class SectionController extends Controller
         }])
             ->whereNotIn('id', $enrolledStudentIds)
             ->where('program_id', $section->program_id) // Only students from same program
+            ->where('curriculum_id', $section->curriculum_id) // Only students from same curriculum
             ->where('status', 'active') // Only active students
             ->where(function ($query) use ($section) {
                 // Regular students must match year level, irregular students are exempt

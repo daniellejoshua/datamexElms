@@ -6,6 +6,7 @@ use App\Helpers\AcademicHelper;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\StoreSectionRequest;
 use App\Http\Requests\Admin\UpdateSectionRequest;
+use App\Models\CurriculumSubject;
 use App\Models\Program;
 use App\Models\SchoolSetting;
 use App\Models\Section;
@@ -98,9 +99,11 @@ class CollegeSectionController extends Controller
             ->where('status', 'active')
             ->orderBy('program_code')
             ->get();
+        $curricula = \App\Models\Curriculum::where('status', 'active')->with('program')->orderBy('curriculum_code')->get();
 
         return Inertia::render('Admin/Sections/College/Sections/Create', [
             'programs' => $programs,
+            'curricula' => $curricula,
             'currentAcademicPeriod' => [
                 'academic_year' => $currentAcademicYear,
                 'semester' => $currentSemester,
@@ -120,8 +123,22 @@ class CollegeSectionController extends Controller
 
         $section = Section::create($request->validated());
 
+        // Automatically attach subjects from the curriculum that match the section's year level and semester
+        $curriculumSubjects = \App\Models\CurriculumSubject::where('curriculum_id', $request->curriculum_id)
+            ->where('year_level', $request->year_level)
+            ->where('semester', $request->semester)
+            ->where('status', 'active')
+            ->get();
+
+        foreach ($curriculumSubjects as $curriculumSubject) {
+            $section->sectionSubjects()->create([
+                'subject_id' => $curriculumSubject->subject_id,
+                'status' => 'active',
+            ]);
+        }
+
         return redirect()->route('admin.college.sections.index')
-            ->with('success', 'College section created successfully.');
+            ->with('success', 'College section created successfully with subjects attached.');
     }
 
     public function show(Section $section): Response

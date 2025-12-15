@@ -24,6 +24,7 @@ class StoreSectionRequest extends FormRequest
     {
         return [
             'program_id' => ['required', 'exists:programs,id'],
+            'curriculum_id' => ['required', 'exists:curriculum,id'],
             'section_name' => ['required', 'string', 'max:50'],
             'academic_year' => ['required', 'string', 'max:20'],
             'semester' => ['required', Rule::in(['1st', '2nd', 'summer'])],
@@ -40,6 +41,8 @@ class StoreSectionRequest extends FormRequest
         return [
             'program_id.required' => 'Please select a program.',
             'program_id.exists' => 'The selected program is invalid.',
+            'curriculum_id.required' => 'Please select a curriculum.',
+            'curriculum_id.exists' => 'The selected curriculum is invalid.',
             'section_name.required' => 'Section name is required.',
             'academic_year.required' => 'Academic year is required.',
             'semester.required' => 'Semester is required.',

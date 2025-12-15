@@ -10,9 +10,10 @@ import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { ArrowLeft, GraduationCap, Users, Calendar, BookOpen, AlertCircle } from 'lucide-react';
 
-const Create = ({ programs, currentAcademicPeriod, academicYearOptions, semesterOptions }) => {
+const Create = ({ programs, curricula, currentAcademicPeriod, academicYearOptions, semesterOptions }) => {
     const { data, setData, post, processing, errors } = useForm({
         program_id: '',
+        curriculum_id: '',
         section_name: '',
         year_level: 1,
         academic_year: currentAcademicPeriod?.academic_year || '',
@@ -21,6 +22,7 @@ const Create = ({ programs, currentAcademicPeriod, academicYearOptions, semester
     });
 
     const [selectedProgram, setSelectedProgram] = useState(null);
+    const [selectedCurriculum, setSelectedCurriculum] = useState(null);
     const [generatedSectionName, setGeneratedSectionName] = useState('');
 
     // Determine current semester for display
@@ -32,9 +34,19 @@ const Create = ({ programs, currentAcademicPeriod, academicYearOptions, semester
 
     // Update selected program when program_id changes
     useEffect(() => {
-        const program = programs.find(p => p.id.toString() === data.program_id.toString());
-        setSelectedProgram(program || null);
+        if (programs) {
+            const program = programs.find(p => p.id.toString() === data.program_id.toString());
+            setSelectedProgram(program || null);
+        }
     }, [data.program_id, programs]);
+
+    // Update selected curriculum when curriculum_id changes
+    useEffect(() => {
+        if (curricula) {
+            const curriculum = curricula.find(c => c.id.toString() === data.curriculum_id.toString());
+            setSelectedCurriculum(curriculum || null);
+        }
+    }, [data.curriculum_id, curricula]);
 
     // Generate section name when program and other fields change
     useEffect(() => {
@@ -109,8 +121,8 @@ const Create = ({ programs, currentAcademicPeriod, academicYearOptions, semester
                                     </div>
                                 </div>
 
-                                {/* Program and Year Level Row */}
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                {/* Program, Curriculum and Year Level Row */}
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                                     {/* Program Selection */}
                                     <div className="space-y-2">
                                         <Label htmlFor="program" className="font-medium">
@@ -137,6 +149,36 @@ const Create = ({ programs, currentAcademicPeriod, academicYearOptions, semester
                                             <Alert variant="destructive" className="py-2">
                                                 <AlertCircle className="h-4 w-4" />
                                                 <AlertDescription className="text-sm">{errors.program_id}</AlertDescription>
+                                            </Alert>
+                                        )}
+                                    </div>
+
+                                    {/* Curriculum Selection */}
+                                    <div className="space-y-2">
+                                        <Label htmlFor="curriculum" className="font-medium">
+                                            Curriculum
+                                        </Label>
+                                        <Select value={data.curriculum_id} onValueChange={(value) => setData('curriculum_id', value)}>
+                                            <SelectTrigger className={`h-10 ${errors.curriculum_id ? 'border-red-500' : 'border-gray-300 focus:border-blue-500'}`}>
+                                                <SelectValue placeholder="Select curriculum" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                {curricula?.filter(curriculum => !data.program_id || curriculum.program_id.toString() === data.program_id.toString()).map((curriculum) => (
+                                                    <SelectItem key={curriculum.id} value={curriculum.id.toString()}>
+                                                        <div className="flex items-center gap-2">
+                                                            <Badge variant="secondary" className="font-mono text-xs">
+                                                                {curriculum.curriculum_code}
+                                                            </Badge>
+                                                            <span className="text-sm">{curriculum.curriculum_name}</span>
+                                                        </div>
+                                                    </SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                        {errors.curriculum_id && (
+                                            <Alert variant="destructive" className="py-2">
+                                                <AlertCircle className="h-4 w-4" />
+                                                <AlertDescription className="text-sm">{errors.curriculum_id}</AlertDescription>
                                             </Alert>
                                         )}
                                     </div>

@@ -15,6 +15,7 @@ class Section extends Model
 
     protected $fillable = [
         'program_id',
+        'curriculum_id',
         'section_name',
         'year_level',
         'academic_year',
@@ -25,6 +26,11 @@ class Section extends Model
     public function program(): BelongsTo
     {
         return $this->belongsTo(Program::class);
+    }
+
+    public function curriculum(): BelongsTo
+    {
+        return $this->belongsTo(Curriculum::class);
     }
 
     // New many-to-many relationships through SectionSubject pivot
