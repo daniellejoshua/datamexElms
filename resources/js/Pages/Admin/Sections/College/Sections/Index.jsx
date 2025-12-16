@@ -89,96 +89,98 @@ const Index = ({
             <Head title="College Sections" />
             
             <div className="p-2 sm:p-3 lg:p-4">
-                {/* Current Academic Period Banner */}
-                <div className="mb-3 bg-gradient-to-r from-blue-50 to-indigo-50 p-2 rounded-md border border-blue-200">
-                    <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                            <Calendar className="w-3 h-3 text-blue-600" />
-                            <div>
-                                <h3 className="text-xs font-medium text-blue-900">Current Period</h3>
-                                <p className="text-xs text-blue-700">
-                                    {currentAcademicPeriod.academic_year} • {getSemesterDisplayName(currentAcademicPeriod.semester)}
-                                </p>
-                            </div>
-                        </div>
-                        <Button asChild size="sm" className="bg-red-600 hover:bg-red-700 text-white text-xs h-7 px-2">
-                            <Link href={route('admin.college.sections.create')}>
-                                <Plus className="w-3 h-3 mr-1" />
-                                Create
-                            </Link>
-                        </Button>
-                    </div>
-                </div>
-
                 {/* Filters */}
-                <Card className="mb-4 border-0 shadow-sm bg-gradient-to-r from-blue-50 to-indigo-50">
+                <Card className="mb-4">
                     <CardContent className="pt-3 pb-3">
-                        <div className="flex items-center gap-3 mb-2">
-                            <Filter className="w-4 h-4 text-blue-600" />
-                            <span className="text-sm font-medium text-blue-900">Filter Sections</span>
+                        <div className="flex items-center justify-between mb-2">
+                            <div className="flex items-center gap-3">
+                                <Filter className="w-4 h-4" />
+                                <span className="text-sm font-medium">Filter Sections</span>
+                            </div>
+                            {/* Current Period Badge - Top Right */}
+                            <Badge variant="outline" className="bg-white border-blue-200 text-blue-600 px-3 py-2">
+                                <Calendar className="w-4 h-4 mr-2" />
+                                Academic Year: {currentAcademicPeriod.academic_year} - {currentAcademicPeriod.semester}
+                            </Badge>
                         </div>
-                        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-                            {/* Academic Year Filter */}
-                            <div className="space-y-1">
-                                <label className="text-xs font-medium text-gray-600">Academic Year</label>
-                                <Select 
-                                    value={selectedAcademicYear || 'all'} 
-                                    onValueChange={(value) => handleFilterChange('academic_year', value)}
-                                >
-                                    <SelectTrigger className="h-8 text-sm border-blue-200 hover:border-blue-400 focus:border-blue-500 focus:ring-blue-200">
-                                        <SelectValue placeholder="Academic Year" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="all">Show All</SelectItem>
-                                        {academicYearOptions.map((year) => (
-                                            <SelectItem key={year} value={year}>
-                                                {year} {year === currentAcademicPeriod.academic_year && '(Current)'}
-                                            </SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
+                        <div className="flex items-end gap-3">
+                            {/* Filters Container */}
+                            <div className="flex gap-3 flex-1">
+                                {/* Academic Year Filter */}
+                                <div className="space-y-1">
+                                    <label className="text-xs font-medium text-gray-600">Academic Year</label>
+                                    <Select 
+                                        value={selectedAcademicYear || 'all'} 
+                                        onValueChange={(value) => handleFilterChange('academic_year', value)}
+                                    >
+                                        <SelectTrigger className="h-8 w-48 text-sm">
+                                            <SelectValue placeholder="Academic Year" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="all">Show All</SelectItem>
+                                            {academicYearOptions.map((year) => (
+                                                <SelectItem key={year} value={year}>
+                                                    {year} {year === currentAcademicPeriod.academic_year && '(Current)'}
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+
+                                {/* Semester Filter */}
+                                <div className="space-y-1">
+                                    <label className="text-xs font-medium text-gray-600">Semester</label>
+                                    <Select 
+                                        value={selectedSemester || 'all'} 
+                                        onValueChange={(value) => handleFilterChange('semester', value)}
+                                    >
+                                        <SelectTrigger className="h-8 w-48 text-sm">
+                                            <SelectValue placeholder="Semester" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="all">Show All</SelectItem>
+                                            {semesterOptions.map((semester) => (
+                                                <SelectItem key={semester.value} value={semester.value}>
+                                                    {semester.label} {semester.value === currentAcademicPeriod.semester && '(Current)'}
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+
+                                {/* Program Filter */}
+                                <div className="space-y-1">
+                                    <label className="text-xs font-medium text-gray-600">Program</label>
+                                    <Select 
+                                        value={selectedProgram || 'all'} 
+                                        onValueChange={(value) => handleFilterChange('program_id', value)}
+                                    >
+                                        <SelectTrigger className="h-8 w-48 text-sm">
+                                            <SelectValue placeholder="Program" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="all">Show All Programs</SelectItem>
+                                            {programs.map((program) => (
+                                                <SelectItem key={program.id} value={program.id.toString()}>
+                                                    {program.program_code} - {program.program_name}
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
                             </div>
 
-                            {/* Semester Filter */}
+                            {/* Create Section Button - Right Side */}
                             <div className="space-y-1">
-                                <label className="text-xs font-medium text-gray-600">Semester</label>
-                                <Select 
-                                    value={selectedSemester || 'all'} 
-                                    onValueChange={(value) => handleFilterChange('semester', value)}
-                                >
-                                    <SelectTrigger className="h-8 text-sm border-blue-200 hover:border-blue-400 focus:border-blue-500 focus:ring-blue-200">
-                                        <SelectValue placeholder="Semester" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="all">Show All</SelectItem>
-                                        {semesterOptions.map((semester) => (
-                                            <SelectItem key={semester.value} value={semester.value}>
-                                                {semester.label} {semester.value === currentAcademicPeriod.semester && '(Current)'}
-                                            </SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
-                            </div>
-
-                            {/* Program Filter */}
-                            <div className="space-y-1">
-                                <label className="text-xs font-medium text-gray-600">Program</label>
-                                <Select 
-                                    value={selectedProgram || 'all'} 
-                                    onValueChange={(value) => handleFilterChange('program_id', value)}
-                                >
-                                    <SelectTrigger className="h-8 text-sm border-blue-200 hover:border-blue-400 focus:border-blue-500 focus:ring-blue-200">
-                                        <SelectValue placeholder="Program" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="all">Show All Programs</SelectItem>
-                                        {programs.map((program) => (
-                                            <SelectItem key={program.id} value={program.id.toString()}>
-                                                {program.program_code} - {program.program_name}
-                                            </SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
+                                <label className="text-xs font-medium text-gray-600 opacity-0">Action</label>
+                                <div className="h-8 flex items-center">
+                                    <Button asChild size="sm" className="bg-blue-600 hover:bg-blue-700 text-white">
+                                        <Link href={route('admin.college.sections.create')}>
+                                            <Plus className="w-3 h-3 mr-1" />
+                                            Create Section
+                                        </Link>
+                                    </Button>
+                                </div>
                             </div>
                         </div>
                     </CardContent>

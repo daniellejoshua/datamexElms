@@ -69,7 +69,7 @@ export default function Index({ curricula, programs, filters = {} }) {
     return (
         <AuthenticatedLayout
             header={
-                <div className="flex items-center justify-between px-2 py-1">
+                <div className="flex items-center px-2 py-1">
                     <div className="flex items-center gap-2">
                         <div className="bg-blue-100 p-1.5 rounded-md">
                             <FileText className="w-4 h-4 text-blue-600" />
@@ -79,12 +79,6 @@ export default function Index({ curricula, programs, filters = {} }) {
                             <p className="text-xs text-gray-500 mt-0.5">Manage academic curricula</p>
                         </div>
                     </div>
-                    <Button asChild size="sm" className="bg-blue-600 hover:bg-blue-700 text-white">
-                        <Link href={route('admin.curriculum.create')}>
-                            <Plus className="w-3 h-3 mr-1" />
-                            Create Curriculum
-                        </Link>
-                    </Button>
                 </div>
             }
         >
@@ -92,35 +86,35 @@ export default function Index({ curricula, programs, filters = {} }) {
 
             <div className="space-y-6">
                 {/* Filters */}
-                <Card>
-                    <CardHeader>
-                        <CardTitle className="flex items-center text-base">
-                            <Filter className="w-4 h-4 mr-2" />
+                <Card className="ml-2">
+                    <CardHeader className="pb-3">
+                        <CardTitle className="flex items-center text-sm">
+                            <Filter className="w-3 h-3 mr-2" />
                             Filters
                         </CardTitle>
                     </CardHeader>
-                    <CardContent>
-                        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                    <CardContent className="pt-0">
+                        <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
                             <div>
-                                <Label htmlFor="search">Search</Label>
+                                <Label htmlFor="search" className="text-sm">Search</Label>
                                 <div className="relative mt-1">
-                                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-3 h-3" />
                                     <Input
                                         id="search"
                                         placeholder="Search curricula..."
                                         value={searchQuery}
                                         onChange={(e) => handleFilterChange('search', e.target.value)}
-                                        className="pl-10"
+                                        className="pl-9 text-sm h-8"
                                     />
                                 </div>
                             </div>
                             <div>
-                                <Label htmlFor="program">Program</Label>
+                                <Label htmlFor="program" className="text-sm">Program</Label>
                                 <Select
                                     value={selectedProgram}
                                     onValueChange={(value) => handleFilterChange('program_id', value)}
                                 >
-                                    <SelectTrigger className="mt-1">
+                                    <SelectTrigger className="mt-1 h-8 text-sm">
                                         <SelectValue placeholder="All Programs" />
                                     </SelectTrigger>
                                     <SelectContent>
@@ -133,13 +127,13 @@ export default function Index({ curricula, programs, filters = {} }) {
                                     </SelectContent>
                                 </Select>
                             </div>
-                            <div>
-                                <Label htmlFor="status">Status</Label>
+                            <div className="md:col-span-1">
+                                <Label htmlFor="status" className="text-sm">Status</Label>
                                 <Select
                                     value={selectedStatus}
                                     onValueChange={(value) => handleFilterChange('status', value)}
                                 >
-                                    <SelectTrigger className="mt-1">
+                                    <SelectTrigger className="mt-1 h-8 text-sm">
                                         <SelectValue placeholder="All Status" />
                                     </SelectTrigger>
                                     <SelectContent>
@@ -149,21 +143,12 @@ export default function Index({ curricula, programs, filters = {} }) {
                                     </SelectContent>
                                 </Select>
                             </div>
-                            <div className="flex items-end">
-                                <Button
-                                    variant="outline"
-                                    onClick={() => {
-                                        setSelectedProgram('');
-                                        setSelectedStatus('');
-                                        setSearchQuery('');
-                                        router.get(route('admin.curriculum.index'), {}, {
-                                            preserveState: true,
-                                            replace: true,
-                                        });
-                                    }}
-                                    className="w-full"
-                                >
-                                    Clear Filters
+                            <div className="flex items-end justify-end">
+                                <Button asChild size="sm" className="bg-blue-600 hover:bg-blue-700 text-white">
+                                    <Link href={route('admin.curriculum.create')}>
+                                        <Plus className="w-3 h-3 mr-1" />
+                                        Create Curriculum
+                                    </Link>
                                 </Button>
                             </div>
                         </div>
@@ -172,9 +157,10 @@ export default function Index({ curricula, programs, filters = {} }) {
 
                 {/* Curricula Grid */}
                 {filteredCurricula.length > 0 ? (
-                    <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                        {filteredCurricula.map((curriculum) => (
-                            <Card key={curriculum.id} className="group hover:shadow-xl transition-all duration-300 border-2 hover:border-blue-300 relative overflow-hidden">
+                    <div className="px-2">
+                        <div className="grid gap-4 md:gap-6 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                            {filteredCurricula.map((curriculum) => (
+                                <Card key={curriculum.id} className="group hover:shadow-xl transition-all duration-300 border-2 hover:border-blue-300 relative overflow-hidden">
                                 {/* Status Badge */}
                                 <div className="absolute top-3 right-3 z-10">
                                     {(curriculum.is_current === 1 || curriculum.is_current === true || curriculum.is_current === '1') ? (
@@ -203,10 +189,10 @@ export default function Index({ curricula, programs, filters = {} }) {
                                         </div>
                                         <div className="flex-1 min-w-0">
                                             <CardTitle className="text-lg font-bold text-gray-900 truncate group-hover:text-blue-700 transition-colors mt-3">
-                                                {curriculum.curriculum_name}
+                                                {curriculum.curriculum_code}
                                             </CardTitle>
                                             <CardDescription className="text-blue-600 font-semibold truncate">
-                                                {curriculum.curriculum_code}
+                                                {curriculum.curriculum_name}
                                             </CardDescription>
                                         </div>
                                     </div>
@@ -276,6 +262,7 @@ export default function Index({ curricula, programs, filters = {} }) {
                                 </CardContent>
                             </Card>
                         ))}
+                        </div>
                     </div>
                 ) : (
                     <Card>

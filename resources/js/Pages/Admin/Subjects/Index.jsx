@@ -355,7 +355,7 @@ export default function SubjectsIndex({ subjects, programs, auth, filters = {} }
     return (
         <AuthenticatedLayout
             header={
-                <div className="flex items-center justify-between px-2 py-1">
+                <div className="flex items-center px-2 py-1">
                     <div className="flex items-center gap-2">
                         <div className="bg-green-100 p-1.5 rounded-md">
                             <BookOpen className="w-4 h-4 text-green-600" />
@@ -365,12 +365,6 @@ export default function SubjectsIndex({ subjects, programs, auth, filters = {} }
                             <p className="text-xs text-gray-500 mt-0.5">Manage academic subjects and curriculum</p>
                         </div>
                     </div>
-                    <Button asChild size="sm" className="bg-green-600 hover:bg-green-700 text-white text-xs h-7 px-2">
-                        <Link href={route('admin.subjects.create')}>
-                            <Plus className="w-3 h-3 mr-1" />
-                            Create Subject
-                        </Link>
-                    </Button>
                 </div>
             }
         >
@@ -386,7 +380,23 @@ export default function SubjectsIndex({ subjects, programs, auth, filters = {} }
                         </CardTitle>
                     </CardHeader>
                     <CardContent>
-                        <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+                        <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
+                            <div className="md:col-span-2">
+                                <label className="block text-sm font-medium text-gray-700 mb-1">
+                                    Search
+                                </label>
+                                <div className="relative">
+                                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                                    <Input
+                                        type="text"
+                                        placeholder="Search by subject code or name..."
+                                        value={searchQuery}
+                                        onChange={(e) => handleFilterChange('search', e.target.value)}
+                                        className="pl-10"
+                                    />
+                                </div>
+                            </div>
+
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-1">
                                     Program Major Subjects
@@ -455,49 +465,43 @@ export default function SubjectsIndex({ subjects, programs, auth, filters = {} }
                                 </Select>
                             </div>
 
-                            <div className="md:col-span-2">
-                                <label className="block text-sm font-medium text-gray-700 mb-1">
-                                    Search
-                                </label>
-                                <div className="relative">
-                                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-                                    <Input
-                                        type="text"
-                                        placeholder="Search by subject code or name..."
-                                        value={searchQuery}
-                                        onChange={(e) => handleFilterChange('search', e.target.value)}
-                                        className="pl-10"
-                                    />
-                                </div>
+                            <div className="flex items-end justify-end">
+                                <Button asChild size="sm" className="bg-green-600 hover:bg-green-700 text-white">
+                                    <Link href={route('admin.subjects.create')}>
+                                        <Plus className="w-3 h-3 mr-1" />
+                                        Create Subject
+                                    </Link>
+                                </Button>
                             </div>
                         </div>
                     </CardContent>
                 </Card>
 
                 {/* Subjects Grid */}
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                    {subjects.data.map((subject) => (
-                        <Card key={subject.id} className="hover:shadow-lg transition-shadow h-full">
-                            <CardHeader className="pb-3">
-                                <div className="flex items-start justify-between">
-                                    <div className="flex-1">
-                                        <CardTitle className="text-base font-semibold text-gray-900">
-                                            {subject.subject_code}
-                                        </CardTitle>
-                                        <CardDescription className="text-sm mt-1">
-                                            {subject.subject_name}
-                                        </CardDescription>
+                <div className="px-2">
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-6">
+                        {subjects.data.map((subject) => (
+                            <Card key={subject.id} className="hover:shadow-lg transition-shadow h-full flex flex-col">
+                                <CardHeader className="pb-3">
+                                    <div className="flex items-start justify-between">
+                                        <div className="flex-1">
+                                            <CardTitle className="text-base font-semibold text-gray-900">
+                                                {subject.subject_code}
+                                            </CardTitle>
+                                            <CardDescription className="text-sm mt-1">
+                                                {subject.subject_name}
+                                            </CardDescription>
+                                        </div>
+                                        <Badge
+                                            variant={subject.status === 'active' ? 'default' : 'secondary'}
+                                            className="text-xs"
+                                        >
+                                            {subject.status}
+                                        </Badge>
                                     </div>
-                                    <Badge
-                                        variant={subject.status === 'active' ? 'default' : 'secondary'}
-                                        className="text-xs"
-                                    >
-                                        {subject.status}
-                                    </Badge>
-                                </div>
-                            </CardHeader>
-                            <CardContent className="pt-0">
-                                <div className="space-y-3">
+                                </CardHeader>
+                            <CardContent className="pt-0 flex-1 flex flex-col">
+                                <div className="space-y-3 flex-1">
                                     <div className="flex items-center justify-between text-sm">
                                         <span className="text-gray-600">Level:</span>
                                         <Badge variant="outline" className="text-xs">
@@ -516,25 +520,26 @@ export default function SubjectsIndex({ subjects, programs, auth, filters = {} }
                                         <span className="text-gray-600">Units:</span>
                                         <span className="font-medium">{subject.units}</span>
                                     </div>
+                                </div>
 
-                                    <div className="flex gap-2 pt-2">
-                                        <Button asChild variant="outline" size="sm" className="flex-1">
-                                            <button onClick={() => openViewModal(subject)}>
-                                                <Eye className="w-3 h-3 mr-1" />
-                                                View
-                                            </button>
-                                        </Button>
-                                        <Button asChild variant="outline" size="sm" className="flex-1">
-                                            <button onClick={() => openEditModal(subject)}>
-                                                <Edit className="w-3 h-3 mr-1" />
-                                                Edit
-                                            </button>
-                                        </Button>
-                                    </div>
+                                <div className="flex gap-2 pt-2 mt-auto">
+                                    <Button asChild variant="outline" size="sm" className="flex-1">
+                                        <button onClick={() => openViewModal(subject)}>
+                                            <Eye className="w-3 h-3 mr-1" />
+                                            View
+                                        </button>
+                                    </Button>
+                                    <Button asChild variant="outline" size="sm" className="flex-1">
+                                        <button onClick={() => openEditModal(subject)}>
+                                            <Edit className="w-3 h-3 mr-1" />
+                                            Edit
+                                        </button>
+                                    </Button>
                                 </div>
                             </CardContent>
                         </Card>
                     ))}
+                    </div>
                 </div>
 
                 {/* Pagination */}
