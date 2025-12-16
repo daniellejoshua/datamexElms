@@ -165,9 +165,12 @@ class CollegeSectionController extends Controller
             ->orderBy('program_code')
             ->get();
 
+        $curricula = \App\Models\Curriculum::where('status', 'active')->with('program')->orderBy('curriculum_code')->get();
+
         return Inertia::render('Admin/Sections/College/Sections/Edit', [
-            'section' => $section,
+            'section' => $section->load(['program', 'curriculum']),
             'programs' => $programs,
+            'curricula' => $curricula,
             'academicYearOptions' => AcademicHelper::getAcademicYearOptions(),
             'semesterOptions' => AcademicHelper::getSemesterOptions(),
         ]);
@@ -179,13 +182,11 @@ class CollegeSectionController extends Controller
             abort(404);
         }
 
-        // Validate that the program is college level
-        $program = Program::findOrFail($request->program_id);
-        if ($program->education_level !== 'college') {
-            return back()->withErrors(['program_id' => 'Selected program is not a college program.']);
-        }
-
-        $section->update($request->validated());
+        // Only allow updating section_name and status
+        $section->update([
+            'section_name' => $request->section_name,
+            'status' => $request->status,
+        ]);
 
         return redirect()->route('admin.college.sections.index')
             ->with('success', 'College section updated successfully.');

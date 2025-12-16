@@ -23,12 +23,12 @@ class UpdateSectionRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'program_id' => ['required', 'exists:programs,id'],
-            'curriculum_id' => ['required', 'exists:curriculum,id'],
+            'program_id' => ['sometimes', 'exists:programs,id'],
+            'curriculum_id' => ['sometimes', 'exists:curriculum,id'],
             'section_name' => ['required', 'string', 'max:50'],
-            'academic_year' => ['required', 'string', 'max:20'],
-            'semester' => ['required', Rule::in(['1st', '2nd', 'summer'])],
-            'year_level' => ['required', 'integer', 'min:1', 'max:4'],
+            'academic_year' => ['sometimes', 'string', 'max:20'],
+            'semester' => ['sometimes', Rule::in(['1st', '2nd', 'summer'])],
+            'year_level' => ['sometimes', 'integer', 'min:1', 'max:4'],
             'status' => ['required', Rule::in(['active', 'inactive'])],
         ];
     }

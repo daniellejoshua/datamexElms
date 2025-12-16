@@ -130,7 +130,16 @@ const Create = ({ programs, curricula, currentAcademicPeriod, academicYearOption
                                         </Label>
                                         <Select value={data.program_id} onValueChange={(value) => setData('program_id', value)}>
                                             <SelectTrigger className={`h-10 ${errors.program_id ? 'border-red-500' : 'border-gray-300 focus:border-blue-500'}`}>
-                                                <SelectValue placeholder="Select college program" />
+                                                <SelectValue placeholder="Select college program">
+                                                    {data.program_id && programs?.find(p => p.id.toString() === data.program_id) && (
+                                                        <div className="flex items-center gap-2">
+                                                            <Badge variant="secondary" className="font-mono text-xs">
+                                                                {programs.find(p => p.id.toString() === data.program_id).program_code}
+                                                            </Badge>
+                                                            <span className="text-sm">{programs.find(p => p.id.toString() === data.program_id).program_name}</span>
+                                                        </div>
+                                                    )}
+                                                </SelectValue>
                                             </SelectTrigger>
                                             <SelectContent>
                                                 {programs?.map((program) => (
@@ -160,7 +169,18 @@ const Create = ({ programs, curricula, currentAcademicPeriod, academicYearOption
                                         </Label>
                                         <Select value={data.curriculum_id} onValueChange={(value) => setData('curriculum_id', value)}>
                                             <SelectTrigger className={`h-10 ${errors.curriculum_id ? 'border-red-500' : 'border-gray-300 focus:border-blue-500'}`}>
-                                                <SelectValue placeholder="Select curriculum" />
+                                                <SelectValue placeholder="Select curriculum">
+                                                    {data.curriculum_id && curricula?.find(c => c.id.toString() === data.curriculum_id) && (
+                                                        <div className="flex items-center gap-2">
+                                                            <Badge variant="secondary" className="font-mono text-xs">
+                                                                {curricula.find(c => c.id.toString() === data.curriculum_id).curriculum_code}
+                                                            </Badge>
+                                                            <Badge variant={curricula.find(c => c.id.toString() === data.curriculum_id).is_current ? "default" : "outline"} className="text-xs">
+                                                                {curricula.find(c => c.id.toString() === data.curriculum_id).is_current ? "Current" : "Old"}
+                                                            </Badge>
+                                                        </div>
+                                                    )}
+                                                </SelectValue>
                                             </SelectTrigger>
                                             <SelectContent>
                                                 {curricula?.filter(curriculum => !data.program_id || curriculum.program_id.toString() === data.program_id.toString()).map((curriculum) => (
@@ -169,7 +189,16 @@ const Create = ({ programs, curricula, currentAcademicPeriod, academicYearOption
                                                             <Badge variant="secondary" className="font-mono text-xs">
                                                                 {curriculum.curriculum_code}
                                                             </Badge>
-                                                            <span className="text-sm">{curriculum.curriculum_name}</span>
+                                                            {curriculum.is_current && (
+                                                                <Badge variant="default" className="text-xs bg-green-600 hover:bg-green-700">
+                                                                    Current
+                                                                </Badge>
+                                                            )}
+                                                            {!curriculum.is_current && (
+                                                                <Badge variant="outline" className="text-xs">
+                                                                    Old
+                                                                </Badge>
+                                                            )}
                                                         </div>
                                                     </SelectItem>
                                                 ))}
