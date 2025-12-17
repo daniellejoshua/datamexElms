@@ -21,8 +21,6 @@ class SubjectFactory extends Factory
             'subject_name' => $this->faker->words(3, true),
             'description' => $this->faker->optional()->sentence(),
             'units' => $this->faker->numberBetween(1, 5),
-            'year_level' => $this->faker->numberBetween(1, 4),
-            'semester' => $this->faker->randomElement([1, 2]),
             'subject_type' => $this->faker->randomElement(['major', 'minor', 'general']),
             'status' => 'active',
         ];

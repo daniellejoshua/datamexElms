@@ -52,14 +52,14 @@ class SubjectSeeder extends Seeder
                 "subject_name" => "Introduction to Computing",
                 "units" => 3,
                 "subject_type" => "major",
-                "program_id" => 27
+                "program_id" => 3
             ],
             [
                 "subject_code" => "ITE2",
                 "subject_name" => "Fundamentals of Programming 1",
                 "units" => 3,
                 "subject_type" => "major",
-                "program_id" => 27
+                "program_id" => 3
             ],
             [
                 "subject_code" => "CORE2",
@@ -115,28 +115,28 @@ class SubjectSeeder extends Seeder
                 "subject_name" => "Fundamentals of Programming 2",
                 "units" => 3,
                 "subject_type" => "major",
-                "program_id" => 27
+                "program_id" => 3
             ],
             [
                 "subject_code" => "ITEMAJOR1",
                 "subject_name" => "Introduction to Human Interaction",
                 "units" => 3,
                 "subject_type" => "major",
-                "program_id" => 27
+                "program_id" => 3
             ],
             [
                 "subject_code" => "ITE4",
                 "subject_name" => "Data Structures & Algorithms",
                 "units" => 3,
                 "subject_type" => "major",
-                "program_id" => 27
+                "program_id" => 3
             ],
             [
                 "subject_code" => "ITEMAJOR2",
                 "subject_name" => "Discrete Mathematics",
                 "units" => 3,
                 "subject_type" => "major",
-                "program_id" => 27
+                "program_id" => 3
             ],
             [
                 "subject_code" => "PE2",
@@ -164,7 +164,7 @@ class SubjectSeeder extends Seeder
                 "subject_name" => "Object Oriented Programming",
                 "units" => 3,
                 "subject_type" => "major",
-                "program_id" => 27
+                "program_id" => 3
             ],
             [
                 "subject_code" => "FIL1",
@@ -178,7 +178,7 @@ class SubjectSeeder extends Seeder
                 "subject_name" => "Platform Technologies",
                 "units" => 3,
                 "subject_type" => "major",
-                "program_id" => 27
+                "program_id" => 3
             ],
             [
                 "subject_code" => "CORE6",
@@ -192,21 +192,21 @@ class SubjectSeeder extends Seeder
                 "subject_name" => "Multimedia Systems",
                 "units" => 3,
                 "subject_type" => "major",
-                "program_id" => 27
+                "program_id" => 3
             ],
             [
                 "subject_code" => "APC3",
                 "subject_name" => "Web System Technologies",
                 "units" => 3,
                 "subject_type" => "major",
-                "program_id" => 27
+                "program_id" => 3
             ],
             [
                 "subject_code" => "ITEMAJOR3",
                 "subject_name" => "Fundamentals of Database Systems",
                 "units" => 3,
                 "subject_type" => "major",
-                "program_id" => 27
+                "program_id" => 3
             ],
             [
                 "subject_code" => "CVED103",
@@ -248,21 +248,21 @@ class SubjectSeeder extends Seeder
                 "subject_name" => "Information Management",
                 "units" => 3,
                 "subject_type" => "major",
-                "program_id" => 27
+                "program_id" => 3
             ],
             [
                 "subject_code" => "ITEMAJOR4",
                 "subject_name" => "Data Communication & Networking 1",
                 "units" => 3,
                 "subject_type" => "major",
-                "program_id" => 27
+                "program_id" => 3
             ],
             [
                 "subject_code" => "ITEMAJOR5",
                 "subject_name" => "Quantitative Methods",
                 "units" => 3,
                 "subject_type" => "major",
-                "program_id" => 27
+                "program_id" => 3
             ],
             [
                 "subject_code" => "CVED104",
@@ -283,119 +283,119 @@ class SubjectSeeder extends Seeder
                 "subject_name" => "Human Computer Interaction 2",
                 "units" => 3,
                 "subject_type" => "major",
-                "program_id" => 27
+                "program_id" => 3
             ],
             [
                 "subject_code" => "ITEMAJOR6",
                 "subject_name" => "Data Communication & Networking 2",
                 "units" => 3,
                 "subject_type" => "major",
-                "program_id" => 27
+                "program_id" => 3
             ],
             [
                 "subject_code" => "ITEMAJOR7",
                 "subject_name" => "Systems Integration & Architecture 1",
                 "units" => 3,
                 "subject_type" => "major",
-                "program_id" => 27
+                "program_id" => 3
             ],
             [
                 "subject_code" => "ITEMAJOR8",
                 "subject_name" => "Integrative Programming & Technologies 1",
                 "units" => 3,
                 "subject_type" => "major",
-                "program_id" => 27
+                "program_id" => 3
             ],
             [
                 "subject_code" => "APC4",
                 "subject_name" => "Mobile Technology",
                 "units" => 3,
                 "subject_type" => "major",
-                "program_id" => 27
+                "program_id" => 3
             ],
             [
                 "subject_code" => "APC5",
                 "subject_name" => "Software Engineering",
                 "units" => 3,
                 "subject_type" => "major",
-                "program_id" => 27
+                "program_id" => 3
             ],
             [
                 "subject_code" => "ITEMAJOR9",
                 "subject_name" => "Information Assurance & Security 1",
                 "units" => 3,
                 "subject_type" => "major",
-                "program_id" => 27
+                "program_id" => 3
             ],
             [
                 "subject_code" => "ITEMAJOR10",
                 "subject_name" => "Social & Professional Issues",
                 "units" => 3,
                 "subject_type" => "major",
-                "program_id" => 27
+                "program_id" => 3
             ],
             [
                 "subject_code" => "ITEMAJOR11",
                 "subject_name" => "Capstone Project & Research 1",
                 "units" => 3,
                 "subject_type" => "major",
-                "program_id" => 27
+                "program_id" => 3
             ],
             [
                 "subject_code" => "ITE6",
                 "subject_name" => "Application Development & Emerging Technologies",
                 "units" => 3,
                 "subject_type" => "major",
-                "program_id" => 27
+                "program_id" => 3
             ],
             [
                 "subject_code" => "ELECTIVE3",
                 "subject_name" => "Systems Integration & Architecture 2",
                 "units" => 3,
                 "subject_type" => "major",
-                "program_id" => 27
+                "program_id" => 3
             ],
             [
                 "subject_code" => "APC6",
                 "subject_name" => "Cloud Computing",
                 "units" => 3,
                 "subject_type" => "major",
-                "program_id" => 27
+                "program_id" => 3
             ],
             [
                 "subject_code" => "ITEMAJOR12",
                 "subject_name" => "Internship / OJT (500 hrs)",
                 "units" => 6,
                 "subject_type" => "major",
-                "program_id" => 27
+                "program_id" => 3
             ],
             [
                 "subject_code" => "ITEMAJOR13",
                 "subject_name" => "System Administration & Maintenance",
                 "units" => 3,
                 "subject_type" => "major",
-                "program_id" => 27
+                "program_id" => 3
             ],
             [
                 "subject_code" => "ITEMAJOR14",
                 "subject_name" => "Information Assurance & Security 2",
                 "units" => 3,
                 "subject_type" => "major",
-                "program_id" => 27
+                "program_id" => 3
             ],
             [
                 "subject_code" => "ITEMAJOR15",
                 "subject_name" => "Capstone Project & Research 2",
                 "units" => 3,
                 "subject_type" => "major",
-                "program_id" => 27
+                "program_id" => 3
             ],
             [
                 "subject_code" => "ELECTIVE4",
                 "subject_name" => "Integrative Programming & Technologies 2",
                 "units" => 3,
                 "subject_type" => "major",
-                "program_id" => 27
+                "program_id" => 3
             ],
             [
                 "subject_code" => "LIT",

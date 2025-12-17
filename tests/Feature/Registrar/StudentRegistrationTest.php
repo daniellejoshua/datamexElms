@@ -1,26 +1,36 @@
 <?php
 
 use App\Models\Program;
-use App\Models\Registrar;
+// Registrar model isn't used in tests; use a User with role 'registrar' instead
+// use App\Models\Registrar;
 use App\Models\SchoolSetting;
+use App\Models\Curriculum;
 use App\Models\Section;
 use App\Models\Student;
 use App\Models\StudentEnrollment;
 use App\Models\StudentSemesterPayment;
 use App\Models\User;
-// use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
 
-// uses(RefreshDatabase::class);
-
 beforeEach(function () {
-    $this->registrar = Registrar::factory()->create();
-    $this->user = $this->registrar->user;
+    // Registrar model isn't present in the codebase for tests, create a user
+    // with 'registrar' role directly for authentication in tests.
+    $this->user = User::factory()->create(['role' => 'registrar']);
     $this->program = Program::factory()->create([
         'education_level' => 'college',
+        // Ensure program_code uniqueness across test runs/environments
+        'program_code' => 'TST-'.uniqid(),
     ]);
+    // Ensure there's at least one curriculum for the program so sections can reference it
+    $this->curriculum = Curriculum::factory()->create([
+        'program_id' => $this->program->id,
+        'is_current' => true,
+        'status' => 'active',
+    ]);
+
     $this->section = Section::factory()->create([
         'program_id' => $this->program->id,
+        'curriculum_id' => $this->curriculum->id,
     ]);
 });
 
@@ -48,7 +58,7 @@ it('registers a new student with all required information', function () {
         'birth_date' => '2000-01-15',
         'address' => '123 Main St, City',
         'phone' => '09123456789',
-        'email' => 'john.doe@example.com',
+        'email' => 'john.doe.'.uniqid().'@example.com',
         'parent_contact' => '09987654321',
         'program_id' => $this->program->id,
         'year_level' => '1st Year',
@@ -58,16 +68,21 @@ it('registers a new student with all required information', function () {
         'strand' => null,
         'enrollment_fee' => 5000.00,
         'payment_amount' => 2000.00,
+        'confirm_course_shift' => false,
     ];
 
     $response = $this->post(route('registrar.students.store'), $studentData);
+    $responseErrors = session('errors') ? session('errors')->getBag('default')->getMessages() : [];
+    if (! empty($responseErrors)) {
+        $this->fail('Registration returned errors: '.json_encode($responseErrors));
+    }
 
     $response->assertRedirect(route('registrar.students'));
     $response->assertSessionHas('success');
 
     // Assert user account was created
     $this->assertDatabaseHas('users', [
-        'email' => 'john.doe@example.com',
+        'email' => $studentData['email'],
         'role' => 'student',
         'is_active' => true,
     ]);
@@ -101,7 +116,7 @@ it('registers an irregular student', function () {
         'birth_date' => '1999-05-20',
         'address' => '456 Oak Ave',
         'phone' => '09111222333',
-        'email' => 'jane.smith@example.com',
+        'email' => 'jane.smith.'.uniqid().'@example.com',
         'parent_contact' => '09444555666',
         'program_id' => $this->program->id,
         'year_level' => '2nd Year',
@@ -144,7 +159,7 @@ it('creates user account with password123 as default password', function () {
         'birth_date' => '2001-03-10',
         'address' => '123 Test St, City',
         'phone' => '09123456789',
-        'email' => 'test.student@example.com',
+        'email' => 'test.student.'.uniqid().'@example.com',
         'parent_contact' => '09987654321',
         'program_id' => $this->program->id,
         'year_level' => '1st Year',
@@ -154,6 +169,7 @@ it('creates user account with password123 as default password', function () {
         'strand' => null,
         'enrollment_fee' => 3000.00,
         'payment_amount' => 1000.00,
+        'confirm_course_shift' => false,
     ];
 
     $response = $this->post(route('registrar.students.store'), $studentData);
@@ -161,7 +177,7 @@ it('creates user account with password123 as default password', function () {
     $response->assertRedirect(route('registrar.students'));
     $response->assertSessionHas('success');
 
-    $user = User::where('email', 'test.student@example.com')->first();
+    $user = User::where('email', $studentData['email'])->first();
     expect(Hash::check('password123', $user->password))->toBeTrue();
 });
 
@@ -230,19 +246,162 @@ it('validates required fields', function () {
     ]);
 });
 
+it('assigns older curriculum to transfer student when batch matches', function () {
+    $this->actingAs($this->user);
+
+    // Set current academic period to a known value
+    SchoolSetting::setCurrentAcademicPeriod('2025-2026', '1st');
+
+    // Create older and current curricula for the program
+    $old = Curriculum::factory()->create([
+        'program_id' => $this->program->id,
+        'is_current' => false,
+        'status' => 'active',
+    ]);
+
+    $current = Curriculum::factory()->create([
+        'program_id' => $this->program->id,
+        'is_current' => true,
+        'status' => 'active',
+    ]);
+
+    // Create program-curriculum mappings with academic_year values
+    \App\Models\ProgramCurriculum::create([
+        'program_id' => $this->program->id,
+        'curriculum_id' => $old->id,
+        'academic_year' => '2023-2024',
+    ]);
+
+    \App\Models\ProgramCurriculum::create([
+        'program_id' => $this->program->id,
+        'curriculum_id' => $current->id,
+        'academic_year' => '2025-2026',
+    ]);
+
+    // Register a new transfer student who is entering 3rd Year
+    $studentData = [
+        'first_name' => 'Transferee',
+        'last_name' => 'OldBatch',
+        'middle_name' => null,
+        'birth_date' => '2000-01-01',
+        'email' => 'transferee.oldbatch.'.uniqid().'@example.com',
+        'program_id' => $this->program->id,
+        'year_level' => '3rd Year',
+        'student_type' => 'regular',
+        'education_level' => 'college',
+        'enrollment_fee' => 4000.00,
+        'payment_amount' => 0.00,
+    ];
+
+    $response = $this->post(route('registrar.students.store'), $studentData);
+
+    $response->assertRedirect(route('registrar.students'));
+
+    $student = Student::whereHas('user', fn ($query) => $query->where('email', $studentData['email']))->first();
+
+    expect($student)->not->toBeNull();
+    // The student should be assigned to the older curriculum that started in 2023
+    expect($student->curriculum_id)->toBe($old->id);
+    // Batch year should be the start year string (e.g., '2023')
+    expect($student->batch_year)->toBe('2023');
+});
+
+it('assigns cohort majority curriculum to transfer student when no program mapping exists', function () {
+    $this->actingAs($this->user);
+
+    // Set current academic period to a known value
+    SchoolSetting::setCurrentAcademicPeriod('2025-2026', '1st');
+
+    // Create older and current curricula for the program
+    $old = Curriculum::factory()->create([
+        'program_id' => $this->program->id,
+        'is_current' => false,
+        'status' => 'active',
+    ]);
+
+    $current = Curriculum::factory()->create([
+        'program_id' => $this->program->id,
+        'is_current' => true,
+        'status' => 'active',
+    ]);
+
+    // Only map the current curriculum (for 2025-2026), leave no mapping for 2024
+    \App\Models\ProgramCurriculum::create([
+        'program_id' => $this->program->id,
+        'curriculum_id' => $current->id,
+        'academic_year' => '2025-2026',
+    ]);
+
+    // Create cohort students (2nd Year) that use the older curriculum (batch_year = 2024)
+    Student::factory()->count(3)->create([
+        'program_id' => $this->program->id,
+        'curriculum_id' => $old->id,
+        'batch_year' => '2024',
+        'current_year_level' => 2,
+    ]);
+
+    // Register a new transfer student who is entering 2nd Year
+    $email = 'cohort.transferee+'.uniqid().'@example.com';
+    $studentData = [
+        'first_name' => 'CohortTransferee',
+        'last_name' => 'Match',
+        'middle_name' => null,
+        'birth_date' => '2001-01-01',
+        'email' => $email,
+        'program_id' => $this->program->id,
+        'year_level' => '2nd Year',
+        'student_type' => 'regular',
+        'education_level' => 'college',
+        'enrollment_fee' => 4000.00,
+        'payment_amount' => 0.00,
+    ];
+
+    $response = $this->post(route('registrar.students.store'), $studentData);
+
+    $response->assertRedirect(route('registrar.students'));
+
+    $student = Student::whereHas('user', fn ($q) => $q->where('email', $email))->first();
+
+    expect($student)->not->toBeNull();
+    // Should match the old curriculum used by cohort members
+    expect($student->curriculum_id)->toBe($old->id);
+    expect($student->batch_year)->toBe('2024');
+});
+
+it('program::matchCurriculumForTransferee returns cohort curriculum when present', function () {
+    // Create an older curriculum and some cohort students
+    $old = Curriculum::factory()->create([
+        'program_id' => $this->program->id,
+        'is_current' => false,
+        'status' => 'active',
+    ]);
+
+    Student::factory()->count(4)->create([
+        'program_id' => $this->program->id,
+        'curriculum_id' => $old->id,
+        'batch_year' => '2024',
+        'current_year_level' => 2,
+    ]);
+
+    $found = $this->program->matchCurriculumForTransferee(2, '2024');
+
+    expect($found)->not->toBeNull();
+    expect($found->id)->toBe($old->id);
+});
+
 it('validates email uniqueness', function () {
     $this->actingAs($this->user);
 
     // Create existing user
-    $existingUser = User::factory()->create(['email' => 'existing@example.com']);
-    expect(User::where('email', 'existing@example.com')->exists())->toBeTrue();
+    $existingUser = User::factory()->create(['email' => 'existing.'.uniqid().'@example.com']);
+    expect(User::where('email', $existingUser->email)->exists())->toBeTrue();
 
     $studentData = [
         'first_name' => 'John',
         'last_name' => 'Doe',
         'middle_name' => null,
         'birth_date' => '2000-01-15',
-        'email' => 'existing@example.com',
+        'email' => $existingUser->email,
         'program_id' => $this->program->id,
         'year_level' => '1st Year',
         'student_type' => 'regular',
@@ -287,7 +446,7 @@ it('calculates enrollment balance correctly', function () {
 
         $payment = StudentSemesterPayment::where('student_id', $student->id)->first();
 
-        expect($payment->balance)->toBe($testCase['expected_balance']);
+        expect((float) $payment->balance)->toBe($testCase['expected_balance']);
         expect($payment->status)->toBe($testCase['expected_status']);
     }
 });
@@ -313,7 +472,7 @@ it('prevents duplicate enrollment in the same semester', function () {
         'birth_date' => '2000-01-01',
         'address' => '123 Main St, City, Province',
         'phone' => '1234567890',
-        'email' => 'john.doe@example.com',
+        'email' => 'john.doe.'.uniqid().'@example.com',
         'parent_contact' => '0987654321',
         'program_id' => $this->program->id,
         'year_level' => '1st Year',
@@ -323,6 +482,7 @@ it('prevents duplicate enrollment in the same semester', function () {
         'strand' => null,
         'enrollment_fee' => 1000,
         'payment_amount' => 1000,
+        'confirm_course_shift' => false,
     ];
 
     // First enrollment should succeed
@@ -331,7 +491,7 @@ it('prevents duplicate enrollment in the same semester', function () {
         ->assertSessionHas('success');
 
     // Get the created student
-    $student = Student::whereHas('user', fn ($query) => $query->where('email', 'john.doe@example.com'))->first();
+    $student = Student::whereHas('user', fn ($query) => $query->where('email', $studentData['email']))->first();
     expect($student)->not->toBeNull();
 
     // Verify that enrollment record was created
@@ -389,7 +549,7 @@ it('prevents duplicate enrollment when using email lookup', function () {
         'birth_date' => '2000-01-01',
         'address' => '123 Wonderland St, City, Province',
         'phone' => '1234567890',
-        'email' => 'alice.wonder@example.com',
+        'email' => 'alice.wonder.'.uniqid().'@example.com',
         'parent_contact' => '0987654321',
         'program_id' => $this->program->id,
         'year_level' => '1st Year',
@@ -399,6 +559,7 @@ it('prevents duplicate enrollment when using email lookup', function () {
         'strand' => null,
         'enrollment_fee' => 1000,
         'payment_amount' => 1000,
+        'confirm_course_shift' => false,
     ];
 
     // First enrollment should succeed
@@ -407,7 +568,7 @@ it('prevents duplicate enrollment when using email lookup', function () {
         ->assertSessionHas('success');
 
     // Get the created student
-    $student = Student::whereHas('user', fn ($query) => $query->where('email', 'alice.wonder@example.com'))->first();
+    $student = Student::whereHas('user', fn ($query) => $query->where('email', $studentData['email']))->first();
     expect($student)->not->toBeNull();
 
     // Now try to enroll the same student again using the same email (without student_number)
@@ -430,7 +591,7 @@ it('marks student as irregular when shifting courses', function () {
     // Create another program for testing course shifting
     $differentProgram = Program::factory()->create([
         'program_name' => 'Different Program',
-        'program_code' => 'DIFF3',
+        'program_code' => 'DIFF3-'.uniqid(),
         'education_level' => 'college',
     ]);
 
@@ -439,6 +600,7 @@ it('marks student as irregular when shifting courses', function () {
         'program_id' => $this->program->id,
         'student_type' => 'regular',
         'year_level' => '1st Year',
+        'current_year_level' => 1,
         'status' => 'active',
     ]);
 
@@ -490,7 +652,7 @@ it('requires confirmation for course shifting', function () {
     // Create another program for testing course shifting
     $differentProgram = Program::factory()->create([
         'program_name' => 'Different Program',
-        'program_code' => 'DIFF4',
+        'program_code' => 'DIFF4-'.uniqid(),
         'education_level' => 'college',
     ]);
 
@@ -499,6 +661,7 @@ it('requires confirmation for course shifting', function () {
         'program_id' => $this->program->id,
         'student_type' => 'regular',
         'year_level' => '1st Year',
+        'current_year_level' => 1,
         'status' => 'active',
     ]);
 
@@ -532,8 +695,12 @@ it('requires confirmation for course shifting', function () {
     ];
 
     $response = $this->post(route('registrar.students.store'), $studentData)
-        ->assertRedirect() // Should redirect back with errors
-        ->assertSessionHas('course_shift_required');
+        ->assertInertia(fn ($page) => $page
+            ->component('Registrar/Students/Create')
+            ->has('course_shift_required')
+            ->where('course_shift_required.current_program', $this->program->program_name)
+            ->where('course_shift_required.new_program', $differentProgram->program_name)
+        );
 
     // Check that the student was NOT marked as irregular
     $unchangedStudent = Student::find($student->id);

@@ -153,7 +153,13 @@ class RegistrarController extends Controller
      */
     public function create(): Response
     {
-        $programs = Program::with(['programFees', 'curriculums', 'currentCurriculum'])->orderBy('education_level')
+        $programs = Program::with([
+            'programFees',
+            'curriculums',
+            'currentCurriculum',
+            'programCurricula.curriculum',
+            'yearLevelGuides.curriculum',
+        ])->orderBy('education_level')
             ->orderBy('program_name')
             ->get();
 
@@ -218,35 +224,43 @@ class RegistrarController extends Controller
 
             // Course shifting confirmation
             'confirm_course_shift' => ['nullable', 'boolean'],
+            'create_year_level_guide' => ['nullable', 'boolean'],
         ]);
 
-        try {
-            DB::beginTransaction();
+        // Check if this is an existing student being updated
+        $existingStudent = null;
+        if (! empty($validated['student_number'])) {
+            $existingStudent = Student::where('student_number', $validated['student_number'])->first();
+        }
 
-            // Check if this is an existing student being updated
-            $existingStudent = null;
-            if (! empty($validated['student_number'])) {
-                $existingStudent = Student::where('student_number', $validated['student_number'])->first();
-            }
-
-            // Also check if there's an existing active student with this email
-            if (! $existingStudent) {
-                $existingStudentByEmail = Student::whereHas('user', function ($query) use ($validated) {
-                    $query->where('email', $validated['email']);
-                })->first();
-
-                if ($existingStudentByEmail) {
-                    $existingStudent = $existingStudentByEmail;
-                }
-            }
-
-            // Check if this is a returning student from archived records
-            $archivedStudent = ArchivedStudent::whereHas('user', function ($query) use ($validated) {
+        // Also check if there's an existing active student with this email
+        if (! $existingStudent) {
+            $existingStudentByEmail = Student::whereHas('user', function ($query) use ($validated) {
                 $query->where('email', $validated['email']);
             })->first();
 
-            $isReturningStudent = $archivedStudent !== null;
-            $isUpdatingExisting = $existingStudent !== null;
+            if ($existingStudentByEmail) {
+                $existingStudent = $existingStudentByEmail;
+            }
+        }
+
+        // Check if this is a returning student from archived records
+        $archivedStudent = ArchivedStudent::whereHas('user', function ($query) use ($validated) {
+            $query->where('email', $validated['email']);
+        })->first();
+
+        $isReturningStudent = $archivedStudent !== null;
+        $isUpdatingExisting = $existingStudent !== null;
+
+        // For new students, validate email uniqueness before starting transaction
+        if (! $isUpdatingExisting && ! $isReturningStudent) {
+            $request->validate([
+                'email' => 'unique:users,email',
+            ]);
+        }
+
+        try {
+            DB::beginTransaction();
 
             // If updating existing student, use their existing user
             if ($isUpdatingExisting) {
@@ -265,11 +279,7 @@ class RegistrarController extends Controller
                     'is_active' => true,
                 ]);
             } else {
-                // New student - validate email uniqueness
-                $request->validate([
-                    'email' => 'unique:users,email',
-                ]);
-
+                // New student
                 $user = User::create([
                     'name' => trim($validated['first_name'].' '.$validated['last_name']),
                     'email' => $validated['email'],
@@ -422,8 +432,17 @@ class RegistrarController extends Controller
             }
 
             // Calculate batch year
+            // SchoolSetting::getCurrentAcademicYear() returns a string like "2025-2026" or similar.
+            // We need a numeric start year to do arithmetic; parse the first 4-digit year and fall back to current year.
             $currentAcademicYear = SchoolSetting::getCurrentAcademicYear();
             $batchYear = $currentAcademicYear;
+
+            // Extract numeric start year (e.g., '2025' from '2025-2026')
+            if (preg_match('/(\d{4})/', (string) $currentAcademicYear, $matches)) {
+                $currentAcademicYearStart = (int) $matches[1];
+            } else {
+                $currentAcademicYearStart = (int) date('Y');
+            }
 
             if ($isUpdatingExisting) {
                 // For existing students, keep their batch year
@@ -434,15 +453,50 @@ class RegistrarController extends Controller
             } else {
                 // For new students, if they are transferring at a higher year level, adjust batch year
                 if ($numericYearLevel > 1) {
-                    $batchYear = $currentAcademicYear - ($numericYearLevel - 1);
+                    $batchYear = (string) ($currentAcademicYearStart - ($numericYearLevel - 1));
+                } else {
+                    $batchYear = (string) $currentAcademicYearStart;
                 }
             }
 
-            // Get the current curriculum for the program
-            $program = Program::with('currentCurriculum')->find($validated['program_id']);
+            // Get the current curriculum and all curricula for the program
+            $program = Program::with(['currentCurriculum', 'curriculums'])->find($validated['program_id']);
             $curriculum = $program->currentCurriculum;
 
+            // If this is a new transfer student (not updating existing or returning),
+            // and they are entering above 1st year, try to match a curriculum that
+            // corresponds to their batch start year (so they join the same curriculum
+            // their cohort is using rather than being assigned to the newest one).
+            if (! $isUpdatingExisting && ! $isReturningStudent && $numericYearLevel > 1) {
+                // We expect $batchYear to be the numeric start year string (e.g., '2023')
+                $targetStart = (string) $batchYear;
+
+                // Delegate curriculum selection to the Program model for clarity and testability
+                $found = $program->matchCurriculumForTransferee($numericYearLevel, $targetStart);
+                if ($found) {
+                    $curriculum = $found;
+                }
+            }
+
             $curriculumId = $curriculum?->id;
+
+            // Optionally create a Year-Level Curriculum Guide if registrar requested and
+            // this is a new transferee entering above 1st year and no guide exists yet.
+            if (! $isUpdatingExisting && ! $isReturningStudent && $numericYearLevel > 1 && ($request->boolean('create_year_level_guide'))) {
+                $existingGuide = \App\Models\YearLevelCurriculumGuide::where('program_id', $validated['program_id'])
+                    ->where('academic_year', $currentAcademicYear)
+                    ->where('year_level', $numericYearLevel)
+                    ->first();
+
+                if (! $existingGuide && $curriculumId) {
+                    \App\Models\YearLevelCurriculumGuide::create([
+                        'program_id' => $validated['program_id'],
+                        'academic_year' => $currentAcademicYear,
+                        'year_level' => $numericYearLevel,
+                        'curriculum_id' => $curriculumId,
+                    ]);
+                }
+            }
 
             // Create student record
             $studentData = [
@@ -453,28 +507,20 @@ class RegistrarController extends Controller
                 'student_number' => $studentNumber,
                 'first_name' => $validated['first_name'],
                 'last_name' => $validated['last_name'],
-                'middle_name' => $validated['middle_name'],
-                'suffix' => $validated['suffix'],
+                'middle_name' => $validated['middle_name'] ?? null,
+                'suffix' => $validated['suffix'] ?? null,
                 'birth_date' => $validated['birth_date'],
                 'address' => $address,
-                'phone' => $validated['phone'],
-                'parent_contact' => $validated['parent_contact'],
-                'first_name' => $validated['first_name'],
-                'last_name' => $validated['last_name'],
-                'middle_name' => $validated['middle_name'],
-                'suffix' => $validated['suffix'],
-                'birth_date' => $validated['birth_date'],
-                'address' => $address,
-                'phone' => $validated['phone'],
-                'parent_contact' => $validated['parent_contact'],
+                'phone' => $validated['phone'] ?? null,
+                'parent_contact' => $validated['parent_contact'] ?? null,
                 'year_level' => $validated['year_level'],
                 'current_year_level' => $numericYearLevel,
                 'current_academic_year' => \App\Models\SchoolSetting::getCurrentAcademicYear(),
                 'current_semester' => \App\Models\SchoolSetting::getCurrentSemester(),
                 'student_type' => $validated['student_type'],
                 'education_level' => $validated['education_level'],
-                'track' => $validated['track'],
-                'strand' => $validated['strand'],
+                'track' => $validated['track'] ?? null,
+                'strand' => $validated['strand'] ?? null,
                 'status' => 'active',
                 'enrolled_date' => $isUpdatingExisting ? $existingStudent->enrolled_date : now(),
             ];
@@ -623,7 +669,7 @@ class RegistrarController extends Controller
             DB::commit();
 
             return redirect()
-                ->route('registrar.students.create')
+                ->route('registrar.students')
                 ->with('success', $message);
 
         } catch (\Exception $e) {

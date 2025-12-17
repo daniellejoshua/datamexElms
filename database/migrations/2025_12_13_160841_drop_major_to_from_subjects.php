@@ -11,9 +11,12 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::table('subjects', function (Blueprint $table) {
-            $table->dropColumn('major_to');
-        });
+        // Only drop the column if it exists to avoid errors in test or fresh installs
+        if (Schema::hasColumn('subjects', 'major_to')) {
+            Schema::table('subjects', function (Blueprint $table) {
+                $table->dropColumn('major_to');
+            });
+        }
     }
 
     /**

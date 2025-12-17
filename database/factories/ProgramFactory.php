@@ -17,7 +17,8 @@ class ProgramFactory extends Factory
     public function definition(): array
     {
         return [
-            'program_code' => $this->faker->randomElement(['BSIT', 'BSCS', 'BSA', 'BSBA', 'STEM', 'ABM', 'HUMSS']),
+            // Ensure program_code is unique across tests to avoid unique constraint collisions
+            'program_code' => $this->faker->randomElement(['BSIT', 'BSCS', 'BSA', 'BSBA', 'STEM', 'ABM', 'HUMSS']) . '-' . strtoupper(substr(uniqid(), -4)),
             'program_name' => $this->faker->randomElement([
                 'Bachelor of Science in Information Technology',
                 'Bachelor of Science in Computer Science',
@@ -27,7 +28,7 @@ class ProgramFactory extends Factory
                 'Accountancy, Business and Management',
                 'Humanities and Social Sciences',
             ]),
-            'education_level' => $this->faker->randomElement(['college', 'shs']),
+            'education_level' => $this->faker->randomElement(['college', 'senior_high']),
             'description' => $this->faker->optional()->sentence(),
             'total_years' => $this->faker->numberBetween(2, 4),
             'status' => 'active',

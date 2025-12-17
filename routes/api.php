@@ -222,4 +222,108 @@ Route::middleware(['web', 'auth:web'])->group(function () {
             'suggested_year_numeric' => $suggestedNumeric,
         ]);
     })->middleware('role:registrar');
+
+    // Suggest curriculum for a given program and year level (used by registrar UI)
+    Route::get('/programs/{program}/suggested-curriculum', function (\Illuminate\Http\Request $request, \App\Models\Program $program) {
+        $yearLevelLabel = $request->query('year_level');
+        $educationLevel = $request->query('education_level') ?? $program->education_level;
+        $academicYear = $request->query('academic_year') ?? \App\Models\SchoolSetting::getCurrentAcademicYear();
+
+        // Parse numeric year
+        $numeric = 1;
+        if ($educationLevel === 'college') {
+            if (preg_match('/(\d+)/', (string) $yearLevelLabel, $m)) {
+                $numeric = (int) $m[1];
+            }
+        } else {
+            if (preg_match('/(\d+)/', (string) $yearLevelLabel, $m)) {
+                $numeric = (int) $m[1];
+            }
+        }
+
+        // Determine batch start year if year > 1
+        if ($numeric > 1) {
+            if (preg_match('/(\d{4})/', (string) $academicYear, $m)) {
+                $startYear = (int) $m[1];
+            } else {
+                $startYear = (int) date('Y');
+            }
+            $batchStart = (string) ($startYear - ($numeric - 1));
+        } else {
+            $batchStart = (string) preg_replace('/[^0-9-]/', '', (string) $academicYear);
+        }
+
+        // Check for explicit year-level guide
+        $guide = \App\Models\YearLevelCurriculumGuide::where('program_id', $program->id)
+            ->where('academic_year', $academicYear)
+            ->where('year_level', $numeric)
+            ->with('curriculum')
+            ->first();
+
+        if ($guide && $guide->curriculum) {
+            return response()->json([
+                'curriculum' => [
+                    'id' => $guide->curriculum->id,
+                    'curriculum_code' => $guide->curriculum->curriculum_code,
+                    'curriculum_name' => $guide->curriculum->curriculum_name,
+                ],
+                'source' => 'guide',
+            ]);
+        }
+
+        // Check program curricula mappings
+        $mapping = \App\Models\ProgramCurriculum::where('program_id', $program->id)
+            ->where('academic_year', 'like', '%'.$batchStart.'%')
+            ->with('curriculum')
+            ->first();
+
+        if ($mapping && $mapping->curriculum) {
+            return response()->json([
+                'curriculum' => [
+                    'id' => $mapping->curriculum->id,
+                    'curriculum_code' => $mapping->curriculum->curriculum_code,
+                    'curriculum_name' => $mapping->curriculum->curriculum_name,
+                ],
+                'source' => 'program_curriculum',
+            ]);
+        }
+
+        // Cohort majority check
+        $existingCurriculumId = \App\Models\Student::where('program_id', $program->id)
+            ->where('batch_year', $batchStart)
+            ->where('current_year_level', $numeric)
+            ->whereNotNull('curriculum_id')
+            ->select('curriculum_id', \Illuminate\Support\Facades\DB::raw('count(*) as ct'))
+            ->groupBy('curriculum_id')
+            ->orderByDesc('ct')
+            ->pluck('curriculum_id')
+            ->first();
+
+        if ($existingCurriculumId) {
+            $c = \App\Models\Curriculum::find($existingCurriculumId);
+            return response()->json([
+                'curriculum' => [
+                    'id' => $c->id,
+                    'curriculum_code' => $c->curriculum_code,
+                    'curriculum_name' => $c->curriculum_name,
+                ],
+                'source' => 'cohort_majority',
+            ]);
+        }
+
+        // Fallback to current curriculum
+        $current = $program->currentCurriculum;
+        if ($current) {
+            return response()->json([
+                'curriculum' => [
+                    'id' => $current->id,
+                    'curriculum_code' => $current->curriculum_code,
+                    'curriculum_name' => $current->curriculum_name,
+                ],
+                'source' => 'current',
+            ]);
+        }
+
+        return response()->json(['curriculum' => null, 'source' => 'none']);
+    })->middleware('role:registrar');
 });

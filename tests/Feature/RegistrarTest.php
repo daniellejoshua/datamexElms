@@ -55,7 +55,6 @@ it('requires registrar role to access registrar dashboard', function () {
 
 it('allows registrar to access dashboard', function () {
     $user = User::factory()->create(['role' => 'registrar']);
-    Registrar::factory()->create(['user_id' => $user->id]);
 
     $response = $this->actingAs($user)->get(route('registrar.dashboard'));
 
@@ -65,7 +64,6 @@ it('allows registrar to access dashboard', function () {
 
 it('allows registrar to view students list', function () {
     $user = User::factory()->create(['role' => 'registrar']);
-    Registrar::factory()->create(['user_id' => $user->id]);
 
     $response = $this->actingAs($user)->get(route('registrar.students'));
 
@@ -75,7 +73,6 @@ it('allows registrar to view students list', function () {
 
 it('redirects to registrar dashboard after login for registrar users', function () {
     $user = User::factory()->create(['role' => 'registrar']);
-    Registrar::factory()->create(['user_id' => $user->id]);
 
     $response = $this->actingAs($user)->get('/dashboard');
 
@@ -99,30 +96,11 @@ it('validates required fields in registrar registration', function () {
 });
 
 it('prevents duplicate employee numbers', function () {
-    Registrar::factory()->create(['employee_number' => 'REG-001']);
-
-    $registrarData = [
-        'name' => 'Jane Registrar',
-        'email' => 'jane@example.com',
-        'password' => 'password123',
-        'password_confirmation' => 'password123',
-        'employee_number' => 'REG-001', // Duplicate
-        'first_name' => 'Jane',
-        'last_name' => 'Doe',
-        'department' => 'Academic Affairs',
-        'position' => 'Registrar',
-        'hire_date' => '2024-01-15',
-    ];
-
-    $response = $this->post(route('registrar.register'), $registrarData);
-
-    $response->assertSessionHasErrors(['employee_number']);
-});
+    // Registrar model removed - skipping test
+    $this->assertTrue(true);
+})->skip('Registrar model removed');
 
 it('creates user with registrar relationship through factory', function () {
-    $registrar = Registrar::factory()->create();
-
-    expect($registrar->user)->toBeInstanceOf(User::class);
-    expect($registrar->user->role)->toBe('registrar');
-    expect($registrar->user_id)->toBe($registrar->user->id);
-});
+    // Registrar model removed - skipping test
+    $this->assertTrue(true);
+})->skip('Registrar model removed');

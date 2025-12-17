@@ -11,10 +11,13 @@ return new class extends Migration
      */
     public function up(): void
     {
-        // Only rename if the source column exists to avoid migration errors
-        if (Schema::hasColumn('curriculum', 'is_active') && ! Schema::hasColumn('curriculum', 'is_current')) {
+        if (! Schema::hasTable('curriculum')) {
+            return;
+        }
+
+        if (! Schema::hasColumn('curriculum', 'is_current')) {
             Schema::table('curriculum', function (Blueprint $table) {
-                $table->renameColumn('is_active', 'is_current');
+                $table->boolean('is_current')->default(false)->after('status');
             });
         }
     }
@@ -24,9 +27,9 @@ return new class extends Migration
      */
     public function down(): void
     {
-        if (Schema::hasColumn('curriculum', 'is_current') && ! Schema::hasColumn('curriculum', 'is_active')) {
+        if (Schema::hasColumn('curriculum', 'is_current')) {
             Schema::table('curriculum', function (Blueprint $table) {
-                $table->renameColumn('is_current', 'is_active');
+                $table->dropColumn('is_current');
             });
         }
     }
