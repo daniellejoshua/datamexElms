@@ -301,6 +301,7 @@ Route::middleware(['web', 'auth:web'])->group(function () {
 
         if ($existingCurriculumId) {
             $c = \App\Models\Curriculum::find($existingCurriculumId);
+
             return response()->json([
                 'curriculum' => [
                     'id' => $c->id,

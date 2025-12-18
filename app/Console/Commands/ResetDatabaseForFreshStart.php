@@ -52,7 +52,7 @@ class ResetDatabaseForFreshStart extends Command
             $count = $modelClass::count();
             $this->line("  Clearing {$tableName}: {$count} records");
 
-            if (!$dryRun) {
+            if (! $dryRun) {
                 $modelClass::query()->delete();
             }
         }
@@ -67,7 +67,7 @@ class ResetDatabaseForFreshStart extends Command
         foreach ($studentUsers as $user) {
             $this->line("  Removing student: {$user->name} ({$user->email})");
 
-            if (!$dryRun) {
+            if (! $dryRun) {
                 // Delete associated student record first
                 \App\Models\Student::where('user_id', $user->id)->delete();
                 // Then delete the user
@@ -85,7 +85,7 @@ class ResetDatabaseForFreshStart extends Command
         $this->line("  Clearing SectionSubject: {$sectionSubjectsCount} records");
         $this->line("  Clearing Section: {$sectionsCount} records");
 
-        if (!$dryRun) {
+        if (! $dryRun) {
             \App\Models\SectionSubject::query()->delete();
             \App\Models\Section::query()->delete();
         }
@@ -94,7 +94,7 @@ class ResetDatabaseForFreshStart extends Command
         $this->newLine();
         $this->info('Step 4: Resetting school settings...');
 
-        if (!$dryRun) {
+        if (! $dryRun) {
             \App\Models\SchoolSetting::query()->delete();
 
             // Create fresh school settings
@@ -109,8 +109,8 @@ class ResetDatabaseForFreshStart extends Command
             ]);
         }
 
-        $this->line("  Reset current_academic_year to: 2024-2025");
-        $this->line("  Reset current_semester to: 1st");
+        $this->line('  Reset current_academic_year to: 2024-2025');
+        $this->line('  Reset current_semester to: 1st');
 
         // Step 5: Summary
         $this->newLine();

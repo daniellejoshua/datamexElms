@@ -101,7 +101,7 @@ class SubjectController extends Controller
                     'subject_name' => $subject->subject_name,
                     'units' => $subject->units,
                     'description' => $subject->description,
-                    'teacher_name' => $teacher->user->name,
+                    'teacher_name' => $teacher?->user?->name ?? 'TBA',
                     'section_name' => $enrollment->section->section_name,
                     'program_name' => $enrollment->section->program->program_name,
                     'program_code' => $enrollment->section->program->program_code,

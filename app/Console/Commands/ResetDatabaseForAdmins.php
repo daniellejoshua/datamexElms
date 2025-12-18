@@ -2,9 +2,7 @@
 
 namespace App\Console\Commands;
 
-use App\Models\User;
 use App\Models\Student;
-use App\Models\Teacher;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 
@@ -29,8 +27,9 @@ class ResetDatabaseForAdmins extends Command
      */
     public function handle()
     {
-        if (!$this->option('force') && !$this->confirm('⚠️  This will DELETE ALL student data, enrollments, sections, and programs. Only admin users and teachers will be kept. Are you sure?')) {
+        if (! $this->option('force') && ! $this->confirm('⚠️  This will DELETE ALL student data, enrollments, sections, and programs. Only admin users and teachers will be kept. Are you sure?')) {
             $this->info('Operation cancelled.');
+
             return;
         }
 
@@ -139,13 +138,14 @@ class ResetDatabaseForAdmins extends Command
                 ->groupBy('role')
                 ->get();
 
-            $this->table(['Role', 'Count'], $remainingUsers->map(function($user) {
+            $this->table(['Role', 'Count'], $remainingUsers->map(function ($user) {
                 return [$user->role, $user->count];
             }));
 
         } catch (\Exception $e) {
             DB::rollBack();
-            $this->error('❌ Database reset failed: ' . $e->getMessage());
+            $this->error('❌ Database reset failed: '.$e->getMessage());
+
             return 1;
         }
 

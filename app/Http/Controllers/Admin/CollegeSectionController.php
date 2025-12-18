@@ -6,7 +6,6 @@ use App\Helpers\AcademicHelper;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\StoreSectionRequest;
 use App\Http\Requests\Admin\UpdateSectionRequest;
-use App\Models\CurriculumSubject;
 use App\Models\Program;
 use App\Models\SchoolSetting;
 use App\Models\Section;
@@ -121,10 +120,35 @@ class CollegeSectionController extends Controller
             return back()->withErrors(['program_id' => 'Selected program is not a college program.']);
         }
 
-        $section = Section::create($request->validated());
+        // Automatically determine curriculum based on year level guide
+        $curriculumId = $request->curriculum_id;
+        if (! $curriculumId) {
+            $currentAcademicYear = SchoolSetting::getCurrentAcademicYear();
+            $guide = \App\Models\YearLevelCurriculumGuide::where('program_id', $request->program_id)
+                ->where('academic_year', $currentAcademicYear)
+                ->where('year_level', $request->year_level)
+                ->with('curriculum')
+                ->first();
+
+            if ($guide && $guide->curriculum) {
+                $curriculumId = $guide->curriculum->id;
+            } else {
+                // Fallback to program's current curriculum
+                $curriculumId = $program->current_curriculum?->id;
+            }
+        }
+
+        if (! $curriculumId) {
+            return back()->withErrors(['curriculum_id' => 'No curriculum found for this program and year level. Please create a year level guide or select a curriculum manually.']);
+        }
+
+        $sectionData = $request->validated();
+        $sectionData['curriculum_id'] = $curriculumId;
+
+        $section = Section::create($sectionData);
 
         // Automatically attach subjects from the curriculum that match the section's year level and semester
-        $curriculumSubjects = \App\Models\CurriculumSubject::where('curriculum_id', $request->curriculum_id)
+        $curriculumSubjects = \App\Models\CurriculumSubject::where('curriculum_id', $curriculumId)
             ->where('year_level', $request->year_level)
             ->where('semester', $request->semester)
             ->where('status', 'active')

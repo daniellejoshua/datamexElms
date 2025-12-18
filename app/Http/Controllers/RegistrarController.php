@@ -580,13 +580,13 @@ class RegistrarController extends Controller
             $paymentAmount = (float) $validated['payment_amount'];
 
             // Ensure values are numeric and non-negative
-            if (!is_numeric($validated['enrollment_fee']) || $enrollmentFee < 0) {
+            if (! is_numeric($validated['enrollment_fee']) || $enrollmentFee < 0) {
                 return back()->withErrors([
                     'enrollment_fee' => 'Enrollment fee must be a valid positive number.',
                 ])->withInput();
             }
 
-            if (!is_numeric($validated['payment_amount']) || $paymentAmount < 0) {
+            if (! is_numeric($validated['payment_amount']) || $paymentAmount < 0) {
                 return back()->withErrors([
                     'payment_amount' => 'Payment amount must be a valid positive number.',
                 ])->withInput();

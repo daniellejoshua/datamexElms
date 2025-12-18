@@ -5,13 +5,13 @@ namespace App\Console\Commands;
 use App\Models\ArchivedStudent;
 use App\Models\GradeVersion;
 use App\Models\PaymentTransaction;
+use App\Models\SchoolSetting;
 use App\Models\Student;
 use App\Models\StudentBalance;
 use App\Models\StudentEnrollment;
 use App\Models\StudentGrade;
 use App\Models\StudentSemesterPayment;
 use App\Models\StudentSubjectEnrollment;
-use App\Models\SchoolSetting;
 use App\Models\User;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
@@ -37,7 +37,7 @@ class ClearStudentDataAndResetAcademicYear extends Command
      */
     public function handle()
     {
-        if (!$this->option('confirm')) {
+        if (! $this->option('confirm')) {
             $this->warn('⚠️  WARNING: This will permanently delete all student-related data!');
             $this->line('');
             $this->line('This command will delete:');
@@ -51,8 +51,9 @@ class ClearStudentDataAndResetAcademicYear extends Command
             $this->line('And reset the academic year to: 2025-2026 2nd Semester');
             $this->line('');
 
-            if (!$this->confirm('Are you sure you want to continue?')) {
+            if (! $this->confirm('Are you sure you want to continue?')) {
                 $this->info('Operation cancelled.');
+
                 return;
             }
         }
@@ -74,7 +75,7 @@ class ClearStudentDataAndResetAcademicYear extends Command
             $balanceCount = StudentBalance::count();
             $gradeVersionCount = GradeVersion::count();
 
-            $this->line("📊 Records to be deleted:");
+            $this->line('📊 Records to be deleted:');
             $this->line("• Students: {$studentCount}");
             $this->line("• Student Users: {$userCount}");
             $this->line("• Enrollments: {$enrollmentCount}");
@@ -143,11 +144,12 @@ class ClearStudentDataAndResetAcademicYear extends Command
             $this->line("• Deleted {$archivedCount} archived students");
             $this->line("• Deleted {$balanceCount} student balances");
             $this->line("• Deleted {$gradeVersionCount} grade versions");
-            $this->line("• Set academic year to: 2025-2026 2nd Semester");
+            $this->line('• Set academic year to: 2025-2026 2nd Semester');
 
         } catch (\Exception $e) {
             DB::rollBack();
-            $this->error('❌ Error occurred: ' . $e->getMessage());
+            $this->error('❌ Error occurred: '.$e->getMessage());
+
             return 1;
         }
 

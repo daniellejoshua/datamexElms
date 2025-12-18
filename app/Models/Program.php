@@ -6,7 +6,6 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Facades\DB;
-use App\Models\SchoolSetting;
 
 class Program extends Model
 {
@@ -96,7 +95,7 @@ class Program extends Model
             ->where('batch_year', $targetStart)
             ->where('current_year_level', $numericYearLevel)
             ->whereNotNull('curriculum_id')
-            ->select('curriculum_id',DB::raw('count(*) as ct'))
+            ->select('curriculum_id', DB::raw('count(*) as ct'))
             ->groupBy('curriculum_id')
             ->orderByDesc('ct')
             ->pluck('curriculum_id')
@@ -108,6 +107,7 @@ class Program extends Model
 
         return $this->currentCurriculum;
     }
+
     public function currentCurriculum()
     {
         return $this->hasOne(Curriculum::class)->isCurrent();

@@ -585,10 +585,48 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                 if (errors.student) {
                     setShowErrorModal(true)
                 } else {
-                    // Extract the first error message
-                    const errorMessage = Object.values(errors).find(error => error) || 'An unknown error occurred'
-                    toast.error(`${errorMessage}`, {
-                        style: { border: '1px solid #ef4444', color: '#ef4444' }
+                    // Make validation errors more user-friendly
+                    const friendlyErrors = Object.entries(errors).map(([field, message]) => {
+                        // Field-specific friendly messages
+                        if (field === 'first_name' && message.includes('required')) {
+                            return 'First name is required to register the student.';
+                        }
+                        if (field === 'last_name' && message.includes('required')) {
+                            return 'Last name is required to register the student.';
+                        }
+                        if (field === 'email' && message.includes('required')) {
+                            return 'Email address is required for student registration.';
+                        }
+                        if (field === 'email' && message.includes('unique')) {
+                            return 'This email address is already registered. Please use a different email.';
+                        }
+                        if (field === 'program_id' && message.includes('required')) {
+                            return 'Please select a program for the student.';
+                        }
+                        if (field === 'year_level' && message.includes('required')) {
+                            return 'Please select a year level for the student.';
+                        }
+                        if (field === 'enrollment_fee' && message.includes('valid positive number')) {
+                            return 'Please enter a valid enrollment fee amount.';
+                        }
+                        if (field === 'enrollment_fee' && message.includes('cannot be zero')) {
+                            return 'Enrollment fee cannot be zero. Please enter a valid amount.';
+                        }
+                        if (field === 'payment_amount' && message.includes('valid positive number')) {
+                            return 'Please enter a valid payment amount.';
+                        }
+
+                        // Default: return the original message but make it more readable
+                        return message.charAt(0).toUpperCase() + message.slice(1);
+                    });
+
+                    const errorMessage = friendlyErrors.length === 1
+                        ? friendlyErrors[0]
+                        : `Please correct the following issues:\n• ${friendlyErrors.join('\n• ')}`;
+
+                    toast.error(errorMessage, {
+                        style: { border: '1px solid #ef4444', color: '#ef4444' },
+                        duration: 6000, // Show longer for multiple errors
                     })
                 }
             },
@@ -669,17 +707,21 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                                         value={data.student_number}
                                         onChange={e => setData('student_number', e.target.value)}
                                         placeholder="Enter student number"
-                                        className="h-10"
+                                        className={`h-10 ${isExistingStudent ? 'bg-gray-100 cursor-not-allowed' : ''}`}
+                                        disabled={isExistingStudent}
                                     />
                                     <Button 
                                         type="button" 
                                         onClick={checkStudent} 
                                         variant="outline"
-                                        disabled={checkingStudent || !data.student_number}
+                                        disabled={checkingStudent || !data.student_number || isExistingStudent}
                                     >
                                         {checkingStudent ? 'Checking...' : 'Check'}
                                     </Button>
                                 </div>
+                                {isExistingStudent && (
+                                    <p className="text-xs text-blue-600 mt-1">Student number is locked for existing students</p>
+                                )}
                                 {errors.student_number && (
                                     <p className="text-red-500 text-sm mt-1">{errors.student_number}</p>
                                 )}
@@ -752,8 +794,12 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                                     value={data.first_name}
                                     onChange={e => setData('first_name', e.target.value)}
                                     required
-                                    className="h-10"
+                                    className={`h-10 ${isExistingStudent ? 'bg-gray-100 cursor-not-allowed' : ''}`}
+                                    disabled={isExistingStudent}
                                 />
+                                {isExistingStudent && (
+                                    <p className="text-xs text-blue-600 mt-1">Locked for existing students</p>
+                                )}
                                 {errors.first_name && (
                                     <p className="text-red-500 text-sm mt-1">{errors.first_name}</p>
                                 )}
@@ -765,7 +811,12 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                                     id="middle_name"
                                     value={data.middle_name}
                                     onChange={e => setData('middle_name', e.target.value)}
+                                    className={isExistingStudent ? 'bg-gray-100 cursor-not-allowed' : ''}
+                                    disabled={isExistingStudent}
                                 />
+                                {isExistingStudent && (
+                                    <p className="text-xs text-blue-600 mt-1">Locked for existing students</p>
+                                )}
                                 {errors.middle_name && (
                                     <p className="text-red-500 text-sm mt-1">{errors.middle_name}</p>
                                 )}
@@ -778,7 +829,12 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                                     value={data.last_name}
                                     onChange={e => setData('last_name', e.target.value)}
                                     required
+                                    className={isExistingStudent ? 'bg-gray-100 cursor-not-allowed' : ''}
+                                    disabled={isExistingStudent}
                                 />
+                                {isExistingStudent && (
+                                    <p className="text-xs text-blue-600 mt-1">Locked for existing students</p>
+                                )}
                                 {errors.last_name && (
                                     <p className="text-red-500 text-sm mt-1">{errors.last_name}</p>
                                 )}
@@ -796,8 +852,9 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                                             setCustomSuffix('')
                                         }
                                     }}
+                                    disabled={isExistingStudent}
                                 >
-                                    <SelectTrigger>
+                                    <SelectTrigger className={isExistingStudent ? 'bg-gray-100 cursor-not-allowed' : ''}>
                                         <SelectValue placeholder="Select suffix (optional)" />
                                     </SelectTrigger>
                                     <SelectContent>
@@ -816,8 +873,12 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                                         placeholder="Enter custom suffix"
                                         value={customSuffix}
                                         onChange={(e) => setCustomSuffix(e.target.value)}
-                                        className="mt-2"
+                                        className={`mt-2 ${isExistingStudent ? 'bg-gray-100 cursor-not-allowed' : ''}`}
+                                        disabled={isExistingStudent}
                                     />
+                                )}
+                                {isExistingStudent && (
+                                    <p className="text-xs text-blue-600 mt-1">Locked for existing students</p>
                                 )}
                                 {errors.suffix && (
                                     <p className="text-red-500 text-sm mt-1">{errors.suffix}</p>
@@ -834,7 +895,12 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                                     value={data.birth_date}
                                     onChange={e => setData('birth_date', e.target.value)}
                                     required
+                                    className={isExistingStudent ? 'bg-gray-100 cursor-not-allowed' : ''}
+                                    disabled={isExistingStudent}
                                 />
+                                {isExistingStudent && (
+                                    <p className="text-xs text-blue-600 mt-1">Locked for existing students</p>
+                                )}
                                 {errors.birth_date && (
                                     <p className="text-red-500 text-sm mt-1">{errors.birth_date}</p>
                                 )}
@@ -849,7 +915,12 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                                     onChange={e => setData('email', e.target.value)}
                                     required
                                     placeholder="student@example.com"
+                                    className={isExistingStudent ? 'bg-gray-100 cursor-not-allowed' : ''}
+                                    disabled={isExistingStudent}
                                 />
+                                {isExistingStudent && (
+                                    <p className="text-xs text-blue-600 mt-1">Locked for existing students</p>
+                                )}
                                 {errors.email && (
                                     <p className="text-red-500 text-sm mt-1">{errors.email}</p>
                                 )}
@@ -1012,48 +1083,53 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                     </CardHeader>
                     <CardContent className="space-y-6 pt-6">
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                            <div>
+                            <div className="relative">
                                 <Label htmlFor="program_id" className="text-sm font-medium">Program *</Label>
-                                <Select value={data.program_id.toString()} onValueChange={(value) => setData('program_id', value)}>
-                                    <SelectTrigger className={`h-10 ${errors.program_id ? 'border-red-500' : 'border-gray-300 focus:border-green-500'}`}>
-                                        <SelectValue placeholder="Select program" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        {collegePrograms.length > 0 && (
-                                            <div className="px-2 py-1.5 text-xs font-semibold text-blue-700 bg-blue-50">
-                                                COLLEGE PROGRAMS
-                                            </div>
-                                        )}
-                                        {collegePrograms.map(program => (
-                                            <SelectItem key={program.id} value={program.id.toString()}>
-                                                <div className="flex items-center gap-2">
-                                                    <Badge variant="secondary" className="font-mono text-xs">
-                                                        {program.program_code}
-                                                    </Badge>
-                                                    <span className="text-sm">{program.program_name || program.name}</span>
+                                <div className="flex gap-2">
+                                    <Select value={data.program_id.toString()} onValueChange={(value) => setData('program_id', value)}>
+                                        <SelectTrigger className={`h-10 flex-1 ${errors.program_id ? 'border-red-500' : 'border-gray-300 focus:border-green-500'}`}>
+                                            <SelectValue placeholder="Select program" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {collegePrograms.length > 0 && (
+                                                <div className="px-2 py-1.5 text-xs font-semibold text-blue-700 bg-blue-50">
+                                                    COLLEGE PROGRAMS
                                                 </div>
-                                            </SelectItem>
-                                        ))}
-                                        {shsPrograms.length > 0 && (
-                                            <div className="px-2 py-1.5 text-xs font-semibold text-purple-700 bg-purple-50 mt-1">
-                                                SENIOR HIGH SCHOOL
-                                            </div>
-                                        )}
-                                        {shsPrograms.map(program => (
-                                            <SelectItem key={program.id} value={program.id.toString()}>
-                                                <div className="flex flex-col">
-                                                    <span className="text-sm font-medium">{program.program_name || program.name}</span>
-                                                    {program.track && program.strand && (
-                                                        <span className="text-xs text-gray-500">{program.track} - {program.strand}</span>
-                                                    )}
+                                            )}
+                                            {collegePrograms.map(program => (
+                                                <SelectItem key={program.id} value={program.id.toString()}>
+                                                    <div className="flex items-center gap-2">
+                                                        <Badge variant="secondary" className="font-mono text-xs">
+                                                            {program.program_code}
+                                                        </Badge>
+                                                        <span className="text-sm">{program.program_name || program.name}</span>
+                                                    </div>
+                                                </SelectItem>
+                                            ))}
+                                            {shsPrograms.length > 0 && (
+                                                <div className="px-2 py-1.5 text-xs font-semibold text-purple-700 bg-purple-50 mt-1">
+                                                    SENIOR HIGH SCHOOL
                                                 </div>
-                                            </SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
-                                {errors.program_id && (
-                                    <p className="text-red-500 text-sm mt-1">{errors.program_id}</p>
-                                )}
+                                            )}
+                                            {shsPrograms.map(program => (
+                                                <SelectItem key={program.id} value={program.id.toString()}>
+                                                    <div className="flex flex-col">
+                                                        <span className="text-sm font-medium">{program.program_name || program.name}</span>
+                                                        {program.track && program.strand && (
+                                                            <span className="text-xs text-gray-500">{program.track} - {program.strand}</span>
+                                                        )}
+                                                    </div>
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                    {errors.program_id && (
+                                        <div className="flex items-center gap-1 text-red-600">
+                                            <AlertTriangle className="w-4 h-4 flex-shrink-0" />
+                                            <span className="text-sm whitespace-nowrap">Required</span>
+                                        </div>
+                                    )}
+                                </div>
                                 {selectedProgram && (
                                     <div className="mt-2 p-2 bg-blue-50 rounded-lg">
                                         <p className="text-xs font-medium text-blue-800">
@@ -1125,31 +1201,46 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                                 )}
                             </div>
 
-                            <div>
+                            <div className="relative">
                                 <Label htmlFor="year_level" className="text-sm font-medium">Year Level *</Label>
-                                {errors.year_level && (
-                                    <div className="mt-2 p-2 bg-red-50 border border-red-200 rounded-md flex items-start gap-2">
-                                        <AlertTriangle className="w-4 h-4 text-red-600 mt-0.5" />
-                                        <p className="text-sm text-red-700">{errors.year_level}</p>
-                                    </div>
-                                )}
-
-                                <Select 
-                                    value={data.year_level} 
-                                    onValueChange={(value) => setData('year_level', value)}
-                                    disabled={!selectedProgram}
-                                >
-                                    <SelectTrigger className={`h-10 ${errors.year_level ? 'border-red-500' : 'border-gray-300 focus:border-green-500'} ${!selectedProgram ? 'bg-gray-100 cursor-not-allowed' : ''}`}>
-                                        <SelectValue placeholder={!selectedProgram ? 'Select Program First' : 'Select Year Level'} />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        {getYearLevelOptions().map(level => (
-                                            <SelectItem key={level} value={level}>
-                                                {level}
-                                            </SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
+                                <div className="flex gap-2">
+                                    <Select
+                                        value={data.year_level}
+                                        onValueChange={(value) => setData('year_level', value)}
+                                        disabled={!selectedProgram}
+                                    >
+                                        <SelectTrigger className={`h-10 flex-1 ${errors.year_level ? 'border-red-500' : 'border-gray-300 focus:border-green-500'} ${!selectedProgram ? 'bg-gray-100 cursor-not-allowed' : ''}`}>
+                                            <SelectValue placeholder={!selectedProgram ? 'Select Program First' : 'Select Year Level'} />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {getYearLevelOptions().map(level => (
+                                                <SelectItem key={level} value={level}>
+                                                    {level}
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                    {errors.year_level && (
+                                        <div className="flex items-center gap-1 text-red-600">
+                                            <AlertTriangle className="w-4 h-4 flex-shrink-0" />
+                                            <span className="text-sm whitespace-nowrap">
+                                                {(() => {
+                                                    const errorMessage = errors.year_level;
+                                                    if (errorMessage.includes('Invalid year level')) {
+                                                        return 'Invalid level';
+                                                    }
+                                                    if (errorMessage.includes('Requested year level not allowed')) {
+                                                        return 'Level not allowed';
+                                                    }
+                                                    if (errorMessage.includes('Cannot decrease')) {
+                                                        return 'Cannot decrease';
+                                                    }
+                                                    return 'Invalid';
+                                                })()}
+                                            </span>
+                                        </div>
+                                    )}
+                                </div>
                             </div>
                         </div>
 
@@ -1296,14 +1387,79 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
 
             {/* Error Modal */}
             <Dialog open={showErrorModal} onOpenChange={setShowErrorModal}>
-                <DialogContent>
+                <DialogContent className="max-w-md">
                     <DialogHeader>
                         <DialogTitle className="flex items-center gap-2 text-red-600">
                             <AlertTriangle className="w-5 h-5" />
-                            Enrollment Not Allowed
+                            Unable to Register Student
                         </DialogTitle>
-                        <DialogDescription>
-                            {errors.student}
+                        <DialogDescription className="text-sm text-gray-700">
+                            {(() => {
+                                const errorMessage = errors.student || '';
+
+                                // Make error messages more user-friendly
+                                if (errorMessage.includes('Outstanding balance')) {
+                                    const balanceMatch = errorMessage.match(/₱([\d,]+\.\d{2})/);
+                                    const balance = balanceMatch ? balanceMatch[1] : 'an outstanding';
+                                    return (
+                                        <div className="space-y-2">
+                                            <p>This student has an outstanding balance that must be settled before enrollment.</p>
+                                            <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+                                                <p className="font-medium text-red-800">Outstanding Balance: ₱{balance}</p>
+                                                <p className="text-xs text-red-600 mt-1">Please contact the finance office or settle this balance first.</p>
+                                            </div>
+                                        </div>
+                                    );
+                                }
+
+                                if (errorMessage.includes('already enrolled')) {
+                                    return (
+                                        <div className="space-y-2">
+                                            <p>This student is already enrolled in the current semester.</p>
+                                            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                                                <p className="text-sm text-blue-800">The student cannot be enrolled twice in the same semester.</p>
+                                            </div>
+                                        </div>
+                                    );
+                                }
+
+                                if (errorMessage.includes('Invalid year level')) {
+                                    return (
+                                        <div className="space-y-2">
+                                            <p>The selected year level is not valid for this student.</p>
+                                            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
+                                                <p className="text-sm text-yellow-800">Please check the student's academic records and select an appropriate year level.</p>
+                                            </div>
+                                        </div>
+                                    );
+                                }
+
+                                if (errorMessage.includes('Requested year level not allowed')) {
+                                    const match = errorMessage.match(/may only be up to '(\d+)'/);
+                                    const allowedLevel = match ? match[1] : '';
+                                    return (
+                                        <div className="space-y-2">
+                                            <p>This student hasn't completed enough academic work to advance to this year level.</p>
+                                            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
+                                                <p className="text-sm text-yellow-800">
+                                                    Based on completed semesters, this student can only be enrolled up to year level {allowedLevel}.
+                                                    Please select an appropriate level or contact an administrator if this seems incorrect.
+                                                </p>
+                                            </div>
+                                        </div>
+                                    );
+                                }
+
+                                // Default fallback for any other errors
+                                return (
+                                    <div className="space-y-2">
+                                        <p>We encountered an issue while registering this student.</p>
+                                        <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
+                                            <p className="text-sm text-gray-800">{errorMessage}</p>
+                                        </div>
+                                    </div>
+                                );
+                            })()}
                         </DialogDescription>
                     </DialogHeader>
                     <div className="flex justify-between items-center">

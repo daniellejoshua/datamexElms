@@ -6,7 +6,6 @@ use App\Helpers\AcademicHelper;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\StoreSectionRequest;
 use App\Http\Requests\Admin\UpdateSectionRequest;
-use App\Models\CurriculumSubject;
 use App\Models\Program;
 use App\Models\SchoolSetting;
 use App\Models\Section;
@@ -194,8 +193,8 @@ class SectionController extends Controller
         // Only show students who are enrolled in the current academic period
         $availableStudentsQuery = Student::with(['user', 'program', 'studentEnrollments' => function ($query) use ($section) {
             $query->where('status', 'active')
-                  ->where('academic_year', $section->academic_year)
-                  ->where('semester', $section->semester);
+                ->where('academic_year', $section->academic_year)
+                ->where('semester', $section->semester);
         }])
             ->whereNotIn('id', $enrolledStudentIds)
             ->where('program_id', $section->program_id) // Only students from same program
@@ -209,8 +208,8 @@ class SectionController extends Controller
             ->whereHas('studentEnrollments', function ($query) use ($section) {
                 // Only students enrolled in the current academic period
                 $query->where('academic_year', $section->academic_year)
-                      ->where('semester', $section->semester)
-                      ->where('status', 'active');
+                    ->where('semester', $section->semester)
+                    ->where('status', 'active');
             });
 
         // For non-irregular students, exclude those already enrolled in THIS SPECIFIC section for current academic period
@@ -450,8 +449,8 @@ class SectionController extends Controller
         // Only show students who are enrolled in the current academic period
         $availableStudentsQuery = Student::with(['user', 'program', 'studentEnrollments' => function ($query) use ($section) {
             $query->where('status', 'active')
-                  ->where('academic_year', $section->academic_year)
-                  ->where('semester', $section->semester);
+                ->where('academic_year', $section->academic_year)
+                ->where('semester', $section->semester);
         }])
             ->whereNotIn('id', $enrolledStudentIds)
             ->where('program_id', $section->program_id) // Only students from same program
@@ -465,8 +464,8 @@ class SectionController extends Controller
             ->whereHas('studentEnrollments', function ($query) use ($section) {
                 // Only students enrolled in the current academic period
                 $query->where('academic_year', $section->academic_year)
-                      ->where('semester', $section->semester)
-                      ->where('status', 'active');
+                    ->where('semester', $section->semester)
+                    ->where('status', 'active');
             });
 
         // For non-irregular students, exclude those already enrolled in THIS SPECIFIC section for current academic period

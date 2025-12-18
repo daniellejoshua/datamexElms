@@ -12,7 +12,7 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('year_level_curriculum_guides', function (Blueprint $table) {
-            if (!Schema::hasColumn('year_level_curriculum_guides', 'academic_year')) {
+            if (! Schema::hasColumn('year_level_curriculum_guides', 'academic_year')) {
                 $table->string('academic_year')->after('program_id');
             }
         });

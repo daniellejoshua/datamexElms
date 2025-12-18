@@ -27,8 +27,9 @@ class ResetDatabaseCommand extends Command
      */
     public function handle()
     {
-        if (!$this->option('force') && !$this->confirm('This will delete ALL student, enrollment, grade, and curriculum data. Are you sure?')) {
+        if (! $this->option('force') && ! $this->confirm('This will delete ALL student, enrollment, grade, and curriculum data. Are you sure?')) {
             $this->info('Operation cancelled.');
+
             return;
         }
 
@@ -85,7 +86,7 @@ class ResetDatabaseCommand extends Command
             $this->info('Deleted: all student, enrollment, grade, curriculum, and related data');
 
         } catch (\Exception $e) {
-            $this->error('Error during reset: ' . $e->getMessage());
+            $this->error('Error during reset: '.$e->getMessage());
             throw $e;
         } finally {
             // Re-enable foreign key checks

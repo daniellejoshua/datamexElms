@@ -5,7 +5,6 @@ namespace App\Http\Controllers\Teacher;
 use App\Http\Controllers\Controller;
 use App\Models\Section;
 use App\Models\SectionSubject;
-use App\Models\StudentSubjectEnrollment;
 use App\Models\Teacher;
 use Illuminate\Support\Facades\Auth;
 use Inertia\Inertia;

@@ -47,6 +47,7 @@ class RollYearLevelCurriculumGuides extends Command
         [$start, $end] = explode('-', $current);
         $prevStart = (int) $start - 1;
         $prevEnd = (int) $end - 1;
+
         return "{$prevStart}-{$prevEnd}";
     }
 
@@ -62,6 +63,7 @@ class RollYearLevelCurriculumGuides extends Command
         $currentCurriculum = $program->currentCurriculum;
         if (! $currentCurriculum) {
             $this->warn("No current curriculum for program {$program->name}");
+
             return;
         }
 

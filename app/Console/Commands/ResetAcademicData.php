@@ -2,16 +2,12 @@
 
 namespace App\Console\Commands;
 
-use App\Models\Announcement;
-use App\Models\AnnouncementAttachment;
-use App\Models\AnnouncementReadStatus;
 use App\Models\ArchivedSection;
 use App\Models\ArchivedStudentEnrollment;
 use App\Models\ClassSchedule;
 use App\Models\GradeVersion;
 use App\Models\MaterialAccessLog;
 use App\Models\PaymentTransaction;
-use App\Models\Post;
 use App\Models\SchoolSetting;
 use App\Models\Section;
 use App\Models\SectionSubject;
@@ -41,8 +37,9 @@ class ResetAcademicData extends Command
      */
     public function handle()
     {
-        if (!$this->confirm('This will permanently delete ALL student data, enrollments, archived records, payments, grades, and related data. Are you sure you want to proceed?')) {
+        if (! $this->confirm('This will permanently delete ALL student data, enrollments, archived records, payments, grades, and related data. Are you sure you want to proceed?')) {
             $this->info('Operation cancelled.');
+
             return;
         }
 
@@ -74,7 +71,7 @@ class ResetAcademicData extends Command
             $modelClass::query()->delete();
             $this->info("Deleted data from {$modelClass}");
         } catch (\Exception $e) {
-            $this->warn("Could not delete from {$modelClass}: " . $e->getMessage());
+            $this->warn("Could not delete from {$modelClass}: ".$e->getMessage());
         }
     }
 }

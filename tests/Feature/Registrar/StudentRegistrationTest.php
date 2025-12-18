@@ -1,10 +1,10 @@
 <?php
 
-use App\Models\Program;
+use App\Models\Curriculum;
 // Registrar model isn't used in tests; use a User with role 'registrar' instead
 // use App\Models\Registrar;
+use App\Models\Program;
 use App\Models\SchoolSetting;
-use App\Models\Curriculum;
 use App\Models\Section;
 use App\Models\Student;
 use App\Models\StudentEnrollment;

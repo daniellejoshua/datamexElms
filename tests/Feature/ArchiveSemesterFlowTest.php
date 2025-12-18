@@ -1,13 +1,12 @@
 <?php
 
-use App\Models\Student;
-use App\Models\User;
 use App\Models\Program;
+use App\Models\SchoolSetting;
 use App\Models\Section;
+use App\Models\Student;
 use App\Models\StudentEnrollment;
 use App\Models\StudentGrade;
-use App\Models\SchoolSetting;
-use Illuminate\Support\Facades\Artisan;
+use App\Models\User;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 
@@ -90,7 +89,7 @@ it('archives semester, creates archived records, updates progression and allows 
 
     // Call the admin archive endpoint as the head teacher (includes password confirmation)
     // Invoke the controller's archive logic directly (bypass console auth checks)
-    $controller = new \App\Http\Controllers\Admin\AcademicYearController();
+    $controller = new \App\Http\Controllers\Admin\AcademicYearController;
     // Make sure Auth is set so archived_by and similar functions work
     Auth::login($admin);
     $method = new \ReflectionMethod($controller, 'archiveSemesterSections');

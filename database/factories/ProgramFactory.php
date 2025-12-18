@@ -18,7 +18,7 @@ class ProgramFactory extends Factory
     {
         return [
             // Ensure program_code is unique across tests to avoid unique constraint collisions
-            'program_code' => $this->faker->randomElement(['BSIT', 'BSCS', 'BSA', 'BSBA', 'STEM', 'ABM', 'HUMSS']) . '-' . strtoupper(substr(uniqid(), -4)),
+            'program_code' => $this->faker->randomElement(['BSIT', 'BSCS', 'BSA', 'BSBA', 'STEM', 'ABM', 'HUMSS']).'-'.strtoupper(substr(uniqid(), -4)),
             'program_name' => $this->faker->randomElement([
                 'Bachelor of Science in Information Technology',
                 'Bachelor of Science in Computer Science',

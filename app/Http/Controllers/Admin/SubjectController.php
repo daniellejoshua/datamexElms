@@ -20,9 +20,9 @@ class SubjectController extends Controller
         if ($request->filled('program_id') && $request->program_id !== 'all') {
             $query->where(function ($q) use ($request) {
                 $q->where('program_id', $request->program_id)
-                  ->orWhereHas('curriculumSubjects.curriculum', function ($subQ) use ($request) {
-                      $subQ->where('program_id', $request->program_id);
-                  });
+                    ->orWhereHas('curriculumSubjects.curriculum', function ($subQ) use ($request) {
+                        $subQ->where('program_id', $request->program_id);
+                    });
             });
         }
 

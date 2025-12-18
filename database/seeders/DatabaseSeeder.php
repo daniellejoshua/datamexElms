@@ -15,6 +15,7 @@ class DatabaseSeeder extends Seeder
             ProgramSeeder::class,
             UserSeeder::class,
             SubjectSeeder::class,
+            CurriculumSeeder::class,
             YearLevelCurriculumGuideSeeder::class,
         ]);
     }

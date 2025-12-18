@@ -3,12 +3,11 @@
 namespace App\Console\Commands;
 
 use App\Models\ArchivedSection;
-use App\Models\ArchivedStudentEnrollment;
 use App\Models\ArchivedStudent;
+use App\Models\ArchivedStudentEnrollment;
+use App\Models\SchoolSetting;
 use App\Models\Section;
 use App\Models\Student;
-use App\Models\User;
-use App\Models\SchoolSetting;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -105,7 +104,7 @@ class ArchiveSemesterData extends Command
             }
             // Create ArchivedStudent records for the students we just archived
             $archivedStudentIds = array_values(array_unique($archivedStudentIds));
-            if (!empty($archivedStudentIds)) {
+            if (! empty($archivedStudentIds)) {
                 $students = Student::with('user', 'program')->whereIn('id', $archivedStudentIds)->get();
                 foreach ($students as $student) {
                     // Skip if an archived record already exists for this student and period

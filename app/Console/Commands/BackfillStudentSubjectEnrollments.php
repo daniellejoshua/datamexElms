@@ -2,9 +2,9 @@
 
 namespace App\Console\Commands;
 
+use App\Models\SectionSubject;
 use App\Models\StudentEnrollment;
 use App\Models\StudentSubjectEnrollment;
-use App\Models\SectionSubject;
 use Illuminate\Console\Command;
 
 class BackfillStudentSubjectEnrollments extends Command
@@ -62,10 +62,11 @@ class BackfillStudentSubjectEnrollments extends Command
                 if ($existing) {
                     $this->line("  Skipping - StudentSubjectEnrollment already exists for subject {$sectionSubject->id}");
                     $skipped++;
+
                     continue;
                 }
 
-                if (!$dryRun) {
+                if (! $dryRun) {
                     StudentSubjectEnrollment::create([
                         'student_id' => $enrollment->student_id,
                         'section_subject_id' => $sectionSubject->id,
@@ -83,7 +84,7 @@ class BackfillStudentSubjectEnrollments extends Command
             }
         }
 
-        $this->info("Summary:");
+        $this->info('Summary:');
         $this->info("  Created: {$created}");
         $this->info("  Skipped: {$skipped}");
 

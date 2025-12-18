@@ -26,7 +26,7 @@ class StudentProgressionService
             ->sum('balance');
 
         if ($unpaidBalances > 0) {
-            throw new \Exception("Cannot progress student {$student->user->name} due to unpaid balance of ₱" . number_format($unpaidBalances, 2));
+            throw new \Exception("Cannot progress student {$student->user->name} due to unpaid balance of ₱".number_format($unpaidBalances, 2));
         }
 
         DB::transaction(function () use ($student, $newAcademicYear, $newSemester) {
@@ -63,7 +63,7 @@ class StudentProgressionService
             ->sum('balance');
 
         if ($unpaidBalances > 0) {
-            throw new \Exception("Cannot progress student {$student->user->name} due to unpaid balance of ₱" . number_format($unpaidBalances, 2));
+            throw new \Exception("Cannot progress student {$student->user->name} due to unpaid balance of ₱".number_format($unpaidBalances, 2));
         }
 
         DB::transaction(function () use ($student, $newAcademicYear) {

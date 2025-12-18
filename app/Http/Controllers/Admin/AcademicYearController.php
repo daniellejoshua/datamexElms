@@ -328,17 +328,17 @@ class AcademicYearController extends Controller
                     ]);
                 }
 
-                    // Mark original enrollments and section as archived/completed (non-destructive)
-                    foreach ($enrollments as $enrollment) {
-                        if ($enrollment->status === 'active') {
-                            $enrollment->status = 'completed';
-                            $enrollment->completion_date = $enrollment->completion_date ?? now();
-                        }
-                        $enrollment->save();
+                // Mark original enrollments and section as archived/completed (non-destructive)
+                foreach ($enrollments as $enrollment) {
+                    if ($enrollment->status === 'active') {
+                        $enrollment->status = 'completed';
+                        $enrollment->completion_date = $enrollment->completion_date ?? now();
                     }
+                    $enrollment->save();
+                }
 
-                    $section->status = 'archived';
-                    $section->save();
+                $section->status = 'archived';
+                $section->save();
             } // End period check
 
             // Archive students who were enrolled in archived sections

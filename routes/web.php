@@ -11,6 +11,7 @@ use App\Http\Controllers\Admin\SectionController;
 use App\Http\Controllers\Admin\ShsSectionController;
 use App\Http\Controllers\Admin\ShsSubjectController;
 use App\Http\Controllers\Admin\SubjectController;
+use App\Http\Controllers\Admin\YearLevelCurriculumGuideController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\Registrar\CollegePaymentController;
@@ -32,6 +33,8 @@ Route::get('/', function () {
 Route::middleware(['auth', 'verified', 'role:student'])->prefix('student')->group(function () {
     Route::get('/dashboard', [StudentDashboardController::class, 'index'])->name('student.dashboard');
     Route::get('/subjects', [StudentSubjectController::class, 'index'])->name('student.subjects');
+    Route::get('/grades', [\App\Http\Controllers\Student\GradesController::class, 'index'])->name('student.grades');
+    Route::get('/payments', [\App\Http\Controllers\Student\PaymentsController::class, 'index'])->name('student.payments');
     Route::get('/materials/{material}/download', [StudentSubjectController::class, 'downloadMaterial'])->name('student.materials.download');
     Route::post('/materials/{material}/mark-viewed', [StudentSubjectController::class, 'markMaterialAsViewed'])->name('student.materials.mark-viewed');
     Route::get('/archived-grades', [\App\Http\Controllers\Student\ArchivedGradesController::class, 'index'])->name('student.archived-grades');
@@ -188,6 +191,11 @@ Route::middleware(['auth', 'verified'])->prefix('admin')->name('admin.')->group(
 
         // Program Curriculum Mapping Routes
         Route::resource('program-curricula', ProgramCurriculumController::class);
+
+        // Year Level Curriculum Guide Routes
+        Route::resource('year-level-curriculum-guides', YearLevelCurriculumGuideController::class, [
+            'parameters' => ['year-level-curriculum-guides' => 'programId,yearLevel'],
+        ]);
 
         // Subject Management Routes
         Route::resource('subjects', SubjectController::class);

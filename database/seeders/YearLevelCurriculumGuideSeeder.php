@@ -3,8 +3,8 @@
 namespace Database\Seeders;
 
 use App\Models\Program;
-use App\Models\YearLevelCurriculumGuide;
 use App\Models\SchoolSetting;
+use App\Models\YearLevelCurriculumGuide;
 use Illuminate\Database\Seeder;
 
 class YearLevelCurriculumGuideSeeder extends Seeder
