@@ -37,13 +37,13 @@ class PaymentController extends Controller
                     $q->where('student_id', 'like', "%{$search}%");
                 });
             })
-            ->when($filters['status'] ?? null, function ($query, $status) {
+            ->when($filters['status'] ?? null && ($filters['status'] !== 'all'), function ($query, $status) {
                 $query->where('status', $status);
             })
-            ->when($filters['academic_year'] ?? null, function ($query, $year) {
+            ->when($filters['academic_year'] ?? null && ($filters['academic_year'] !== 'all'), function ($query, $year) {
                 $query->where('academic_year', $year);
             })
-            ->when($filters['semester'] ?? null, function ($query, $semester) {
+            ->when($filters['semester'] ?? null && ($filters['semester'] !== 'all'), function ($query, $semester) {
                 $query->where('semester', $semester);
             })
             ->orderBy('updated_at', 'desc')

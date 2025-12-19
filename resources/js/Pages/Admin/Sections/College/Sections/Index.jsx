@@ -191,73 +191,74 @@ const Index = ({
                     {sections?.data?.length > 0 ? (
                         sections.data.map((section) => {
                             return (
-                                <Card key={section.id} className="group hover:shadow-xl transition-all duration-300 border-2 hover:border-blue-300 relative overflow-hidden">
-                                    {/* Status Badge */}
-                                    <div className="absolute top-4 right-4">
-                                        <Badge 
-                                            className={`shadow-md font-semibold ${
-                                                section.status === 'active' 
-                                                    ? 'bg-white  text-green-500 border-green-600' 
-                                                    : 'bg-white text-red-600 border-red-600'
-                                            }`}
-                                        >
-                                            {section.status}
-                                        </Badge>
-                                    </div>
-
-                                    <CardHeader className="pb-4">
-                                        <div className="flex items-start space-x-3">
-                                            <div className="p-3 bg-blue-600 rounded-xl flex-shrink-0 shadow-md group-hover:scale-110 transition-transform duration-300">
-                                                <School className="w-6 h-6 text-white" />
-                                            </div>
-                                            <div className="flex-1 min-w-0">
-                                                <CardTitle className="text-lg font-bold text-gray-900 truncate group-hover:text-blue-700 transition-colors">
-                                                    {section.program?.program_code}-{section.year_level}{section.section_name}
-                                                </CardTitle>
-                                                <CardDescription className="text-blue-600 font-semibold truncate">
-                                                    {section.program?.program_name || 'N/A'}
-                                                </CardDescription>
-                                            </div>
+                                <Link key={section.id} href={route('admin.sections.show', section.id)} className="block">
+                                    <Card className="group hover:shadow-xl transition-all duration-300 border-2 hover:border-blue-300 relative overflow-hidden cursor-pointer">
+                                        {/* Status Badge */}
+                                        <div className="absolute top-4 right-4">
+                                            <Badge 
+                                                className={`shadow-md font-semibold ${
+                                                    section.status === 'active' 
+                                                        ? 'bg-white  text-green-500 border-green-600' 
+                                                        : 'bg-white text-red-600 border-red-600'
+                                                }`}
+                                            >
+                                                {section.status}
+                                            </Badge>
                                         </div>
-                                    </CardHeader>
-                                    
-                                    <CardContent className="space-y-6">
-                                        {/* Section Details */}
-                                        <div className="space-y-4">
-                                            <Card className="p-3 bg-gradient-to-r from-green-50 to-blue-50 border border-green-200">
-                                                <div className="flex items-center text-sm">
-                                                    <GraduationCap className="w-4 h-4 text-green-600 mr-3 flex-shrink-0" />
-                                                    <span className="text-gray-700 font-medium truncate">
-                                                        Year {section.year_level} - Section {section.section_name}
-                                                    </span>
+
+                                        <CardHeader className="pb-4">
+                                            <div className="flex items-start space-x-3">
+                                                <div className="p-3 bg-blue-600 rounded-xl flex-shrink-0 shadow-md group-hover:scale-110 transition-transform duration-300">
+                                                    <School className="w-6 h-6 text-white" />
                                                 </div>
-                                            </Card>
-                                            
-                                            <div className="grid grid-cols-2 gap-2">
-                                                <Card className="p-2 text-center bg-orange-50 border-orange-200">
-                                                    <div className="flex flex-col items-center">
-                                                        <BookOpen className="w-4 h-4 text-orange-600 mb-1" />
-                                                        <span className="text-xs font-semibold text-gray-700">
-                                                            {section.section_subjects?.length || 0}
+                                                <div className="flex-1 min-w-0">
+                                                    <CardTitle className="text-lg font-bold text-gray-900 truncate group-hover:text-blue-700 transition-colors">
+                                                        {section.program?.program_code}-{section.year_level}{section.section_name}
+                                                    </CardTitle>
+                                                    <CardDescription className="text-blue-600 font-semibold truncate">
+                                                        {section.program?.program_name || 'N/A'}
+                                                    </CardDescription>
+                                                </div>
+                                            </div>
+                                        </CardHeader>
+                                        
+                                        <CardContent className="space-y-6">
+                                            {/* Section Details */}
+                                            <div className="space-y-4">
+                                                <Card className="p-3 bg-gradient-to-r from-green-50 to-blue-50 border border-green-200">
+                                                    <div className="flex items-center text-sm">
+                                                        <GraduationCap className="w-4 h-4 text-green-600 mr-3 flex-shrink-0" />
+                                                        <span className="text-gray-700 font-medium truncate">
+                                                            Year {section.year_level} - Section {section.section_name}
                                                         </span>
-                                                        <span className="text-xs text-gray-600">Subjects</span>
                                                     </div>
                                                 </Card>
                                                 
-                                                <Card className="p-2 text-center bg-purple-50 border-purple-200">
-                                                    <div className="flex flex-col items-center">
-                                                        <Users className="w-4 h-4 text-purple-600 mb-1" />
-                                                        <span className="text-xs font-semibold text-gray-700">
-                                                            {section.enrolled_count || 0}
-                                                        </span>
-                                                        <span className="text-xs text-gray-600">Students</span>
-                                                    </div>
-                                                </Card>
-                                            </div>
-                                            
-                                            <Card className="p-3 bg-blue-50 border-blue-200">
-                                                <div className="flex items-center text-sm">
-                                                    <Calendar className="w-4 h-4 text-blue-600 mr-3 flex-shrink-0" />
+                                                <div className="grid grid-cols-2 gap-2">
+                                                    <Card className="p-2 text-center bg-orange-50 border-orange-200">
+                                                        <div className="flex flex-col items-center">
+                                                            <BookOpen className="w-4 h-4 text-orange-600 mb-1" />
+                                                            <span className="text-xs font-semibold text-gray-700">
+                                                                {section.section_subjects?.length || 0}
+                                                            </span>
+                                                            <span className="text-xs text-gray-600">Subjects</span>
+                                                        </div>
+                                                    </Card>
+                                                    
+                                                    <Card className="p-2 text-center bg-purple-50 border-purple-200">
+                                                        <div className="flex flex-col items-center">
+                                                            <Users className="w-4 h-4 text-purple-600 mb-1" />
+                                                            <span className="text-xs font-semibold text-gray-700">
+                                                                {section.enrolled_count || 0}
+                                                            </span>
+                                                            <span className="text-xs text-gray-600">Students</span>
+                                                        </div>
+                                                    </Card>
+                                                </div>
+                                                
+                                                <Card className="p-3 bg-blue-50 border-blue-200">
+                                                    <div className="flex items-center text-sm">
+                                                        <Calendar className="w-4 h-4 text-blue-600 mr-3 flex-shrink-0" />
                                                     <span className="text-gray-700 font-medium truncate">
                                                         {section.academic_year} - {getSemesterDisplayName(section.semester)}
                                                     </span>
@@ -265,8 +266,8 @@ const Index = ({
                                             </Card>
                                         </div>
                                         
-                                        {/* Action Buttons */}
-                                        <div className="space-y-3">
+                                        {/* Action Buttons - Prevent event bubbling */}
+                                        <div className="space-y-3" onClick={(e) => e.preventDefault()}>
                                             <Button asChild className="w-full bg-blue-600 hover:bg-blue-700 text-white shadow-md">
                                                 <Link href={route('admin.college.sections.subjects', section.id)}>
                                                     <BookOpen className="w-4 h-4 mr-2" />
@@ -292,6 +293,7 @@ const Index = ({
                                         </div>
                                     </CardContent>
                                 </Card>
+                                </Link>
                             );
                         })
                     ) : (

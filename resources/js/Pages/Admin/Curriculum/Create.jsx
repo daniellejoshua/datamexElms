@@ -1,4 +1,4 @@
-import { Head, Link, useForm, router, usePage } from '@inertiajs/react';
+import { Head, Link, useForm, router } from '@inertiajs/react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -12,7 +12,6 @@ import { ArrowLeft, FileText, AlertCircle, ChevronRight, ChevronLeft, BookOpen, 
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { useState, useEffect } from 'react';
-import { toast } from 'sonner';
 
 export default function Create({ programs, subjects: initialSubjects }) {
     const [currentStep, setCurrentStep] = useState(1);
@@ -34,27 +33,6 @@ export default function Create({ programs, subjects: initialSubjects }) {
         status: 'active',
         curriculum_subjects: [],
     });
-
-    const page = usePage();
-
-    useEffect(() => {
-        if (page.props.flash?.success) {
-            toast.success(page.props.flash.success, {
-                style: {
-                    color: '#10b981', // green-500
-                    border: '1px solid #10b981',
-                },
-            });
-        }
-        if (page.props.flash?.error) {
-            toast.error(page.props.flash.error, {
-                style: {
-                    color: '#ef4444', // red-500
-                    border: '1px solid #ef4444',
-                },
-            });
-        }
-    }, [page.props.flash]);
 
     // Constants
     const semesters = ['1st', '2nd'];

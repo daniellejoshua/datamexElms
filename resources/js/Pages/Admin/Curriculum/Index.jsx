@@ -1,4 +1,4 @@
-import { Head, Link, router, usePage } from '@inertiajs/react';
+import { Head, Link, router } from '@inertiajs/react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -7,33 +7,12 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Plus, Eye, Edit, FileText, Search, Filter, CheckCircle, ChevronRight } from 'lucide-react';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
-import { useEffect, useState } from 'react';
-import { toast } from 'sonner';
+import { useState } from 'react';
 
 export default function Index({ curricula, programs, filters = {} }) {
-    const page = usePage();
     const [selectedProgram, setSelectedProgram] = useState(filters.program_id || 'all');
     const [selectedStatus, setSelectedStatus] = useState(filters.status || 'all');
     const [searchQuery, setSearchQuery] = useState(filters.search || '');
-
-    useEffect(() => {
-        if (page.props.flash?.success) {
-            toast.success(page.props.flash.success, {
-                style: {
-                    color: '#10b981', // green-500
-                    border: '1px solid #10b981',
-                },
-            });
-        }
-        if (page.props.flash?.error) {
-            toast.error(page.props.flash.error, {
-                style: {
-                    color: '#ef4444', // red-500
-                    border: '1px solid #ef4444',
-                },
-            });
-        }
-    }, [page.props.flash]);
 
     const handleFilterChange = (key, value) => {
         const filters = {

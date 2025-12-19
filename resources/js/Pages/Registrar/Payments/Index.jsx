@@ -10,9 +10,9 @@ import { Search, Eye, Plus, FileText, DollarSign, Clock, CheckCircle, AlertCircl
 
 export default function PaymentsIndex({ payments, filters, stats }) {
     const [search, setSearch] = useState(filters.search || '');
-    const [status, setStatus] = useState(filters.status || '');
-    const [academicYear, setAcademicYear] = useState(filters.academic_year || '');
-    const [semester, setSemester] = useState(filters.semester || '');
+    const [status, setStatus] = useState(filters.status || 'all');
+    const [academicYear, setAcademicYear] = useState(filters.academic_year || 'all');
+    const [semester, setSemester] = useState(filters.semester || 'all');
 
     const handleFilter = () => {
         router.get(route('registrar.payments.index'), {
@@ -173,7 +173,7 @@ export default function PaymentsIndex({ payments, filters, stats }) {
                                     <SelectValue placeholder="All Status" />
                                 </SelectTrigger>
                                 <SelectContent>
-                                    <SelectItem value="">All Status</SelectItem>
+                                    <SelectItem value="all">All Status</SelectItem>
                                     <SelectItem value="pending">Pending</SelectItem>
                                     <SelectItem value="partial">Partial</SelectItem>
                                     <SelectItem value="completed">Completed</SelectItem>
@@ -186,7 +186,7 @@ export default function PaymentsIndex({ payments, filters, stats }) {
                                     <SelectValue placeholder="Academic Year" />
                                 </SelectTrigger>
                                 <SelectContent>
-                                    <SelectItem value="">All Years</SelectItem>
+                                    <SelectItem value="all">All Years</SelectItem>
                                     <SelectItem value="2024-2025">2024-2025</SelectItem>
                                     <SelectItem value="2023-2024">2023-2024</SelectItem>
                                 </SelectContent>
@@ -197,7 +197,7 @@ export default function PaymentsIndex({ payments, filters, stats }) {
                                     <SelectValue placeholder="Semester" />
                                 </SelectTrigger>
                                 <SelectContent>
-                                    <SelectItem value="">All Semesters</SelectItem>
+                                    <SelectItem value="all">All Semesters</SelectItem>
                                     <SelectItem value="first">First Semester</SelectItem>
                                     <SelectItem value="second">Second Semester</SelectItem>
                                 </SelectContent>

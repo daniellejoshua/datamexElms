@@ -1,6 +1,6 @@
 import ApplicationLogo from '@/Components/ApplicationLogo';
 import { Link, usePage } from '@inertiajs/react';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import {
   DropdownMenu,
@@ -13,13 +13,37 @@ import {
 import { Button } from '@/components/ui/button';
 import { ChevronDown, ChevronRight, User, LogOut } from 'lucide-react';
 import { Toaster } from '@/components/ui/sonner';
+import { toast } from 'sonner';
 
 export default function AuthenticatedLayout({ header, children }) {
+    const { flash } = usePage().props;
     const user = usePage().props.auth.user;
     const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
     const [expandedMenus, setExpandedMenus] = useState({
         'Sections': route().current('admin.sections.*') || route().current('admin.college.*') || route().current('admin.shs.*')
     });
+
+    // Handle flash messages
+    useEffect(() => {
+        if (flash?.success) {
+            toast.success(flash.success, {
+                style: {
+                    background: '#f0fdf4',
+                    color: '#166534',
+                    border: '1px solid #bbf7d0',
+                },
+            });
+        }
+        if (flash?.error) {
+            toast.error(flash.error, {
+                style: {
+                    background: '#fef2f2',
+                    color: '#dc2626',
+                    border: '1px solid #fecaca',
+                },
+            });
+        }
+    }, [flash]);
 
     const toggleMenu = (itemName) => {
         setExpandedMenus(prev => ({
@@ -125,6 +149,16 @@ export default function AuthenticatedLayout({ header, children }) {
                         icon: (
                             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.746 0 3.332.477 4.5 1.253v13C19.832 18.477 18.246 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+                            </svg>
+                        )
+                    },
+                    { 
+                        name: 'Teachers', 
+                        href: route('admin.teachers.index'), 
+                        current: route().current('admin.teachers.*'),
+                        icon: (
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z" />
                             </svg>
                         )
                     },

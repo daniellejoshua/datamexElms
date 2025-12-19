@@ -38,8 +38,18 @@ class Teacher extends Model
         return $this->hasMany(TeacherAssignment::class);
     }
 
-    public function sections(): HasMany
+    public function sections()
     {
-        return $this->hasMany(Section::class, 'teacher_id');
+        return $this->hasManyThrough(Section::class, TeacherAssignment::class, 'teacher_id', 'id', 'id', 'section_id');
+    }
+
+    public function sectionSubjects(): HasMany
+    {
+        return $this->hasMany(SectionSubject::class);
+    }
+
+    public function subjects()
+    {
+        return $this->hasManyThrough(Subject::class, SectionSubject::class, 'teacher_id', 'id', 'id', 'subject_id');
     }
 }

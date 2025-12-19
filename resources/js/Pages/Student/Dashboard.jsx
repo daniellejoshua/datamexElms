@@ -164,8 +164,8 @@ export default function Dashboard({
                 </div>
 
                 {/* Quick Stats */}
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-                    <Card>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-6 mb-6">
+                    <Card className="mb-4">
                         <CardContent className="p-4">
                             <div className="flex items-center gap-3">
                                 <div className="p-2 bg-blue-100 rounded-lg">
@@ -179,7 +179,7 @@ export default function Dashboard({
                         </CardContent>
                     </Card>
 
-                    <Card>
+                    <Card className="mb-4">
                         <CardContent className="p-4">
                             <div className="flex items-center gap-3">
                                 <div className="p-2 bg-green-100 rounded-lg">
@@ -195,7 +195,7 @@ export default function Dashboard({
                         </CardContent>
                     </Card>
 
-                    <Card>
+                    <Card className="mb-4">
                         <CardContent className="p-4">
                             <div className="flex items-center gap-3">
                                 <div className="p-2 bg-purple-100 rounded-lg">
@@ -211,7 +211,7 @@ export default function Dashboard({
                         </CardContent>
                     </Card>
 
-                    <Card>
+                    <Card className="mb-4">
                         <CardContent className="p-4">
                             <div className="flex items-center gap-3">
                                 <div className="p-2 bg-orange-100 rounded-lg">
@@ -229,9 +229,9 @@ export default function Dashboard({
                 </div>
 
                 {/* Current Academic Info & Section */}
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-6">
                     {/* Current Section Card */}
-                    <Card className="bg-gradient-to-br from-blue-50 to-indigo-50 border-blue-200">
+                    <Card className="bg-gradient-to-br from-blue-50 to-indigo-50 border-blue-200 mb-4">
                         <CardHeader className="pb-3">
                             <CardTitle className="text-lg flex items-center gap-2 text-blue-800">
                                 <Users className="w-5 h-5 text-blue-600" />
@@ -271,8 +271,8 @@ export default function Dashboard({
                         </CardContent>
                     </Card>
 
-                    {/* Today's Schedule Card */}
-                    <Card className="bg-gradient-to-br from-green-50 to-emerald-50 border-green-200">
+                    {/* Today's Schedule Card - Takes 2 columns */}
+                    <Card className="lg:col-span-1 bg-gradient-to-br from-green-50 to-emerald-50 border-green-200 mb-4">
                         <CardHeader className="pb-3">
                             <div className="flex items-center justify-between">
                                 <div>
@@ -338,12 +338,55 @@ export default function Dashboard({
                             )}
                         </CardContent>
                     </Card>
+
+                    {/* Quick Actions - Compressed */}
+                    <Card className="bg-gradient-to-br from-purple-50 to-pink-50 border-purple-200 mb-4">
+                        <CardHeader className="pb-2">
+                            <CardTitle className="text-sm flex items-center gap-2 text-purple-800">
+                                <Target className="w-4 h-4 text-purple-600" />
+                                Quick Actions
+                            </CardTitle>
+                        </CardHeader>
+                        <CardContent className="pt-0">
+                            <div className="grid grid-cols-2 gap-2">
+                                <Button asChild variant="outline" size="sm" className="h-12 flex-col gap-1 border-blue-300 text-blue-600 hover:bg-blue-50 text-xs">
+                                    <Link href={route('student.subjects')}>
+                                        <BookOpen className="w-3 h-3" />
+                                        <span>My Subjects</span>
+                                    </Link>
+                                </Button>
+
+                                <Button asChild variant="outline" size="sm" className="h-12 flex-col gap-1 border-green-300 text-green-600 hover:bg-green-50 text-xs">
+                                    <Link href={route('student.grades')}>
+                                        <TrendingUp className="w-3 h-3" />
+                                        <span>My Grades</span>
+                                    </Link>
+                                </Button>
+
+                                <Button asChild variant="outline" size="sm" className="h-12 flex-col gap-1 border-purple-300 text-purple-600 hover:bg-purple-50 text-xs">
+                                    <Link href={route('student.payments')}>
+                                        <CreditCard className="w-3 h-3" />
+                                        <span>Payments</span>
+                                    </Link>
+                                </Button>
+
+                                <Button asChild variant="outline" size="sm" className="h-12 flex-col gap-1 border-orange-300 text-orange-600 hover:bg-orange-50 text-xs">
+                                    <Link href={route('student.archived-grades')}>
+                                        <GraduationCap className="w-3 h-3" />
+                                        <span>Past Grades</span>
+                                    </Link>
+                                </Button>
+                            </div>
+                        </CardContent>
+                    </Card>
+                </div>
+
                 </div>
 
                 {/* Main Content Grid */}
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                     {/* Current Subjects */}
-                    <Card>
+                    <Card className="mb-4">
                         <CardHeader>
                             <div className="flex items-center justify-between">
                                 <div>
@@ -366,7 +409,7 @@ export default function Dashboard({
                         <CardContent>
                             {currentSubjects && currentSubjects.length > 0 ? (
                                 <div className="space-y-3">
-                                    {currentSubjects.slice(0, 4).map((subject) => (
+                                    {currentSubjects.slice(0, 3).map((subject) => (
                                         <div key={subject.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
                                             <div className="flex-1 min-w-0">
                                                 <h4 className="font-medium text-gray-900 truncate">
@@ -384,11 +427,11 @@ export default function Dashboard({
                                             </Badge>
                                         </div>
                                     ))}
-                                    {currentSubjects.length > 4 && (
+                                    {currentSubjects.length > 3 && (
                                         <div className="text-center pt-2">
                                             <Button asChild variant="outline" size="sm">
                                                 <Link href={route('student.subjects')}>
-                                                    View {currentSubjects.length - 4} more subjects
+                                                    View {currentSubjects.length - 3} more subjects
                                                 </Link>
                                             </Button>
                                         </div>
@@ -405,7 +448,7 @@ export default function Dashboard({
                     </Card>
 
                     {/* Recent Grades */}
-                    <Card>
+                    <Card className="mb-4">
                         <CardHeader>
                             <div className="flex items-center justify-between">
                                 <div>
@@ -428,7 +471,7 @@ export default function Dashboard({
                         <CardContent>
                             {recentGrades && recentGrades.length > 0 ? (
                                 <div className="space-y-3">
-                                    {recentGrades.map((grade, index) => (
+                                    {recentGrades.slice(0, 3).map((grade, index) => (
                                         <div key={index} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                                             <div className="flex-1 min-w-0">
                                                 <h4 className="font-medium text-gray-900 truncate">
@@ -445,6 +488,15 @@ export default function Dashboard({
                                             </div>
                                         </div>
                                     ))}
+                                    {recentGrades.length > 3 && (
+                                        <div className="text-center pt-2">
+                                            <Button asChild variant="outline" size="sm">
+                                                <Link href={route('student.grades')}>
+                                                    View {recentGrades.length - 3} more grades
+                                                </Link>
+                                            </Button>
+                                        </div>
+                                    )}
                                 </div>
                             ) : (
                                 <div className="text-center py-8">
@@ -457,125 +509,6 @@ export default function Dashboard({
                     </Card>
                 </div>
 
-                {/* Quick Actions */}
-                <Card>
-                    <CardHeader>
-                        <CardTitle className="flex items-center gap-2">
-                            <Target className="w-5 h-5 text-purple-600" />
-                            Quick Actions
-                        </CardTitle>
-                        <CardDescription>
-                            Access important student resources
-                        </CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                            <Button asChild variant="outline" className="h-16 flex-col gap-1 border-blue-300 text-blue-600 hover:bg-blue-50">
-                                <Link href={route('student.subjects')}>
-                                    <BookOpen className="w-5 h-5" />
-                                    <span className="text-xs">My Subjects</span>
-                                </Link>
-                            </Button>
-
-                            <Button asChild variant="outline" className="h-16 flex-col gap-1 border-green-300 text-green-600 hover:bg-green-50">
-                                <Link href={route('student.grades')}>
-                                    <TrendingUp className="w-5 h-5" />
-                                    <span className="text-xs">My Grades</span>
-                                </Link>
-                            </Button>
-
-                            <Dialog>
-                                <DialogTrigger asChild>
-                                    <Button variant="outline" className="h-16 flex-col gap-1 border-purple-300 text-purple-600 hover:bg-purple-50">
-                                        <CreditCard className="w-5 h-5" />
-                                        <span className="text-xs">Payments</span>
-                                    </Button>
-                                </DialogTrigger>
-                                <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
-                                    <DialogHeader>
-                                        <DialogTitle className="text-xl font-bold text-gray-900">Transaction History</DialogTitle>
-                                        <DialogDescription>
-                                            View all your payment transactions and their status.
-                                        </DialogDescription>
-                                    </DialogHeader>
-
-                                    <div className="space-y-4">
-                                        {paymentTransactions && paymentTransactions.length > 0 ? (
-                                            <div className="space-y-3">
-                                                {paymentTransactions.map((transaction) => (
-                                                    <Card key={transaction.id} className="border-l-4 border-l-blue-500">
-                                                        <CardContent className="p-4">
-                                                            <div className="flex items-center justify-between">
-                                                                <div className="space-y-1">
-                                                                    <div className="flex items-center gap-2">
-                                                                        <h4 className="font-semibold text-gray-900">
-                                                                            {transaction.payment?.description || 'Payment Transaction'}
-                                                                        </h4>
-                                                                        <Badge
-                                                                            variant={transaction.status === 'completed' ? 'default' : transaction.status === 'pending' ? 'secondary' : 'destructive'}
-                                                                            className={
-                                                                                transaction.status === 'completed'
-                                                                                    ? 'bg-green-100 text-green-800'
-                                                                                    : transaction.status === 'pending'
-                                                                                    ? 'bg-yellow-100 text-yellow-800'
-                                                                                    : 'bg-red-100 text-red-800'
-                                                                            }
-                                                                        >
-                                                                            {transaction.status}
-                                                                        </Badge>
-                                                                    </div>
-                                                                    <p className="text-sm text-gray-600">
-                                                                        Transaction ID: {transaction.transaction_id}
-                                                                    </p>
-                                                                    <p className="text-sm text-gray-500">
-                                                                        {new Date(transaction.created_at).toLocaleDateString('en-US', {
-                                                                            year: 'numeric',
-                                                                            month: 'long',
-                                                                            day: 'numeric',
-                                                                            hour: '2-digit',
-                                                                            minute: '2-digit'
-                                                                        })}
-                                                                    </p>
-                                                                </div>
-                                                                <div className="text-right">
-                                                                    <p className="text-lg font-bold text-gray-900">
-                                                                        ₱{parseFloat(transaction.amount).toLocaleString('en-US', { minimumFractionDigits: 2 })}
-                                                                    </p>
-                                                                    <p className="text-sm text-gray-600">
-                                                                        {transaction.payment_method}
-                                                                    </p>
-                                                                </div>
-                                                            </div>
-                                                            {transaction.notes && (
-                                                                <div className="mt-3 p-3 bg-gray-50 rounded-md">
-                                                                    <p className="text-sm text-gray-700">{transaction.notes}</p>
-                                                                </div>
-                                                            )}
-                                                        </CardContent>
-                                                    </Card>
-                                                ))}
-                                            </div>
-                                        ) : (
-                                            <div className="text-center py-8">
-                                                <Receipt className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                                                <h3 className="text-lg font-medium text-gray-900 mb-2">No transactions yet</h3>
-                                                <p className="text-gray-600">Your payment transaction history will appear here.</p>
-                                            </div>
-                                        )}
-                                    </div>
-                                </DialogContent>
-                            </Dialog>
-
-                            <Button asChild variant="outline" className="h-16 flex-col gap-1 border-orange-300 text-orange-600 hover:bg-orange-50">
-                                <Link href={route('student.archived-grades')}>
-                                    <GraduationCap className="w-5 h-5" />
-                                    <span className="text-xs">Past Grades</span>
-                                </Link>
-                            </Button>
-                        </div>
-                    </CardContent>
-                </Card>
-            </div>
             </div>
         </AuthenticatedLayout>
     )

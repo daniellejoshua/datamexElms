@@ -75,6 +75,8 @@ export default function StudentSubjectsIndex({ subjects, student, archivedEnroll
                 dayDisplay = 'MW';
             } else if (daySet.has('tuesday') && daySet.has('friday') && daySet.size === 2) {
                 dayDisplay = 'TF';
+            } else if (daySet.has('tuesday') && daySet.has('thursday') && daySet.has('saturday') && daySet.size === 3) {
+                dayDisplay = 'TTHS';
             } else {
                 // Fallback to individual abbreviations
                 const dayAbbrevs = {
@@ -161,14 +163,14 @@ export default function StudentSubjectsIndex({ subjects, student, archivedEnroll
 
                 {/* Subjects Grid */}
                 {filteredSubjects.length > 0 ? (
-                    <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
+                    <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6 mx-4 lg:mx-6 xl:mx-8">
                         {filteredSubjects.map((subject) => (
                             <Card key={subject.section_subject_id} className="group hover:shadow-xl transition-all duration-300 border-2 hover:border-blue-300 relative overflow-hidden">
                                 {/* Header */}
                                 <CardHeader className="pb-3">
                                     <div className="flex items-start justify-between">
                                         <div className="flex items-center gap-3">
-                                            <div className="bg-gradient-to-br from-blue-500 to-blue-600 p-2.5 rounded-xl shadow-md group-hover:shadow-lg transition-shadow">
+                                            <div className="bg-blue-500 p-2.5 rounded-xl shadow-md group-hover:shadow-lg transition-shadow">
                                                 <BookOpen className="w-5 h-5 text-white" />
                                             </div>
                                             <div>
@@ -290,7 +292,7 @@ export default function StudentSubjectsIndex({ subjects, student, archivedEnroll
                                 <CardHeader className="pb-4">
                                     <div className="flex items-center justify-between">
                                         <div className="flex items-center gap-3">
-                                            <div className="bg-gradient-to-br from-green-500 to-green-600 p-2.5 rounded-xl shadow-md">
+                                            <div className="bg-green-500 p-2.5 rounded-xl shadow-md">
                                                 <GraduationCap className="w-5 h-5 text-white" />
                                             </div>
                                             <div>

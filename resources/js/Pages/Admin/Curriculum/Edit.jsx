@@ -1,4 +1,4 @@
-import { Head, Link, useForm, usePage } from '@inertiajs/react';
+import { Head, Link, useForm } from '@inertiajs/react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -11,7 +11,6 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { useEffect } from 'react';
-import { toast } from 'sonner';
 
 export default function Edit({ curriculum, programs }) {
     const { data, setData, put, processing, errors } = useForm({
@@ -21,27 +20,6 @@ export default function Edit({ curriculum, programs }) {
         status: curriculum.status || 'active',
         is_current: curriculum.is_current || false,
     });
-
-    const page = usePage();
-
-    useEffect(() => {
-        if (page.props.flash?.success) {
-            toast.success(page.props.flash.success, {
-                style: {
-                    color: '#10b981', // green-500
-                    border: '1px solid #10b981',
-                },
-            });
-        }
-        if (page.props.flash?.error) {
-            toast.error(page.props.flash.error, {
-                style: {
-                    color: '#ef4444', // red-500
-                    border: '1px solid #ef4444',
-                },
-            });
-        }
-    }, [page.props.flash]);
 
     const submit = (e) => {
         e.preventDefault();

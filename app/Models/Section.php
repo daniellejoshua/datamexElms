@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasManyThrough;
 
 class Section extends Model
 {
@@ -31,6 +32,12 @@ class Section extends Model
     public function curriculum(): BelongsTo
     {
         return $this->belongsTo(Curriculum::class);
+    }
+
+    // Teacher assignments relationship
+    public function teacherAssignments(): HasMany
+    {
+        return $this->hasMany(TeacherAssignment::class);
     }
 
     // New many-to-many relationships through SectionSubject pivot
@@ -67,5 +74,11 @@ class Section extends Model
     public function courseMaterials(): HasMany
     {
         return $this->hasMany(CourseMaterial::class);
+    }
+
+    // Class schedules relationship through section subjects
+    public function classSchedules(): HasManyThrough
+    {
+        return $this->hasManyThrough(ClassSchedule::class, SectionSubject::class);
     }
 }

@@ -1,34 +1,12 @@
-import { Head, usePage } from '@inertiajs/react';
+import { Head } from '@inertiajs/react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft, FileText, BookOpen, Clock, Users } from 'lucide-react';
 import { Link } from '@inertiajs/react';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
-import { useEffect } from 'react';
-import { toast } from 'sonner';
 
 export default function Show({ curriculum, subjectsByYearSemester, totalSubjects, totalUnits }) {
-    const page = usePage();
-
-    useEffect(() => {
-        if (page.props.flash?.success) {
-            toast.success(page.props.flash.success, {
-                style: {
-                    color: '#10b981', // green-500
-                    border: '1px solid #10b981',
-                },
-            });
-        }
-        if (page.props.flash?.error) {
-            toast.error(page.props.flash.error, {
-                style: {
-                    color: '#ef4444', // red-500
-                    border: '1px solid #ef4444',
-                },
-            });
-        }
-    }, [page.props.flash]);
 
     return (
         <AuthenticatedLayout

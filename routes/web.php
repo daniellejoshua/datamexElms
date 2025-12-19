@@ -11,6 +11,7 @@ use App\Http\Controllers\Admin\SectionController;
 use App\Http\Controllers\Admin\ShsSectionController;
 use App\Http\Controllers\Admin\ShsSubjectController;
 use App\Http\Controllers\Admin\SubjectController;
+use App\Http\Controllers\Admin\TeacherController;
 use App\Http\Controllers\Admin\YearLevelCurriculumGuideController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\ProfileController;
@@ -193,12 +194,15 @@ Route::middleware(['auth', 'verified'])->prefix('admin')->name('admin.')->group(
         Route::resource('program-curricula', ProgramCurriculumController::class);
 
         // Year Level Curriculum Guide Routes
-        Route::resource('year-level-curriculum-guides', YearLevelCurriculumGuideController::class, [
-            'parameters' => ['year-level-curriculum-guides' => 'programId,yearLevel'],
-        ]);
+        Route::get('year-level-curriculum-guides', [YearLevelCurriculumGuideController::class, 'index'])->name('year-level-curriculum-guides.index');
+        Route::get('year-level-curriculum-guides/create', [YearLevelCurriculumGuideController::class, 'create'])->name('year-level-curriculum-guides.create');
+        Route::post('year-level-curriculum-guides', [YearLevelCurriculumGuideController::class, 'store'])->name('year-level-curriculum-guides.store');
+        Route::get('year-level-curriculum-guides/{programId}/{yearLevel}/edit', [YearLevelCurriculumGuideController::class, 'edit'])->name('year-level-curriculum-guides.edit');
+        Route::put('year-level-curriculum-guides/{programId}/{yearLevel}', [YearLevelCurriculumGuideController::class, 'update'])->name('year-level-curriculum-guides.update');
+        Route::delete('year-level-curriculum-guides/{programId}/{yearLevel}', [YearLevelCurriculumGuideController::class, 'destroy'])->name('year-level-curriculum-guides.destroy');
 
-        // Subject Management Routes
-        Route::resource('subjects', SubjectController::class);
+        // Teacher Management Routes
+        Route::resource('teachers', TeacherController::class);
     });
 });
 

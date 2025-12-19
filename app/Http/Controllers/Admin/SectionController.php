@@ -176,13 +176,15 @@ class SectionController extends Controller
     {
         $section->load([
             'program',
-            'subject',
             'teacherAssignments.teacher.user',
             'studentEnrollments' => function ($query) {
                 $query->with('student.user')->where('status', 'active');
             },
             'classSchedules',
         ]);
+
+        // Load section subjects with relationships
+        $sectionSubjects = $section->sectionSubjects()->with(['subject', 'teacher.user'])->get();
 
         // Get available students for enrollment
         $enrolledStudentIds = $section->studentEnrollments()
@@ -232,6 +234,7 @@ class SectionController extends Controller
 
         return Inertia::render('Admin/Sections/Show', [
             'section' => $section,
+            'sectionSubjects' => $sectionSubjects,
             'availableStudents' => $availableStudents,
         ]);
     }
