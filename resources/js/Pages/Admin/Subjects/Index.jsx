@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { Plus, Eye, Edit, Search, Filter, BookOpen, Users, Calendar } from 'lucide-react'
+import { Plus, Eye, Edit, Search, Filter, BookOpen, Users, Calendar, GraduationCap, Building2 } from 'lucide-react'
 import { useState, useEffect } from 'react'
 import { Toaster, toast } from 'sonner'
 
@@ -597,51 +597,71 @@ export default function SubjectsIndex({ subjects, programs, auth, filters = {} }
                             <BookOpen className="w-5 h-5" />
                             {selectedSubject?.subject_name}
                         </DialogTitle>
+                        <DialogDescription>
+                            Detailed information about this subject
+                        </DialogDescription>
                     </DialogHeader>
 
                     {selectedSubject && (
                         <div className="space-y-6">
                             {/* Subject Overview */}
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                <div>
-                                    <h3 className="text-lg font-semibold mb-3">Subject Details</h3>
-                                    <div className="space-y-3">
-                                        <div>
-                                            <label className="text-sm font-medium text-gray-600">Subject Code</label>
-                                            <p className="font-mono text-lg">{selectedSubject.subject_code}</p>
+                                <div className="space-y-4">
+                                    <div className="flex items-center gap-2 mb-3">
+                                        <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
+                                            <BookOpen className="w-4 h-4 text-blue-600" />
                                         </div>
-                                        <div>
-                                            <label className="text-sm font-medium text-gray-600">Subject Name</label>
-                                            <p className="text-lg">{selectedSubject.subject_name}</p>
+                                        <h3 className="text-lg font-semibold">Subject Details</h3>
+                                    </div>
+                                    <div className="space-y-3 pl-10">
+                                        <div className="flex items-center gap-3">
+                                            <span className="text-sm font-medium text-gray-600 min-w-[100px]">Code:</span>
+                                            <Badge variant="outline" className="font-mono text-sm">
+                                                {selectedSubject.subject_code}
+                                            </Badge>
+                                        </div>
+                                        <div className="flex items-center gap-3">
+                                            <span className="text-sm font-medium text-gray-600 min-w-[100px]">Name:</span>
+                                            <span className="text-sm">{selectedSubject.subject_name}</span>
                                         </div>
                                         {selectedSubject.description && (
-                                            <div>
-                                                <label className="text-sm font-medium text-gray-600">Description</label>
-                                                <p className="text-gray-700">{selectedSubject.description}</p>
+                                            <div className="flex gap-3">
+                                                <span className="text-sm font-medium text-gray-600 min-w-[100px]">Description:</span>
+                                                <span className="text-sm text-gray-700">{selectedSubject.description}</span>
                                             </div>
                                         )}
-                                        <div>
-                                            <label className="text-sm font-medium text-gray-600">Credit Units</label>
-                                            <p className="text-2xl font-bold text-blue-600">{selectedSubject.units}</p>
+                                        <div className="flex items-center gap-3">
+                                            <span className="text-sm font-medium text-gray-600 min-w-[100px]">Units:</span>
+                                            <div className="flex items-center gap-2">
+                                                <span className="text-2xl font-bold text-blue-600">{selectedSubject.units}</span>
+                                                <span className="text-sm text-gray-500">credit units</span>
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
 
-                                <div>
-                                    <h3 className="text-lg font-semibold mb-3">Academic Information</h3>
-                                    <div className="space-y-3">
-                                        <div>
-                                            <label className="text-sm font-medium text-gray-600">Education Level</label>
-                                            <p>{selectedSubject.education_level === 'college' ? 'College' : 'Senior High School'}</p>
+                                <div className="space-y-4">
+                                    <div className="flex items-center gap-2 mb-3">
+                                        <div className="w-8 h-8 bg-green-100 rounded-lg flex items-center justify-center">
+                                            <GraduationCap className="w-4 h-4 text-green-600" />
                                         </div>
-                                        <div>
-                                            <label className="text-sm font-medium text-gray-600">Subject Type</label>
-                                            <Badge className={getSubjectTypeColor(selectedSubject.subject_type)}>
+                                        <h3 className="text-lg font-semibold">Academic Information</h3>
+                                    </div>
+                                    <div className="space-y-3 pl-10">
+                                        <div className="flex items-center gap-3">
+                                            <span className="text-sm font-medium text-gray-600 min-w-[120px]">Level:</span>
+                                            <Badge variant="secondary" className="text-xs">
+                                                {selectedSubject.education_level === 'college' ? 'College' : 'Senior High School'}
+                                            </Badge>
+                                        </div>
+                                        <div className="flex items-center gap-3">
+                                            <span className="text-sm font-medium text-gray-600 min-w-[120px]">Type:</span>
+                                            <Badge className={`text-xs ${getSubjectTypeColor(selectedSubject.subject_type)}`}>
                                                 {selectedSubject.subject_type.charAt(0).toUpperCase() + selectedSubject.subject_type.slice(1)}
                                             </Badge>
                                         </div>
-                                        <div>
-                                            <label className="text-sm font-medium text-gray-600">Status</label>
+                                        <div className="flex items-center gap-3">
+                                            <span className="text-sm font-medium text-gray-600 min-w-[120px]">Status:</span>
                                             <Badge className={selectedSubject.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}>
                                                 {selectedSubject.status === 'active' ? 'Active' : 'Inactive'}
                                             </Badge>
@@ -652,37 +672,60 @@ export default function SubjectsIndex({ subjects, programs, auth, filters = {} }
 
                             {/* Prerequisites */}
                             {selectedSubject.prerequisites && (
-                                <div>
-                                    <h3 className="text-lg font-semibold mb-3">Prerequisites</h3>
-                                    <p className="text-gray-700 bg-gray-50 p-3 rounded-lg">{selectedSubject.prerequisites}</p>
+                                <div className="space-y-3">
+                                    <div className="flex items-center gap-2">
+                                        <div className="w-8 h-8 bg-yellow-100 rounded-lg flex items-center justify-center">
+                                            <Calendar className="w-4 h-4 text-yellow-600" />
+                                        </div>
+                                        <h3 className="text-lg font-semibold">Prerequisites</h3>
+                                    </div>
+                                    <div className="pl-10">
+                                        <p className="text-gray-700 bg-yellow-50 p-4 rounded-lg border border-yellow-200">
+                                            {selectedSubject.prerequisites}
+                                        </p>
+                                    </div>
                                 </div>
                             )}
 
                             {/* Programs */}
                             {selectedSubject.programs && selectedSubject.programs.length > 0 && (
-                                <div>
-                                    <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
-                                        <Users className="w-4 h-4" />
-                                        Assigned to Programs ({selectedSubject.programs.length})
-                                    </h3>
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                        {selectedSubject.programs.map((program) => (
-                                            <div key={program.id} className="flex items-center justify-between p-3 border rounded-lg bg-gray-50">
-                                                <div>
-                                                    <p className="font-medium">{program.program_name}</p>
-                                                    <p className="text-sm text-gray-600">{program.program_code}</p>
+                                <div className="space-y-3">
+                                    <div className="flex items-center gap-2">
+                                        <div className="w-8 h-8 bg-purple-100 rounded-lg flex items-center justify-center">
+                                            <Users className="w-4 h-4 text-purple-600" />
+                                        </div>
+                                        <h3 className="text-lg font-semibold flex items-center gap-2">
+                                            Assigned Programs
+                                            <Badge variant="outline" className="text-xs">
+                                                {selectedSubject.programs.length}
+                                            </Badge>
+                                        </h3>
+                                    </div>
+                                    <div className="pl-10">
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                            {selectedSubject.programs.map((program) => (
+                                                <div key={program.id} className="flex items-center justify-between p-4 border rounded-lg bg-purple-50 border-purple-200">
+                                                    <div className="flex items-center gap-3">
+                                                        <div className="w-10 h-10 bg-purple-200 rounded-lg flex items-center justify-center">
+                                                            <Building2 className="w-5 h-5 text-purple-700" />
+                                                        </div>
+                                                        <div>
+                                                            <p className="font-medium text-purple-900">{program.program_name}</p>
+                                                            <p className="text-sm text-purple-600">{program.program_code}</p>
+                                                        </div>
+                                                    </div>
+                                                    <Badge variant="outline" className="text-xs">
+                                                        {program.education_level === 'college' ? 'College' : 'SHS'}
+                                                    </Badge>
                                                 </div>
-                                                <Badge variant="outline">
-                                                    {program.education_level === 'college' ? 'College' : 'SHS'}
-                                                </Badge>
-                                            </div>
-                                        ))}
+                                            ))}
+                                        </div>
                                     </div>
                                 </div>
                             )}
 
                             {/* Actions */}
-                            <div className="flex justify-end gap-3 pt-4 border-t">
+                            <div className="flex justify-end gap-3 pt-6 border-t">
                                 <Button variant="outline" onClick={() => setViewModalOpen(false)}>
                                     Close
                                 </Button>

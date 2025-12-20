@@ -174,12 +174,16 @@ class CurriculumController extends Controller
 
         $totalSubjects = $curriculum->curriculumSubjects->count();
         $totalUnits = $curriculum->curriculumSubjects->sum('units');
+        $totalMajors = $curriculum->curriculumSubjects->where('subject_type', 'major')->count();
+        $totalMinors = $curriculum->curriculumSubjects->where('subject_type', 'minor')->count();
 
         return Inertia::render('Admin/Curriculum/Show', [
             'curriculum' => $curriculum,
             'subjectsByYearSemester' => $subjectsByYearSemester,
             'totalSubjects' => $totalSubjects,
             'totalUnits' => $totalUnits,
+            'totalMajors' => $totalMajors,
+            'totalMinors' => $totalMinors,
         ]);
     }
 

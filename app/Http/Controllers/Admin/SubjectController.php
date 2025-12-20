@@ -90,18 +90,6 @@ class SubjectController extends Controller
     }
 
     /**
-     * Display the specified resource.
-     */
-    public function show(Subject $subject)
-    {
-        $subject->load(['programs']);
-
-        return Inertia::render('Admin/Subjects/Show', [
-            'subject' => $subject,
-        ]);
-    }
-
-    /**
      * Show the form for editing the specified resource.
      */
     public function edit(Subject $subject)
