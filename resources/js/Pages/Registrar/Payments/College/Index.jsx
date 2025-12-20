@@ -4,8 +4,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { DollarSign, Users, AlertTriangle, Clock, Search, Plus, Eye, CreditCard } from 'lucide-react'
-import { useState } from 'react'
+import { DollarSign, Users, AlertTriangle, Clock, Search, Plus, Eye, CreditCard, X } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { Toaster, toast } from 'sonner'
 
 // Helper function to format section name
 const formatSectionName = (section) => {
@@ -43,6 +44,11 @@ export default function CollegePaymentsIndex({ payments, stats, filters, current
         })
     }
 
+    // Auto-apply filters when they change
+    useEffect(() => {
+        handleFilterChange()
+    }, [academicYear, semester, studentType])
+
     const getLastPaymentTerm = (payment) => {
         // Check for the most recent payment term (either fully paid or has payment date)
         if (payment.final_paid || payment.final_payment_date) return 'Final'
@@ -54,37 +60,22 @@ export default function CollegePaymentsIndex({ payments, stats, filters, current
     }
 
     const getAvailableTerms = (payment) => {
-        const terms = []
-        
-        // Can pay next unpaid term in sequence
-        if (!payment.enrollment_paid) {
-            terms.push({value: 'enrollment', label: 'Enrollment'})
-        } else if (!payment.prelim_paid) {
-            terms.push({value: 'prelim', label: 'Prelim'})
-        } else if (!payment.midterm_paid) {
-            terms.push({value: 'midterm', label: 'Midterm'})
-        } else if (!payment.prefinal_paid) {
-            terms.push({value: 'prefinal', label: 'Pre-final'})
-        } else if (!payment.final_paid) {
-            terms.push({value: 'final', label: 'Final'})
-        }
-        
-        return terms
+        // Return all terms - user can choose any term to pay
+        return [
+            {value: 'prelim', label: 'Prelim'},
+            {value: 'midterm', label: 'Midterm'},
+            {value: 'prefinal', label: 'Pre-final'},
+            {value: 'final', label: 'Final'}
+        ]
     }
 
     const handleRecordPayment = (payment) => {
-        const availableTerms = getAvailableTerms(payment)
-        if (availableTerms.length === 0) {
-            alert('All terms have been paid for this student.')
-            return
-        }
-        
         setSelectedPayment(payment)
         setShowPaymentModal(true)
         setPaymentForm({
             amount_paid: '',
             payment_date: new Date().toISOString().split('T')[0],
-            term: availableTerms[0].value, // Default to first available term
+            term: 'prelim', // Default to prelim
             or_number: '',
             notes: ''
         })
@@ -95,6 +86,14 @@ export default function CollegePaymentsIndex({ payments, stats, filters, current
             onSuccess: () => {
                 setShowPaymentModal(false)
                 setSelectedPayment(null)
+                toast.success('Payment recorded successfully!', {
+                    description: `Payment of ₱${paymentForm.amount_paid} has been recorded for ${selectedPayment?.student?.user?.name}`,
+                })
+            },
+            onError: (errors) => {
+                toast.error('Failed to record payment', {
+                    description: 'Please check your input and try again.',
+                })
             }
         })
     }
@@ -142,64 +141,66 @@ export default function CollegePaymentsIndex({ payments, stats, filters, current
 
             <div className="space-y-6">
                 {/* Stats Overview */}
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mx-4 md:mx-6 lg:mx-8">
                     <Card>
                         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                            <CardTitle className="text-sm font-medium">Total Payments</CardTitle>
+                            <CardTitle className="text-sm font-medium">Total Students</CardTitle>
                             <Users className="h-4 w-4 text-muted-foreground" />
                         </CardHeader>
                         <CardContent>
-                            <div className="text-2xl font-bold">{stats.total_payments}</div>
+                            <div className="text-2xl font-bold">{stats.total_students || payments.total || payments.data?.length || 0}</div>
                             <p className="text-xs text-muted-foreground">
-                                College payment records
+                                Enrolled students
                             </p>
                         </CardContent>
                     </Card>
 
                     <Card>
                         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                            <CardTitle className="text-sm font-medium">Pending Payments</CardTitle>
+                            <CardTitle className="text-sm font-medium">Paid This Month</CardTitle>
                             <Clock className="h-4 w-4 text-muted-foreground" />
                         </CardHeader>
                         <CardContent>
-                            <div className="text-2xl font-bold text-yellow-600">{stats.pending_payments}</div>
+                            <div className="text-2xl font-bold text-green-600">{stats.paid_this_month || 0}</div>
                             <p className="text-xs text-muted-foreground">
-                                Awaiting payment
+                                Completed payments
                             </p>
                         </CardContent>
                     </Card>
 
                     <Card>
                         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                            <CardTitle className="text-sm font-medium">Overdue</CardTitle>
+                            <CardTitle className="text-sm font-medium">Overdue Amount</CardTitle>
                             <AlertTriangle className="h-4 w-4 text-muted-foreground" />
                         </CardHeader>
                         <CardContent>
-                            <div className="text-2xl font-bold text-red-600">{stats.overdue_payments}</div>
+                            <div className="text-2xl font-bold text-red-600">
+                                {formatCurrency(stats.overdue_amount || 0)}
+                            </div>
                             <p className="text-xs text-muted-foreground">
-                                Past due date
+                                Amount past due
                             </p>
                         </CardContent>
                     </Card>
 
                     <Card>
                         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                            <CardTitle className="text-sm font-medium">Total Outstanding</CardTitle>
+                            <CardTitle className="text-sm font-medium">Monthly Revenue</CardTitle>
                             <DollarSign className="h-4 w-4 text-muted-foreground" />
                         </CardHeader>
                         <CardContent>
-                            <div className="text-2xl font-bold text-green-600">
-                                {formatCurrency(stats.total_collectible)}
+                            <div className="text-2xl font-bold text-blue-600">
+                                {formatCurrency(stats.monthly_revenue || 0)}
                             </div>
                             <p className="text-xs text-muted-foreground">
-                                Amount to collect
+                                Revenue this month
                             </p>
                         </CardContent>
                     </Card>
                 </div>
 
                 {/* Search and Filters */}
-                <Card>
+                <Card className="mx-4 md:mx-6 lg:mx-8">
                     <CardHeader>
                         <CardTitle className="text-lg">Search Payments</CardTitle>
                     </CardHeader>
@@ -236,7 +237,6 @@ export default function CollegePaymentsIndex({ payments, stats, filters, current
                                     >
                                         <option value="1st">1st Semester</option>
                                         <option value="2nd">2nd Semester</option>
-                                        <option value="Summer">Summer</option>
                                     </select>
                                 </div>
                                 <div className="flex-1">
@@ -250,14 +250,6 @@ export default function CollegePaymentsIndex({ payments, stats, filters, current
                                         <option value="regular">Regular</option>
                                         <option value="irregular">Irregular</option>
                                     </select>
-                                </div>
-                                <div className="flex items-end">
-                                    <Button 
-                                        onClick={handleFilterChange}
-                                        className="w-full sm:w-auto"
-                                    >
-                                        Apply Filters
-                                    </Button>
                                 </div>
                             </div>
                             {(academicYear !== currentAcademicYear || semester !== currentSemester || studentType !== 'all') && (
@@ -282,7 +274,7 @@ export default function CollegePaymentsIndex({ payments, stats, filters, current
                 </Card>
 
                 {/* Payments Table */}
-                <Card>
+                <Card className="mx-4 md:mx-6 lg:mx-8">
                     <CardHeader>
                         <div className="flex justify-between items-center">
                             <div>
@@ -384,10 +376,9 @@ export default function CollegePaymentsIndex({ payments, stats, filters, current
                                                         size="sm"
                                                         onClick={() => handleRecordPayment(payment)}
                                                         className="bg-green-600 hover:bg-green-700"
-                                                        disabled={getAvailableTerms(payment).length === 0}
                                                     >
                                                         <CreditCard className="w-3 h-3 mr-1" />
-                                                        {getAvailableTerms(payment).length === 0 ? 'Fully Paid' : 'Record Payment'}
+                                                        Record Payment
                                                     </Button>
                                                     <Link
                                                         href={route('registrar.payments.college.show', payment.student.id)}
@@ -451,104 +442,155 @@ export default function CollegePaymentsIndex({ payments, stats, filters, current
 
             {/* Payment Recording Modal */}
             {showPaymentModal && (
-                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-                    <div className="bg-white rounded-lg p-6 w-full max-w-md">
-                        <h3 className="text-lg font-semibold mb-4">Record Payment</h3>
-                        <div className="space-y-4">
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-2">
-                                    Student: {selectedPayment?.student?.user?.name}
-                                </label>
-                            </div>
-                            
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-2">
-                                    Payment Term
-                                </label>
-                                <select
-                                    value={paymentForm.term}
-                                    onChange={(e) => setPaymentForm({...paymentForm, term: e.target.value})}
-                                    className="w-full border border-gray-300 rounded-md px-3 py-2"
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+                    <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+                        {/* Gradient Header */}
+                        <div className="bg-gradient-to-r from-blue-600 to-purple-600 text-white p-6 rounded-t-xl">
+                            <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-3">
+                                    <div className="p-2 bg-white bg-opacity-20 rounded-lg">
+                                        <CreditCard className="w-6 h-6" />
+                                    </div>
+                                    <div>
+                                        <h3 className="text-xl font-bold">Record Payment</h3>
+                                        <p className="text-blue-100 text-sm">Process student payment transaction</p>
+                                    </div>
+                                </div>
+                                <button
+                                    onClick={() => setShowPaymentModal(false)}
+                                    className="text-white hover:text-blue-100 transition-colors"
                                 >
+                                    <span className="sr-only">Close</span>
+                                    <X className="w-6 h-6" />
+                                </button>
+                            </div>
+                        </div>
+
+                        <div className="p-6">
+                            {/* Student Info */}
+                            <div className="bg-gray-50 rounded-lg p-4 mb-6">
+                                <div className="flex items-center gap-3">
+                                    <div className="p-2 bg-blue-100 rounded-lg">
+                                        <Users className="w-5 h-5 text-blue-600" />
+                                    </div>
+                                    <div>
+                                        <p className="font-semibold text-gray-900">{selectedPayment?.student?.user?.name}</p>
+                                        <p className="text-sm text-gray-600">Student Number: {selectedPayment?.student?.student_number}</p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Payment Term Selection */}
+                            <div className="mb-6">
+                                <label className="block text-sm font-semibold text-gray-900 mb-4">
+                                    Select Payment Term
+                                </label>
+                                <div className="grid grid-cols-2 gap-3">
                                     {selectedPayment && getAvailableTerms(selectedPayment).map(term => (
-                                        <option key={term.value} value={term.value}>{term.label}</option>
+                                        <label key={term.value} className="flex items-center gap-3 p-4 border-2 border-gray-200 rounded-lg hover:border-blue-300 transition-all duration-200 cursor-pointer">
+                                            <input
+                                                type="radio"
+                                                name="paymentTerm"
+                                                value={term.value}
+                                                checked={paymentForm.term === term.value}
+                                                onChange={(e) => setPaymentForm({...paymentForm, term: e.target.value})}
+                                                className="w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500"
+                                            />
+                                            <span className="text-sm font-medium text-gray-900">{term.label}</span>
+                                        </label>
                                     ))}
-                                </select>
-                                {selectedPayment && getAvailableTerms(selectedPayment).length === 0 && (
-                                    <p className="text-sm text-red-500 mt-1">
-                                        All terms have been paid.
-                                    </p>
-                                )}
+                                </div>
                             </div>
 
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-2">
-                                    Amount Paid
-                                </label>
-                                <Input
-                                    type="number"
-                                    step="0.01"
-                                    value={paymentForm.amount_paid}
-                                    onChange={(e) => setPaymentForm({...paymentForm, amount_paid: e.target.value})}
-                                    placeholder="Enter amount"
-                                />
-                                {selectedPayment && (
-                                    <p className="text-sm text-gray-500 mt-1">
-                                        Remaining Balance: {formatCurrency(selectedPayment.balance)}
-                                    </p>
-                                )}
+                            {/* Amount and Date Row */}
+                            <div className="grid grid-cols-2 gap-4 mb-4">
+                                <div>
+                                    <label className="block text-sm font-semibold text-gray-900 mb-2">
+                                        Amount Paid *
+                                    </label>
+                                    <div className="relative">
+                                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                            <span className="text-gray-500 sm:text-sm">₱</span>
+                                        </div>
+                                        <Input
+                                            type="number"
+                                            step="0.01"
+                                            value={paymentForm.amount_paid}
+                                            onChange={(e) => setPaymentForm({...paymentForm, amount_paid: e.target.value})}
+                                            onKeyDown={(e) => {
+                                                // Prevent 'e', '+', and '-' characters
+                                                if (e.key === 'e' || e.key === 'E' || e.key === '+' || e.key === '-') {
+                                                    e.preventDefault();
+                                                }
+                                            }}
+                                            placeholder="0.00"
+                                            className="pl-8"
+                                            required
+                                        />
+                                    </div>
+                                    {selectedPayment && (
+                                        <p className="text-xs text-gray-500 mt-1">
+                                            Balance: {formatCurrency(selectedPayment.balance)}
+                                        </p>
+                                    )}
+                                </div>
+
+                                <div>
+                                    <label className="block text-sm font-semibold text-gray-900 mb-2">
+                                        Payment Date *
+                                    </label>
+                                    <Input
+                                        type="date"
+                                        value={paymentForm.payment_date}
+                                        onChange={(e) => setPaymentForm({...paymentForm, payment_date: e.target.value})}
+                                        required
+                                    />
+                                </div>
                             </div>
 
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-2">
-                                    Payment Date
-                                </label>
-                                <Input
-                                    type="date"
-                                    value={paymentForm.payment_date}
-                                    onChange={(e) => setPaymentForm({...paymentForm, payment_date: e.target.value})}
-                                />
-                            </div>
-
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-2">
-                                    OR Number *
+                            {/* OR Number */}
+                            <div className="mb-4">
+                                <label className="block text-sm font-semibold text-gray-900 mb-2">
+                                    Official Receipt Number *
                                 </label>
                                 <Input
                                     value={paymentForm.or_number}
                                     onChange={(e) => setPaymentForm({...paymentForm, or_number: e.target.value})}
-                                    placeholder="Official Receipt Number"
+                                    placeholder="Enter OR number"
                                     required
                                 />
                             </div>
 
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-2">
-                                    Notes (Optional)
+                            {/* Notes */}
+                            <div className="mb-6">
+                                <label className="block text-sm font-semibold text-gray-900 mb-2">
+                                    Notes <span className="text-gray-500 font-normal">(Optional)</span>
                                 </label>
                                 <Input
                                     value={paymentForm.notes}
                                     onChange={(e) => setPaymentForm({...paymentForm, notes: e.target.value})}
-                                    placeholder="Payment notes..."
+                                    placeholder="Add payment notes..."
                                 />
                             </div>
-                        </div>
 
-                        <div className="flex gap-2 mt-6">
-                            <Button
-                                variant="outline"
-                                onClick={() => setShowPaymentModal(false)}
-                                className="flex-1"
-                            >
-                                Cancel
-                            </Button>
-                            <Button
-                                onClick={submitPayment}
-                                disabled={!paymentForm.amount_paid || !paymentForm.or_number}
-                                className="flex-1 bg-green-600 hover:bg-green-700"
-                            >
-                                Record Payment
-                            </Button>
+                            {/* Buttons */}
+                            <div className="flex gap-3 pt-4 border-t">
+                                <Button
+                                    variant="outline"
+                                    onClick={() => setShowPaymentModal(false)}
+                                    className="flex-1"
+                                >
+                                    Cancel
+                                </Button>
+                                <Button
+                                    onClick={submitPayment}
+                                    disabled={!paymentForm.amount_paid || !paymentForm.or_number}
+                                    className="flex-1 bg-blue-600 hover:bg-blue-700 text-white"
+                                >
+                                    <CreditCard className="w-4 h-4 mr-2" />
+                                    Record Payment
+                                </Button>
+                            </div>
                         </div>
                     </div>
                 </div>

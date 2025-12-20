@@ -270,7 +270,6 @@ const Edit = ({ teacher }) => {
                     </Card>
                 </div>
             </div>
-            <Toaster position="top-right" />
         </AuthenticatedLayout>
     );
 };

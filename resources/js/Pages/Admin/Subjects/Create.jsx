@@ -317,7 +317,6 @@ export default function SubjectsCreate({ auth, programs }) {
                     </div>
                 </form>
             </div>
-            <Toaster position="top-right" richColors theme="light" />
         </AuthenticatedLayout>
     )
 }

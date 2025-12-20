@@ -761,7 +761,6 @@ export default function SubjectsIndex({ subjects, programs, auth, filters = {} }
                     )}
                 </DialogContent>
             </Dialog>
-            <Toaster position="top-right" richColors theme="light" />
         </AuthenticatedLayout>
     )
 }

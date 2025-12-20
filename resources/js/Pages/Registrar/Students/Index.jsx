@@ -53,8 +53,12 @@ export default function StudentsIndex({ students, programs, filters, auth, on_ho
     const [isFiltersExpanded, setIsFiltersExpanded] = useState(false)
     const [suffixType, setSuffixType] = useState('none') // 'none', 'selected', 'other'
     const [customSuffix, setCustomSuffix] = useState('')
+    const [isApplyingFilters, setIsApplyingFilters] = useState(false)
+    const [isSavingEdit, setIsSavingEdit] = useState(false)
+    const [isLoadingModal, setIsLoadingModal] = useState(false)
 
     const handleFilterChange = () => {
+        setIsApplyingFilters(true)
         router.get(route('registrar.students'), {
             education_level: educationLevel,
             status: status,
@@ -64,6 +68,7 @@ export default function StudentsIndex({ students, programs, filters, auth, on_ho
         }, {
             preserveState: true,
             preserveScroll: true,
+            onFinish: () => setIsApplyingFilters(false),
         })
     }
 
@@ -73,7 +78,10 @@ export default function StudentsIndex({ students, programs, filters, auth, on_ho
         setYearLevel('all')
         setStudentType('all')
         setEnrollmentStatus('enrolled')
-        router.get(route('registrar.students'))
+        setIsApplyingFilters(true)
+        router.get(route('registrar.students'), {}, {
+            onFinish: () => setIsApplyingFilters(false),
+        })
     }
 
     const filteredStudents = students.data.filter(student =>
@@ -124,6 +132,15 @@ export default function StudentsIndex({ students, programs, filters, auth, on_ho
             setEditFormData(prev => ({ ...prev, suffix: suffixType }))
         }
     }, [suffixType, customSuffix])
+
+    // Auto-apply filters when they change
+    useEffect(() => {
+        const timeoutId = setTimeout(() => {
+            handleFilterChange()
+        }, 300) // Debounce for 300ms to avoid too many requests
+
+        return () => clearTimeout(timeoutId)
+    }, [educationLevel, status, yearLevel, studentType, enrollmentStatus])
 
     const handleViewStudent = (studentId) => {
         const student = filteredStudents.find(s => s.id === studentId)
@@ -199,6 +216,7 @@ export default function StudentsIndex({ students, programs, filters, auth, on_ho
     }
 
     const handleSaveStudent = () => {
+        setIsSavingEdit(true)
         router.put(route('registrar.students.update', selectedStudent.id), editFormData, {
             onSuccess: () => {
                 toast.success('Student updated successfully!', {
@@ -214,7 +232,8 @@ export default function StudentsIndex({ students, programs, filters, auth, on_ho
                     style: { border: '1px solid #ef4444', color: '#ef4444' }
                 })
                 console.error('Update failed:', errors)
-            }
+            },
+            onFinish: () => setIsSavingEdit(false),
         })
     }
 
@@ -259,6 +278,24 @@ export default function StudentsIndex({ students, programs, filters, auth, on_ho
                                         Add Student
                                     </Button>
                                 </Link>
+                                {(educationLevel !== 'all' || status !== 'all' || yearLevel !== 'all' || studentType !== 'all' || enrollmentStatus !== 'enrolled') && (
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={handleResetFilters}
+                                        disabled={isApplyingFilters}
+                                        className="gap-2"
+                                    >
+                                        {isApplyingFilters ? (
+                                            <>
+                                                <div className="w-4 h-4 border-2 border-gray-300 border-t-gray-600 rounded-full animate-spin"></div>
+                                                Resetting...
+                                            </>
+                                        ) : (
+                                            'Reset Filters'
+                                        )}
+                                    </Button>
+                                )}
                                 <Button
                                     variant="outline"
                                     size="sm"
@@ -276,10 +313,6 @@ export default function StudentsIndex({ students, programs, filters, auth, on_ho
                             <div className="space-y-6">
                                 {/* Filter Grid */}
                                 <div className="space-y-4">
-                                    <h4 className="text-sm font-medium text-gray-900 flex items-center gap-2">
-                                        <Filter className="w-4 h-4" />
-                                        Advanced Filters
-                                    </h4>
                                     {/* Search Input */}
                                     <div className="space-y-1.5">
                                         <label className="text-xs font-medium text-gray-600 uppercase tracking-wide">Search Students</label>
@@ -389,19 +422,6 @@ export default function StudentsIndex({ students, programs, filters, auth, on_ho
                                         </div>
                                     </div>
                                 </div>
-
-                                {/* Action Buttons */}
-                                <div className="flex flex-col sm:flex-row gap-3 pt-4 border-t">
-                                    <Button onClick={handleFilterChange} className="flex-1 sm:flex-initial">
-                                        <Filter className="w-4 h-4 mr-2" />
-                                        Apply Filters
-                                    </Button>
-                                    {(educationLevel !== 'all' || status !== 'all' || yearLevel !== 'all' || studentType !== 'all' || enrollmentStatus !== 'enrolled') && (
-                                        <Button variant="outline" onClick={handleResetFilters} className="flex-1 sm:flex-initial">
-                                            Reset All Filters
-                                        </Button>
-                                    )}
-                                </div>
                             </div>
                         </CardContent>
                     )}
@@ -422,7 +442,16 @@ export default function StudentsIndex({ students, programs, filters, auth, on_ho
                             </div>
                         </div>
                     </CardHeader>
-                    <CardContent className="p-0">
+                    <CardContent className="p-0 relative">
+                        {/* Loading overlay */}
+                        {isApplyingFilters && (
+                            <div className="absolute inset-0 bg-white bg-opacity-75 flex items-center justify-center z-20">
+                                <div className="flex items-center gap-3 bg-white px-4 py-3 rounded-lg shadow-lg border">
+                                    <div className="w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+                                    <span className="text-sm font-medium text-gray-700">Applying filters...</span>
+                                </div>
+                            </div>
+                        )}
                         {/* Table with fixed height */}
                         <div className="max-h-96 overflow-y-auto">
                             <div className="overflow-x-auto">
@@ -606,62 +635,121 @@ export default function StudentsIndex({ students, programs, filters, auth, on_ho
                     setIsEditMode(false)
                 }
             }}>
-                <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-                    <DialogHeader>
-                        <div className="flex justify-between items-center">
-                            <div>
-                                <DialogTitle className="flex items-center gap-3">
-                                    <User className="w-6 h-6 text-purple-600" />
-                                    {isEditMode ? 'Edit Student' : 'Student Details'}
-                                </DialogTitle>
-                                <DialogDescription>
-                                    {isEditMode ? 'Update student information and settings' : 'View complete student information and enrollment details'}
-                                </DialogDescription>
+                <DialogContent className="max-w-5xl max-h-[95vh] overflow-y-auto">
+                    <DialogHeader className="pb-4">
+                        <div className="flex justify-between items-start">
+                            <div className="flex items-center gap-4">
+                                {/* Student Avatar */}
+                                <div className="w-16 h-16 bg-blue-500 rounded-full flex items-center justify-center text-white font-bold text-xl">
+                                    {selectedStudent ? formatStudentName(selectedStudent).split(' ').map(n => n[0]).join('').toUpperCase() : 'S'}
+                                </div>
+                                <div>
+                                    <DialogTitle className="text-2xl font-bold text-gray-900">
+                                        {isEditMode ? 'Edit Student' : 'Student Profile'}
+                                    </DialogTitle>
+                                    <DialogDescription className="text-gray-600 mt-1">
+                                        {isEditMode ? 'Update student information and settings' : 'Complete student information and academic records'}
+                                    </DialogDescription>
+                                    {selectedStudent && (
+                                        <div className="flex items-center gap-4 mt-2">
+                                            <Badge variant="outline" className="font-mono text-sm">
+                                                {selectedStudent.student_number}
+                                            </Badge>
+                                            <Badge className={`${getStatusColor(selectedStudent.status)} font-medium`}>
+                                                {getStatusText(selectedStudent.status)}
+                                            </Badge>
+                                            <Badge
+                                                variant="secondary"
+                                                className={selectedStudent.student_type === 'regular'
+                                                    ? 'bg-blue-100 text-blue-800'
+                                                    : 'bg-orange-100 text-orange-800'
+                                                }
+                                            >
+                                                {selectedStudent.student_type}
+                                            </Badge>
+                                        </div>
+                                    )}
+                                </div>
                             </div>
                         </div>
                     </DialogHeader>
 
                     {selectedStudent && (
                         <div className="space-y-6">
-                            {/* Basic Information */}
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                <Card>
-                                    <CardHeader>
-                                        <CardTitle className="text-lg flex items-center gap-2">
+                            {/* Quick Stats Bar */}
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 p-4 bg-gradient-to-r from-blue-50 to-purple-50 rounded-lg border">
+                                <div className="text-center">
+                                    <div className="text-2xl font-bold text-blue-600">
+                                        {selectedStudent.education_level === 'college'
+                                            ? `${selectedStudent.current_year_level || selectedStudent.year_level}Y`
+                                            : `G${selectedStudent.year_level}`
+                                        }
+                                    </div>
+                                    <div className="text-xs text-gray-600 uppercase tracking-wide">Year Level</div>
+                                </div>
+                                <div className="text-center">
+                                    <div className="text-2xl font-bold text-purple-600">
+                                        {selectedStudent.program?.program_code || 'N/A'}
+                                    </div>
+                                    <div className="text-xs text-gray-600 uppercase tracking-wide">Program</div>
+                                </div>
+                                <div className="text-center">
+                                    <div className="text-2xl font-bold text-green-600">
+                                        {selectedStudent.is_currently_enrolled ? '✓' : '✗'}
+                                    </div>
+                                    <div className="text-xs text-gray-600 uppercase tracking-wide">Enrolled</div>
+                                </div>
+                                <div className="text-center">
+                                    <div className="text-2xl font-bold text-orange-600">
+                                        {selectedStudent.archived_enrollments?.length || 0}
+                                    </div>
+                                    <div className="text-xs text-gray-600 uppercase tracking-wide">Past Semesters</div>
+                                </div>
+                            </div>
+
+                            {/* Main Information Grid */}
+                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                                {/* Personal Information Card */}
+                                <Card className="border-l-4 border-l-blue-500">
+                                    <CardHeader className="pb-3">
+                                        <CardTitle className="text-lg flex items-center gap-2 text-blue-700">
                                             <User className="w-5 h-5" />
                                             Personal Information
                                         </CardTitle>
                                     </CardHeader>
-                                    <CardContent className="space-y-3">
+                                    <CardContent className="space-y-4">
                                         {isEditMode ? (
-                                            <div className="grid grid-cols-1 gap-3">
+                                            <div className="space-y-4">
                                                 <div className="grid grid-cols-2 gap-3">
                                                     <div>
-                                                        <label className="text-sm font-medium text-gray-700">First Name</label>
+                                                        <label className="text-sm font-medium text-gray-700 mb-1 block">First Name</label>
                                                         <Input
                                                             value={editFormData.first_name}
                                                             onChange={(e) => setEditFormData({...editFormData, first_name: e.target.value})}
+                                                            className="h-9"
                                                         />
                                                     </div>
                                                     <div>
-                                                        <label className="text-sm font-medium text-gray-700">Last Name</label>
+                                                        <label className="text-sm font-medium text-gray-700 mb-1 block">Last Name</label>
                                                         <Input
                                                             value={editFormData.last_name}
                                                             onChange={(e) => setEditFormData({...editFormData, last_name: e.target.value})}
+                                                            className="h-9"
                                                         />
                                                     </div>
                                                 </div>
                                                 <div>
-                                                    <label className="text-sm font-medium text-gray-700">Middle Name</label>
+                                                    <label className="text-sm font-medium text-gray-700 mb-1 block">Middle Name</label>
                                                     <Input
                                                         value={editFormData.middle_name}
                                                         onChange={(e) => setEditFormData({...editFormData, middle_name: e.target.value})}
+                                                        className="h-9"
                                                     />
                                                 </div>
                                                 <div>
-                                                    <label className="text-sm font-medium text-gray-700">Suffix</label>
-                                                    <Select 
-                                                        value={suffixType} 
+                                                    <label className="text-sm font-medium text-gray-700 mb-1 block">Suffix</label>
+                                                    <Select
+                                                        value={suffixType}
                                                         onValueChange={(value) => {
                                                             setSuffixType(value)
                                                             if (value === 'other') {
@@ -671,7 +759,7 @@ export default function StudentsIndex({ students, programs, filters, auth, on_ho
                                                             }
                                                         }}
                                                     >
-                                                        <SelectTrigger>
+                                                        <SelectTrigger className="h-9">
                                                             <SelectValue placeholder="Select suffix (optional)" />
                                                         </SelectTrigger>
                                                         <SelectContent>
@@ -686,210 +774,172 @@ export default function StudentsIndex({ students, programs, filters, auth, on_ho
                                                         </SelectContent>
                                                     </Select>
                                                     {suffixType === 'other' && (
-                                                        <Input 
+                                                        <Input
                                                             placeholder="Enter custom suffix"
                                                             value={customSuffix}
                                                             onChange={(e) => setCustomSuffix(e.target.value)}
-                                                            className="mt-2"
+                                                            className="mt-2 h-9"
                                                         />
                                                     )}
                                                 </div>
+                                                <div className="grid grid-cols-2 gap-3">
+                                                    <div>
+                                                        <label className="text-sm font-medium text-gray-700 mb-1 block">Birth Date</label>
+                                                        <Input
+                                                            type="date"
+                                                            value={editFormData.birth_date}
+                                                            onChange={(e) => setEditFormData({...editFormData, birth_date: e.target.value})}
+                                                            className="h-9"
+                                                        />
+                                                    </div>
+                                                    <div>
+                                                        <label className="text-sm font-medium text-gray-700 mb-1 block">Phone</label>
+                                                        <Input
+                                                            value={editFormData.phone}
+                                                            onChange={(e) => setEditFormData({...editFormData, phone: e.target.value})}
+                                                            className="h-9"
+                                                        />
+                                                    </div>
+                                                </div>
                                                 <div>
-                                                    <label className="text-sm font-medium text-gray-700">Email</label>
+                                                    <label className="text-sm font-medium text-gray-700 mb-1 block">Email</label>
                                                     <Input
                                                         type="email"
                                                         value={editFormData.email}
-                                                        onChange={(e) => setEditFormData({...editFormData, email: e.target.value})}
+                                                        disabled
+                                                        className="h-9 bg-gray-50 cursor-not-allowed"
                                                     />
                                                 </div>
                                                 <div>
-                                                    <label className="text-sm font-medium text-gray-700">Birth Date</label>
-                                                    <Input
-                                                        type="date"
-                                                        value={editFormData.birth_date}
-                                                        onChange={(e) => setEditFormData({...editFormData, birth_date: e.target.value})}
-                                                    />
-                                                </div>
-                                                <div>
-                                                    <label className="text-sm font-medium text-gray-700">Phone</label>
-                                                    <Input
-                                                        value={editFormData.phone}
-                                                        onChange={(e) => setEditFormData({...editFormData, phone: e.target.value})}
-                                                    />
-                                                </div>
-                                                <div>
-                                                    <label className="text-sm font-medium text-gray-700">Parent Contact</label>
+                                                    <label className="text-sm font-medium text-gray-700 mb-1 block">Parent Contact</label>
                                                     <Input
                                                         value={editFormData.parent_contact}
                                                         onChange={(e) => setEditFormData({...editFormData, parent_contact: e.target.value})}
+                                                        className="h-9"
                                                     />
-                                                </div>
-                                                <div className="grid grid-cols-2 gap-3">
-                                                    <div>
-                                                        <label className="text-sm font-medium text-gray-700">Street</label>
-                                                        <Input
-                                                            value={editFormData.street}
-                                                            onChange={(e) => setEditFormData({...editFormData, street: e.target.value})}
-                                                        />
-                                                    </div>
-                                                    <div>
-                                                        <label className="text-sm font-medium text-gray-700">Barangay</label>
-                                                        <Input
-                                                            value={editFormData.barangay}
-                                                            onChange={(e) => setEditFormData({...editFormData, barangay: e.target.value})}
-                                                        />
-                                                    </div>
-                                                </div>
-                                                <div className="grid grid-cols-3 gap-3">
-                                                    <div>
-                                                        <label className="text-sm font-medium text-gray-700">City</label>
-                                                        <Input
-                                                            value={editFormData.city}
-                                                            onChange={(e) => setEditFormData({...editFormData, city: e.target.value})}
-                                                        />
-                                                    </div>
-                                                    <div>
-                                                        <label className="text-sm font-medium text-gray-700">Province</label>
-                                                        <Input
-                                                            value={editFormData.province}
-                                                            onChange={(e) => setEditFormData({...editFormData, province: e.target.value})}
-                                                        />
-                                                    </div>
-                                                    <div>
-                                                        <label className="text-sm font-medium text-gray-700">Zip Code</label>
-                                                        <Input
-                                                            value={editFormData.zip_code}
-                                                            onChange={(e) => setEditFormData({...editFormData, zip_code: e.target.value})}
-                                                        />
-                                                    </div>
                                                 </div>
                                             </div>
                                         ) : (
-                                            <>
-                                                <div className="flex justify-between items-center">
-                                                    <span className="font-medium text-gray-600">Full Name:</span>
-                                                    <span className="font-semibold">
+                                            <div className="space-y-4">
+                                                <div className="flex items-center justify-between p-3 bg-blue-50 rounded-lg">
+                                                    <div className="flex items-center gap-3">
+                                                        <User className="w-5 h-5 text-blue-600" />
+                                                        <span className="text-sm font-medium text-gray-700">Full Name</span>
+                                                    </div>
+                                                    <span className="font-semibold text-gray-900">
                                                         {formatStudentName(selectedStudent)}
                                                     </span>
                                                 </div>
-                                                <div className="flex justify-between items-center">
-                                                    <span className="font-medium text-gray-600">Student Number:</span>
-                                                    <Badge variant="outline" className="font-mono">
-                                                        {selectedStudent.student_number}
-                                                    </Badge>
-                                                </div>
-                                                <div className="flex justify-between items-center">
-                                                    <span className="font-medium text-gray-600">Email:</span>
-                                                    <div className="flex items-center gap-1">
-                                                        <Mail className="w-4 h-4 text-gray-400" />
-                                                        <span>{selectedStudent.user?.email}</span>
+
+                                                <div className="flex items-center justify-between p-3 bg-green-50 rounded-lg">
+                                                    <div className="flex items-center gap-3">
+                                                        <Mail className="w-5 h-5 text-green-600" />
+                                                        <span className="text-sm font-medium text-gray-700">Email</span>
                                                     </div>
+                                                    <span className="text-sm text-gray-900">{selectedStudent.user?.email}</span>
                                                 </div>
+
                                                 {selectedStudent.birth_date && (
-                                                    <div className="flex justify-between items-center">
-                                                        <span className="font-medium text-gray-600">Birth Date:</span>
-                                                        <div className="flex items-center gap-1">
-                                                            <Calendar className="w-4 h-4 text-gray-400" />
-                                                            <span>{new Date(selectedStudent.birth_date).toLocaleDateString()}</span>
+                                                    <div className="flex items-center justify-between p-3 bg-purple-50 rounded-lg">
+                                                        <div className="flex items-center gap-3">
+                                                            <Calendar className="w-5 h-5 text-purple-600" />
+                                                            <span className="text-sm font-medium text-gray-700">Birth Date</span>
                                                         </div>
+                                                        <span className="text-sm text-gray-900">
+                                                            {new Date(selectedStudent.birth_date).toLocaleDateString('en-US', {
+                                                                year: 'numeric',
+                                                                month: 'long',
+                                                                day: 'numeric'
+                                                            })}
+                                                        </span>
                                                     </div>
                                                 )}
+
                                                 {selectedStudent.phone && (
-                                                    <div className="flex justify-between items-center">
-                                                        <span className="font-medium text-gray-600">Phone:</span>
-                                                        <div className="flex items-center gap-1">
-                                                            <Phone className="w-4 h-4 text-gray-400" />
-                                                            <span>{selectedStudent.phone}</span>
+                                                    <div className="flex items-center justify-between p-3 bg-orange-50 rounded-lg">
+                                                        <div className="flex items-center gap-3">
+                                                            <Phone className="w-5 h-5 text-orange-600" />
+                                                            <span className="text-sm font-medium text-gray-700">Phone</span>
                                                         </div>
+                                                        <span className="text-sm text-gray-900">{selectedStudent.phone}</span>
                                                     </div>
                                                 )}
-                                                {selectedStudent.address && (
-                                                    <div className="flex justify-between items-start">
-                                                        <span className="font-medium text-gray-600">Address:</span>
-                                                        <div className="flex items-start gap-1 max-w-xs">
-                                                            <MapPin className="w-4 h-4 text-gray-400 mt-0.5" />
-                                                            <span className="text-right">{selectedStudent.address}</span>
-                                                        </div>
-                                                    </div>
-                                                )}
+
                                                 {selectedStudent.parent_contact && (
-                                                    <div className="flex justify-between items-center">
-                                                        <span className="font-medium text-gray-600">Parent Contact:</span>
-                                                        <span>{selectedStudent.parent_contact}</span>
+                                                    <div className="flex items-center justify-between p-3 bg-pink-50 rounded-lg">
+                                                        <div className="flex items-center gap-3">
+                                                            <Phone className="w-5 h-5 text-pink-600" />
+                                                            <span className="text-sm font-medium text-gray-700">Parent Contact</span>
+                                                        </div>
+                                                        <span className="text-sm text-gray-900">{selectedStudent.parent_contact}</span>
                                                     </div>
                                                 )}
-                                            </>
+                                            </div>
                                         )}
                                     </CardContent>
                                 </Card>
 
-                                <Card>
-                                    <CardHeader>
-                                        <CardTitle className="text-lg flex items-center gap-2">
+                                {/* Academic Information Card */}
+                                <Card className="border-l-4 border-l-green-500">
+                                    <CardHeader className="pb-3">
+                                        <CardTitle className="text-lg flex items-center gap-2 text-green-700">
                                             <GraduationCap className="w-5 h-5" />
                                             Academic Information
                                         </CardTitle>
                                         {isEditMode && (
-                                            <p className="text-sm text-gray-500 mt-2">
-                                                Academic information cannot be edited for security reasons.
+                                            <p className="text-sm text-amber-600 mt-2 bg-amber-50 p-2 rounded">
+                                                ⚠️ Academic information cannot be edited for security reasons.
                                             </p>
                                         )}
                                     </CardHeader>
-                                    <CardContent className="space-y-3">
+                                    <CardContent className="space-y-4">
                                         {isEditMode ? (
-                                            <>
-                                                {selectedStudent.program?.program_code && (
-                                                    <div className="flex justify-between items-center">
-                                                        <span className="font-medium text-gray-600">Program Code:</span>
-                                                        <Badge variant="outline">{selectedStudent.program.program_code}</Badge>
+                                            <div className="space-y-4">
+                                                <div className="p-4 bg-gray-50 rounded-lg">
+                                                    <div className="grid grid-cols-2 gap-4">
+                                                        <div>
+                                                            <span className="text-sm font-medium text-gray-600">Program Code</span>
+                                                            <div className="font-semibold text-gray-900">
+                                                                {selectedStudent.program?.program_code || 'N/A'}
+                                                            </div>
+                                                        </div>
+                                                        <div>
+                                                            <span className="text-sm font-medium text-gray-600">Education Level</span>
+                                                            <div className="font-semibold text-gray-900 capitalize">
+                                                                {selectedStudent.education_level}
+                                                            </div>
+                                                        </div>
+                                                        <div>
+                                                            <span className="text-sm font-medium text-gray-600">Year Level</span>
+                                                            <div className="font-semibold text-gray-900">
+                                                                {selectedStudent.education_level === 'college'
+                                                                    ? `${selectedStudent.current_year_level || selectedStudent.year_level} Year`
+                                                                    : `Grade ${selectedStudent.year_level}`
+                                                                }
+                                                            </div>
+                                                        </div>
+                                                        <div>
+                                                            <span className="text-sm font-medium text-gray-600">Student Type</span>
+                                                            <Badge
+                                                                variant="secondary"
+                                                                className={selectedStudent.student_type === 'regular'
+                                                                    ? 'bg-blue-100 text-blue-800'
+                                                                    : 'bg-orange-100 text-orange-800'
+                                                                }
+                                                            >
+                                                                {selectedStudent.student_type}
+                                                            </Badge>
+                                                        </div>
                                                     </div>
-                                                )}
-                                                <div className="flex justify-between items-center">
-                                                    <span className="font-medium text-gray-600">Education Level:</span>
-                                                    <Badge variant="secondary" className="capitalize">
-                                                        {selectedStudent.education_level}
-                                                    </Badge>
                                                 </div>
-                                                <div className="flex justify-between items-center">
-                                                    <span className="font-medium text-gray-600">Year Level:</span>
-                                                    <Badge variant="outline">
-                                                        {selectedStudent.education_level === 'college' 
-                                                            ? `${selectedStudent.current_year_level || selectedStudent.year_level} Year`
-                                                            : `Grade ${selectedStudent.year_level}`
-                                                        }
-                                                    </Badge>
-                                                </div>
-                                                <div className="flex justify-between items-center">
-                                                    <span className="font-medium text-gray-600">Student Type:</span>
-                                                    <Badge 
-                                                        variant="secondary"
-                                                        className={selectedStudent.student_type === 'regular' 
-                                                            ? 'bg-blue-100 text-blue-800' 
-                                                            : 'bg-orange-100 text-orange-800'
-                                                        }
-                                                    >
-                                                        {selectedStudent.student_type}
-                                                    </Badge>
-                                                </div>
-                                                {selectedStudent.track && (
-                                                    <div className="flex justify-between items-center">
-                                                        <span className="font-medium text-gray-600">Track:</span>
-                                                        <span>{selectedStudent.track}</span>
-                                                    </div>
-                                                )}
-                                                {selectedStudent.strand && (
-                                                    <div className="flex justify-between items-center">
-                                                        <span className="font-medium text-gray-600">Strand:</span>
-                                                        <span>{selectedStudent.strand}</span>
-                                                    </div>
-                                                )}
-                                                <div className="flex justify-between items-center">
-                                                    <span className="font-medium text-gray-600">Status:</span>
+
+                                                <div>
+                                                    <label className="text-sm font-medium text-gray-700 mb-2 block">Status</label>
                                                     <Select
                                                         value={editFormData.status}
                                                         onValueChange={(value) => setEditFormData({...editFormData, status: value})}
                                                     >
-                                                        <SelectTrigger className="w-32">
+                                                        <SelectTrigger className="h-9">
                                                             <SelectValue />
                                                         </SelectTrigger>
                                                         <SelectContent>
@@ -920,73 +970,126 @@ export default function StudentsIndex({ students, programs, filters, auth, on_ho
                                                         </SelectContent>
                                                     </Select>
                                                 </div>
+
                                                 {selectedStudent.enrolled_date && (
-                                                    <div className="flex justify-between items-center">
-                                                        <span className="font-medium text-gray-600">Enrolled Date:</span>
-                                                        <span>{new Date(selectedStudent.enrolled_date).toLocaleDateString()}</span>
+                                                    <div className="p-3 bg-blue-50 rounded-lg">
+                                                        <span className="text-sm font-medium text-blue-700">Enrolled Date</span>
+                                                        <div className="text-sm text-blue-900 font-medium">
+                                                            {new Date(selectedStudent.enrolled_date).toLocaleDateString('en-US', {
+                                                                year: 'numeric',
+                                                                month: 'long',
+                                                                day: 'numeric'
+                                                            })}
+                                                        </div>
                                                     </div>
                                                 )}
-                                            </>
+                                            </div>
                                         ) : (
-                                            <>
-                                                {selectedStudent.program?.program_code && (
-                                                    <div className="flex justify-between items-center">
-                                                        <span className="font-medium text-gray-600">Program Code:</span>
-                                                        <Badge variant="outline">{selectedStudent.program.program_code}</Badge>
+                                            <div className="space-y-4">
+                                                <div className="grid grid-cols-2 gap-3">
+                                                    <div className="p-3 bg-gradient-to-r from-green-50 to-emerald-50 rounded-lg border border-green-200">
+                                                        <div className="flex items-center gap-2 mb-1">
+                                                            <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                                                            <span className="text-xs font-medium text-green-700 uppercase tracking-wide">Program</span>
+                                                        </div>
+                                                        <div className="font-semibold text-green-900">
+                                                            {selectedStudent.program?.program_code || 'N/A'}
+                                                        </div>
                                                     </div>
-                                                )}
-                                                <div className="flex justify-between items-center">
-                                                    <span className="font-medium text-gray-600">Education Level:</span>
-                                                    <Badge variant="secondary" className="capitalize">
-                                                        {selectedStudent.education_level}
-                                                    </Badge>
+
+                                                    <div className="p-3 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg border border-blue-200">
+                                                        <div className="flex items-center gap-2 mb-1">
+                                                            <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                                                            <span className="text-xs font-medium text-blue-700 uppercase tracking-wide">Level</span>
+                                                        </div>
+                                                        <div className="font-semibold text-blue-900 capitalize">
+                                                            {selectedStudent.education_level}
+                                                        </div>
+                                                    </div>
+
+                                                    <div className="p-3 bg-gradient-to-r from-purple-50 to-violet-50 rounded-lg border border-purple-200">
+                                                        <div className="flex items-center gap-2 mb-1">
+                                                            <div className="w-2 h-2 bg-purple-500 rounded-full"></div>
+                                                            <span className="text-xs font-medium text-purple-700 uppercase tracking-wide">Year</span>
+                                                        </div>
+                                                        <div className="font-semibold text-purple-900">
+                                                            {selectedStudent.education_level === 'college'
+                                                                ? `${selectedStudent.current_year_level || selectedStudent.year_level} Year`
+                                                                : `Grade ${selectedStudent.year_level}`
+                                                            }
+                                                        </div>
+                                                    </div>
+
+                                                    <div className="p-3 bg-gradient-to-r from-orange-50 to-amber-50 rounded-lg border border-orange-200">
+                                                        <div className="flex items-center gap-2 mb-1">
+                                                            <div className="w-2 h-2 bg-orange-500 rounded-full"></div>
+                                                            <span className="text-xs font-medium text-orange-700 uppercase tracking-wide">Type</span>
+                                                        </div>
+                                                        <Badge
+                                                            variant="secondary"
+                                                            className={selectedStudent.student_type === 'regular'
+                                                                ? 'bg-blue-100 text-blue-800'
+                                                                : 'bg-orange-100 text-orange-800'
+                                                            }
+                                                        >
+                                                            {selectedStudent.student_type}
+                                                        </Badge>
+                                                    </div>
                                                 </div>
-                                                <div className="flex justify-between items-center">
-                                                    <span className="font-medium text-gray-600">Year Level:</span>
-                                                    <Badge variant="outline">
-                                                        {selectedStudent.education_level === 'college' 
-                                                            ? `${selectedStudent.current_year_level || selectedStudent.year_level} Year`
-                                                            : `Grade ${selectedStudent.year_level}`
-                                                        }
-                                                    </Badge>
-                                                </div>
-                                                <div className="flex justify-between items-center">
-                                                    <span className="font-medium text-gray-600">Student Type:</span>
-                                                    <Badge 
-                                                        variant="secondary"
-                                                        className={selectedStudent.student_type === 'regular' 
-                                                            ? 'bg-blue-100 text-blue-800' 
-                                                            : 'bg-orange-100 text-orange-800'
-                                                        }
-                                                    >
-                                                        {selectedStudent.student_type}
-                                                    </Badge>
-                                                </div>
+
                                                 {selectedStudent.track && (
-                                                    <div className="flex justify-between items-center">
-                                                        <span className="font-medium text-gray-600">Track:</span>
-                                                        <span>{selectedStudent.track}</span>
+                                                    <div className="p-3 bg-gradient-to-r from-cyan-50 to-teal-50 rounded-lg border border-cyan-200">
+                                                        <div className="flex items-center gap-2 mb-1">
+                                                            <div className="w-2 h-2 bg-cyan-500 rounded-full"></div>
+                                                            <span className="text-xs font-medium text-cyan-700 uppercase tracking-wide">Track</span>
+                                                        </div>
+                                                        <div className="font-semibold text-cyan-900">{selectedStudent.track}</div>
                                                     </div>
                                                 )}
+
                                                 {selectedStudent.strand && (
-                                                    <div className="flex justify-between items-center">
-                                                        <span className="font-medium text-gray-600">Strand:</span>
-                                                        <span>{selectedStudent.strand}</span>
+                                                    <div className="p-3 bg-gradient-to-r from-pink-50 to-rose-50 rounded-lg border border-pink-200">
+                                                        <div className="flex items-center gap-2 mb-1">
+                                                            <div className="w-2 h-2 bg-pink-500 rounded-full"></div>
+                                                            <span className="text-xs font-medium text-pink-700 uppercase tracking-wide">Strand</span>
+                                                        </div>
+                                                        <div className="font-semibold text-pink-900">{selectedStudent.strand}</div>
                                                     </div>
                                                 )}
-                                                <div className="flex justify-between items-center">
-                                                    <span className="font-medium text-gray-600">Status:</span>
-                                                    <Badge className={getStatusColor(selectedStudent.status)}>
-                                                        {getStatusText(selectedStudent.status)}
-                                                    </Badge>
+
+                                                <div className="p-4 bg-gradient-to-r from-gray-50 to-slate-50 rounded-lg border border-gray-200">
+                                                    <div className="flex items-center justify-between">
+                                                        <div className="flex items-center gap-2">
+                                                            <div className={`w-3 h-3 rounded-full ${
+                                                                selectedStudent.status === 'active' ? 'bg-green-500' :
+                                                                selectedStudent.status === 'inactive' ? 'bg-red-500' :
+                                                                selectedStudent.status === 'graduated' ? 'bg-blue-500' :
+                                                                'bg-yellow-500'
+                                                            }`}></div>
+                                                            <span className="text-sm font-medium text-gray-700">Status</span>
+                                                        </div>
+                                                        <Badge className={`${getStatusColor(selectedStudent.status)} font-medium`}>
+                                                            {getStatusText(selectedStudent.status)}
+                                                        </Badge>
+                                                    </div>
                                                 </div>
+
                                                 {selectedStudent.enrolled_date && (
-                                                    <div className="flex justify-between items-center">
-                                                        <span className="font-medium text-gray-600">Enrolled Date:</span>
-                                                        <span>{new Date(selectedStudent.enrolled_date).toLocaleDateString()}</span>
+                                                    <div className="p-3 bg-gradient-to-r from-indigo-50 to-blue-50 rounded-lg border border-indigo-200">
+                                                        <div className="flex items-center gap-2 mb-1">
+                                                            <Calendar className="w-4 h-4 text-indigo-600" />
+                                                            <span className="text-xs font-medium text-indigo-700 uppercase tracking-wide">Enrolled Date</span>
+                                                        </div>
+                                                        <div className="text-sm text-indigo-900 font-medium">
+                                                            {new Date(selectedStudent.enrolled_date).toLocaleDateString('en-US', {
+                                                                year: 'numeric',
+                                                                month: 'long',
+                                                                day: 'numeric'
+                                                            })}
+                                                        </div>
                                                     </div>
                                                 )}
-                                            </>
+                                            </div>
                                         )}
                                     </CardContent>
                                 </Card>
@@ -994,65 +1097,107 @@ export default function StudentsIndex({ students, programs, filters, auth, on_ho
 
                             {/* Archived Grades - Only show for students with archived enrollments */}
                             {selectedStudent.archived_enrollments?.length > 0 && (
-                                <Card>
-                                    <CardHeader>
-                                        <CardTitle className="text-lg flex items-center gap-2">
+                                <Card className="border-l-4 border-l-purple-500">
+                                    <CardHeader className="pb-3">
+                                        <CardTitle className="text-lg flex items-center gap-2 text-purple-700">
                                             <GraduationCap className="w-5 h-5" />
-                                            Archived Grades ({selectedStudent.archived_enrollments.length})
+                                            Academic History
+                                            <Badge variant="secondary" className="ml-2">
+                                                {selectedStudent.archived_enrollments.length} Semester{selectedStudent.archived_enrollments.length !== 1 ? 's' : ''}
+                                            </Badge>
                                         </CardTitle>
+                                        <p className="text-sm text-gray-600">Previous semester enrollments and grades</p>
                                     </CardHeader>
                                     <CardContent>
                                         <div className="space-y-4">
                                             {selectedStudent.archived_enrollments.map((enrollment, index) => (
-                                                <div key={index} className="border rounded-lg p-4 bg-gray-50">
-                                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                                        <div>
-                                                            <span className="font-medium text-gray-600">Academic Year:</span>
-                                                            <div className="text-sm">{enrollment.academic_year}</div>
-                                                        </div>
-                                                        <div>
-                                                            <span className="font-medium text-gray-600">Semester:</span>
-                                                            <div className="text-sm">{enrollment.semester}</div>
-                                                        </div>
-                                                        <div>
-                                                            <span className="font-medium text-gray-600">Section:</span>
-                                                            <div className="text-sm">{enrollment.archived_section?.section_name || 'N/A'}</div>
-                                                        </div>
-                                                        <div>
-                                                            <span className="font-medium text-gray-600">Final Grade:</span>
-                                                            <div className="text-sm font-semibold">{enrollment.final_semester_grade || 'N/A'}</div>
-                                                        </div>
-                                                        <div>
-                                                            <span className="font-medium text-gray-600">Letter Grade:</span>
-                                                            <div className="text-sm">{enrollment.letter_grade || 'N/A'}</div>
-                                                        </div>
-                                                        <div>
-                                                            <span className="font-medium text-gray-600">Status:</span>
-                                                            <Badge 
-                                                                variant="secondary"
-                                                                className={enrollment.final_status === 'completed' 
-                                                                    ? 'bg-green-100 text-green-800' 
-                                                                    : enrollment.final_status === 'dropped' 
-                                                                    ? 'bg-yellow-100 text-yellow-800' 
-                                                                    : 'bg-red-100 text-red-800'
-                                                                }
-                                                            >
-                                                                {enrollment.final_status}
-                                                            </Badge>
-                                                        </div>
-                                                    </div>
-                                                    {enrollment.final_grades && Object.keys(enrollment.final_grades).length > 0 && (
-                                                        <div className="mt-4">
-                                                            <span className="font-medium text-gray-600">Subject Grades:</span>
-                                                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2 mt-2">
-                                                                {Object.entries(enrollment.final_grades).map(([subject, grade]) => (
-                                                                    <div key={subject} className="text-sm bg-white p-2 rounded border">
-                                                                        <span className="font-medium">{subject}:</span> {grade}
-                                                                    </div>
-                                                                ))}
+                                                <div key={index} className="relative">
+                                                    {/* Timeline connector */}
+                                                    {index < selectedStudent.archived_enrollments.length - 1 && (
+                                                        <div className="absolute left-6 top-16 w-0.5 h-8 bg-purple-200"></div>
+                                                    )}
+
+                                                    <div className="bg-gradient-to-r from-purple-50 to-indigo-50 rounded-lg p-5 border border-purple-200">
+                                                        {/* Semester Header */}
+                                                        <div className="flex items-center gap-3 mb-4">
+                                                            <div className="w-12 h-12 bg-purple-100 rounded-full flex items-center justify-center">
+                                                                <span className="text-sm font-bold text-purple-700">
+                                                                    {enrollment.semester === '1st' ? '1' : enrollment.semester === '2nd' ? '2' : 'S'}
+                                                                </span>
+                                                            </div>
+                                                            <div className="flex-1">
+                                                                <div className="flex items-center gap-2 mb-1">
+                                                                    <h4 className="font-semibold text-purple-900">
+                                                                        {enrollment.academic_year} - {enrollment.semester} Semester
+                                                                    </h4>
+                                                                    <Badge
+                                                                        variant="secondary"
+                                                                        className={enrollment.final_status === 'completed'
+                                                                            ? 'bg-green-100 text-green-800'
+                                                                            : enrollment.final_status === 'dropped'
+                                                                            ? 'bg-yellow-100 text-yellow-800'
+                                                                            : 'bg-red-100 text-red-800'
+                                                                        }
+                                                                    >
+                                                                        {enrollment.final_status}
+                                                                    </Badge>
+                                                                </div>
+                                                                <p className="text-sm text-purple-700">
+                                                                    Section: {enrollment.archived_section?.section_name || 'N/A'}
+                                                                </p>
                                                             </div>
                                                         </div>
-                                                    )}
+
+                                                        {/* Grades Summary */}
+                                                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+                                                            <div className="bg-white p-3 rounded-lg border border-purple-200">
+                                                                <div className="text-xs font-medium text-purple-700 uppercase tracking-wide">Final Grade</div>
+                                                                <div className="text-lg font-bold text-purple-900">
+                                                                    {enrollment.final_semester_grade || 'N/A'}
+                                                                </div>
+                                                            </div>
+                                                            <div className="bg-white p-3 rounded-lg border border-purple-200">
+                                                                <div className="text-xs font-medium text-purple-700 uppercase tracking-wide">Letter Grade</div>
+                                                                <div className="text-lg font-bold text-purple-900">
+                                                                    {enrollment.letter_grade || 'N/A'}
+                                                                </div>
+                                                            </div>
+                                                            <div className="bg-white p-3 rounded-lg border border-purple-200">
+                                                                <div className="text-xs font-medium text-purple-700 uppercase tracking-wide">GWA</div>
+                                                                <div className="text-lg font-bold text-purple-900">
+                                                                    {enrollment.gwa || 'N/A'}
+                                                                </div>
+                                                            </div>
+                                                            <div className="bg-white p-3 rounded-lg border border-purple-200">
+                                                                <div className="text-xs font-medium text-purple-700 uppercase tracking-wide">Units</div>
+                                                                <div className="text-lg font-bold text-purple-900">
+                                                                    {enrollment.total_units || 'N/A'}
+                                                                </div>
+                                                            </div>
+                                                        </div>
+
+                                                        {/* Subject Grades */}
+                                                        {enrollment.final_grades && Object.keys(enrollment.final_grades).length > 0 && (
+                                                            <div>
+                                                                <h5 className="text-sm font-medium text-purple-700 mb-3 flex items-center gap-2">
+                                                                    <BookOpen className="w-4 h-4" />
+                                                                    Subject Grades
+                                                                </h5>
+                                                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                                                                    {Object.entries(enrollment.final_grades).map(([subject, grade]) => (
+                                                                        <div key={subject} className="bg-white p-3 rounded-lg border border-purple-200 hover:border-purple-300 transition-colors">
+                                                                            <div className="text-xs font-medium text-gray-600 truncate" title={subject}>
+                                                                                {subject}
+                                                                            </div>
+                                                                            <div className="text-lg font-bold text-purple-900 mt-1">
+                                                                                {grade}
+                                                                            </div>
+                                                                        </div>
+                                                                    ))}
+                                                                </div>
+                                                            </div>
+                                                        )}
+                                                    </div>
                                                 </div>
                                             ))}
                                         </div>
@@ -1060,36 +1205,46 @@ export default function StudentsIndex({ students, programs, filters, auth, on_ho
                                 </Card>
                             )}
 
-                            {/* Enrollment Information */}
-                            <Card>
-                                <CardHeader>
-                                    <CardTitle className="text-lg">Current Enrollment</CardTitle>
+                            {/* Current Enrollment Information */}
+                            <Card className="border-l-4 border-l-emerald-500">
+                                <CardHeader className="pb-3">
+                                    <CardTitle className="text-lg flex items-center gap-2 text-emerald-700">
+                                        <User className="w-5 h-5" />
+                                        Current Enrollment Status
+                                    </CardTitle>
                                 </CardHeader>
                                 <CardContent>
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                        <div>
-                                            <span className="font-medium text-gray-600">Current Section:</span>
-                                            <div className="mt-1">
-                                                <span className="font-semibold text-blue-600">
-                                                    {formatSectionName(selectedStudent.current_section, selectedStudent.is_currently_enrolled)}
-                                                </span>
-                                                {selectedStudent.current_section && (
-                                                    <div className="text-sm text-gray-500 mt-1">
-                                                        {selectedStudent.current_section.academic_year} - {selectedStudent.current_section.semester}
-                                                    </div>
-                                                )}
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                        <div className="p-4 bg-gradient-to-r from-emerald-50 to-green-50 rounded-lg border border-emerald-200">
+                                            <div className="flex items-center gap-3 mb-2">
+                                                <div className={`w-3 h-3 rounded-full ${
+                                                    selectedStudent.is_currently_enrolled ? 'bg-green-500' : 'bg-gray-400'
+                                                }`}></div>
+                                                <span className="text-sm font-medium text-emerald-700 uppercase tracking-wide">Enrollment Status</span>
                                             </div>
+                                            <div className="text-lg font-bold text-emerald-900 mb-1">
+                                                {selectedStudent.is_currently_enrolled ? 'Currently Enrolled' : 'Not Enrolled'}
+                                            </div>
+                                            {selectedStudent.is_currently_enrolled && selectedStudent.current_section && (
+                                                <div className="text-sm text-emerald-700">
+                                                    {selectedStudent.current_section.academic_year} - {selectedStudent.current_section.semester}
+                                                </div>
+                                            )}
                                         </div>
-                                        <div>
-                                            <span className="font-medium text-gray-600">Enrollment Status:</span>
-                                            <div className="mt-1">
-                                                <Badge 
-                                                    variant={selectedStudent.is_currently_enrolled ? "default" : "secondary"}
-                                                    className={selectedStudent.is_currently_enrolled ? "bg-green-100 text-green-800" : ""}
-                                                >
-                                                    {selectedStudent.is_currently_enrolled ? "Currently Enrolled" : "Not Enrolled"}
-                                                </Badge>
+
+                                        <div className="p-4 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg border border-blue-200">
+                                            <div className="flex items-center gap-3 mb-2">
+                                                <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
+                                                <span className="text-sm font-medium text-blue-700 uppercase tracking-wide">Current Section</span>
                                             </div>
+                                            <div className="text-lg font-bold text-blue-900 mb-1">
+                                                {formatSectionName(selectedStudent.current_section, selectedStudent.is_currently_enrolled)}
+                                            </div>
+                                            {selectedStudent.current_section && (
+                                                <div className="text-sm text-blue-700">
+                                                    {selectedStudent.current_section.academic_year} - {selectedStudent.current_section.semester}
+                                                </div>
+                                            )}
                                         </div>
                                     </div>
                                 </CardContent>
@@ -1102,8 +1257,15 @@ export default function StudentsIndex({ students, programs, filters, auth, on_ho
                             <Button variant="outline" onClick={handleCancelEdit}>
                                 Cancel
                             </Button>
-                            <Button onClick={handleSaveStudent} className="bg-green-600 hover:bg-green-700">
-                                Save Changes
+                            <Button onClick={handleSaveStudent} disabled={isSavingEdit} className="bg-green-600 hover:bg-green-700">
+                                {isSavingEdit ? (
+                                    <>
+                                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></div>
+                                        Saving...
+                                    </>
+                                ) : (
+                                    'Save Changes'
+                                )}
                             </Button>
                         </div>
                     )}
