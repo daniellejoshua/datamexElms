@@ -6,19 +6,27 @@ use App\Models\Curriculum;
 use App\Models\CurriculumSubject;
 use Illuminate\Database\Seeder;
 
-class CurriculumSeeder extends Seeder
+class BSITCurriculumSeeder extends Seeder
 {
     /**
      * Run the database seeds.
      */
     public function run(): void
     {
+        // Get the BSIT program ID dynamically
+        $bsitProgram = \App\Models\Program::where('program_code', 'BSIT')->first();
+        if (!$bsitProgram) {
+            $this->command->error('BSIT program not found. Please run ProgramSeeder first.');
+            return;
+        }
+        $bsitProgramId = $bsitProgram->id;
+
         // Create BSIT 2022 Curriculum
         $curriculum = Curriculum::updateOrCreate(
             ['curriculum_code' => 'BSIT-2022'],
             [
                 'curriculum_name' => 'BSIT 2022',
-                'program_id' => 1, // BSIT program
+                'program_id' => $bsitProgramId, // BSIT program
                 'description' => 'BSIT Curriculum 2022',
                 'is_current' => true,
                 'status' => 'active',
@@ -102,6 +110,8 @@ class CurriculumSeeder extends Seeder
                         'subject_id' => $subject->id,
                     ],
                     [
+                        'subject_code' => $subject->subject_code,
+                        'subject_name' => $subject->subject_name,
                         'year_level' => $subjectData['year_level'],
                         'semester' => $subjectData['semester'],
                         'subject_type' => $subject->subject_type,

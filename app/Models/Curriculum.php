@@ -17,7 +17,6 @@ class Curriculum extends Model
         'program_id',
         'curriculum_code',
         'curriculum_name',
-        'academic_year',
         'description',
         'status',
         'is_current',

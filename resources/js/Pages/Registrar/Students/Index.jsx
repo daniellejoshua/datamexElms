@@ -224,7 +224,10 @@ export default function StudentsIndex({ students, programs, filters, auth, on_ho
                 })
                 setIsEditMode(false)
                 setIsViewModalOpen(false)
-                router.reload()
+                // Delay the reload to allow the toast to be visible
+                setTimeout(() => {
+                    router.reload()
+                }, 2000) // 2 second delay
             },
             onError: (errors) => {
                 const errorMessage = Object.values(errors).find(error => error) || 'An unknown error occurred'

@@ -23,7 +23,6 @@ class CurriculumFactory extends Factory
             'curriculum_name' => $this->faker->sentence(3),
             'status' => $this->faker->randomElement(['active', 'inactive']),
             'is_current' => false,
-            'academic_year' => \App\Models\SchoolSetting::getCurrentAcademicYear(),
         ];
     }
 }

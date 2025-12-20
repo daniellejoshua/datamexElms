@@ -191,6 +191,7 @@ Route::middleware(['auth', 'verified'])->prefix('admin')->name('admin.')->group(
 
         // Program Curriculum Mapping Routes
         Route::resource('program-curricula', ProgramCurriculumController::class);
+        Route::put('program-curricula/{program}/update-current', [ProgramCurriculumController::class, 'updateCurrent'])->name('program-curricula.update-current');
 
         // Year Level Curriculum Guide Routes
         Route::get('year-level-curriculum-guides', [YearLevelCurriculumGuideController::class, 'index'])->name('year-level-curriculum-guides.index');

@@ -125,13 +125,32 @@ class ProgramCurriculumController extends Controller
     }
 
     /**
-     * Remove the specified resource from storage.
+     * Update the current curriculum for a program.
      */
-    public function destroy(ProgramCurriculum $programCurriculum)
+    public function updateCurrent(Request $request, Program $program)
     {
-        $programCurriculum->delete();
+        $validated = $request->validate([
+            'curriculum_id' => 'required|exists:curriculum,id',
+        ]);
 
-        return redirect()->route('admin.program-curricula.index')
-            ->with('message', 'Program curriculum mapping deleted successfully.');
+        // Check if the curriculum is already assigned to this program
+        $programCurriculum = ProgramCurriculum::where('program_id', $program->id)
+            ->where('curriculum_id', $validated['curriculum_id'])
+            ->first();
+
+        if (! $programCurriculum) {
+            return back()->withErrors([
+                'curriculum_id' => 'The selected curriculum is not assigned to this program.',
+            ]);
+        }
+
+        // Set all other curricula for this program to not current
+        ProgramCurriculum::where('program_id', $program->id)
+            ->update(['is_current' => false]);
+
+        // Set the selected curriculum as current
+        $programCurriculum->update(['is_current' => true]);
+
+        return back()->with('message', 'Current curriculum updated successfully.');
     }
 }

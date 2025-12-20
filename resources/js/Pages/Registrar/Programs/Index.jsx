@@ -3,7 +3,8 @@ import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -18,8 +19,10 @@ export default function ProgramsIndex({ programs, auth, filters = {} }) {
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [feeErrors, setFeeErrors] = useState({});
     const [subjectModalOpen, setSubjectModalOpen] = useState(false);
+    const [curriculumModalOpen, setCurriculumModalOpen] = useState(false);
     const [availableSubjects, setAvailableSubjects] = useState([]);
     const [selectedSubjects, setSelectedSubjects] = useState(new Set());
+    const [selectedCurriculum, setSelectedCurriculum] = useState(null);
 
     // Filter states
     const [selectedEducationLevel, setSelectedEducationLevel] = useState(filters.education_level || '');
@@ -136,21 +139,12 @@ export default function ProgramsIndex({ programs, auth, filters = {} }) {
         }
     };
 
-    const openSubjectModal = async (program) => {
+    const openCurriculumModal = (program) => {
         setSelectedProgram(program);
-        setSelectedSubjects(new Set(program.subjects?.map(s => s.id) || []));
-
-        // Load available subjects for this program's education level
-        try {
-            const response = await fetch(route('registrar.programs.subjects.by-education-level', program.education_level));
-            const subjectsData = await response.json();
-            setAvailableSubjects(subjectsData);
-        } catch (error) {
-            console.error('Error loading subjects:', error);
-            setAvailableSubjects({});
-        }
-
-        setSubjectModalOpen(true);
+        // Find the current curriculum
+        const currentCurriculum = program.curriculums?.find(curr => curr.is_current) || program.curriculums?.[0];
+        setSelectedCurriculum(currentCurriculum);
+        setCurriculumModalOpen(true);
     };
 
     const formatCurrency = (amount) => {
@@ -351,11 +345,11 @@ export default function ProgramsIndex({ programs, auth, filters = {} }) {
                                 {/* Action Buttons */}
                                 <div className="space-y-3">
                                     <Button
-                                        onClick={() => openSubjectModal(program)}
+                                        onClick={() => openCurriculumModal(program)}
                                         className="w-full bg-blue-600 hover:bg-blue-700 text-white shadow-md"
                                     >
                                         <BookOpen className="w-4 h-4 mr-2" />
-                                        Manage Subjects
+                                        View Curriculum
                                         <ChevronRight className="w-4 h-4 ml-auto" />
                                     </Button>
 
@@ -609,162 +603,225 @@ export default function ProgramsIndex({ programs, auth, filters = {} }) {
                 </DialogContent>
             </Dialog>
 
-            {/* Subject Management Modal */}
-            <Dialog open={subjectModalOpen} onOpenChange={setSubjectModalOpen}>
-                <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
+            {/* Curriculum Modal */}
+            <Dialog open={curriculumModalOpen} onOpenChange={setCurriculumModalOpen}>
+                <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
                     <DialogHeader>
-                        <DialogTitle>Manage Subjects for {selectedProgram?.name}</DialogTitle>
-                        <p className="text-sm text-gray-600 dark:text-gray-400">
-                            Select subjects to assign to this program. Subjects are organized by year level and semester.
-                        </p>
+                        <DialogTitle>Curriculum Subjects - {selectedProgram?.program_name}</DialogTitle>
+                        <DialogDescription>
+                            View curriculum subjects organized by year and semester.
+                        </DialogDescription>
                     </DialogHeader>
 
-                    <div className="space-y-6">
-                        {/* Year Level Tabs */}
-                        {[1, 2, 3, 4].map(year => (
-                            <div key={year} className="border rounded-lg p-4">
-                                <h3 className="text-lg font-semibold mb-4">
-                                    {year}{year === 1 ? 'st' : year === 2 ? 'nd' : year === 3 ? 'rd' : 'th'} Year
-                                </h3>
-
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                    {/* 1st Semester */}
-                                    <div>
-                                        <h4 className="text-md font-medium mb-3 text-blue-600">1st Semester</h4>
-                                        <div className="space-y-2">
-                                            {availableSubjects[year]?.['first']?.length > 0 ? (
-                                                availableSubjects[year]['first'].map(subject => {
-                                                    const isSelected = selectedSubjects.has(subject.id);
-                                                    return (
-                                                        <div
-                                                            key={subject.id}
-                                                            className={`flex items-center justify-between p-2 rounded border cursor-pointer transition-colors ${
-                                                                isSelected
-                                                                    ? 'bg-blue-50 border-blue-200 dark:bg-blue-900/20 dark:border-blue-800'
-                                                                    : 'bg-gray-50 border-gray-200 hover:bg-gray-100 dark:bg-gray-800 dark:border-gray-700'
-                                                            }`}
-                                                            onClick={() => {
-                                                                const newSelected = new Set(selectedSubjects);
-                                                                if (isSelected) {
-                                                                    newSelected.delete(subject.id);
-                                                                } else {
-                                                                    newSelected.add(subject.id);
-                                                                }
-                                                                setSelectedSubjects(newSelected);
-                                                            }}
-                                                        >
-                                                            <div className="flex items-center gap-2">
-                                                                <input
-                                                                    type="checkbox"
-                                                                    checked={isSelected}
-                                                                    onChange={() => {}} // Handled by onClick
-                                                                    className="rounded"
-                                                                />
-                                                                <div>
-                                                                    <span className="font-medium">{subject.subject_code}</span>
-                                                                    <span className="text-sm text-gray-600 dark:text-gray-400 ml-2">
-                                                                        {subject.subject_name}
-                                                                    </span>
-                                                                </div>
-                                                            </div>
-                                                            <div className="text-sm text-gray-500">
-                                                                {subject.units} units • {subject.subject_type}
-                                                            </div>
-                                                        </div>
-                                                    );
-                                                })
-                                            ) : (
-                                                <div className="text-sm text-gray-500 italic">
-                                                    No subjects available for Year {year}, 1st Semester
-                                                </div>
-                                            )}
-                                        </div>
-                                    </div>
-
-                                    {/* 2nd Semester */}
-                                    <div>
-                                        <h4 className="text-md font-medium mb-3 text-green-600">2nd Semester</h4>
-                                        <div className="space-y-2">
-                                            {availableSubjects[year]?.['second']?.length > 0 ? (
-                                                availableSubjects[year]['second'].map(subject => {
-                                                    const isSelected = selectedSubjects.has(subject.id);
-                                                    return (
-                                                        <div
-                                                            key={subject.id}
-                                                            className={`flex items-center justify-between p-2 rounded border cursor-pointer transition-colors ${
-                                                                isSelected
-                                                                    ? 'bg-green-50 border-green-200 dark:bg-green-900/20 dark:border-green-800'
-                                                                    : 'bg-gray-50 border-gray-200 hover:bg-gray-100 dark:bg-gray-800 dark:border-gray-700'
-                                                            }`}
-                                                            onClick={() => {
-                                                                const newSelected = new Set(selectedSubjects);
-                                                                if (isSelected) {
-                                                                    newSelected.delete(subject.id);
-                                                                } else {
-                                                                    newSelected.add(subject.id);
-                                                                }
-                                                                setSelectedSubjects(newSelected);
-                                                            }}
-                                                        >
-                                                            <div className="flex items-center gap-2">
-                                                                <input
-                                                                    type="checkbox"
-                                                                    checked={isSelected}
-                                                                    onChange={() => {}} // Handled by onClick
-                                                                    className="rounded"
-                                                                />
-                                                                <div>
-                                                                    <span className="font-medium">{subject.subject_code}</span>
-                                                                    <span className="text-sm text-gray-600 dark:text-gray-400 ml-2">
-                                                                        {subject.subject_name}
-                                                                    </span>
-                                                                </div>
-                                                            </div>
-                                                            <div className="text-sm text-gray-500">
-                                                                {subject.units} units • {subject.subject_type}
-                                                            </div>
-                                                        </div>
-                                                    );
-                                                })
-                                            ) : (
-                                                <div className="text-sm text-gray-500 italic">
-                                                    No subjects available for Year {year}, 2nd Semester
-                                                </div>
-                                            )}
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-
-                    <div className="flex justify-end space-x-4 mt-6">
-                        <Button
-                            type="button"
-                            variant="outline"
-                            onClick={() => setSubjectModalOpen(false)}
-                        >
-                            Cancel
-                        </Button>
-                        <Button
-                            onClick={async () => {
-                                try {
-                                    await router.post(route('registrar.programs.subjects.store', selectedProgram.id), {
-                                        subject_ids: Array.from(selectedSubjects)
-                                    }, {
-                                        onSuccess: () => {
-                                            setSubjectModalOpen(false);
-                                            window.location.reload(); // Refresh to show updated data
-                                        }
-                                    });
-                                } catch (error) {
-                                    console.error('Error saving subjects:', error);
-                                }
+                    {/* Curriculum Selector in Header */}
+                    <div className="flex items-center gap-2 mb-6">
+                        <Label className="text-sm font-medium">Select Curriculum:</Label>
+                        <Select
+                            value={selectedCurriculum?.id?.toString() || ''}
+                            onValueChange={(value) => {
+                                const curriculum = selectedProgram?.curriculums?.find(c => c.id.toString() === value);
+                                setSelectedCurriculum(curriculum);
                             }}
                         >
-                            <Save className="w-4 h-4 mr-2" />
-                            Save Subject Assignments
-                        </Button>
+                            <SelectTrigger className="w-64">
+                                <SelectValue placeholder="Choose curriculum" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {selectedProgram?.curriculums?.map((curriculum) => (
+                                    <SelectItem key={curriculum.id} value={curriculum.id.toString()}>
+                                        <div className="flex items-center gap-2">
+                                            <span>{curriculum.curriculum_code}</span>
+                                            {curriculum.is_current && (
+                                                <Badge className="bg-green-100 text-green-800 border-green-200 text-xs">
+                                                    Current
+                                                </Badge>
+                                            )}
+                                        </div>
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </div>
+
+                    <div className="space-y-6">
+                        {selectedCurriculum ? (
+                            <>
+                                {/* Curriculum Info */}
+                                <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg p-4 border border-blue-200">
+                                    <div className="flex items-center justify-between">
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
+                                                <BookOpen className="w-5 h-5 text-blue-600" />
+                                            </div>
+                                            <div>
+                                                <h3 className="font-semibold text-blue-900">
+                                                    {selectedCurriculum.curriculum_name}
+                                                </h3>
+                                                <p className="text-sm text-blue-700">
+                                                    {selectedCurriculum.curriculum_code}
+                                                </p>
+                                            </div>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            {selectedCurriculum.is_current && (
+                                                <Badge className="bg-green-100 text-green-800 border-green-200">
+                                                    <Star className="w-3 h-3 mr-1" />
+                                                    Current
+                                                </Badge>
+                                            )}
+                                            <Badge variant="secondary" className="capitalize">
+                                                {selectedCurriculum.status}
+                                            </Badge>
+                                        </div>
+                                    </div>
+                                    {selectedCurriculum.description && (
+                                        <p className="text-sm text-gray-600 mt-2">
+                                            {selectedCurriculum.description}
+                                        </p>
+                                    )}
+                                </div>
+
+                                {/* Subjects Accordion */}
+                                <div className="space-y-4">
+                                    <h4 className="text-lg font-semibold text-gray-900">Subjects by Year and Semester</h4>
+
+                                    {(() => {
+                                        // Group subjects by year and semester
+                                        const groupedSubjects = {};
+                                        selectedCurriculum?.curriculum_subjects?.forEach(subject => {
+                                            const year = subject.year_level || 1;
+                                            const semester = subject.semester || '1st';
+
+                                            if (!groupedSubjects[year]) {
+                                                groupedSubjects[year] = { '1st': [], '2nd': [] };
+                                            }
+                                            groupedSubjects[year][semester].push(subject);
+                                        });
+
+                                        return Object.keys(groupedSubjects).map(year => (
+                                            <div key={year} className="border rounded-lg p-4">
+                                                <h3 className="text-lg font-semibold mb-4 text-black">
+                                                    {year}{year === '1' ? 'st' : year === '2' ? 'nd' : year === '3' ? 'rd' : 'th'} Year
+                                                </h3>
+
+                                                <Accordion type="multiple" className="w-full">
+                                                    {/* First Semester */}
+                                                    {groupedSubjects[year]['1st'].length > 0 && (
+                                                        <AccordionItem value={`${year}-first`}>
+                                                            <AccordionTrigger className="text-red-600 hover:text-red-700">
+                                                                <div className="flex items-center gap-2">
+                                                                    <span>1st Semester</span>
+                                                                    <Badge variant="outline" className="text-xs">
+                                                                        {groupedSubjects[year]['1st'].length} subjects
+                                                                    </Badge>
+                                                                </div>
+                                                            </AccordionTrigger>
+                                                            <AccordionContent>
+                                                                <div className="space-y-3 pt-2">
+                                                                    {groupedSubjects[year]['1st'].map(subject => (
+                                                                        <div key={subject.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border">
+                                                                            <div className="flex-1">
+                                                                                <div className="flex items-center gap-3">
+                                                                                    <div className="w-8 h-8 bg-red-100 rounded-full flex items-center justify-center">
+                                                                                        <BookOpen className="w-4 h-4 text-red-600" />
+                                                                                    </div>
+                                                                                    <div>
+                                                                                        <span className="font-medium text-gray-900">
+                                                                                            {subject.subject?.subject_code || 'N/A'}
+                                                                                        </span>
+                                                                                        <span className="text-sm text-gray-600 ml-2">
+                                                                                            {subject.subject?.subject_name || 'Unknown Subject'}
+                                                                                        </span>
+                                                                                    </div>
+                                                                                </div>
+                                                                            </div>
+                                                                            <div className="flex items-center gap-4 text-sm text-gray-500">
+                                                                                <span>{subject.units || 0} units</span>
+                                                                                <Badge variant="secondary" className="capitalize">
+                                                                                    {subject.subject?.subject_type || 'N/A'}
+                                                                                </Badge>
+                                                                            </div>
+                                                                        </div>
+                                                                    ))}
+                                                                </div>
+                                                            </AccordionContent>
+                                                        </AccordionItem>
+                                                    )}
+
+                                                    {/* Second Semester */}
+                                                    {groupedSubjects[year]['2nd'].length > 0 && (
+                                                        <AccordionItem value={`${year}-second`}>
+                                                            <AccordionTrigger className="text-blue-600 hover:text-blue-700">
+                                                                <div className="flex items-center gap-2">
+                                                                    <span>2nd Semester</span>
+                                                                    <Badge variant="outline" className="text-xs">
+                                                                        {groupedSubjects[year]['2nd'].length} subjects
+                                                                    </Badge>
+                                                                </div>
+                                                            </AccordionTrigger>
+                                                            <AccordionContent>
+                                                                <div className="space-y-3 pt-2">
+                                                                    {groupedSubjects[year]['2nd'].map(subject => (
+                                                                        <div key={subject.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border">
+                                                                            <div className="flex-1">
+                                                                                <div className="flex items-center gap-3">
+                                                                                    <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
+                                                                                        <BookOpen className="w-4 h-4 text-blue-600" />
+                                                                                    </div>
+                                                                                    <div>
+                                                                                        <span className="font-medium text-gray-900">
+                                                                                            {subject.subject?.subject_code || 'N/A'}
+                                                                                        </span>
+                                                                                        <span className="text-sm text-gray-600 ml-2">
+                                                                                            {subject.subject?.subject_name || 'Unknown Subject'}
+                                                                                        </span>
+                                                                                    </div>
+                                                                                </div>
+                                                                            </div>
+                                                                            <div className="flex items-center gap-4 text-sm text-gray-500">
+                                                                                <span>{subject.units || 0} units</span>
+                                                                                <Badge variant="secondary" className="capitalize">
+                                                                                    {subject.subject?.subject_type || 'N/A'}
+                                                                                </Badge>
+                                                                            </div>
+                                                                        </div>
+                                                                    ))}
+                                                                </div>
+                                                            </AccordionContent>
+                                                        </AccordionItem>
+                                                    )}
+                                                </Accordion>
+                                            </div>
+                                        ));
+                                    })()}
+
+                                    {(!selectedCurriculum.curriculum_subjects || selectedCurriculum.curriculum_subjects.length === 0) && (
+                                        <div className="text-center py-8 text-gray-500">
+                                            <BookOpen className="w-12 h-12 mx-auto mb-4 text-gray-300" />
+                                            <p>No subjects found in this curriculum.</p>
+                                            <p className="text-sm">Subjects need to be added to the curriculum first.</p>
+                                        </div>
+                                    )}
+                                </div>
+                            </>
+                        ) : (
+                            <div className="text-center py-12 text-gray-500">
+                                <BookOpen className="w-16 h-16 mx-auto mb-4 text-gray-300" />
+                                <p className="text-lg font-medium">Select a Curriculum</p>
+                                <p className="text-sm">Choose a curriculum from the dropdown above to view its subjects.</p>
+                            </div>
+                        )}
+
+                        {/* Close Button */}
+                        <div className="flex justify-end pt-4 border-t">
+                            <Button
+                                type="button"
+                                variant="outline"
+                                onClick={() => setCurriculumModalOpen(false)}
+                            >
+                                Close
+                            </Button>
+                        </div>
                     </div>
                 </DialogContent>
             </Dialog>

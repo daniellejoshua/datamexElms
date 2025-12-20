@@ -14,7 +14,9 @@ class ProgramController extends Controller
      */
     public function index(Request $request)
     {
-        $query = Program::with(['subjects', 'programFees'])->withCount('students');
+        $query = Program::with(['subjects', 'programFees', 'curriculums' => function ($query) {
+            $query->active()->orderBy('is_current', 'desc')->orderBy('created_at', 'desc');
+        }, 'curriculums.curriculumSubjects.subject'])->withCount('students');
 
         // Apply filters
         if ($request->filled('education_level') && $request->education_level !== 'all') {
@@ -78,8 +80,21 @@ class ProgramController extends Controller
     {
         $program->load(['subjects', 'sections', 'students', 'programFees']);
 
+        // Count only currently enrolled students (with enrollments for current academic year/semester)
+        $currentAcademicYear = \App\Models\SchoolSetting::getCurrentAcademicYear();
+        $currentSemester = \App\Models\SchoolSetting::getCurrentSemester();
+
+        $enrolledStudentsCount = $program->students()
+            ->whereHas('enrollments', function ($query) use ($currentAcademicYear, $currentSemester) {
+                $query->where('academic_year', $currentAcademicYear)
+                    ->where('semester', $currentSemester)
+                    ->where('status', 'active');
+            })
+            ->count();
+
         return Inertia::render('Registrar/Programs/Show', [
             'program' => $program,
+            'enrolled_students_count' => $enrolledStudentsCount,
         ]);
     }
 

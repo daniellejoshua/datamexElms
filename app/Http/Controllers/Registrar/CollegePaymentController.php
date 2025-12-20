@@ -68,7 +68,23 @@ class CollegePaymentController extends Controller
         );
 
         $stats = [
-            'total_payments' => StudentSemesterPayment::whereHas('student', function ($query) use ($filterStudentType) {
+            'total_students' => Student::where('education_level', 'college')
+                ->when($filterStudentType !== 'all', function ($query) use ($filterStudentType) {
+                    $query->where('student_type', $filterStudentType);
+                })
+                ->count(),
+            'students_not_enrolled' => Student::where('education_level', 'college')
+                ->when($filterStudentType !== 'all', function ($query) use ($filterStudentType) {
+                    $query->where('student_type', $filterStudentType);
+                })
+                ->whereDoesntHave('enrollments', function ($query) use ($filterAcademicYear, $filterSemester) {
+                    $query->where('academic_year', $filterAcademicYear)
+                          ->where('semester', $filterSemester)
+                          ->where('status', 'active')
+                          ->whereNotNull('section_id');
+                })
+                ->count(),
+            'students_with_balance' => StudentSemesterPayment::whereHas('student', function ($query) use ($filterStudentType) {
                 $query->where('education_level', 'college');
                 if ($filterStudentType !== 'all') {
                     $query->where('student_type', $filterStudentType);
@@ -76,28 +92,9 @@ class CollegePaymentController extends Controller
             })
                 ->where('academic_year', $filterAcademicYear)
                 ->where('semester', $filterSemester)
+                ->where('balance', '>', 0)
                 ->count(),
-            'pending_payments' => StudentSemesterPayment::whereHas('student', function ($query) use ($filterStudentType) {
-                $query->where('education_level', 'college');
-                if ($filterStudentType !== 'all') {
-                    $query->where('student_type', $filterStudentType);
-                }
-            })
-                ->where('academic_year', $filterAcademicYear)
-                ->where('semester', $filterSemester)
-                ->where('status', 'pending')
-                ->count(),
-            'overdue_payments' => StudentSemesterPayment::whereHas('student', function ($query) use ($filterStudentType) {
-                $query->where('education_level', 'college');
-                if ($filterStudentType !== 'all') {
-                    $query->where('student_type', $filterStudentType);
-                }
-            })
-                ->where('academic_year', $filterAcademicYear)
-                ->where('semester', $filterSemester)
-                ->where('status', 'overdue')
-                ->count(),
-            'total_collectible' => StudentSemesterPayment::whereHas('student', function ($query) use ($filterStudentType) {
+            'total_outstanding_balance' => StudentSemesterPayment::whereHas('student', function ($query) use ($filterStudentType) {
                 $query->where('education_level', 'college');
                 if ($filterStudentType !== 'all') {
                     $query->where('student_type', $filterStudentType);

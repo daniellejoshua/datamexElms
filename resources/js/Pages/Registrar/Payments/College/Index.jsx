@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { DollarSign, Users, AlertTriangle, Clock, Search, Plus, Eye, CreditCard, X } from 'lucide-react'
 import { useState, useEffect } from 'react'
-import { Toaster, toast } from 'sonner'
+import { toast } from 'sonner'
 
 // Helper function to format section name
 const formatSectionName = (section) => {
@@ -144,56 +144,54 @@ export default function CollegePaymentsIndex({ payments, stats, filters, current
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mx-4 md:mx-6 lg:mx-8">
                     <Card>
                         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                            <CardTitle className="text-sm font-medium">Total Students</CardTitle>
+                            <CardTitle className="text-sm font-medium">Total College Students</CardTitle>
                             <Users className="h-4 w-4 text-muted-foreground" />
                         </CardHeader>
                         <CardContent>
-                            <div className="text-2xl font-bold">{stats.total_students || payments.total || payments.data?.length || 0}</div>
+                            <div className="text-2xl font-bold">{stats.total_students || 0}</div>
                             <p className="text-xs text-muted-foreground">
-                                Enrolled students
+                                College students
                             </p>
                         </CardContent>
                     </Card>
 
                     <Card>
                         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                            <CardTitle className="text-sm font-medium">Paid This Month</CardTitle>
-                            <Clock className="h-4 w-4 text-muted-foreground" />
-                        </CardHeader>
-                        <CardContent>
-                            <div className="text-2xl font-bold text-green-600">{stats.paid_this_month || 0}</div>
-                            <p className="text-xs text-muted-foreground">
-                                Completed payments
-                            </p>
-                        </CardContent>
-                    </Card>
-
-                    <Card>
-                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                            <CardTitle className="text-sm font-medium">Overdue Amount</CardTitle>
+                            <CardTitle className="text-sm font-medium">Not Enrolled in Section</CardTitle>
                             <AlertTriangle className="h-4 w-4 text-muted-foreground" />
                         </CardHeader>
                         <CardContent>
-                            <div className="text-2xl font-bold text-red-600">
-                                {formatCurrency(stats.overdue_amount || 0)}
-                            </div>
+                            <div className="text-2xl font-bold text-orange-600">{stats.students_not_enrolled || 0}</div>
                             <p className="text-xs text-muted-foreground">
-                                Amount past due
+                                Students without section
                             </p>
                         </CardContent>
                     </Card>
 
                     <Card>
                         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                            <CardTitle className="text-sm font-medium">Monthly Revenue</CardTitle>
+                            <CardTitle className="text-sm font-medium">Students with Balance</CardTitle>
                             <DollarSign className="h-4 w-4 text-muted-foreground" />
                         </CardHeader>
                         <CardContent>
+                            <div className="text-2xl font-bold text-red-600">{stats.students_with_balance || 0}</div>
+                            <p className="text-xs text-muted-foreground">
+                                Outstanding balances
+                            </p>
+                        </CardContent>
+                    </Card>
+
+                    <Card>
+                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                            <CardTitle className="text-sm font-medium">Total Outstanding</CardTitle>
+                            <CreditCard className="h-4 w-4 text-muted-foreground" />
+                        </CardHeader>
+                        <CardContent>
                             <div className="text-2xl font-bold text-blue-600">
-                                {formatCurrency(stats.monthly_revenue || 0)}
+                                {formatCurrency(stats.total_outstanding_balance || 0)}
                             </div>
                             <p className="text-xs text-muted-foreground">
-                                Revenue this month
+                                Amount owed
                             </p>
                         </CardContent>
                     </Card>
