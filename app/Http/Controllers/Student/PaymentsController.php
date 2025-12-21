@@ -31,7 +31,7 @@ class PaymentsController extends Controller
 
         // Get all payment transactions
         $transactions = $student->paymentTransactions()
-            ->with('payment')
+            ->with('payable')
             ->orderBy('created_at', 'desc')
             ->paginate(20);
 

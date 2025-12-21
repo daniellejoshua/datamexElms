@@ -34,9 +34,45 @@ class RegistrarController extends Controller
             'active_students' => Student::whereHas('user', function ($query) {
                 $query->where('is_active', true);
             })->count(),
+            'college_students' => Student::whereHas('program', function ($query) {
+                $query->where('education_level', 'college');
+            })->count(),
+            'shs_students' => Student::whereHas('program', function ($query) {
+                $query->where('education_level', 'senior_high');
+            })->count(),
+            'active_college_students' => Student::whereHas('user', function ($query) {
+                $query->where('is_active', true);
+            })->whereHas('program', function ($query) {
+                $query->where('education_level', 'college');
+            })->count(),
+            'active_shs_students' => Student::whereHas('user', function ($query) {
+                $query->where('is_active', true);
+            })->whereHas('program', function ($query) {
+                $query->where('education_level', 'senior_high');
+            })->count(),
+            'regular_students' => Student::where('student_type', 'regular')->count(),
+            'irregular_students' => Student::where('student_type', 'irregular')->count(),
             'total_teachers' => Teacher::count(),
             'active_teachers' => Teacher::where('status', 'active')->count(),
             'total_sections' => Section::count(),
+            'programs' => Program::where('status', 'active')
+                ->withCount(['students' => function ($query) {
+                    $query->whereHas('user', function ($userQuery) {
+                        $userQuery->where('is_active', true);
+                    });
+                }])
+                ->get()
+                ->map(function ($program) {
+                    return [
+                        'id' => $program->id,
+                        'program_code' => $program->program_code,
+                        'program_name' => $program->program_name,
+                        'education_level' => $program->education_level,
+                        'track' => $program->track,
+                        'student_count' => $program->students_count,
+                    ];
+                })
+                ->groupBy('education_level'),
         ];
 
         return Inertia::render('Registrar/Dashboard', [

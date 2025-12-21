@@ -35,13 +35,8 @@ class StudentGrade extends Model
         return $this->belongsTo(StudentEnrollment::class);
     }
 
-    public function teacher(): BelongsTo
+    public function sectionSubject(): BelongsTo
     {
-        return $this->belongsTo(Teacher::class);
-    }
-
-    public function finalizedBy(): BelongsTo
-    {
-        return $this->belongsTo(User::class, 'finalized_by');
+        return $this->belongsTo(SectionSubject::class);
     }
 }

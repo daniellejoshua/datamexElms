@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { toast } from 'sonner';
 import { 
     BookOpen, 
     Upload, 
@@ -27,13 +28,15 @@ import {
 
 export default function MaterialsIndex({ section, materials, sectionSubject }) {
     const [showUploadDialog, setShowUploadDialog] = useState(false);
+    const [isDragOver, setIsDragOver] = useState(false);
+    const fileInputRef = React.useRef(null);
 
     const { data, setData, post, processing, errors, reset } = useForm({
         title: '',
         description: '',
         file: null,
         category: 'lecture',
-        visibility: 'all_students',
+        visibility: 'all_students', // Always set to all_students
     });
 
     const handleSubmit = (e) => {
@@ -42,8 +45,43 @@ export default function MaterialsIndex({ section, materials, sectionSubject }) {
             onSuccess: () => {
                 reset();
                 setShowUploadDialog(false);
+                toast.success('Learning material uploaded successfully!');
             },
         });
+    };
+
+    // Drag and drop handlers
+    const handleDragOver = (e) => {
+        e.preventDefault();
+        setIsDragOver(true);
+    };
+
+    const handleDragLeave = (e) => {
+        e.preventDefault();
+        setIsDragOver(false);
+    };
+
+    const handleDrop = (e) => {
+        e.preventDefault();
+        setIsDragOver(false);
+        
+        const files = e.dataTransfer.files;
+        if (files.length > 0) {
+            const file = files[0];
+            setData('file', file);
+            
+            // Update the file input to show the selected file
+            if (fileInputRef.current) {
+                // Create a new DataTransfer object to set the files
+                const dt = new DataTransfer();
+                dt.items.add(file);
+                fileInputRef.current.files = dt.files;
+            }
+        }
+    };
+
+    const handleFileChange = (e) => {
+        setData('file', e.target.files[0]);
     };
 
     const handleDelete = (materialId) => {
@@ -57,7 +95,6 @@ export default function MaterialsIndex({ section, materials, sectionSubject }) {
             lecture: 'bg-blue-100 text-blue-800',
             assignment: 'bg-orange-100 text-orange-800',
             reading: 'bg-green-100 text-green-800',
-            exam: 'bg-red-100 text-red-800',
             other: 'bg-gray-100 text-gray-800'
         };
         return colors[category] || colors.other;
@@ -183,59 +220,78 @@ export default function MaterialsIndex({ section, materials, sectionSubject }) {
                                         {errors.description && <p className="text-red-500 text-sm mt-1">{errors.description}</p>}
                                     </div>
 
-                                    {/* Category and Visibility */}
-                                    <div className="grid grid-cols-2 gap-4">
-                                        <div>
-                                            <Label htmlFor="category" className="text-sm font-medium text-gray-700 mb-2 block">Category</Label>
-                                            <Select value={data.category} onValueChange={(value) => setData('category', value)}>
-                                                <SelectTrigger className="focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
-                                                    <SelectValue />
-                                                </SelectTrigger>
-                                                <SelectContent>
-                                                    <SelectItem value="lecture">📚 Lecture</SelectItem>
-                                                    <SelectItem value="assignment">📝 Assignment</SelectItem>
-                                                    <SelectItem value="reading">📖 Reading</SelectItem>
-                                                    <SelectItem value="exam">📊 Exam</SelectItem>
-                                                    <SelectItem value="other">📁 Other</SelectItem>
-                                                </SelectContent>
-                                            </Select>
-                                        </div>
-
-                                        <div>
-                                            <Label htmlFor="visibility" className="text-sm font-medium text-gray-700 mb-2 block">Visibility</Label>
-                                            <Select value={data.visibility} onValueChange={(value) => setData('visibility', value)}>
-                                                <SelectTrigger className="focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
-                                                    <SelectValue />
-                                                </SelectTrigger>
-                                                <SelectContent>
-                                                    <SelectItem value="all_students">👥 All Students</SelectItem>
-                                                    <SelectItem value="specific_students">👤 Specific Students</SelectItem>
-                                                </SelectContent>
-                                            </Select>
-                                        </div>
+                                    {/* Category */}
+                                    <div>
+                                        <Label htmlFor="category" className="text-sm font-medium text-gray-700 mb-2 block">Category</Label>
+                                        <Select value={data.category} onValueChange={(value) => setData('category', value)}>
+                                            <SelectTrigger className="focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                                                <SelectValue />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="lecture">📚 Lecture</SelectItem>
+                                                <SelectItem value="assignment">📝 Assignment</SelectItem>
+                                                <SelectItem value="reading">📖 Reading</SelectItem>
+                                                <SelectItem value="other">📁 Other</SelectItem>
+                                            </SelectContent>
+                                        </Select>
                                     </div>
 
                                     {/* File Upload */}
                                     <div>
                                         <Label htmlFor="file" className="text-sm font-medium text-gray-700 mb-2 block">Upload File *</Label>
-                                        <div className="border-2 border-dashed border-gray-300 rounded-lg p-4 hover:border-blue-400 transition-colors">
-                                            <Input
-                                                id="file"
-                                                type="file"
-                                                onChange={(e) => setData('file', e.target.files[0])}
-                                                accept=".pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.txt,.jpg,.jpeg,.png"
-                                                required
-                                                className="w-full border-0 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-medium file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 cursor-pointer"
-                                            />
-                                            {errors.file && <p className="text-red-500 text-sm mt-2">{errors.file}</p>}
-                                            <div className="mt-3 p-3 bg-gray-50 rounded-md">
-                                                <div className="flex items-center text-xs text-gray-600">
-                                                    <span className="font-medium">📁 Supported formats:</span>
-                                                    <span className="ml-2">PDF, DOC, PPT, XLS, TXT, Images</span>
+                                        <div 
+                                            className={`border-2 border-dashed rounded-lg p-6 transition-all duration-200 ${
+                                                isDragOver 
+                                                    ? 'border-blue-500 bg-blue-50' 
+                                                    : 'border-gray-300 hover:border-blue-400'
+                                            }`}
+                                            onDragOver={handleDragOver}
+                                            onDragLeave={handleDragLeave}
+                                            onDrop={handleDrop}
+                                        >
+                                            <div className="text-center">
+                                                <div className={`mx-auto w-12 h-12 mb-4 rounded-full flex items-center justify-center ${
+                                                    isDragOver ? 'bg-blue-100' : 'bg-gray-100'
+                                                }`}>
+                                                    <Upload className={`w-6 h-6 ${
+                                                        isDragOver ? 'text-blue-600' : 'text-gray-400'
+                                                    }`} />
                                                 </div>
-                                                <div className="flex items-center text-xs text-gray-600 mt-1">
-                                                    <span className="font-medium">📏 Max size:</span>
-                                                    <span className="ml-2">10MB</span>
+                                                <div className="space-y-2">
+                                                    <p className={`text-sm font-medium ${
+                                                        isDragOver ? 'text-blue-700' : 'text-gray-700'
+                                                    }`}>
+                                                        {isDragOver ? 'Drop your file here' : 'Drag & drop your file here, or click to browse'}
+                                                    </p>
+                                                    <Input
+                                                        ref={fileInputRef}
+                                                        id="file"
+                                                        type="file"
+                                                        onChange={handleFileChange}
+                                                        accept=".pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.txt,.jpg,.jpeg,.png"
+                                                        required={!data.file}
+                                                        className="w-full border-0 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-medium file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 cursor-pointer"
+                                                    />
+                                                </div>
+                                                {errors.file && <p className="text-red-500 text-sm mt-2">{errors.file}</p>}
+                                                {data.file && (
+                                                    <div className="mt-3 p-3 bg-green-50 border border-green-200 rounded-md">
+                                                        <div className="flex items-center text-sm text-green-700">
+                                                            <File className="w-4 h-4 mr-2" />
+                                                            <span className="font-medium">Selected:</span>
+                                                            <span className="ml-2 truncate">{data.file.name}</span>
+                                                        </div>
+                                                    </div>
+                                                )}
+                                                <div className="mt-3 p-3 bg-gray-50 rounded-md">
+                                                    <div className="flex items-center text-xs text-gray-600">
+                                                        <span className="font-medium">📁 Supported formats:</span>
+                                                        <span className="ml-2">PDF, DOC, PPT, XLS, TXT, Images</span>
+                                                    </div>
+                                                    <div className="flex items-center text-xs text-gray-600 mt-1">
+                                                        <span className="font-medium">📏 Max size:</span>
+                                                        <span className="ml-2">10MB</span>
+                                                    </div>
                                                 </div>
                                             </div>
                                         </div>

@@ -274,10 +274,8 @@ export default function Show({ section, sectionSubject, enrollments, isCollegeLe
                     }
                 });
                 setEditingGrades(newEditingGrades);
-                alert('Grade saved successfully!');
             },
             onError: () => {
-                alert('Error saving grade. Please try again.');
             }
         });
     };
@@ -287,10 +285,8 @@ export default function Show({ section, sectionSubject, enrollments, isCollegeLe
         post(route('teacher.grades.update', section.id), {
             onSuccess: () => {
                 setEditingGrades({});
-                alert('Grades saved successfully!');
             },
             onError: () => {
-                alert('Error saving grades. Please try again.');
             }
         });
     };
@@ -310,10 +306,8 @@ export default function Show({ section, sectionSubject, enrollments, isCollegeLe
             router.post(route('teacher.grades.import', section.id), formData, {
                 onSuccess: () => {
                     setShowUploadDialog(false);
-                    alert('Grades imported successfully!');
                 },
                 onError: () => {
-                    alert('Error importing grades. Please check the file format.');
                 }
             });
         }
