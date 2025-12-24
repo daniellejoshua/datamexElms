@@ -16,14 +16,6 @@ import { Toaster, toast } from 'sonner'
 export default function SubjectsIndex({ subjects, programs, auth, filters = {} }) {
     const page = usePage();
 
-    useEffect(() => {
-        if (page.props.flash?.success) {
-            toast.success(page.props.flash.success);
-        }
-        if (page.props.flash?.error) {
-            toast.error(page.props.flash.error);
-        }
-    }, [page.props.flash]);
     const [selectedProgram, setSelectedProgram] = useState(filters.program_id || '');
     const [selectedEducationLevel, setSelectedEducationLevel] = useState(filters.education_level || '');
     const [selectedStatus, setSelectedStatus] = useState(filters.status || '');

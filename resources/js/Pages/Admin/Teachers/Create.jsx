@@ -13,15 +13,6 @@ import { toast } from 'sonner';
 const Create = () => {
     const page = usePage();
 
-    useEffect(() => {
-        if (page.props.flash?.success) {
-            toast.success(page.props.flash.success);
-        }
-        if (page.props.errors?.error) {
-            toast.error(page.props.errors.error);
-        }
-    }, [page.props.flash, page.props.errors]);
-
     const { data, setData, post, processing, errors, reset } = useForm({
         first_name: '',
         last_name: '',

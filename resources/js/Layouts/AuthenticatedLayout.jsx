@@ -28,20 +28,35 @@ export default function AuthenticatedLayout({ header, children }) {
         if (flash?.success) {
             toast.success(flash.success, {
                 style: {
-                    background: '#f0fdf4',
-                    color: '#166534',
-                    border: '1px solid #bbf7d0',
+                    border: '1px solid #10b981',
+                    backgroundColor: '#f0fdf4',
+                    color: '#166534'
                 },
-            });
+                duration: 10000,
+            })
         }
         if (flash?.error) {
-            toast.error(flash.error, {
-                style: {
-                    background: '#fef2f2',
-                    color: '#dc2626',
-                    border: '1px solid #fecaca',
-                },
-            });
+            // Show rate limit messages as special styled toasts
+            if (flash.error.toLowerCase().includes('rate limit') ||
+                flash.error.toLowerCase().includes('too many')) {
+                toast.error(flash.error, {
+                    duration: 5000,
+                    style: {
+                        background: '#fef3c7',
+                        color: '#92400e',
+                        border: '1px solid #f59e0b',
+                    },
+                });
+            } else {
+                // Show other error messages normally
+                toast.error(flash.error, {
+                    style: {
+                        border: '1px solid #ef4444',
+                        backgroundColor: '#fef2f2',
+                        color: '#dc2626'
+                    }
+                });
+            }
         }
     }, [flash]);
 

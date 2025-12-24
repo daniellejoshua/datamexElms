@@ -323,10 +323,7 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
     // Handle success flash message from server redirect
     useEffect(() => {
         if (flash?.success) {
-            toast.success(flash.success, {
-                style: { border: '1px solid #10b981', color: '#10b981' }
-            })
-            // Clear the form after successful registration
+            // Clear the form after successful registration (toast is handled by AuthenticatedLayout)
             reset()
         }
     }, [flash?.success, reset])
@@ -572,9 +569,6 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                 }
 
                 // Normal successful registration
-                toast.success('Student registered successfully!', {
-                    style: { border: '1px solid #10b981', color: '#10b981' }
-                })
                 // Clear the form instead of redirecting
                 reset()
                 setCreateGuideChecked(false)

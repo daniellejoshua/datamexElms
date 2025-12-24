@@ -9,14 +9,14 @@ Route::middleware('web')->group(function () {
 });
 
 // Protected routes with web session authentication
-Route::middleware(['web', 'auth:web'])->group(function () {
+Route::middleware(['web', 'auth:web', 'throttle.api'])->group(function () {
     Route::post('/logout', [AuthController::class, 'logout']);
     Route::get('/me', [AuthController::class, 'me']);
     Route::get('/user', function (\Illuminate\Http\Request $request) {
         return $request->user();
     });
 
-    // Student check route for registrars
+    // Student check route for registrars (searches)
     Route::get('/students/check/{student_number}', function ($studentNumber) {
         $student = \App\Models\Student::with(['user', 'program'])
             ->where('student_number', $studentNumber)
@@ -109,7 +109,7 @@ Route::middleware(['web', 'auth:web'])->group(function () {
         }
 
         return response()->json(['exists' => false, 'archived' => false]);
-    })->middleware('role:registrar');
+    })->middleware(['role:registrar', 'throttle.searches'])->name('api.students.check');
 
     // Archived student check route
     Route::get('/archived-students/check', function (\Illuminate\Http\Request $request) {
@@ -145,9 +145,9 @@ Route::middleware(['web', 'auth:web'])->group(function () {
         }
 
         return response()->json(['archivedStudent' => null]);
-    })->middleware('role:registrar');
+    })->middleware(['role:registrar', 'throttle.searches'])->name('api.archived-students.check');
 
-    // Student payment history route
+    // Student payment history route (data-heavy)
     Route::get('/students/{student}/payments', function (\App\Models\Student $student) {
         $payments = \App\Models\StudentSemesterPayment::where('student_id', $student->id)
             ->orderBy('academic_year', 'desc')
@@ -187,9 +187,9 @@ Route::middleware(['web', 'auth:web'])->group(function () {
                 'totalFee' => $totalFee,
             ],
         ]);
-    })->middleware('role:registrar');
+    })->middleware(['role:registrar', 'throttle.data-heavy'])->name('api.students.payments');
 
-    // Student progress route (completed archived semesters -> suggested year)
+    // Student progress route (data-heavy)
     Route::get('/students/{student}/progress', function (\App\Models\Student $student) {
         $completed = \App\Models\ArchivedStudentEnrollment::where('student_id', $student->id)
             ->where('final_status', 'completed')
@@ -203,7 +203,7 @@ Route::middleware(['web', 'auth:web'])->group(function () {
             'completed_years' => $completedYears,
             'suggested_year_numeric' => $suggestedNumeric,
         ]);
-    })->middleware('role:registrar');
+    })->middleware(['role:registrar', 'throttle.data-heavy'])->name('api.students.progress');
 
     // Archived student progress route
     Route::get('/archived-students/{archived}/progress', function (\App\Models\ArchivedStudent $archived) {
@@ -221,7 +221,7 @@ Route::middleware(['web', 'auth:web'])->group(function () {
             'completed_years' => $completedYears,
             'suggested_year_numeric' => $suggestedNumeric,
         ]);
-    })->middleware('role:registrar');
+    })->middleware(['role:registrar', 'throttle.data-heavy'])->name('api.archived-students.progress');
 
     // Suggest curriculum for a given program and year level (used by registrar UI)
     Route::get('/programs/{program}/suggested-curriculum', function (\Illuminate\Http\Request $request, \App\Models\Program $program) {
@@ -326,5 +326,5 @@ Route::middleware(['web', 'auth:web'])->group(function () {
         }
 
         return response()->json(['curriculum' => null, 'source' => 'none']);
-    })->middleware('role:registrar');
+    })->middleware(['role:registrar', 'throttle.searches'])->name('api.programs.suggested-curriculum');
 });

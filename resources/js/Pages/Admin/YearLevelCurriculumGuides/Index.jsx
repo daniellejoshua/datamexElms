@@ -14,14 +14,6 @@ export default function Index({ guides, programs, currentAcademicYear, filters }
     const { flash } = usePage().props;
     const [localFilters, setLocalFilters] = useState(filters || {})
 
-    useEffect(() => {
-        if (flash?.success) {
-            toast.success(flash.success, {
-                style: { border: '1px solid #10b981', color: '#10b981' }
-            })
-        }
-    }, [flash?.success])
-
     const handleFilterChange = (key, value) => {
         const newFilters = { ...localFilters, [key]: value }
         setLocalFilters(newFilters)

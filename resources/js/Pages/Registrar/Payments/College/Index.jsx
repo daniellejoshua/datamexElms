@@ -86,9 +86,6 @@ export default function CollegePaymentsIndex({ payments, stats, filters, current
             onSuccess: () => {
                 setShowPaymentModal(false)
                 setSelectedPayment(null)
-                toast.success('Payment recorded successfully!', {
-                    description: `Payment of ₱${paymentForm.amount_paid} has been recorded for ${selectedPayment?.student?.user?.name}`,
-                })
             },
             onError: (errors) => {
                 toast.error('Failed to record payment', {

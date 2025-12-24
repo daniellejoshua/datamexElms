@@ -113,6 +113,7 @@ class ProgramController extends Controller
             'program_fees.*.year_level' => 'required|integer|min:1|max:4',
             'program_fees.*.fee_type' => 'required|in:regular',
             'program_fees.*.semester_fee' => 'required|numeric|min:0',
+            'modal' => 'sometimes|boolean',
         ]);
 
         // Update program basic info
@@ -137,6 +138,13 @@ class ProgramController extends Controller
                     'semester_fee' => $feeData['semester_fee'],
                 ]
             );
+        }
+
+        if ($request->has('modal')) {
+            return response()->json([
+                'program' => $program->load(['subjects', 'sections', 'students', 'programFees']),
+                'message' => 'Program updated successfully.'
+            ]);
         }
 
         return redirect()->route('registrar.programs.show', $program)

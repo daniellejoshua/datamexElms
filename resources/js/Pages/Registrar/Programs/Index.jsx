@@ -122,11 +122,7 @@ export default function ProgramsIndex({ programs, auth, filters = {} }) {
                 onSuccess: () => {
                     setEditModalOpen(false);
                     setSelectedProgram(null);
-                    // Don't reset here, let the modal close first
-                    setTimeout(() => {
-                        reset();
-                        window.location.reload(); // Refresh to show updated data
-                    }, 100);
+                    reset();
                 },
                 onError: (errors) => {
                     setFeeErrors(errors);

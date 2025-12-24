@@ -219,9 +219,6 @@ export default function StudentsIndex({ students, programs, filters, auth, on_ho
         setIsSavingEdit(true)
         router.put(route('registrar.students.update', selectedStudent.id), editFormData, {
             onSuccess: () => {
-                toast.success('Student updated successfully!', {
-                    style: { border: '1px solid #10b981', color: '#10b981' }
-                })
                 setIsEditMode(false)
                 setIsViewModalOpen(false)
                 // Delay the reload to allow the toast to be visible
@@ -230,11 +227,9 @@ export default function StudentsIndex({ students, programs, filters, auth, on_ho
                 }, 2000) // 2 second delay
             },
             onError: (errors) => {
-                const errorMessage = Object.values(errors).find(error => error) || 'An unknown error occurred'
-                toast.error(`Failed to update student: ${errorMessage}`, {
-                    style: { border: '1px solid #ef4444', color: '#ef4444' }
-                })
-                console.error('Update failed:', errors)
+                // Rate limit errors are handled globally in app.jsx
+                // Other validation errors will be handled by the form
+                console.log('Save error:', errors)
             },
             onFinish: () => setIsSavingEdit(false),
         })

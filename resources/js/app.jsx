@@ -4,8 +4,38 @@ import './bootstrap';
 import { createInertiaApp } from '@inertiajs/react';
 import { resolvePageComponent } from 'laravel-vite-plugin/inertia-helpers';
 import { createRoot } from 'react-dom/client';
+import { router } from '@inertiajs/react';
+import { toast } from 'sonner';
 
 const appName = import.meta.env.VITE_APP_NAME || 'Laravel';
+
+// Global Inertia error handling (rate limiting is now handled by middleware)
+router.on('error', (event) => {
+    // Handle rate limiting errors
+    if (event.detail?.response?.status === 429) {
+        const message = 'Rate limit exceeded. Please wait a moment before trying again.';
+        toast.error(message, {
+            duration: 5000,
+            style: {
+                background: '#fef3c7',
+                color: '#92400e',
+                border: '1px solid #f59e0b',
+            },
+        });
+        // Prevent the default error handling
+        event.preventDefault();
+        return;
+    }
+
+    // Handle redirects that might come from rate limiting
+    if (event.detail?.response?.status === 302 || event.detail?.response?.status === 301) {
+        // This is a redirect, let Inertia handle it normally
+        return;
+    }
+
+    // Handle other errors normally
+    console.log('Inertia error:', event.detail);
+});
 
 createInertiaApp({
     title: (title) => `${title} - ${appName}`,

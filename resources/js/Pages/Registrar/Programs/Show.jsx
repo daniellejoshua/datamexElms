@@ -21,7 +21,7 @@ export default function ProgramsShow({ program, enrolled_students_count, auth })
                         <Button asChild variant="ghost" size="sm" className="mr-2">
                             <Link href={route('registrar.programs.index')}>
                                 <ArrowLeft className="w-4 h-4 mr-1" />
-                                Back
+                                Back To Programs
                             </Link>
                         </Button>
                         <div className="bg-blue-100 p-1.5 rounded-md">
@@ -32,12 +32,6 @@ export default function ProgramsShow({ program, enrolled_students_count, auth })
                             <p className="text-xs text-gray-500 mt-0.5">Program Details & Fee Structure</p>
                         </div>
                     </div>
-                    <Button asChild size="sm" className="bg-blue-600 hover:bg-blue-700 text-white">
-                        <Link href={route('registrar.programs.edit', program.id)}>
-                            <Edit className="w-3 h-3 mr-1" />
-                            Edit Program
-                        </Link>
-                    </Button>
                 </div>
             }
         >

@@ -14,12 +14,6 @@ import { Toaster, toast } from 'sonner'
 export default function SubjectsCreate({ auth, programs }) {
     const page = usePage();
 
-    useEffect(() => {
-        if (page.props.flash?.success) {
-            toast.success(page.props.flash.success);
-        }
-    }, [page.props.flash]);
-
     const { data, setData, post, processing, errors, reset } = useForm({
         subject_type: 'minor',
         program_id: '',

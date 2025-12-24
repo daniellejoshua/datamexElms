@@ -45,7 +45,6 @@ export default function MaterialsIndex({ section, materials, sectionSubject }) {
             onSuccess: () => {
                 reset();
                 setShowUploadDialog(false);
-                toast.success('Learning material uploaded successfully!');
             },
         });
     };
