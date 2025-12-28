@@ -17,9 +17,9 @@ router.on('error', (event) => {
         toast.error(message, {
             duration: 5000,
             style: {
-                background: '#fef3c7',
-                color: '#92400e',
-                border: '1px solid #f59e0b',
+                border: '1px solid #10b981',
+                backgroundColor: '#f0fdf4',
+                color: '#166534'
             },
         });
         // Prevent the default error handling

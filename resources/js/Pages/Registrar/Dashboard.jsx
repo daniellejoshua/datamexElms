@@ -1,13 +1,15 @@
-import { Head } from '@inertiajs/react'
+import { Head, router } from '@inertiajs/react'
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import { Progress } from '@/components/ui/progress'
 import { ChartContainer, ChartTooltip, ChartTooltipContent, ChartLegend, ChartLegendContent } from '@/components/ui/chart'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { PieChart, Pie, BarChart, Bar, XAxis as BarXAxis, YAxis as BarYAxis, CartesianGrid } from 'recharts'
-import { Users, GraduationCap, BookOpen, UserCheck, School, FileText, Calendar, BarChart3, PieChart as PieChartIcon, Target, Activity } from 'lucide-react'
+import { Users, GraduationCap, BookOpen, UserCheck, School, FileText, Calendar, BarChart3, PieChart as PieChartIcon, Target, Activity, RefreshCw } from 'lucide-react'
 import { useState } from 'react'
+import { toast } from 'sonner'
 
 export default function RegistrarDashboard({ stats, auth }) {
     const registrar = auth.user.registrar
@@ -15,6 +17,7 @@ export default function RegistrarDashboard({ stats, auth }) {
     const [distributionType, setDistributionType] = useState('college')
     const [programFilter, setProgramFilter] = useState('college')
     const [selectedYearLevel, setSelectedYearLevel] = useState(kpiData.length > 0 ? kpiData[0].year_level : null)
+    const [isRefreshing, setIsRefreshing] = useState(false)
 
     // Get selected year level data
     const selectedYearData = kpiData.find(item => item.year_level === selectedYearLevel) || kpiData[0]
@@ -34,6 +37,34 @@ export default function RegistrarDashboard({ stats, auth }) {
             minimumFractionDigits: 0,
             maximumFractionDigits: 0,
         }).format(value);
+    };
+
+    const handleRefresh = () => {
+        if (isRefreshing) return; // Prevent multiple simultaneous requests
+
+        console.log('Starting refresh...');
+        setIsRefreshing(true);
+        router.post('/registrar/dashboard/refresh', {}, {
+            onSuccess: (page) => {
+                console.log('Refresh successful:', page);
+                toast.success('Dashboard data refreshed successfully!', {
+                    style: {
+                        border: '1px solid #10b981',
+                        backgroundColor: '#f0fdf4',
+                        color: '#166534'
+                    },
+                    duration: 10000,
+                });
+            },
+            onError: (errors) => {
+                console.error('Refresh error:', errors);
+                toast.error('Failed to refresh dashboard data');
+            },
+            onFinish: () => {
+                console.log('Refresh finished');
+                setIsRefreshing(false);
+            }
+        });
     };
 
     const CustomTooltip = ({ active, payload, label }) => {
@@ -73,14 +104,26 @@ export default function RegistrarDashboard({ stats, auth }) {
                             </p>
                         </div>
                     </div>
-                    <div className="flex items-center gap-2 text-sm text-gray-500">
-                        <Calendar className="w-4 h-4" />
-                        <span>{new Date().toLocaleDateString('en-US', { 
-                            weekday: 'long', 
-                            year: 'numeric', 
-                            month: 'long', 
-                            day: 'numeric' 
-                        })}</span>
+                    <div className="flex items-center gap-3">
+                        <div className="flex items-center gap-2 text-sm text-gray-500">
+                            <Calendar className="w-4 h-4" />
+                            <span>{new Date().toLocaleDateString('en-US', { 
+                                weekday: 'long', 
+                                year: 'numeric', 
+                                month: 'long', 
+                                day: 'numeric' 
+                            })}</span>
+                        </div>
+                        <Button
+                            onClick={handleRefresh}
+                            disabled={isRefreshing}
+                            size="sm"
+                            variant="outline"
+                            className="h-8 px-3 text-xs"
+                        >
+                            <RefreshCw className={`w-3 h-3 mr-1 ${isRefreshing ? 'animate-spin' : ''}`} />
+                            {isRefreshing ? 'Refreshing...' : 'Refresh'}
+                        </Button>
                     </div>
                 </div>
             }

@@ -180,6 +180,9 @@ class StudentPaymentController extends Controller
             $paymentData
         );
 
+        // Clear dashboard cache since payment data changed
+        \Illuminate\Support\Facades\Cache::forget('registrar.dashboard.stats');
+
         return redirect()->back()->with('success', 'Payment processed successfully.');
     }
 

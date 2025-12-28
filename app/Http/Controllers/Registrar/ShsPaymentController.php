@@ -147,6 +147,9 @@ class ShsPaymentController extends Controller
             $quarterDateField => $validated['payment_date'],
         ]);
 
+        // Clear dashboard cache since payment data changed
+        \Illuminate\Support\Facades\Cache::forget('registrar.dashboard.stats');
+
         return back()->with('success', 'Payment of ₱'.number_format($validated['amount_paid'], 2).' recorded successfully for Quarter '.$validated['quarter'].'.');
     }
 

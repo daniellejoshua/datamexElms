@@ -183,6 +183,9 @@ class PaymentController extends Controller
                 ]
             );
 
+            // Clear dashboard cache since payment data changed
+            \Illuminate\Support\Facades\Cache::forget('registrar.dashboard.stats');
+
             return back()->with('success', 'Payment processed successfully. Reference: '.$transaction->reference_number);
         } catch (\Exception $e) {
             return back()->withErrors(['error' => 'Failed to process payment: '.$e->getMessage()]);

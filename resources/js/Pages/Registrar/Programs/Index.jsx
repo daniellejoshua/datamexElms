@@ -242,7 +242,7 @@ export default function ProgramsIndex({ programs, auth, filters = {} }) {
                     </CardContent>
                 </Card>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 px-4 ">
                     {programs.data.map((program) => (
                         <Card key={program.id} className="group hover:shadow-xl transition-all duration-300 border-2 hover:border-blue-300 relative overflow-hidden">
                             {/* Status Badge */}
@@ -628,7 +628,7 @@ export default function ProgramsIndex({ programs, auth, filters = {} }) {
                                         <div className="flex items-center gap-2">
                                             <span>{curriculum.curriculum_code}</span>
                                             {curriculum.is_current && (
-                                                <Badge className="bg-green-100 text-green-800 border-green-200 text-xs">
+                                                <Badge className="bg-green-100 text-green-800 border-green-200">
                                                     Current
                                                 </Badge>
                                             )}

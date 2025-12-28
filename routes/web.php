@@ -44,6 +44,7 @@ Route::middleware(['auth', 'verified', 'role:student'])->prefix('student')->grou
 // Registrar Routes
 Route::middleware(['auth', 'verified', 'role:registrar', 'throttle.api'])->prefix('registrar')->name('registrar.')->group(function () {
     Route::get('/dashboard', [RegistrarController::class, 'dashboard'])->name('dashboard');
+    Route::match(['get', 'post'], '/dashboard/refresh', [RegistrarController::class, 'refreshDashboard'])->name('dashboard.refresh');
     Route::get('/students', [RegistrarController::class, 'students'])->name('students');
     Route::get('/students/create', [RegistrarController::class, 'create'])->name('students.create');
     Route::post('/students', [RegistrarController::class, 'store'])->name('students.store');

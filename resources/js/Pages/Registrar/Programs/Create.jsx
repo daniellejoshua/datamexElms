@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Label } from '@/components/ui/label'
-import { BookOpen, ArrowLeft, Save } from 'lucide-react'
+import { BookOpen, ArrowLeft, Save, Plus } from 'lucide-react'
 import { useState } from 'react'
 
 export default function CreateProgram({ auth }) {
@@ -15,9 +15,7 @@ export default function CreateProgram({ auth }) {
         program_name: '',
         description: '',
         education_level: '',
-        track: '',
         total_years: 4,
-        semester_fee: '',
         status: 'active'
     })
 
@@ -44,27 +42,33 @@ export default function CreateProgram({ auth }) {
     return (
         <AuthenticatedLayout
             header={
-                <div className="flex items-center">
-                    <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => router.visit(route('registrar.programs.index'))}
-                        className="mr-4"
-                    >
-                        <ArrowLeft className="w-4 h-4" />
-                    </Button>
-                    <div>
-                        <h2 className="text-2xl font-bold text-gray-900">Create Program</h2>
-                        <p className="text-sm text-gray-600 mt-1">
-                            Add a new course program with semester fees
-                        </p>
+                <div className="flex items-center justify-between px-2 py-1">
+                    <div className="flex items-center gap-2">
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => router.visit(route('registrar.programs.index'))}
+                            className="mr-2"
+                        >
+                            <ArrowLeft className="w-4 h-4 mr-1" />
+                            Back to Programs
+                        </Button>
+                        <div className="bg-green-100 p-2 rounded-lg">
+                            <Plus className="w-6 h-6 text-green-600" />
+                        </div>
+                        <div>
+                            <h2 className="text-lg font-semibold text-gray-900">Create Program</h2>
+                            <p className="text-xs text-gray-500 mt-0.5">
+                                Add a new course program with semester fees
+                            </p>
+                        </div>
                     </div>
                 </div>
             }
         >
             <Head title="Create Program" />
 
-            <div className="max-w-2xl">
+            <div className="max-w-2xl mx-auto mt-6">
                 <Card>
                     <CardHeader>
                         <CardTitle className="flex items-center">
@@ -72,7 +76,7 @@ export default function CreateProgram({ auth }) {
                             Program Details
                         </CardTitle>
                         <CardDescription>
-                            Enter the program information and set the semester fee
+                            Enter the basic program information
                         </CardDescription>
                     </CardHeader>
                     <CardContent>
@@ -136,18 +140,6 @@ export default function CreateProgram({ auth }) {
                                 </div>
 
                                 <div>
-                                    <Label htmlFor="track">Track (SHS only)</Label>
-                                    <Input
-                                        id="track"
-                                        value={form.track}
-                                        onChange={(e) => handleChange('track', e.target.value)}
-                                        placeholder="e.g., STEM, ABM"
-                                    />
-                                </div>
-                            </div>
-
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                <div>
                                     <Label htmlFor="total_years">Total Years *</Label>
                                     <Select value={form.total_years.toString()} onValueChange={(value) => handleChange('total_years', parseInt(value))}>
                                         <SelectTrigger className={errors.total_years ? 'border-red-500' : ''}>
@@ -166,39 +158,6 @@ export default function CreateProgram({ auth }) {
                                         <p className="text-red-500 text-sm mt-1">{errors.total_years}</p>
                                     )}
                                 </div>
-
-                                <div>
-                                    <Label htmlFor="semester_fee">Semester Fee (PHP) *</Label>
-                                    <Input
-                                        id="semester_fee"
-                                        type="number"
-                                        step="0.01"
-                                        min="0"
-                                        value={form.semester_fee}
-                                        onChange={(e) => handleChange('semester_fee', e.target.value)}
-                                        placeholder="0.00"
-                                        className={errors.semester_fee ? 'border-red-500' : ''}
-                                    />
-                                    {errors.semester_fee && (
-                                        <p className="text-red-500 text-sm mt-1">{errors.semester_fee}</p>
-                                    )}
-                                </div>
-                            </div>
-
-                            <div>
-                                <Label htmlFor="status">Status *</Label>
-                                <Select value={form.status} onValueChange={(value) => handleChange('status', value)}>
-                                    <SelectTrigger className={errors.status ? 'border-red-500' : ''}>
-                                        <SelectValue />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="active">Active</SelectItem>
-                                        <SelectItem value="inactive">Inactive</SelectItem>
-                                    </SelectContent>
-                                </Select>
-                                {errors.status && (
-                                    <p className="text-red-500 text-sm mt-1">{errors.status}</p>
-                                )}
                             </div>
 
                             <div className="flex justify-end gap-4">
