@@ -31,36 +31,77 @@ class RegistrarController extends Controller
     public function dashboard(): Response
     {
         $stats = Cache::remember('registrar.dashboard.stats', 300, function () { // Cache for 5 minutes
+            $currentAcademicYear = SchoolSetting::getCurrentAcademicYear();
+            $currentSemester = SchoolSetting::getCurrentSemester();
+
             return [
-                'total_students' => Student::count(),
+                'total_students' => Student::whereHas('studentEnrollments', function ($query) use ($currentAcademicYear, $currentSemester) {
+                    $query->where('academic_year', $currentAcademicYear)
+                        ->where('semester', $currentSemester)
+                        ->where('status', 'active');
+                })->count(),
                 'active_students' => Student::whereHas('user', function ($query) {
                     $query->where('is_active', true);
+                })->whereHas('studentEnrollments', function ($query) use ($currentAcademicYear, $currentSemester) {
+                    $query->where('academic_year', $currentAcademicYear)
+                        ->where('semester', $currentSemester)
+                        ->where('status', 'active');
                 })->count(),
                 'college_students' => Student::whereHas('program', function ($query) {
                     $query->where('education_level', 'college');
+                })->whereHas('studentEnrollments', function ($query) use ($currentAcademicYear, $currentSemester) {
+                    $query->where('academic_year', $currentAcademicYear)
+                        ->where('semester', $currentSemester)
+                        ->where('status', 'active');
                 })->count(),
                 'shs_students' => Student::whereHas('program', function ($query) {
                     $query->where('education_level', 'senior_high');
+                })->whereHas('studentEnrollments', function ($query) use ($currentAcademicYear, $currentSemester) {
+                    $query->where('academic_year', $currentAcademicYear)
+                        ->where('semester', $currentSemester)
+                        ->where('status', 'active');
                 })->count(),
                 'active_college_students' => Student::whereHas('user', function ($query) {
                     $query->where('is_active', true);
                 })->whereHas('program', function ($query) {
                     $query->where('education_level', 'college');
+                })->whereHas('studentEnrollments', function ($query) use ($currentAcademicYear, $currentSemester) {
+                    $query->where('academic_year', $currentAcademicYear)
+                        ->where('semester', $currentSemester)
+                        ->where('status', 'active');
                 })->count(),
                 'active_shs_students' => Student::whereHas('user', function ($query) {
                     $query->where('is_active', true);
                 })->whereHas('program', function ($query) {
                     $query->where('education_level', 'senior_high');
+                })->whereHas('studentEnrollments', function ($query) use ($currentAcademicYear, $currentSemester) {
+                    $query->where('academic_year', $currentAcademicYear)
+                        ->where('semester', $currentSemester)
+                        ->where('status', 'active');
                 })->count(),
-                'regular_students' => Student::where('student_type', 'regular')->count(),
-                'irregular_students' => Student::where('student_type', 'irregular')->count(),
+                'regular_students' => Student::where('student_type', 'regular')
+                    ->whereHas('studentEnrollments', function ($query) use ($currentAcademicYear, $currentSemester) {
+                        $query->where('academic_year', $currentAcademicYear)
+                            ->where('semester', $currentSemester)
+                            ->where('status', 'active');
+                    })->count(),
+                'irregular_students' => Student::where('student_type', 'irregular')
+                    ->whereHas('studentEnrollments', function ($query) use ($currentAcademicYear, $currentSemester) {
+                        $query->where('academic_year', $currentAcademicYear)
+                            ->where('semester', $currentSemester)
+                            ->where('status', 'active');
+                    })->count(),
                 'total_teachers' => Teacher::count(),
                 'active_teachers' => Teacher::where('status', 'active')->count(),
                 'total_sections' => Section::count(),
                 'programs' => Program::where('status', 'active')
-                    ->withCount(['students' => function ($query) {
+                    ->withCount(['students' => function ($query) use ($currentAcademicYear, $currentSemester) {
                         $query->whereHas('user', function ($userQuery) {
                             $userQuery->where('is_active', true);
+                        })->whereHas('studentEnrollments', function ($enrollmentQuery) use ($currentAcademicYear, $currentSemester) {
+                            $enrollmentQuery->where('academic_year', $currentAcademicYear)
+                                ->where('semester', $currentSemester)
+                                ->where('status', 'active');
                         });
                     }])
                     ->get()
@@ -75,12 +116,140 @@ class RegistrarController extends Controller
                         ];
                     })
                     ->groupBy('education_level'),
+                'kpi_trends' => $this->getKpiTrends(),
+                'payment_stats' => [
+                    'total_paid' => PaymentTransaction::where('status', 'completed')
+                        ->whereHas('student.studentEnrollments', function ($query) use ($currentAcademicYear, $currentSemester) {
+                            $query->where('academic_year', $currentAcademicYear)
+                                ->where('semester', $currentSemester)
+                                ->where('status', 'active');
+                        })
+                        ->sum('amount'),
+                    'recent_payments' => PaymentTransaction::where('status', 'completed')
+                        ->where('payment_date', '>=', now()->subDays(7))
+                        ->whereHas('student.studentEnrollments', function ($query) use ($currentAcademicYear, $currentSemester) {
+                            $query->where('academic_year', $currentAcademicYear)
+                                ->where('semester', $currentSemester)
+                                ->where('status', 'active');
+                        })
+                        ->count(),
+                    'pending_payments' => Student::whereHas('studentEnrollments', function ($query) use ($currentAcademicYear, $currentSemester) {
+                        $query->where('academic_year', $currentAcademicYear)
+                            ->where('semester', $currentSemester)
+                            ->where('status', 'active');
+                    })->whereDoesntHave('paymentTransactions', function ($query) {
+                        $query->where('status', 'completed')
+                            ->where('payment_date', '>=', now()->startOfYear());
+                    })->count(),
+                ],
+                'enrollment_alerts' => [
+                    'incomplete_enrollments' => StudentEnrollment::where('academic_year', $currentAcademicYear)
+                        ->where('semester', $currentSemester)
+                        ->where('status', 'pending')
+                        ->count(),
+                    'recent_enrollments' => StudentEnrollment::where('academic_year', $currentAcademicYear)
+                        ->where('semester', $currentSemester)
+                        ->where('status', 'active')
+                        ->where('enrollment_date', '>=', now()->subDays(7))
+                        ->count(),
+                ],
             ];
         });
 
         return Inertia::render('Registrar/Dashboard', [
             'stats' => $stats,
         ]);
+    }
+
+    /**
+     * Get payment collection data by period and year level for the dashboard.
+     */
+    private function getKpiTrends(): array
+    {
+        $currentAcademicYear = SchoolSetting::getCurrentAcademicYear();
+        $currentSemester = SchoolSetting::getCurrentSemester();
+
+        $paymentPeriods = [
+            'prelim_payment' => 'Prelim',
+            'midterm_payment' => 'Midterm',
+            'prefinal_payment' => 'Pre-final',
+            'final_payment' => 'Final',
+        ];
+
+        $collectionData = [];
+
+        // Get all year levels that have enrolled students
+        $yearLevels = Student::whereHas('studentEnrollments', function ($query) use ($currentAcademicYear, $currentSemester) {
+            $query->where('academic_year', $currentAcademicYear)
+                ->where('semester', $currentSemester)
+                ->where('status', 'active');
+        })
+            ->distinct()
+            ->pluck('current_year_level')
+            ->sort()
+            ->values();
+
+        foreach ($yearLevels as $yearLevel) {
+            // Get total enrolled students for this year level
+            $totalEnrolled = Student::where('current_year_level', $yearLevel)
+                ->whereHas('studentEnrollments', function ($query) use ($currentAcademicYear, $currentSemester) {
+                    $query->where('academic_year', $currentAcademicYear)
+                        ->where('semester', $currentSemester)
+                        ->where('status', 'active');
+                })
+                ->count();
+
+            $yearLevelData = [
+                'year_level' => $yearLevel,
+                'label' => $this->getYearLevelLabel($yearLevel),
+                'total_enrolled' => $totalEnrolled,
+                'periods' => [],
+            ];
+
+            foreach ($paymentPeriods as $periodKey => $periodLabel) {
+                // Count students who have paid for this period
+                $paidCount = Student::where('current_year_level', $yearLevel)
+                    ->whereHas('studentEnrollments', function ($query) use ($currentAcademicYear, $currentSemester) {
+                        $query->where('academic_year', $currentAcademicYear)
+                            ->where('semester', $currentSemester)
+                            ->where('status', 'active');
+                    })
+                    ->whereHas('paymentTransactions', function ($query) use ($periodKey) {
+                        $query->where('payment_type', $periodKey)
+                            ->where('status', 'completed');
+                    })
+                    ->count();
+
+                $unpaidCount = $totalEnrolled - $paidCount;
+
+                $yearLevelData['periods'][] = [
+                    'period' => $periodKey,
+                    'label' => $periodLabel,
+                    'paid_count' => $paidCount,
+                    'unpaid_count' => $unpaidCount,
+                    'total_count' => $totalEnrolled,
+                ];
+            }
+
+            $collectionData[] = $yearLevelData;
+        }
+
+        return $collectionData;
+    }
+
+    /**
+     * Get human-readable label for year level.
+     */
+    private function getYearLevelLabel(int $yearLevel): string
+    {
+        return match ($yearLevel) {
+            1 => '1st Year',
+            2 => '2nd Year',
+            3 => '3rd Year',
+            4 => '4th Year',
+            5 => '5th Year',
+            default => $yearLevel.'th Year',
+        };
     }
 
     /**

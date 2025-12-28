@@ -155,8 +155,8 @@ export default function ProgramsIndex({ programs, auth, filters = {} }) {
             header={
                 <div className="flex items-center justify-between px-2 py-1">
                     <div className="flex items-center gap-2">
-                        <div className="bg-blue-100 p-1.5 rounded-md">
-                            <GraduationCap className="w-4 h-4 text-blue-600" />
+                        <div className="bg-purple-100 p-2 rounded-lg">
+                            <GraduationCap className="w-6 h-6 text-purple-600" />
                         </div>
                         <div>
                             <h2 className="text-lg font-semibold text-gray-900">Programs</h2>

@@ -59,7 +59,7 @@ export default function Show({ curriculum, subjectsByYearSemester, totalSubjects
                                 </div>
                                 <div className="flex items-center gap-3">
                                     <Clock className="w-8 h-8 text-green-600" />
-                                    <div>
+                                 <div>
                                         <p className="text-2xl font-bold text-gray-900">{totalUnits}</p>
                                         <p className="text-sm text-gray-600">Total Units</p>
                                     </div>

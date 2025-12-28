@@ -1,68 +1,86 @@
-import { Head, Link } from '@inertiajs/react'
+import { Head } from '@inertiajs/react'
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
 import { Progress } from '@/components/ui/progress'
 import { ChartContainer, ChartTooltip, ChartTooltipContent, ChartLegend, ChartLegendContent } from '@/components/ui/chart'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Area, AreaChart, ResponsiveContainer, XAxis, YAxis, PieChart, Pie, Cell } from 'recharts'
-import { Users, GraduationCap, BookOpen, UserCheck, School, FileText, Calendar, TrendingUp, Activity, BarChart3, PieChart as PieChartIcon, Target } from 'lucide-react'
+import { PieChart, Pie, BarChart, Bar, XAxis as BarXAxis, YAxis as BarYAxis, CartesianGrid } from 'recharts'
+import { Users, GraduationCap, BookOpen, UserCheck, School, FileText, Calendar, BarChart3, PieChart as PieChartIcon, Target, Activity } from 'lucide-react'
 import { useState } from 'react'
 
 export default function RegistrarDashboard({ stats, auth }) {
     const registrar = auth.user.registrar
-    const [filter, setFilter] = useState('all')
+    const kpiData = stats.kpi_trends || []
     const [distributionType, setDistributionType] = useState('college')
     const [programFilter, setProgramFilter] = useState('college')
+    const [selectedYearLevel, setSelectedYearLevel] = useState(kpiData.length > 0 ? kpiData[0].year_level : null)
 
-    const enrollmentData = [
-        { month: 'Jan', college: 245, shs: 189 },
-        { month: 'Feb', college: 267, shs: 203 },
-        { month: 'Mar', college: 289, shs: 218 },
-        { month: 'Apr', college: 25, shs: 24 },
-        { month: 'May', college: 334, shs: 251 },
-        { month: 'Jun', college: 356, shs: 267 },
-        { month: 'Jul', college: 38, shs: 21 },
-        { month: 'Aug', college: 401, shs: 301 },
-        { month: 'Sep', college: 423, shs: 318 },
-        { month: 'Oct', college: 445, shs: 335 },
-        { month: 'Nov', college: 467, shs: 352 },
-        { month: 'Dec', college: 489, shs: 369 },
-    ]
+    // Get selected year level data
+    const selectedYearData = kpiData.find(item => item.year_level === selectedYearLevel) || kpiData[0]
 
-    const getFilteredData = () => {
-        switch (filter) {
-            case 'last7days':
-                return enrollmentData.slice(-1) // Last month as approximation
-            case 'lastmonth':
-                return enrollmentData.slice(-1)
-            case 'last3months':
-                return enrollmentData.slice(-3)
-            case 'lastyear':
-                return enrollmentData
-            case 'all':
-            default:
-                return enrollmentData
+    // Prepare chart data for the selected year level
+    const chartData = selectedYearData ? selectedYearData.periods.map(period => ({
+        period: period.label,
+        paid: period.paid_count,
+        unpaid: period.unpaid_count,
+        total: period.total_count
+    })) : []
+
+    const formatCurrency = (value) => {
+        return new Intl.NumberFormat('en-PH', {
+            style: 'currency',
+            currency: 'PHP',
+            minimumFractionDigits: 0,
+            maximumFractionDigits: 0,
+        }).format(value);
+    };
+
+    const CustomTooltip = ({ active, payload, label }) => {
+        if (active && payload && payload.length) {
+            return (
+                <div className="bg-background border border-border rounded-lg shadow-lg p-3">
+                    <p className="font-medium text-foreground mb-2">{label}</p>
+                    {payload.map((entry, index) => (
+                        <p key={index} className="text-sm flex items-center gap-2" style={{ color: entry.color }}>
+                            <div
+                                className="w-3 h-3 rounded"
+                                style={{ backgroundColor: entry.color }}
+                            />
+                            {entry.name}: {entry.value} students
+                        </p>
+                    ))}
+                </div>
+            );
         }
-    }
-
-    const filteredData = getFilteredData()
+        return null;
+    };
 
     return (
         <AuthenticatedLayout
             header={
-                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
-                    <div className="flex items-center gap-3">
-                        <div className="bg-blue-100 p-2 rounded-lg">
-                            <School className="w-6 h-6 text-blue-600" />
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                    <div className="flex items-center gap-4">
+                        <div className="bg-purple-100 p-2 rounded-lg">
+                            <BarChart3 className="w-6 h-6 text-purple-600" />
                         </div>
-                        <div>
-                            <h2 className="text-2xl font-bold text-gray-900">Registrar Dashboard</h2>
-                            <p className="text-sm text-blue-600 font-medium mt-1">
-                                Welcome back, {registrar?.full_name || auth.user.name} - Employee #{registrar?.employee_number || 'N/A'}
+                        <div className="flex flex-col">
+                            <h1 className="text-2xl font-bold text-gray-900 leading-tight">
+                                Registrar Dashboard
+                            </h1>
+                            <p className="text-sm text-gray-600 font-medium mt-0.5">
+                                Welcome back, <span className="text-blue-600 font-semibold">{registrar?.full_name || auth.user.name}</span>
                             </p>
                         </div>
+                    </div>
+                    <div className="flex items-center gap-2 text-sm text-gray-500">
+                        <Calendar className="w-4 h-4" />
+                        <span>{new Date().toLocaleDateString('en-US', { 
+                            weekday: 'long', 
+                            year: 'numeric', 
+                            month: 'long', 
+                            day: 'numeric' 
+                        })}</span>
                     </div>
                 </div>
             }
@@ -74,40 +92,43 @@ export default function RegistrarDashboard({ stats, auth }) {
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                     <Card className="shadow-sm hover:shadow-md transition-shadow">
                         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                            <CardTitle className="text-sm font-medium">Total Students</CardTitle>
+                            <CardTitle className="text-sm font-medium">Total Student Enrollment</CardTitle>
                             <Users className="h-4 w-4 text-muted-foreground" />
                         </CardHeader>
                         <CardContent>
                             <div className="text-2xl font-bold">{stats.total_students}</div>
-                            <p className="text-xs text-muted-foreground">
-                                {stats.active_students} active
-                            </p>
+                            <Progress value={stats.total_students > 0 ? (stats.active_students / stats.total_students) * 100 : 0} className="h-1 mt-2" />
+                            <div className="text-xs text-muted-foreground mt-1">
+                                {stats.total_students > 0 ? Math.round((stats.active_students / stats.total_students) * 100) : 0}% active
+                            </div>
                         </CardContent>
                     </Card>
 
                     <Card className="shadow-sm hover:shadow-md transition-shadow">
                         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                            <CardTitle className="text-sm font-medium">Total Teachers</CardTitle>
+                            <CardTitle className="text-sm font-medium">Faculty Staff Members</CardTitle>
                             <GraduationCap className="h-4 w-4 text-muted-foreground" />
                         </CardHeader>
                         <CardContent>
                             <div className="text-2xl font-bold">{stats.total_teachers}</div>
-                            <p className="text-xs text-muted-foreground">
-                                {stats.active_teachers} active
-                            </p>
+                            <Progress value={100} className="h-1 mt-2" />
+                            <div className="text-xs text-muted-foreground mt-1">
+                                All active
+                            </div>
                         </CardContent>
                     </Card>
 
                     <Card className="shadow-sm hover:shadow-md transition-shadow">
                         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                            <CardTitle className="text-sm font-medium">Total Sections</CardTitle>
+                            <CardTitle className="text-sm font-medium">Total Academic Sections</CardTitle>
                             <School className="h-4 w-4 text-muted-foreground" />
                         </CardHeader>
                         <CardContent>
                             <div className="text-2xl font-bold">{stats.total_sections}</div>
-                            <p className="text-xs text-muted-foreground">
-                                Current academic year
-                            </p>
+                            <Progress value={100} className="h-1 mt-2" />
+                            <div className="text-xs text-muted-foreground mt-1">
+                                All active
+                            </div>
                         </CardContent>
                     </Card>
 
@@ -120,129 +141,150 @@ export default function RegistrarDashboard({ stats, auth }) {
                             <div className="text-2xl font-bold">
                                 {stats.total_students - stats.active_students}
                             </div>
-                            <p className="text-xs text-muted-foreground">
-                                Need attention
-                            </p>
+                            <Progress value={stats.total_students > 0 ? ((stats.total_students - stats.active_students) / stats.total_students) * 100 : 0} className="h-1 mt-2" />
+                            <div className="text-xs text-muted-foreground mt-1">
+                                {stats.total_students > 0 ? Math.round(((stats.total_students - stats.active_students) / stats.total_students) * 100) : 0}% of total
+                            </div>
                         </CardContent>
                     </Card>
                 </div>
 
                 {/* Analytics Dashboard */}
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                    {/* Student Enrollment Trends */}
+                    {/* Payment Collection Rates by Period */}
                     <Card className="shadow-sm hover:shadow-md transition-shadow lg:col-span-2">
-                        <CardHeader className="flex items-center gap-2 space-y-0 border-b py-5 sm:flex-row">
-                            <div className="grid flex-1 gap-1">
-                                <CardTitle className="flex items-center gap-2">
-                                    <TrendingUp className="w-5 h-5 text-blue-600" />
-                                    Student Enrollment Trends
-                                </CardTitle>
-                                <CardDescription>
-                                    College and SHS student enrollment over the past 12 months
-                                </CardDescription>
+                        <CardHeader>
+                            <div className="flex items-center justify-between">
+                                <div>
+                                    <CardTitle className="flex items-center gap-2">
+                                        <BarChart3 className="w-5 h-5 text-green-600" />
+                                        Payment Collection Status
+                                    </CardTitle>
+                                    <CardDescription>
+                                        Paid vs unpaid students by academic period
+                                    </CardDescription>
+                                </div>
+                                <div className="flex items-center gap-3">
+                                    <span className="text-sm font-medium text-muted-foreground whitespace-nowrap">Year Level:</span>
+                                    <Select value={selectedYearLevel?.toString()} onValueChange={(value) => setSelectedYearLevel(parseInt(value))}>
+                                        <SelectTrigger className="w-48 h-9">
+                                            <SelectValue />
+                                        </SelectTrigger>
+                                        <SelectContent className="w-48">
+                                            {kpiData.map((item) => (
+                                                <SelectItem key={item.year_level} value={item.year_level.toString()}>
+                                                    {item.label} ({item.total_enrolled} students)
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
                             </div>
-                            <Select value={filter} onValueChange={setFilter}>
-                                <SelectTrigger className="w-[180px]">
-                                    <SelectValue placeholder="Filter by period" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="all">All</SelectItem>
-                                    <SelectItem value="lastyear">Last Year</SelectItem>
-                                    <SelectItem value="last3months">Last 3 Months</SelectItem>
-                                    <SelectItem value="lastmonth">Last Month</SelectItem>
-                                    <SelectItem value="last7days">Last 7 Days</SelectItem>
-                                </SelectContent>
-                            </Select>
                         </CardHeader>
                         <CardContent className="px-2 pt-4 sm:px-6 sm:pt-6">
                             <ChartContainer
                                 config={{
-                                    college: {
-                                        label: "College Students",
-                                        color: "oklch(0.6 0.2 240)",
+                                    paid: {
+                                        label: "Paid",
+                                        color: "#10b981",
                                     },
-                                    shs: {
-                                        label: "SHS Students",
-                                        color: "oklch(0.6 0.25 25)",
+                                    unpaid: {
+                                        label: "Unpaid",
+                                        color: "#f59e0b",
                                     },
                                 }}
                                 className="aspect-auto h-[400px] w-full"
                             >
-                                <AreaChart
-                                    data={filteredData}
-                                    margin={{ top: 10, right: 30, left: 0, bottom: 0 }}
+                                <BarChart
+                                    data={chartData}
+                                    margin={{ top: 20, right: 30, left: 20, bottom: 60 }}
+                                    barCategoryGap="15%"
                                 >
-                                    <defs>
-                                        <linearGradient id="fillCollege" x1="0" y1="0" x2="0" y2="1">
-                                            <stop offset="5%" stopColor="oklch(0.6 0.2 240)" stopOpacity={0.8}/>
-                                            <stop offset="95%" stopColor="oklch(0.6 0.2 240)" stopOpacity={0.1}/>
-                                        </linearGradient>
-                                        <linearGradient id="fillSHS" x1="0" y1="0" x2="0" y2="1">
-                                            <stop offset="5%" stopColor="oklch(0.6 0.25 25)" stopOpacity={0.8}/>
-                                            <stop offset="95%" stopColor="oklch(0.6 0.25 25)" stopOpacity={0.1}/>
-                                        </linearGradient>
-                                    </defs>
-                                    <XAxis 
-                                        dataKey="month" 
+                                    <CartesianGrid strokeDasharray="3 3" />
+                                    <BarXAxis
+                                        dataKey="period"
+                                        axisLine={false}
+                                        tickLine={false}
+                                        tick={{ fontSize: 12, fill: 'hsl(var(--muted-foreground))', angle: -45, textAnchor: 'end' }}
+                                        height={80}
+                                    />
+                                    <BarYAxis
                                         axisLine={false}
                                         tickLine={false}
                                         tick={{ fontSize: 12, fill: 'hsl(var(--muted-foreground))' }}
+                                        domain={[0, 'dataMax']}
+                                        label={{ value: 'Number of Students', angle: -90, position: 'insideLeft' }}
                                     />
-                                    <ChartTooltip content={<ChartTooltipContent />} />
-                                    <Area
-                                        type="natural"
-                                        dataKey="college"
-                                        stackId="1"
-                                        stroke="oklch(0.6 0.2 240)"
-                                        fill="url(#fillCollege)"
+                                    <ChartTooltip
+                                        cursor={false}
+                                        content={({ active, payload, label }) => {
+                                            if (active && payload && payload.length) {
+                                                return (
+                                                    <div className="bg-background border border-border rounded-lg shadow-lg p-3">
+                                                        <p className="font-medium text-foreground mb-2">{label}</p>
+                                                        {payload.map((entry, index) => (
+                                                            <p key={index} className="text-sm flex items-center gap-2" style={{ color: entry.color }}>
+                                                                <div
+                                                                    className="w-3 h-3 rounded"
+                                                                    style={{ backgroundColor: entry.color }}
+                                                                />
+                                                                {entry.name}: {entry.value} students
+                                                            </p>
+                                                        ))}
+                                                        <p className="text-sm text-muted-foreground mt-1">
+                                                            Total: {payload[0]?.payload?.total || 0} students
+                                                        </p>
+                                                    </div>
+                                                );
+                                            }
+                                            return null;
+                                        }}
                                     />
-                                    <Area
-                                        type="natural"
-                                        dataKey="shs"
-                                        stackId="1"
-                                        stroke="oklch(0.6 0.25 25)"
-                                        fill="url(#fillSHS)"
+                                    <Bar
+                                        dataKey="paid"
+                                        fill="#10b981"
+                                        name="Paid"
+                                        radius={[4, 4, 0, 0]}
                                     />
-                                    <ChartLegend content={<ChartLegendContent />} className="flex justify-center mt-4" />
-                                </AreaChart>
+                                    <Bar
+                                        dataKey="unpaid"
+                                        fill="#f59e0b"
+                                        name="Unpaid"
+                                        radius={[4, 4, 0, 0]}
+                                    />
+                                    <ChartLegend content={<ChartLegendContent />} className="flex justify-center" />
+                                </BarChart>
                             </ChartContainer>
                         </CardContent>
                     </Card>
 
                     {/* Student Type Distribution - Pie Chart */}
                     <Card className="shadow-sm hover:shadow-md transition-shadow lg:col-span-1">
-                        <CardHeader className="flex items-center gap-2 space-y-0 border-b py-5 sm:flex-row">
-                            <div className="grid flex-1 gap-1">
-                                <CardTitle className="flex items-center gap-2">
-                                    <PieChartIcon className="w-5 h-5 text-purple-600" />
-                                    Student Type Distribution
-                                </CardTitle>
-                                <CardDescription>
-                                    Regular vs Irregular students
-                                </CardDescription>
-                            </div>
+                        <CardHeader>
+                            <CardTitle className="flex items-center gap-2">
+                                <PieChartIcon className="w-5 h-5 text-blue-600" />
+                                Student Types
+                            </CardTitle>
+                            <CardDescription>
+                                Regular vs irregular enrollment
+                            </CardDescription>
                         </CardHeader>
                         <CardContent className="px-2 pt-4 sm:px-6 sm:pt-6">
                             <ChartContainer
                                 config={{
                                     Regular: {
                                         label: "Regular",
-                                        color: "oklch(0.55 0.15 240)",
+                                        color: "#3b82f6",
                                     },
                                     Irregular: {
                                         label: "Irregular",
-                                        color: "oklch(0.55 0.18 25)",
+                                        color: "#ef4444",
                                     },
                                 }}
-                                className="mx-auto aspect-square max-h-[300px]"
+                                className="mx-auto aspect-square max-h-[400px]"
                             >
                                 <PieChart>
-                                    <ChartLegend 
-                                        content={<ChartLegendContent />} 
-                                        verticalAlign="top" 
-                                        align="center"
-                                        wrapperStyle={{ paddingBottom: '20px' }}
-                                    />
+                                    <ChartLegend content={<ChartLegendContent />} verticalAlign="bottom" className="flex justify-center" />
                                     <ChartTooltip
                                         cursor={false}
                                         content={<ChartTooltipContent hideLabel />}
@@ -252,18 +294,19 @@ export default function RegistrarDashboard({ stats, auth }) {
                                             {
                                                 type: "Regular",
                                                 students: 756,
-                                                fill: "oklch(0.55 0.15 240)"
+                                                fill: "#3b82f6"
                                             },
                                             {
                                                 type: "Irregular",
                                                 students: 234,
-                                                fill: "oklch(0.55 0.18 25)"
+                                                fill: "#ef4444"
                                             }
                                         ]}
                                         dataKey="students"
                                         nameKey="type"
                                         strokeWidth={2}
                                         stroke="hsl(var(--background))"
+                                        label={({ percent }) => `${(percent * 100).toFixed(0)}%`}
                                     />
                                 </PieChart>
                             </ChartContainer>
@@ -280,10 +323,10 @@ export default function RegistrarDashboard({ stats, auth }) {
                                 <div>
                                     <CardTitle className="flex items-center gap-2">
                                         <BookOpen className="w-5 h-5 text-purple-600" />
-                                        Course/Track Distribution
+                                        Program Distribution
                                     </CardTitle>
                                     <CardDescription>
-                                        Students enrolled in {programFilter === 'college' ? 'college programs' : 'SHS tracks'}
+                                        {programFilter === 'college' ? 'College programs by department' : 'SHS tracks and strands'}
                                     </CardDescription>
                                 </div>
                                 <Select value={programFilter} onValueChange={setProgramFilter}>
@@ -298,9 +341,6 @@ export default function RegistrarDashboard({ stats, auth }) {
                             </div>
                         </CardHeader>
                         <CardContent className="space-y-4">
-                            {console.log('Stats programs:', stats.programs)}
-                            {console.log('Program filter:', programFilter)}
-                            {console.log('Current programs:', stats.programs?.[programFilter])}
                             {stats.programs && stats.programs[programFilter] ? (
                                 <>
                                     {stats.programs[programFilter].map((program, index) => {
@@ -337,8 +377,6 @@ export default function RegistrarDashboard({ stats, auth }) {
                             ) : (
                                 <div className="text-center py-8 text-gray-500">
                                     No programs found for {programFilter === 'college' ? 'college' : 'SHS'}
-                                    <br />
-                                    <small>Debug: {JSON.stringify(stats.programs)}</small>
                                 </div>
                             )}
                         </CardContent>
@@ -480,48 +518,106 @@ export default function RegistrarDashboard({ stats, auth }) {
                     </Card>
                 </div>
 
-                {/* Recent Activity Section */}
-                <Card className="shadow-sm hover:shadow-md transition-shadow">
-                    <CardHeader>
-                        <CardTitle className="flex items-center gap-2">
-                            <FileText className="w-5 h-5 text-indigo-600" />
-                            Recent Activity
-                        </CardTitle>
-                        <CardDescription>
-                            Latest updates and actions in the system
-                        </CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                        <div className="space-y-4">
-                            <div className="flex items-center space-x-4 p-3 rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors">
-                                <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                                <div className="flex-1">
-                                    <p className="text-sm font-medium">System initialized</p>
-                                    <p className="text-xs text-gray-500">Registrar dashboard is ready for use</p>
+                {/* Key Insights & Actions */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                    {/* Payment Overview */}
+                    <Card className="shadow-sm hover:shadow-md transition-shadow">
+                        <CardHeader>
+                            <CardTitle className="flex items-center gap-2">
+                                <Target className="w-5 h-5 text-green-600" />
+                                Payment Overview
+                            </CardTitle>
+                            <CardDescription>
+                                Current semester payment status
+                            </CardDescription>
+                        </CardHeader>
+                        <CardContent className="space-y-4">
+                            <div className="space-y-3">
+                                <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-2">
+                                        <div className="w-3 h-3 bg-green-500 rounded-full"></div>
+                                        <span className="text-sm font-medium">Recent Payments (7 days)</span>
+                                    </div>
+                                    <div className="text-right">
+                                        <div className="text-sm font-bold">{stats.payment_stats?.recent_payments || 0}</div>
+                                        <div className="text-xs text-gray-500">Active</div>
+                                    </div>
                                 </div>
-                                <span className="text-xs text-gray-500">Just now</span>
+                                <Progress value={100} className="h-2" />
                             </div>
+                            <div className="space-y-3">
+                                <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-2">
+                                        <div className="w-3 h-3 bg-orange-500 rounded-full"></div>
+                                        <span className="text-sm font-medium">Pending Payments</span>
+                                    </div>
+                                    <div className="text-right">
+                                        <div className="text-sm font-bold">{stats.payment_stats?.pending_payments || 0}</div>
+                                        <div className="text-xs text-gray-500">Outstanding</div>
+                                    </div>
+                                </div>
+                                <Progress value={stats.payment_stats?.pending_payments > 0 ? 50 : 0} className="h-2" />
+                            </div>
+                            <div className="pt-4 border-t">
+                                <div className="flex items-center justify-between">
+                                    <span className="text-sm font-medium">Total Collected</span>
+                                    <Badge variant="default" className="bg-green-100 text-green-800">
+                                        ₱{formatCurrency(stats.payment_stats?.total_paid || 0)}
+                                    </Badge>
+                                </div>
+                            </div>
+                        </CardContent>
+                    </Card>
 
-                            <div className="flex items-center space-x-4 p-3 rounded-lg bg-blue-50 hover:bg-blue-100 transition-colors">
-                                <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-                                <div className="flex-1">
-                                    <p className="text-sm font-medium">Student enrollment updated</p>
-                                    <p className="text-xs text-gray-500">New students registered for current semester</p>
+                    {/* Enrollment Alerts */}
+                    <Card className="shadow-sm hover:shadow-md transition-shadow">
+                        <CardHeader>
+                            <CardTitle className="flex items-center gap-2">
+                                <Activity className="w-5 h-5 text-blue-600" />
+                                Enrollment Status
+                            </CardTitle>
+                            <CardDescription>
+                                Current enrollment activity
+                            </CardDescription>
+                        </CardHeader>
+                        <CardContent className="space-y-4">
+                            <div className="space-y-3">
+                                <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-2">
+                                        <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
+                                        <span className="text-sm font-medium">New Enrollments (7 days)</span>
+                                    </div>
+                                    <div className="text-right">
+                                        <div className="text-sm font-bold">{stats.enrollment_alerts?.recent_enrollments || 0}</div>
+                                        <div className="text-xs text-gray-500">Recent</div>
+                                    </div>
                                 </div>
-                                <span className="text-xs text-gray-500">2 hours ago</span>
+                                <Progress value={100} className="h-2" />
                             </div>
-
-                            <div className="flex items-center space-x-4 p-3 rounded-lg bg-purple-50 hover:bg-purple-100 transition-colors">
-                                <div className="w-2 h-2 bg-purple-500 rounded-full"></div>
-                                <div className="flex-1">
-                                    <p className="text-sm font-medium">Payment processed</p>
-                                    <p className="text-xs text-gray-500">Tuition fees collected successfully</p>
+                            <div className="space-y-3">
+                                <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-2">
+                                        <div className="w-3 h-3 bg-yellow-500 rounded-full"></div>
+                                        <span className="text-sm font-medium">Pending Enrollments</span>
+                                    </div>
+                                    <div className="text-right">
+                                        <div className="text-sm font-bold">{stats.enrollment_alerts?.incomplete_enrollments || 0}</div>
+                                        <div className="text-xs text-gray-500">Incomplete</div>
+                                    </div>
                                 </div>
-                                <span className="text-xs text-gray-500">5 hours ago</span>
+                                <Progress value={stats.enrollment_alerts?.incomplete_enrollments > 0 ? 50 : 0} className="h-2" />
                             </div>
-                        </div>
-                    </CardContent>
-                </Card>
+                            <div className="pt-4 border-t">
+                                <div className="flex items-center justify-between">
+                                    <span className="text-sm font-medium">Enrollment Rate</span>
+                                    <Badge variant="default" className="bg-blue-100 text-blue-800">
+                                        {stats.total_students > 0 ? Math.round((stats.active_students / stats.total_students) * 100) : 0}%
+                                    </Badge>
+                                </div>
+                            </div>
+                        </CardContent>
+                    </Card>
+                </div>
             </div>
         </AuthenticatedLayout>
     )
