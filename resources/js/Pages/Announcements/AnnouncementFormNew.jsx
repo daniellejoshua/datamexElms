@@ -8,7 +8,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Upload, X, Image as ImageIcon, Camera, MapPin, Smile, MoreHorizontal, Globe, Users, GraduationCap } from 'lucide-react';
+import { Upload, X, Image as ImageIcon, Camera, MapPin, Smile, Globe, Users, GraduationCap } from 'lucide-react';
 import imageCompression from 'browser-image-compression';
 
 const calculateFileHash = async (file) => {
@@ -58,7 +58,6 @@ export default function AnnouncementForm({ mode = 'create', announcement = null,
     const [imagePreviews, setImagePreviews] = useState([]);
     const [compressedImages, setCompressedImages] = useState([]);
     const [dragActive, setDragActive] = useState(false);
-    const [showAdvanced, setShowAdvanced] = useState(false);
     const fileInputRef = useRef(null);
     const textareaRef = useRef(null);
 
@@ -68,7 +67,6 @@ export default function AnnouncementForm({ mode = 'create', announcement = null,
         setImageFiles([]);
         setImagePreviews([]);
         setCompressedImages([]);
-        setShowAdvanced(false);
     }, [mode, announcement]);
 
     useEffect(() => {
@@ -81,23 +79,20 @@ export default function AnnouncementForm({ mode = 'create', announcement = null,
 
     const handleImageChange = async (files) => {
         try {
-            const processedImages = [];
-            const newPreviews = [];
+            // Limit to only 1 image
+            const file = files[0];
+            if (!file || !file.type.startsWith('image/')) return;
 
-            for (const file of files) {
-                if (!file.type.startsWith('image/')) continue;
+            const hash = await calculateFileHash(file);
 
-                const hash = await calculateFileHash(file);
+            const processedImage = { file, hash, originalName: file.name };
+            const preview = { url: URL.createObjectURL(file), name: file.name, size: file.size };
 
-                processedImages.push({ file, hash, originalName: file.name });
-                newPreviews.push({ url: URL.createObjectURL(file), name: file.name, size: file.size });
-            }
-
-            setImageFiles(prev => [...prev, ...processedImages]);
-            setImagePreviews(prev => [...prev, ...newPreviews]);
-            setCompressedImages(prev => [...prev, ...processedImages]);
+            setImageFiles([processedImage]);
+            setImagePreviews([preview]);
+            setCompressedImages([processedImage]);
         } catch (error) {
-            console.error('Error processing images:', error);
+            console.error('Error processing image:', error);
         }
     };
 
@@ -132,14 +127,13 @@ export default function AnnouncementForm({ mode = 'create', announcement = null,
         setDragActive(false);
     };
 
-    const removeImage = (index) => {
-        const newImages = imageFiles.filter((_, i) => i !== index);
-        const newPreviews = imagePreviews.filter((_, i) => i !== index);
-        const newCompressed = compressedImages.filter((_, i) => i !== index);
-        URL.revokeObjectURL(imagePreviews[index].url);
-        setImageFiles(newImages);
-        setImagePreviews(newPreviews);
-        setCompressedImages(newCompressed);
+    const removeImage = () => {
+        if (imagePreviews.length > 0) {
+            URL.revokeObjectURL(imagePreviews[0].url);
+        }
+        setImageFiles([]);
+        setImagePreviews([]);
+        setCompressedImages([]);
     };
 
     const getVisibilityIcon = (visibility) => {
@@ -227,228 +221,246 @@ export default function AnnouncementForm({ mode = 'create', announcement = null,
     };
 
     return (
-        <div className="max-w-none">
-            {/* Post Composer Header */}
-            <div className="flex items-center space-x-3 p-4 border-b border-gray-100 dark:border-gray-700">
-                <Avatar className="w-10 h-10">
-                    <AvatarImage src="" />
-                    <AvatarFallback className="bg-blue-500 text-white">
-                        {auth?.user ? getInitials(auth.user.name) : 'U'}
-                    </AvatarFallback>
-                </Avatar>
-                <div className="flex-1">
-                    <div className="flex items-center space-x-2">
-                        <span className="font-semibold text-gray-900 dark:text-gray-100">
-                            {auth?.user?.name || 'User'}
-                        </span>
-                        <span className="text-gray-500 dark:text-gray-400">is creating an announcement</span>
-                    </div>
-                    <div className="flex items-center space-x-1 text-sm text-gray-500 dark:text-gray-400">
-                        {getVisibilityIcon(data.visibility)}
-                        <span>{getVisibilityText(data.visibility)}</span>
+        <div className="max-w-4xl mx-auto">
+            {/* Compact Header */}
+            <div className="flex items-center p-4 border-b border-blue-200 dark:border-blue-800 bg-blue-50/50 dark:bg-blue-900/10">
+                <div className="flex items-center space-x-3">
+                    <Avatar className="w-10 h-10 ring-2 ring-blue-200 dark:ring-blue-800">
+                        <AvatarImage src="" />
+                        <AvatarFallback className="bg-blue-500 text-white text-sm">
+                            {auth?.user ? getInitials(auth.user.name) : 'U'}
+                        </AvatarFallback>
+                    </Avatar>
+                    <div>
+                        <h3 className="font-semibold text-gray-900 dark:text-gray-100">
+                            {auth?.user?.name || 'Author'}
+                        </h3>
+                        <p className="text-sm text-gray-500 dark:text-gray-400">
+                            {isEdit ? 'Editing announcement' : 'New announcement'}
+                        </p>
                     </div>
                 </div>
             </div>
 
-            <form onSubmit={handleSubmit} className="p-4 space-y-4">
-                {/* Title Input */}
-                <Input
-                    type="text"
-                    placeholder="Announcement title..."
-                    value={data.title}
-                    onChange={(e) => setData('title', e.target.value)}
-                    className="text-lg font-medium border-0 px-0 focus-visible:ring-0 placeholder:text-gray-400"
-                    required
-                />
+            <form onSubmit={handleSubmit} className="p-6 space-y-6">
+                {/* Title */}
+                <div className="space-y-2">
+                    <Label htmlFor="title" className="text-sm font-medium text-blue-700 dark:text-blue-300">
+                        Title
+                    </Label>
+                    <Input
+                        id="title"
+                        type="text"
+                        placeholder="Enter announcement title..."
+                        value={data.title}
+                        onChange={(e) => setData('title', e.target.value)}
+                        className="text-lg border-gray-300 dark:border-gray-600 focus:border-blue-500 dark:focus:border-blue-400"
+                        required
+                    />
+                </div>
 
-                {/* Content Textarea */}
-                <Textarea
-                    ref={textareaRef}
-                    placeholder="What's happening?"
-                    value={data.content}
-                    onChange={(e) => setData('content', e.target.value)}
-                    className="min-h-[120px] text-lg border-0 px-0 focus-visible:ring-0 resize-none placeholder:text-gray-400"
-                    required
-                />
+                {/* Content */}
+                <div className="space-y-2">
+                    <Label htmlFor="content" className="text-sm font-medium text-blue-700 dark:text-blue-300">
+                        Content
+                    </Label>
+                    <Textarea
+                        id="content"
+                        ref={textareaRef}
+                        placeholder="Write your announcement..."
+                        value={data.content}
+                        onChange={(e) => setData('content', e.target.value)}
+                        className="min-h-[120px] border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-800/50 focus:border-gray-500 dark:focus:border-gray-400 resize-none"
+                        required
+                    />
+                </div>
 
-                {/* Image Previews */}
-                {imagePreviews.length > 0 && (
-                    <div className="grid grid-cols-2 md:grid-cols-3 gap-2 rounded-lg overflow-hidden">
-                        {imagePreviews.map((preview, index) => (
-                            <div key={index} className="relative group">
+                {/* Image Upload */}
+                <div className="space-y-2">
+                    <Label className="text-sm font-medium text-blue-700 dark:text-blue-300">
+                        Image (optional)
+                    </Label>
+
+                    {imagePreviews.length > 0 ? (
+                        <div className="relative">
+                            <div className="relative rounded-lg overflow-hidden border-2 border-blue-200 dark:border-blue-800 bg-blue-50/30 dark:bg-blue-900/10">
                                 <img
-                                    src={preview.url}
-                                    alt={preview.name}
-                                    className="w-full h-32 object-cover rounded-lg"
+                                    src={imagePreviews[0].url}
+                                    alt={imagePreviews[0].name}
+                                    className="w-full h-80 object-cover"
                                 />
                                 <Button
                                     type="button"
                                     variant="destructive"
                                     size="sm"
-                                    className="absolute top-2 right-2 h-6 w-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
-                                    onClick={() => removeImage(index)}
+                                    className="absolute top-2 right-2 h-6 w-6 p-0"
+                                    onClick={() => {
+                                        setImageFiles([]);
+                                        setImagePreviews([]);
+                                        setCompressedImages([]);
+                                    }}
                                 >
                                     <X className="h-3 w-3" />
                                 </Button>
                             </div>
-                        ))}
-                    </div>
-                )}
-
-                {/* Drag and Drop Area */}
-                <div
-                    className={`border-2 border-dashed rounded-lg p-6 text-center transition-colors ${
-                        dragActive
-                            ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
-                            : 'border-gray-300 dark:border-gray-600 hover:border-gray-400 dark:hover:border-gray-500'
-                    }`}
-                    onDrop={handleDrop}
-                    onDragOver={handleDragOver}
-                    onDragEnter={handleDragEnter}
-                    onDragLeave={handleDragLeave}
-                >
-                    <input
-                        ref={fileInputRef}
-                        type="file"
-                        multiple
-                        accept="image/*"
-                        onChange={handleFileSelect}
-                        className="hidden"
-                    />
-                    <div className="space-y-2">
-                        <div className="mx-auto w-12 h-12 bg-gray-100 dark:bg-gray-700 rounded-full flex items-center justify-center">
-                            <Camera className="w-6 h-6 text-gray-400" />
+                            <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                className="mt-2 w-full border-blue-200 dark:border-blue-800 hover:bg-blue-50 dark:hover:bg-blue-900/20"
+                                onClick={() => fileInputRef.current?.click()}
+                            >
+                                <Camera className="h-4 w-4 mr-2" />
+                                Change Image
+                            </Button>
                         </div>
-                        <div>
-                            <p className="text-sm text-gray-600 dark:text-gray-400">
-                                Drag photos here or{' '}
-                                <Button
-                                    type="button"
-                                    variant="link"
-                                    className="p-0 h-auto text-blue-600 dark:text-blue-400 hover:text-blue-800"
-                                    onClick={() => fileInputRef.current?.click()}
-                                >
-                                    browse
-                                </Button>
-                            </p>
-                        </div>
-                    </div>
-                </div>
-
-                {/* Post Actions */}
-                <div className="flex items-center justify-between pt-4 border-t border-gray-100 dark:border-gray-700">
-                    <div className="flex items-center space-x-2">
-                        <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            className="flex items-center space-x-2 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700"
+                    ) : (
+                        <div
+                            className={`border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-all duration-200 ${
+                                dragActive
+                                    ? 'border-blue-400 bg-blue-50 dark:bg-blue-900/20 scale-[1.02]'
+                                    : 'border-blue-200 dark:border-blue-800 hover:border-blue-300 dark:hover:border-blue-700 bg-blue-50/20 dark:bg-blue-900/5 hover:bg-blue-50/40 dark:hover:bg-blue-900/10'
+                            }`}
+                            onDrop={handleDrop}
+                            onDragOver={handleDragOver}
+                            onDragEnter={handleDragEnter}
+                            onDragLeave={handleDragLeave}
                             onClick={() => fileInputRef.current?.click()}
                         >
-                            <Camera className="h-4 w-4" />
-                            <span>Photo</span>
-                        </Button>
-                        <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            className="flex items-center space-x-2 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700"
-                            onClick={() => setShowAdvanced(!showAdvanced)}
-                        >
-                            <MoreHorizontal className="h-4 w-4" />
-                            <span>More</span>
-                        </Button>
-                    </div>
-                    <Button
-                        type="submit"
-                        disabled={processing || !data.title.trim() || !data.content.trim()}
-                        className="bg-blue-600 hover:bg-blue-700 text-white px-6"
-                    >
-                        {processing ? 'Posting...' : isEdit ? 'Update' : 'Post'}
-                    </Button>
-                </div>
-
-                {/* Advanced Options */}
-                {showAdvanced && (
-                    <div className="space-y-4 pt-4 border-t border-gray-100 dark:border-gray-700">
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div className="space-y-2">
-                                <Label htmlFor="visibility">Visibility</Label>
-                                <Select value={data.visibility} onValueChange={(value) => setData('visibility', value)}>
-                                    <SelectTrigger>
-                                        <SelectValue />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="all_users">
-                                            <div className="flex items-center space-x-2">
-                                                <Globe className="h-4 w-4" />
-                                                <span>Everyone</span>
-                                            </div>
-                                        </SelectItem>
-                                        <SelectItem value="teachers_only">
-                                            <div className="flex items-center space-x-2">
-                                                <Users className="h-4 w-4" />
-                                                <span>Teachers only</span>
-                                            </div>
-                                        </SelectItem>
-                                        <SelectItem value="students_only">
-                                            <div className="flex items-center space-x-2">
-                                                <GraduationCap className="h-4 w-4" />
-                                                <span>Students only</span>
-                                            </div>
-                                        </SelectItem>
-                                    </SelectContent>
-                                </Select>
-                            </div>
-
-                            <div className="space-y-2">
-                                <Label htmlFor="priority">Priority</Label>
-                                <Select value={data.priority} onValueChange={(value) => setData('priority', value)}>
-                                    <SelectTrigger>
-                                        <SelectValue />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="low">Low</SelectItem>
-                                        <SelectItem value="medium">Medium</SelectItem>
-                                        <SelectItem value="high">High</SelectItem>
-                                        <SelectItem value="urgent">Urgent</SelectItem>
-                                    </SelectContent>
-                                </Select>
+                            <input
+                                ref={fileInputRef}
+                                type="file"
+                                accept="image/*"
+                                onChange={handleFileSelect}
+                                className="hidden"
+                            />
+                            <div className="flex flex-col items-center space-y-3">
+                                <div className="p-3 rounded-full bg-blue-100 dark:bg-blue-900/30">
+                                    <Camera className="w-8 h-8 text-blue-600 dark:text-blue-400" />
+                                </div>
+                                <div>
+                                    <p className="text-sm font-medium text-blue-700 dark:text-blue-300">
+                                        Click to upload or drag and drop
+                                    </p>
+                                    <p className="text-xs text-blue-600/70 dark:text-blue-400/70 mt-1">
+                                        PNG, JPG, GIF up to 10MB
+                                    </p>
+                                </div>
                             </div>
                         </div>
+                    )}
+                </div>
 
+                {/* Settings - Inline */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+                    <div className="space-y-2">
+                        <Label htmlFor="visibility" className="text-sm font-medium text-blue-700 dark:text-blue-300">
+                            Visibility
+                        </Label>
+                        <Select value={data.visibility} onValueChange={(value) => setData('visibility', value)}>
+                            <SelectTrigger className="border-gray-300 dark:border-gray-600">
+                                <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="all_users">Everyone</SelectItem>
+                                <SelectItem value="teachers_only">Teachers only</SelectItem>
+                                <SelectItem value="students_only">Students only</SelectItem>
+                            </SelectContent>
+                        </Select>
+                    </div>
+
+                    <div className="space-y-2">
+                        <Label htmlFor="priority" className="text-sm font-medium text-blue-700 dark:text-blue-300">
+                            Priority
+                        </Label>
+                        <Select value={data.priority} onValueChange={(value) => setData('priority', value)}>
+                            <SelectTrigger className="border-gray-300 dark:border-gray-600">
+                                <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="low">Low</SelectItem>
+                                <SelectItem value="medium">Medium</SelectItem>
+                                <SelectItem value="high">High</SelectItem>
+                                <SelectItem value="urgent">Urgent</SelectItem>
+                            </SelectContent>
+                        </Select>
+                    </div>
+
+                    <div className="space-y-2 md:col-span-2">
                         <div className="flex items-center space-x-2">
                             <Checkbox
                                 id="is_published"
                                 checked={data.is_published}
                                 onCheckedChange={(checked) => setData('is_published', checked)}
                             />
-                            <Label htmlFor="is_published" className="text-sm">Publish immediately</Label>
+                            <Label htmlFor="is_published" className="text-sm text-gray-700 dark:text-gray-300">
+                                Publish immediately
+                            </Label>
                         </div>
 
                         {!data.is_published && (
-                            <div className="space-y-2">
-                                <Label htmlFor="published_at">Publish Date & Time</Label>
-                                <Input
-                                    id="published_at"
-                                    type="datetime-local"
-                                    value={data.published_at}
-                                    onChange={(e) => setData('published_at', e.target.value)}
-                                />
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div className="space-y-2">
+                                    <Label htmlFor="published_at" className="text-sm font-medium text-blue-700 dark:text-blue-300">
+                                        Schedule publication
+                                    </Label>
+                                    <Input
+                                        id="published_at"
+                                        type="datetime-local"
+                                        value={data.published_at}
+                                        onChange={(e) => setData('published_at', e.target.value)}
+                                        className="border-gray-300 dark:border-gray-600"
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <Label htmlFor="expires_at" className="text-sm font-medium text-blue-700 dark:text-blue-300">
+                                        Expiration date (optional)
+                                    </Label>
+                                    <Input
+                                        id="expires_at"
+                                        type="datetime-local"
+                                        value={data.expires_at}
+                                        onChange={(e) => setData('expires_at', e.target.value)}
+                                        className="border-gray-300 dark:border-gray-600"
+                                    />
+                                </div>
                             </div>
                         )}
 
-                        <div className="space-y-2">
-                            <Label htmlFor="expires_at">Expiration Date & Time (Optional)</Label>
-                            <Input
-                                id="expires_at"
-                                type="datetime-local"
-                                value={data.expires_at}
-                                onChange={(e) => setData('expires_at', e.target.value)}
-                            />
-                        </div>
+                        {data.is_published && (
+                            <div className="space-y-2">
+                                <Label htmlFor="expires_at" className="text-sm font-medium text-blue-700 dark:text-blue-300">
+                                    Expiration date (optional)
+                                </Label>
+                                <Input
+                                    id="expires_at"
+                                    type="datetime-local"
+                                    value={data.expires_at}
+                                    onChange={(e) => setData('expires_at', e.target.value)}
+                                    className="border-gray-300 dark:border-gray-600"
+                                />
+                            </div>
+                        )}
                     </div>
-                )}
+                </div>
+
+                {/* Actions */}
+                <div className="flex justify-end space-x-3 pt-4 border-t border-gray-200 dark:border-gray-700">
+                    <Button
+                        type="button"
+                        variant="outline"
+                        onClick={onClose}
+                    >
+                        Cancel
+                    </Button>
+                    <Button
+                        type="submit"
+                        disabled={processing || !data.title.trim() || !data.content.trim()}
+                        className="bg-blue-600 hover:bg-blue-700 text-white dark:bg-blue-500 dark:hover:bg-blue-600"
+                    >
+                        {processing ? 'Publishing...' : (isEdit ? 'Update' : 'Publish')}
+                    </Button>
+                </div>
             </form>
         </div>
     );
