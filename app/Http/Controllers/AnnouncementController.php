@@ -8,7 +8,6 @@ use App\Models\AnnouncementReadStatus;
 use CloudinaryLabs\CloudinaryLaravel\Facades\Cloudinary;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Log as Logger;
 use Inertia\Inertia;
 
 class AnnouncementController extends Controller
@@ -32,6 +31,13 @@ class AnnouncementController extends Controller
             $announcement->is_read = $readStatus->is_read;
         }
 
+        // Return JSON for AJAX requests (not Inertia requests)
+        if (request()->expectsJson() && ! request()->header('X-Inertia')) {
+            return response()->json([
+                'announcements' => $announcements,
+            ]);
+        }
+
         return Inertia::render('Announcements/Index', [
             'announcements' => $announcements,
             'auth' => [
@@ -52,11 +58,11 @@ class AnnouncementController extends Controller
         try {
             // Debug: Log all request data
             file_put_contents(storage_path('logs/debug.log'), "=== NEW REQUEST ===\n", FILE_APPEND);
-            file_put_contents(storage_path('logs/debug.log'), "All data: " . json_encode($request->all()) . "\n", FILE_APPEND);
-            file_put_contents(storage_path('logs/debug.log'), "All files: " . json_encode($request->allFiles()) . "\n", FILE_APPEND);
-            file_put_contents(storage_path('logs/debug.log'), "Has images: " . ($request->hasFile('images') ? 'true' : 'false') . "\n", FILE_APPEND);
-            file_put_contents(storage_path('logs/debug.log'), "Images count: " . (is_array($request->file('images')) ? count($request->file('images')) : 'not array') . "\n", FILE_APPEND);
-            file_put_contents(storage_path('logs/debug.log'), "Content-Type: " . $request->header('Content-Type') . "\n", FILE_APPEND);
+            file_put_contents(storage_path('logs/debug.log'), 'All data: '.json_encode($request->all())."\n", FILE_APPEND);
+            file_put_contents(storage_path('logs/debug.log'), 'All files: '.json_encode($request->allFiles())."\n", FILE_APPEND);
+            file_put_contents(storage_path('logs/debug.log'), 'Has images: '.($request->hasFile('images') ? 'true' : 'false')."\n", FILE_APPEND);
+            file_put_contents(storage_path('logs/debug.log'), 'Images count: '.(is_array($request->file('images')) ? count($request->file('images')) : 'not array')."\n", FILE_APPEND);
+            file_put_contents(storage_path('logs/debug.log'), 'Content-Type: '.$request->header('Content-Type')."\n", FILE_APPEND);
 
             $this->authorize('create', Announcement::class);
 
@@ -82,13 +88,14 @@ class AnnouncementController extends Controller
                 $imageHashes = $request->input('image_hashes', []);
                 $imageNames = $request->input('image_names', []);
 
-                file_put_contents(storage_path('logs/debug.log'), "Found images: " . count($imageFiles) . "\n", FILE_APPEND);
-                file_put_contents(storage_path('logs/debug.log'), "Image hashes: " . json_encode($imageHashes) . "\n", FILE_APPEND);
-                file_put_contents(storage_path('logs/debug.log'), "Image names: " . json_encode($imageNames) . "\n", FILE_APPEND);
+                file_put_contents(storage_path('logs/debug.log'), 'Found images: '.count($imageFiles)."\n", FILE_APPEND);
+                file_put_contents(storage_path('logs/debug.log'), 'Image hashes: '.json_encode($imageHashes)."\n", FILE_APPEND);
+                file_put_contents(storage_path('logs/debug.log'), 'Image names: '.json_encode($imageNames)."\n", FILE_APPEND);
 
                 foreach ($imageFiles as $index => $file) {
-                    if (!$file) {
+                    if (! $file) {
                         file_put_contents(storage_path('logs/debug.log'), "File not found for index {$index}\n", FILE_APPEND);
+
                         continue;
                     }
 
@@ -122,10 +129,10 @@ class AnnouncementController extends Controller
                         try {
                             // Debug: Check file before upload
                             $realPath = $file->getRealPath();
-                            file_put_contents(storage_path('logs/debug.log'), "File real path: " . $realPath . "\n", FILE_APPEND);
+                            file_put_contents(storage_path('logs/debug.log'), 'File real path: '.$realPath."\n", FILE_APPEND);
 
-                            if (!file_exists($realPath)) {
-                                throw new \Exception('File does not exist at path: ' . $realPath);
+                            if (! file_exists($realPath)) {
+                                throw new \Exception('File does not exist at path: '.$realPath);
                             }
 
                             // Use file path directly for Cloudinary upload
@@ -135,10 +142,10 @@ class AnnouncementController extends Controller
                                 'public_id' => uniqid('announcement_'),
                             ]);
 
-                            file_put_contents(storage_path('logs/debug.log'), "Cloudinary upload result: " . json_encode($uploadResult) . "\n", FILE_APPEND);
+                            file_put_contents(storage_path('logs/debug.log'), 'Cloudinary upload result: '.json_encode($uploadResult)."\n", FILE_APPEND);
 
-                            if (!$uploadResult || !isset($uploadResult['secure_url'])) {
-                                throw new \Exception('Cloudinary upload failed - no secure_url in response: ' . json_encode($uploadResult));
+                            if (! $uploadResult || ! isset($uploadResult['secure_url'])) {
+                                throw new \Exception('Cloudinary upload failed - no secure_url in response: '.json_encode($uploadResult));
                             }
 
                             $attachment = AnnouncementAttachment::create([
@@ -157,8 +164,8 @@ class AnnouncementController extends Controller
                                 'image_height' => $uploadResult['height'] ?? null,
                             ]);
                         } catch (\Exception $e) {
-                            file_put_contents(storage_path('logs/debug.log'), "Error during Cloudinary upload: " . $e->getMessage() . "\n", FILE_APPEND);
-                            file_put_contents(storage_path('logs/debug.log'), "Stack trace: " . $e->getTraceAsString() . "\n", FILE_APPEND);
+                            file_put_contents(storage_path('logs/debug.log'), 'Error during Cloudinary upload: '.$e->getMessage()."\n", FILE_APPEND);
+                            file_put_contents(storage_path('logs/debug.log'), 'Stack trace: '.$e->getTraceAsString()."\n", FILE_APPEND);
                             throw $e;
                         }
                     }
@@ -224,11 +231,12 @@ class AnnouncementController extends Controller
             $imageHashes = $request->input('image_hashes', []);
             $imageNames = $request->input('image_names', []);
 
-            file_put_contents(storage_path('logs/debug.log'), "Found images in update: " . count($imageFiles) . "\n", FILE_APPEND);
+            file_put_contents(storage_path('logs/debug.log'), 'Found images in update: '.count($imageFiles)."\n", FILE_APPEND);
 
             foreach ($imageFiles as $index => $file) {
-                if (!$file) {
+                if (! $file) {
                     file_put_contents(storage_path('logs/debug.log'), "File not found for index {$index} in update\n", FILE_APPEND);
+
                     continue;
                 }
 
@@ -265,10 +273,10 @@ class AnnouncementController extends Controller
                         // Use file contents instead of path for more reliable upload
                         $fileContents = file_get_contents($file->getRealPath());
                         if ($fileContents === false) {
-                            throw new \Exception('Could not read file contents: ' . $file->getRealPath());
+                            throw new \Exception('Could not read file contents: '.$file->getRealPath());
                         }
 
-                        file_put_contents(storage_path('logs/debug.log'), "File contents read successfully, size: " . strlen($fileContents) . " bytes\n", FILE_APPEND);
+                        file_put_contents(storage_path('logs/debug.log'), 'File contents read successfully, size: '.strlen($fileContents)." bytes\n", FILE_APPEND);
 
                         $uploadResult = Cloudinary::uploadApi()->upload($fileContents, [
                             'folder' => 'DatamexELMS/Datamex_Announcements',
@@ -276,10 +284,10 @@ class AnnouncementController extends Controller
                             'public_id' => uniqid('announcement_'),
                         ]);
 
-                        file_put_contents(storage_path('logs/debug.log'), "Cloudinary upload result in update: " . json_encode($uploadResult) . "\n", FILE_APPEND);
+                        file_put_contents(storage_path('logs/debug.log'), 'Cloudinary upload result in update: '.json_encode($uploadResult)."\n", FILE_APPEND);
 
-                        if (!$uploadResult || !isset($uploadResult['secure_url'])) {
-                            throw new \Exception('Cloudinary upload failed - no secure_url in response: ' . json_encode($uploadResult));
+                        if (! $uploadResult || ! isset($uploadResult['secure_url'])) {
+                            throw new \Exception('Cloudinary upload failed - no secure_url in response: '.json_encode($uploadResult));
                         }
 
                         $attachment = AnnouncementAttachment::create([

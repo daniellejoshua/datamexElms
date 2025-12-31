@@ -76,25 +76,11 @@ export default function Index({ announcements = [], auth }) {
         !featuredAnnouncements.includes(announcement)
     );
 
-    if (!announcements) {
-        return (
-            <AuthenticatedLayout>
-                <Head title="News & Announcements" />
-                <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-                    <div className="max-w-7xl mx-auto px-4 py-8">
-                        <div className="flex justify-center items-center py-12">
-                            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
-                        </div>
-                    </div>
-                </div>
-            </AuthenticatedLayout>
-        );
-    }
-
     return (
         <AuthenticatedLayout
+            user={auth.user}
             header={
-                <div className="flex items-center px-2 py-1">
+                <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
                         <div className="bg-blue-100 p-1.5 rounded-md">
                             <Newspaper className="w-4 h-4 text-blue-600" />

@@ -8,7 +8,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Upload, X, Image as ImageIcon, Camera, MapPin, Smile, Globe, Users, GraduationCap } from 'lucide-react';
+import { Upload, X, Image as ImageIcon, Camera, MapPin, Smile, Globe, Users, GraduationCap, AlertTriangle, TrendingUp, Info, Newspaper } from 'lucide-react';
 import imageCompression from 'browser-image-compression';
 
 const calculateFileHash = async (file) => {
@@ -138,10 +138,30 @@ export default function AnnouncementForm({ mode = 'create', announcement = null,
 
     const getVisibilityIcon = (visibility) => {
         switch (visibility) {
-            case 'all_users': return <Globe className="h-4 w-4" />;
+            case 'all_users': return <Newspaper className="h-4 w-4" />;
             case 'teachers_only': return <Users className="h-4 w-4" />;
             case 'students_only': return <GraduationCap className="h-4 w-4" />;
-            default: return <Globe className="h-4 w-4" />;
+            default: return <Newspaper className="h-4 w-4" />;
+        }
+    };
+
+    const getPriorityColor = (priority) => {
+        switch (priority) {
+            case 'urgent': return 'bg-red-500';
+            case 'high': return 'bg-orange-500';
+            case 'medium': return 'bg-blue-500';
+            case 'low': return 'bg-gray-500';
+            default: return 'bg-gray-500';
+        }
+    };
+
+    const getPriorityIcon = (priority) => {
+        switch (priority) {
+            case 'urgent': return <AlertTriangle className="h-4 w-4" />;
+            case 'high': return <TrendingUp className="h-4 w-4" />;
+            case 'medium': return <Info className="h-4 w-4" />;
+            case 'low': return <Info className="h-4 w-4" />;
+            default: return <Info className="h-4 w-4" />;
         }
     };
 
@@ -362,9 +382,24 @@ export default function AnnouncementForm({ mode = 'create', announcement = null,
                                 <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
-                                <SelectItem value="all_users">Everyone</SelectItem>
-                                <SelectItem value="teachers_only">Teachers only</SelectItem>
-                                <SelectItem value="students_only">Students only</SelectItem>
+                                <SelectItem value="all_users">
+                                    <div className="flex items-center space-x-2">
+                                        <Newspaper className="h-4 w-4" />
+                                        <span>Everyone</span>
+                                    </div>
+                                </SelectItem>
+                                <SelectItem value="teachers_only">
+                                    <div className="flex items-center space-x-2">
+                                        <Users className="h-4 w-4" />
+                                        <span>Teachers only</span>
+                                    </div>
+                                </SelectItem>
+                                <SelectItem value="students_only">
+                                    <div className="flex items-center space-x-2">
+                                        <GraduationCap className="h-4 w-4" />
+                                        <span>Students only</span>
+                                    </div>
+                                </SelectItem>
                             </SelectContent>
                         </Select>
                     </div>
@@ -378,10 +413,34 @@ export default function AnnouncementForm({ mode = 'create', announcement = null,
                                 <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
-                                <SelectItem value="low">Low</SelectItem>
-                                <SelectItem value="medium">Medium</SelectItem>
-                                <SelectItem value="high">High</SelectItem>
-                                <SelectItem value="urgent">Urgent</SelectItem>
+                                <SelectItem value="low">
+                                    <div className="flex items-center space-x-2">
+                                        <div className="w-3 h-3 rounded-full bg-gray-500"></div>
+                                        <Info className="h-4 w-4" />
+                                        <span>Low</span>
+                                    </div>
+                                </SelectItem>
+                                <SelectItem value="medium">
+                                    <div className="flex items-center space-x-2">
+                                        <div className="w-3 h-3 rounded-full bg-blue-500"></div>
+                                        <Info className="h-4 w-4" />
+                                        <span>Medium</span>
+                                    </div>
+                                </SelectItem>
+                                <SelectItem value="high">
+                                    <div className="flex items-center space-x-2">
+                                        <div className="w-3 h-3 rounded-full bg-orange-500"></div>
+                                        <TrendingUp className="h-4 w-4" />
+                                        <span>High</span>
+                                    </div>
+                                </SelectItem>
+                                <SelectItem value="urgent">
+                                    <div className="flex items-center space-x-2">
+                                        <div className="w-3 h-3 rounded-full bg-red-500"></div>
+                                        <AlertTriangle className="h-4 w-4" />
+                                        <span>Urgent</span>
+                                    </div>
+                                </SelectItem>
                             </SelectContent>
                         </Select>
                     </div>

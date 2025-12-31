@@ -11,7 +11,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Button } from '@/components/ui/button';
-import { ChevronDown, ChevronRight, User, LogOut } from 'lucide-react';
+import { ChevronDown, ChevronRight, User, LogOut, Menu, X } from 'lucide-react';
 import { Toaster } from '@/components/ui/sonner';
 import { toast } from 'sonner';
 
@@ -19,6 +19,7 @@ export default function AuthenticatedLayout({ header, children }) {
     const { flash } = usePage().props;
     const user = usePage().props.auth.user;
     const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+    const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
     const [expandedMenus, setExpandedMenus] = useState({
         'Sections': route().current('admin.sections.*') || route().current('admin.college.*') || route().current('admin.shs.*')
     });
@@ -375,8 +376,20 @@ export default function AuthenticatedLayout({ header, children }) {
 
     return (
         <div className="min-h-screen bg-gray-50 flex">
+            {/* Mobile Menu Overlay */}
+            {mobileMenuOpen && (
+                <div
+                    className="fixed inset-0 bg-black bg-opacity-50 z-40 lg:hidden"
+                    onClick={() => setMobileMenuOpen(false)}
+                />
+            )}
+
             {/* Left Sidebar */}
-            <div className={`bg-white border-r border-gray-200 transition-all duration-300 ease-in-out ${sidebarCollapsed ? 'w-16' : 'w-48'} flex-shrink-0`}>
+            <div className={`bg-white border-r border-gray-200 transition-all duration-300 ease-in-out ${
+                sidebarCollapsed ? 'w-16' : 'w-48'
+            } flex-shrink-0 fixed lg:static inset-y-0 left-0 z-50 lg:z-auto transform ${
+                mobileMenuOpen ? 'translate-x-0' : '-translate-x-full'
+            } lg:translate-x-0`}>
                 <div className="h-full flex flex-col">
                     {/* Logo Section */}
                     <div className="flex items-center justify-between p-4 border-b border-gray-200">
@@ -391,18 +404,28 @@ export default function AuthenticatedLayout({ header, children }) {
                                 </div>
                             )}
                         </div>
-                        <button
-                            onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-                            className="p-1 rounded-lg text-gray-500 hover:text-red-600 hover:bg-red-50 transition-colors"
-                        >
-                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                {sidebarCollapsed ? (
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 5l7 7-7 7M5 5l7 7-7 7" />
-                                ) : (
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 19l-7-7 7-7m8 14l-7-7 7-7" />
-                                )}
-                            </svg>
-                        </button>
+                        <div className="flex items-center space-x-2">
+                            {/* Mobile Close Button */}
+                            <button
+                                onClick={() => setMobileMenuOpen(false)}
+                                className="lg:hidden p-1 rounded-lg text-gray-500 hover:text-red-600 hover:bg-red-50 transition-colors"
+                            >
+                                <X className="w-5 h-5" />
+                            </button>
+                            {/* Desktop Collapse Button */}
+                            <button
+                                onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+                                className="hidden lg:block p-1 rounded-lg text-gray-500 hover:text-red-600 hover:bg-red-50 transition-colors"
+                            >
+                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    {sidebarCollapsed ? (
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 5l7 7-7 7M5 5l7 7-7 7" />
+                                    ) : (
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 19l-7-7 7-7m8 14l-7-7 7-7" />
+                                    )}
+                                </svg>
+                            </button>
+                        </div>
                     </div>
 
                     {/* Navigation */}
@@ -487,8 +510,21 @@ export default function AuthenticatedLayout({ header, children }) {
                 {/* Top Header */}
                 <header className="bg-white border-b border-gray-200 px-6 py-4">
                     <div className="flex items-center justify-between">
-                        <div className="flex-1">
-                            {header}
+                        <div className="flex items-center">
+                            {/* Mobile Menu Button */}
+                            <button
+                                onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+                                className="lg:hidden p-2 rounded-lg text-gray-500 hover:text-red-600 hover:bg-red-50 transition-colors mr-4"
+                            >
+                                {mobileMenuOpen ? (
+                                    <X className="w-6 h-6" />
+                                ) : (
+                                    <Menu className="w-6 h-6" />
+                                )}
+                            </button>
+                            <div className="flex-1">
+                                {header}
+                            </div>
                         </div>
                         
                         {/* Profile Dropdown */}
