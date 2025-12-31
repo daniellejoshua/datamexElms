@@ -16,11 +16,63 @@ class AnnouncementController extends Controller
     {
         $user = Auth::user();
 
-        $announcements = Announcement::with(['creator', 'attachments'])
-            ->published()
-            ->orderBy('priority', 'desc')
+        // Automatically process scheduled and expired announcements on every page load
+        $this->processScheduledAnnouncements();
+        $this->processExpiredAnnouncements();
+
+        // Base query for announcements
+        $query = Announcement::with(['creator', 'attachments'])
+            ->visibleTo($user)
+            ->where('is_archived', false);
+
+        // Add conditions based on user role and announcement status
+        if ($user->role === 'head_teacher') {
+            // Head teachers see all announcements (published, scheduled, expired)
+            $query->where(function ($q) {
+                $q->where('is_published', true)
+                    ->orWhere(function ($sq) {
+                        $sq->where('is_published', false)
+                            ->whereNotNull('scheduled_at')
+                            ->where('scheduled_at', '>', now());
+                    })
+                    ->orWhere(function ($sq) {
+                        $sq->where('is_published', true)
+                            ->whereNotNull('expires_at')
+                            ->where('expires_at', '<=', now());
+                    });
+            });
+        } else {
+            // Regular users only see published announcements
+            $query->where('is_published', true)
+                ->where(function ($q) {
+                    $q->whereNull('expires_at')
+                        ->orWhere('expires_at', '>', now());
+                });
+        }
+
+        // Order by priority (custom order) and then by date
+        $query->orderByRaw("CASE
+            WHEN priority = 'urgent' THEN 1
+            WHEN priority = 'high' THEN 2
+            WHEN priority = 'medium' THEN 3
+            WHEN priority = 'low' THEN 4
+            ELSE 5 END")
             ->orderBy('published_at', 'desc')
-            ->get();
+            ->orderBy('scheduled_at', 'desc');
+
+        // Paginate the results
+        $announcements = $query->paginate(6);
+
+        // Add flags for scheduled and expired announcements
+        foreach ($announcements as $announcement) {
+            if (! $announcement->is_published && $announcement->scheduled_at && $announcement->scheduled_at > now()) {
+                $announcement->is_scheduled = true;
+            }
+
+            if ($announcement->is_published && $announcement->expires_at && $announcement->expires_at <= now()) {
+                $announcement->is_expired = true;
+            }
+        }
 
         // Mark read status for each announcement
         foreach ($announcements as $announcement) {
@@ -69,17 +121,40 @@ class AnnouncementController extends Controller
             $validated = $request->validate([
                 'title' => 'required|string|max:255',
                 'content' => 'required|string',
-                'visibility' => 'required|in:teachers_only,all_users,students_only',
+                'visibility' => 'required|in:teachers_only,all_users,students_only,admins_only,registrars_only,employees_only',
                 'priority' => 'required|in:low,medium,high,urgent',
                 'is_published' => 'boolean',
-                'published_at' => 'nullable|date',
-                'expires_at' => 'nullable|date|after:published_at',
+                'published_at' => $request->input('is_published') ? 'nullable|date' : 'required|date',
+                'expires_at' => 'nullable|date',
             ]);
+
+            // Additional validation: expires_at must be after published_at if both are provided
+            if (($validated['published_at'] ?? null) && ($validated['expires_at'] ?? null)) {
+                // Parse dates as being in Asia/Manila timezone (user's timezone)
+                // Handle datetime-local format (YYYY-MM-DDTHH:MM) by adding seconds if missing
+                $publishedAtStr = strlen(($validated['published_at'] ?? '')) == 16 ? ($validated['published_at'] ?? '').':00' : ($validated['published_at'] ?? '');
+                $expiresAtStr = strlen(($validated['expires_at'] ?? '')) == 16 ? ($validated['expires_at'] ?? '').':00' : ($validated['expires_at'] ?? '');
+
+                $publishedAt = \Carbon\Carbon::parse($publishedAtStr, 'Asia/Manila');
+                $expiresAt = \Carbon\Carbon::parse($expiresAtStr, 'Asia/Manila');
+
+                if ($expiresAt->lte($publishedAt)) {
+                    throw \Illuminate\Validation\ValidationException::withMessages([
+                        'expires_at' => 'The expiration date must be after the publication date.',
+                    ]);
+                }
+            }
+
+            // Handle datetime-local format (YYYY-MM-DDTHH:MM) by adding seconds if missing
+            $publishedAtStr = ($validated['published_at'] ?? null) ? (strlen(($validated['published_at'] ?? '')) == 16 ? ($validated['published_at'] ?? '').':00' : ($validated['published_at'] ?? '')) : null;
+            $expiresAtStr = ($validated['expires_at'] ?? null) ? (strlen(($validated['expires_at'] ?? '')) == 16 ? ($validated['expires_at'] ?? '').':00' : ($validated['expires_at'] ?? '')) : null;
 
             $announcement = Announcement::create([
                 ...$validated,
                 'created_by' => Auth::id(),
-                'published_at' => $validated['is_published'] ? ($validated['published_at'] ?? now()) : null,
+                'published_at' => $validated['is_published'] ? now() : ($publishedAtStr ? \Carbon\Carbon::parse($publishedAtStr, 'Asia/Manila')->utc() : null),
+                'scheduled_at' => ! $validated['is_published'] ? ($publishedAtStr ? \Carbon\Carbon::parse($publishedAtStr, 'Asia/Manila')->utc() : null) : null,
+                'expires_at' => $expiresAtStr ? \Carbon\Carbon::parse($expiresAtStr, 'Asia/Manila')->utc() : null,
             ]);
 
             // Handle image attachments with duplicate checking
@@ -190,8 +265,31 @@ class AnnouncementController extends Controller
             ['is_read' => true, 'read_at' => now()]
         );
 
+        // Get recent announcements (excluding current one)
+        $recentAnnouncements = Announcement::with(['creator', 'attachments'])
+            ->published()
+            ->where('id', '!=', $announcement->id)
+            ->orderBy('priority', 'desc')
+            ->orderBy('published_at', 'desc')
+            ->take(3)
+            ->get();
+
+        // Mark read status for recent announcements
+        foreach ($recentAnnouncements as $recentAnnouncement) {
+            $readStatus = AnnouncementReadStatus::firstOrCreate(
+                ['announcement_id' => $recentAnnouncement->id, 'user_id' => Auth::id()],
+                ['is_read' => false]
+            );
+            $recentAnnouncement->is_read = $readStatus->is_read;
+        }
+
         return Inertia::render('Announcements/Show', [
             'announcement' => $announcement,
+            'recentAnnouncements' => $recentAnnouncements,
+            'readStats' => [
+                'read_count' => $announcement->read_count,
+                'total_count' => $announcement->total_read_status_count,
+            ],
         ]);
     }
 
@@ -213,17 +311,50 @@ class AnnouncementController extends Controller
         $validated = $request->validate([
             'title' => 'required|string|max:255',
             'content' => 'required|string',
-            'visibility' => 'required|in:teachers_only,all_users,students_only',
+            'visibility' => 'required|in:teachers_only,all_users,students_only,admins_only,registrars_only,employees_only',
             'priority' => 'required|in:low,medium,high,urgent',
             'is_published' => 'boolean',
-            'published_at' => 'nullable|date',
-            'expires_at' => 'nullable|date|after:published_at',
+            'published_at' => $request->input('is_published') ? 'nullable|date' : 'required|date',
+            'expires_at' => 'nullable|date',
         ]);
+
+        // Additional validation: expires_at must be after published_at if both are provided
+        if (($validated['published_at'] ?? null) && ($validated['expires_at'] ?? null)) {
+            // Parse dates as being in Asia/Manila timezone (user's timezone)
+            // Handle datetime-local format (YYYY-MM-DDTHH:MM) by adding seconds if missing
+            $publishedAtStr = strlen(($validated['published_at'] ?? '')) == 16 ? ($validated['published_at'] ?? '').':00' : ($validated['published_at'] ?? '');
+            $expiresAtStr = strlen(($validated['expires_at'] ?? '')) == 16 ? ($validated['expires_at'] ?? '').':00' : ($validated['expires_at'] ?? '');
+
+            $publishedAt = \Carbon\Carbon::parse($publishedAtStr, 'Asia/Manila');
+            $expiresAt = \Carbon\Carbon::parse($expiresAtStr, 'Asia/Manila');
+
+            if ($expiresAt->lte($publishedAt)) {
+                throw \Illuminate\Validation\ValidationException::withMessages([
+                    'expires_at' => 'The expiration date must be after the publication date.',
+                ]);
+            }
+        }
+
+        // Handle datetime-local format (YYYY-MM-DDTHH:MM) by adding seconds if missing
+        $publishedAtStr = ($validated['published_at'] ?? null) ? (strlen(($validated['published_at'] ?? '')) == 16 ? ($validated['published_at'] ?? '').':00' : ($validated['published_at'] ?? '')) : null;
+        $expiresAtStr = ($validated['expires_at'] ?? null) ? (strlen(($validated['expires_at'] ?? '')) == 16 ? ($validated['expires_at'] ?? '').':00' : ($validated['expires_at'] ?? '')) : null;
 
         $announcement->update([
             ...$validated,
-            'published_at' => $validated['is_published'] ? ($validated['published_at'] ?? now()) : null,
+            'published_at' => $validated['is_published'] ? now() : ($publishedAtStr ? \Carbon\Carbon::parse($publishedAtStr, 'Asia/Manila')->utc() : ($validated['published_at'] ?? null)),
+            'scheduled_at' => ! $validated['is_published'] ? ($publishedAtStr ? \Carbon\Carbon::parse($publishedAtStr, 'Asia/Manila')->utc() : null) : null,
+            'expires_at' => $expiresAtStr ? \Carbon\Carbon::parse($expiresAtStr, 'Asia/Manila')->utc() : null,
         ]);
+
+        // Handle existing images - keep only those specified
+        $existingImageIds = $request->input('existing_images', []);
+        if (! empty($existingImageIds)) {
+            // Remove attachments that are not in the existing_images array
+            $announcement->attachments()->whereNotIn('id', $existingImageIds)->delete();
+        } else {
+            // If no existing images specified, remove all attachments
+            $announcement->attachments()->delete();
+        }
 
         // Handle image attachments with duplicate checking
         if ($request->hasFile('images')) {
@@ -312,6 +443,11 @@ class AnnouncementController extends Controller
             }
         }
 
+        // Reset read status for all users when announcement is updated
+        // This ensures users need to read the updated announcement again
+        AnnouncementReadStatus::where('announcement_id', $announcement->id)
+            ->update(['is_read' => false, 'read_at' => null]);
+
         return response()->json(['success' => true, 'message' => 'Announcement updated successfully.']);
     }
 
@@ -341,5 +477,45 @@ class AnnouncementController extends Controller
         );
 
         return response()->json(['success' => true]);
+    }
+
+    /**
+     * Automatically publish scheduled announcements that are due
+     */
+    private function processScheduledAnnouncements()
+    {
+        $scheduledToPublish = Announcement::where('is_published', false)
+            ->where('is_archived', false)
+            ->whereNotNull('scheduled_at')
+            ->where('scheduled_at', '<=', now())
+            ->get();
+
+        foreach ($scheduledToPublish as $announcement) {
+            $announcement->update([
+                'is_published' => true,
+                'published_at' => now(),
+            ]);
+
+            // Check if this announcement is already expired
+            if ($announcement->expires_at && $announcement->expires_at <= now()) {
+                $announcement->update(['is_archived' => true, 'archived_at' => now()]);
+            }
+        }
+    }
+
+    /**
+     * Automatically archive expired published announcements
+     */
+    private function processExpiredAnnouncements()
+    {
+        $expiredToArchive = Announcement::where('is_published', true)
+            ->where('is_archived', false)
+            ->whereNotNull('expires_at')
+            ->where('expires_at', '<=', now())
+            ->get();
+
+        foreach ($expiredToArchive as $announcement) {
+            $announcement->update(['is_archived' => true, 'archived_at' => now()]);
+        }
     }
 }

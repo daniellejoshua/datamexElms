@@ -8,8 +8,10 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Upload, X, Image as ImageIcon, Camera, MapPin, Smile, Globe, Users, GraduationCap, AlertTriangle, TrendingUp, Info, Newspaper } from 'lucide-react';
+import { Upload, X, Image as ImageIcon, Camera, MapPin, Smile, Globe, Users, GraduationCap, AlertTriangle, TrendingUp, Info, Newspaper, Shield, UserCheck, Briefcase } from 'lucide-react';
+import InputError from '@/Components/InputError';
 import imageCompression from 'browser-image-compression';
+import { toast } from 'sonner';
 
 const calculateFileHash = async (file) => {
     const buffer = await file.arrayBuffer();
@@ -42,6 +44,7 @@ const compressImage = async (file, onProgress) => {
 
 export default function AnnouncementForm({ mode = 'create', announcement = null, onClose = () => {}, auth }) {
     const isEdit = mode === 'edit' && announcement;
+    const isAlreadyPublished = isEdit && announcement.is_published;
 
     const { data, setData, post, put, processing, errors, reset } = useForm({
         title: isEdit ? announcement.title : '',
@@ -49,8 +52,8 @@ export default function AnnouncementForm({ mode = 'create', announcement = null,
         visibility: isEdit ? announcement.visibility : 'all_users',
         priority: isEdit ? announcement.priority : 'medium',
         is_published: isEdit ? announcement.is_published : true,
-        published_at: isEdit && announcement.published_at ? new Date(announcement.published_at).toISOString().slice(0, 16) : '',
-        expires_at: isEdit && announcement.expires_at ? new Date(announcement.expires_at).toISOString().slice(0, 16) : '',
+        published_at: isEdit ? (announcement.scheduled_at ? new Date(announcement.scheduled_at).toLocaleString('sv-SE', { timeZone: 'Asia/Manila' }).slice(0, 16).replace(' ', 'T') : (announcement.published_at ? new Date(announcement.published_at).toLocaleString('sv-SE', { timeZone: 'Asia/Manila' }).slice(0, 16).replace(' ', 'T') : '')) : '',
+        expires_at: isEdit && announcement.expires_at ? new Date(announcement.expires_at).toLocaleString('sv-SE', { timeZone: 'Asia/Manila' }).slice(0, 16).replace(' ', 'T') : '',
         images: [],
     });
 
@@ -67,7 +70,19 @@ export default function AnnouncementForm({ mode = 'create', announcement = null,
         setImageFiles([]);
         setImagePreviews([]);
         setCompressedImages([]);
-    }, [mode, announcement]);
+
+        // Load existing images when in edit mode
+        if (isEdit && announcement?.attachments && announcement.attachments.length > 0) {
+            const existingPreviews = announcement.attachments.map(attachment => ({
+                url: attachment.cloudinary_url,
+                name: attachment.original_filename || 'Existing image',
+                size: attachment.file_size || 0,
+                existing: true,
+                id: attachment.id
+            }));
+            setImagePreviews(existingPreviews);
+        }
+    }, [mode, announcement, isEdit]);
 
     useEffect(() => {
         // Auto-resize textarea
@@ -76,6 +91,19 @@ export default function AnnouncementForm({ mode = 'create', announcement = null,
             textareaRef.current.style.height = textareaRef.current.scrollHeight + 'px';
         }
     }, [data.content]);
+
+    // Validate expiration date is not before publication date
+    useEffect(() => {
+        if (data.expires_at && data.published_at) {
+            const publishDate = new Date(data.published_at);
+            const expireDate = new Date(data.expires_at);
+
+            if (expireDate <= publishDate) {
+                // Clear the expiration date if it's invalid
+                setData('expires_at', '');
+            }
+        }
+    }, [data.published_at, data.expires_at]);
 
     const handleImageChange = async (files) => {
         try {
@@ -127,13 +155,16 @@ export default function AnnouncementForm({ mode = 'create', announcement = null,
         setDragActive(false);
     };
 
-    const removeImage = () => {
-        if (imagePreviews.length > 0) {
-            URL.revokeObjectURL(imagePreviews[0].url);
+    const removeImage = (index = 0) => {
+        const preview = imagePreviews[index];
+        if (preview && !preview.existing) {
+            // Only revoke object URLs for newly uploaded images
+            URL.revokeObjectURL(preview.url);
         }
-        setImageFiles([]);
-        setImagePreviews([]);
-        setCompressedImages([]);
+
+        setImagePreviews(prev => prev.filter((_, i) => i !== index));
+        setImageFiles(prev => prev.filter((_, i) => i !== index));
+        setCompressedImages(prev => prev.filter((_, i) => i !== index));
     };
 
     const getVisibilityIcon = (visibility) => {
@@ -141,6 +172,9 @@ export default function AnnouncementForm({ mode = 'create', announcement = null,
             case 'all_users': return <Newspaper className="h-4 w-4" />;
             case 'teachers_only': return <Users className="h-4 w-4" />;
             case 'students_only': return <GraduationCap className="h-4 w-4" />;
+            case 'admins_only': return <Shield className="h-4 w-4" />;
+            case 'registrars_only': return <UserCheck className="h-4 w-4" />;
+            case 'employees_only': return <Briefcase className="h-4 w-4" />;
             default: return <Newspaper className="h-4 w-4" />;
         }
     };
@@ -149,7 +183,7 @@ export default function AnnouncementForm({ mode = 'create', announcement = null,
         switch (priority) {
             case 'urgent': return 'bg-red-500';
             case 'high': return 'bg-orange-500';
-            case 'medium': return 'bg-blue-500';
+            case 'medium': return 'bg-white';
             case 'low': return 'bg-gray-500';
             default: return 'bg-gray-500';
         }
@@ -170,6 +204,9 @@ export default function AnnouncementForm({ mode = 'create', announcement = null,
             case 'all_users': return 'Everyone';
             case 'teachers_only': return 'Teachers only';
             case 'students_only': return 'Students only';
+            case 'admins_only': return 'Admins only';
+            case 'registrars_only': return 'Registrars only';
+            case 'employees_only': return 'Employees only';
             default: return 'Everyone';
         }
     };
@@ -206,6 +243,17 @@ export default function AnnouncementForm({ mode = 'create', announcement = null,
             formData.append(`image_names[]`, imageData.originalName);
         });
 
+        // For edit mode, handle existing images
+        if (isEdit) {
+            // Send IDs of existing images to keep
+            const existingImageIds = imagePreviews
+                .filter(preview => preview.existing)
+                .map(preview => preview.id);
+            existingImageIds.forEach(id => {
+                formData.append('existing_images[]', id);
+            });
+        }
+
         console.log('Submitting announcement with images:', compressedImages.length);
         console.log('Compressed images data:', compressedImages);
         console.log('CSRF token found:', !!csrfToken);
@@ -232,11 +280,27 @@ export default function AnnouncementForm({ mode = 'create', announcement = null,
         .then(response => response.json())
         .then(data => {
             console.log('Success:', data);
+            toast.success(isEdit ? 'Announcement updated successfully!' : 'Announcement created successfully!', {
+                style: {
+                    border: '1px solid #10b981',
+                    backgroundColor: '#f0fdf4',
+                    color: '#166534'
+                },
+                duration: 5000,
+            });
             onClose();
             router.reload();
         })
         .catch(error => {
             console.error('Error:', error);
+            toast.error('Failed to save announcement. Please try again.', {
+                style: {
+                    border: '1px solid #ef4444',
+                    backgroundColor: '#fef2f2',
+                    color: '#dc2626'
+                },
+                duration: 5000,
+            });
         });
     };
 
@@ -302,37 +366,60 @@ export default function AnnouncementForm({ mode = 'create', announcement = null,
                     </Label>
 
                     {imagePreviews.length > 0 ? (
-                        <div className="relative">
-                            <div className="relative rounded-lg overflow-hidden border-2 border-blue-200 dark:border-blue-800 bg-blue-50/30 dark:bg-blue-900/10">
-                                <img
-                                    src={imagePreviews[0].url}
-                                    alt={imagePreviews[0].name}
-                                    className="w-full h-80 object-cover"
-                                />
+                        <div className="space-y-3">
+                            {imagePreviews.map((preview, index) => (
+                                <div key={index} className="relative">
+                                    <div className="relative rounded-lg overflow-hidden border-2 border-blue-200 dark:border-blue-800 bg-blue-50/30 dark:bg-blue-900/10">
+                                        <img
+                                            src={preview.url}
+                                            alt={preview.name}
+                                            className="w-full h-80 object-cover"
+                                        />
+                                        <Button
+                                            type="button"
+                                            variant="destructive"
+                                            size="sm"
+                                            className="absolute top-2 right-2 h-6 w-6 p-0"
+                                            onClick={() => removeImage(index)}
+                                        >
+                                            <X className="h-3 w-3" />
+                                        </Button>
+                                        {preview.existing && (
+                                            <div className="absolute top-2 left-2 bg-green-500 text-white text-xs px-2 py-1 rounded">
+                                                Existing
+                                            </div>
+                                        )}
+                                    </div>
+                                    <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                                        {preview.name}
+                                        {preview.size > 0 && ` (${(preview.size / 1024 / 1024).toFixed(2)} MB)`}
+                                    </p>
+                                </div>
+                            ))}
+
+                            {imagePreviews.length === 0 || (imagePreviews.length > 0 && !imagePreviews[0].existing) ? (
                                 <Button
                                     type="button"
-                                    variant="destructive"
+                                    variant="outline"
                                     size="sm"
-                                    className="absolute top-2 right-2 h-6 w-6 p-0"
-                                    onClick={() => {
-                                        setImageFiles([]);
-                                        setImagePreviews([]);
-                                        setCompressedImages([]);
-                                    }}
+                                    className="w-full border-blue-200 dark:border-blue-800 hover:bg-blue-50 dark:hover:bg-blue-900/20"
+                                    onClick={() => fileInputRef.current?.click()}
                                 >
-                                    <X className="h-3 w-3" />
+                                    <Camera className="h-4 w-4 mr-2" />
+                                    {imagePreviews.length > 0 ? 'Change Image' : 'Add Image'}
                                 </Button>
-                            </div>
-                            <Button
-                                type="button"
-                                variant="outline"
-                                size="sm"
-                                className="mt-2 w-full border-blue-200 dark:border-blue-800 hover:bg-blue-50 dark:hover:bg-blue-900/20"
-                                onClick={() => fileInputRef.current?.click()}
-                            >
-                                <Camera className="h-4 w-4 mr-2" />
-                                Change Image
-                            </Button>
+                            ) : (
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="sm"
+                                    className="w-full border-blue-200 dark:border-blue-800 hover:bg-blue-50 dark:hover:bg-blue-900/20"
+                                    onClick={() => fileInputRef.current?.click()}
+                                >
+                                    <Camera className="h-4 w-4 mr-2" />
+                                    Replace Image
+                                </Button>
+                            )}
                         </div>
                     ) : (
                         <div
@@ -400,6 +487,24 @@ export default function AnnouncementForm({ mode = 'create', announcement = null,
                                         <span>Students only</span>
                                     </div>
                                 </SelectItem>
+                                <SelectItem value="admins_only">
+                                    <div className="flex items-center space-x-2">
+                                        <Shield className="h-4 w-4" />
+                                        <span>Admins only</span>
+                                    </div>
+                                </SelectItem>
+                                <SelectItem value="registrars_only">
+                                    <div className="flex items-center space-x-2">
+                                        <UserCheck className="h-4 w-4" />
+                                        <span>Registrars only</span>
+                                    </div>
+                                </SelectItem>
+                                <SelectItem value="employees_only">
+                                    <div className="flex items-center space-x-2">
+                                        <Briefcase className="h-4 w-4" />
+                                        <span>Employees only</span>
+                                    </div>
+                                </SelectItem>
                             </SelectContent>
                         </Select>
                     </div>
@@ -422,7 +527,7 @@ export default function AnnouncementForm({ mode = 'create', announcement = null,
                                 </SelectItem>
                                 <SelectItem value="medium">
                                     <div className="flex items-center space-x-2">
-                                        <div className="w-3 h-3 rounded-full bg-blue-500"></div>
+                                        <div className="w-3 h-3 rounded-full bg-white border border-gray-300"></div>
                                         <Info className="h-4 w-4" />
                                         <span>Medium</span>
                                     </div>
@@ -451,9 +556,13 @@ export default function AnnouncementForm({ mode = 'create', announcement = null,
                                 id="is_published"
                                 checked={data.is_published}
                                 onCheckedChange={(checked) => setData('is_published', checked)}
+                                disabled={isAlreadyPublished}
                             />
                             <Label htmlFor="is_published" className="text-sm text-gray-700 dark:text-gray-300">
                                 Publish immediately
+                                {isAlreadyPublished && (
+                                    <span className="text-xs text-gray-500 ml-2">(Already published)</span>
+                                )}
                             </Label>
                         </div>
 
@@ -462,6 +571,9 @@ export default function AnnouncementForm({ mode = 'create', announcement = null,
                                 <div className="space-y-2">
                                     <Label htmlFor="published_at" className="text-sm font-medium text-blue-700 dark:text-blue-300">
                                         Schedule publication
+                                        {isAlreadyPublished && (
+                                            <span className="text-xs text-gray-500 ml-2">(Cannot change once published)</span>
+                                        )}
                                     </Label>
                                     <Input
                                         id="published_at"
@@ -469,7 +581,10 @@ export default function AnnouncementForm({ mode = 'create', announcement = null,
                                         value={data.published_at}
                                         onChange={(e) => setData('published_at', e.target.value)}
                                         className="border-gray-300 dark:border-gray-600"
+                                        disabled={isAlreadyPublished}
+                                        min={new Date().toISOString().slice(0, 16)}
                                     />
+                                    <InputError message={errors.published_at} className="mt-2" />
                                 </div>
                                 <div className="space-y-2">
                                     <Label htmlFor="expires_at" className="text-sm font-medium text-blue-700 dark:text-blue-300">
@@ -481,7 +596,9 @@ export default function AnnouncementForm({ mode = 'create', announcement = null,
                                         value={data.expires_at}
                                         onChange={(e) => setData('expires_at', e.target.value)}
                                         className="border-gray-300 dark:border-gray-600"
+                                        min={data.published_at || new Date().toISOString().slice(0, 16)}
                                     />
+                                    <InputError message={errors.expires_at} className="mt-2" />
                                 </div>
                             </div>
                         )}
@@ -497,7 +614,9 @@ export default function AnnouncementForm({ mode = 'create', announcement = null,
                                     value={data.expires_at}
                                     onChange={(e) => setData('expires_at', e.target.value)}
                                     className="border-gray-300 dark:border-gray-600"
+                                    min={isAlreadyPublished ? (announcement.published_at ? new Date(announcement.published_at).toISOString().slice(0, 16) : new Date().toISOString().slice(0, 16)) : new Date().toISOString().slice(0, 16)}
                                 />
+                                <InputError message={errors.expires_at} className="mt-2" />
                             </div>
                         )}
                     </div>
@@ -514,7 +633,7 @@ export default function AnnouncementForm({ mode = 'create', announcement = null,
                     </Button>
                     <Button
                         type="submit"
-                        disabled={processing || !data.title.trim() || !data.content.trim()}
+                        disabled={processing || !data.title.trim() || !data.content.trim() || (!data.is_published && !data.published_at)}
                         className="bg-blue-600 hover:bg-blue-700 text-white dark:bg-blue-500 dark:hover:bg-blue-600"
                     >
                         {processing ? 'Publishing...' : (isEdit ? 'Update' : 'Publish')}

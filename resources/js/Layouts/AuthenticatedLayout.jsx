@@ -11,7 +11,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Button } from '@/components/ui/button';
-import { ChevronDown, ChevronRight, User, LogOut, Menu, X } from 'lucide-react';
+import { ChevronDown, ChevronRight, User, LogOut, Menu, X, Users } from 'lucide-react';
 import { Toaster } from '@/components/ui/sonner';
 import { toast } from 'sonner';
 
@@ -192,11 +192,7 @@ export default function AuthenticatedLayout({ header, children }) {
                         name: 'Teachers', 
                         href: route('admin.teachers.index'), 
                         current: route().current('admin.teachers.*'),
-                        icon: (
-                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z" />
-                            </svg>
-                        )
+                        icon: <Users className="w-5 h-5" />
                     },
                     { 
                         name: 'Curriculum', 
@@ -392,7 +388,7 @@ export default function AuthenticatedLayout({ header, children }) {
             } lg:translate-x-0`}>
                 <div className="h-full flex flex-col">
                     {/* Logo Section */}
-                    <div className="flex items-center justify-between p-4 border-b border-gray-200">
+                    <div className="flex items-center justify-between p-4 border-b border-gray-200 group">
                         <div className="flex items-center">
                             <div className="flex-shrink-0">
                                 <ApplicationLogo className="block h-8 w-auto fill-current text-red-600" />
@@ -415,7 +411,9 @@ export default function AuthenticatedLayout({ header, children }) {
                             {/* Desktop Collapse Button */}
                             <button
                                 onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-                                className="hidden lg:block p-1 rounded-lg text-gray-500 hover:text-red-600 hover:bg-red-50 transition-colors"
+                                className={`hidden lg:block p-1 rounded-lg text-gray-500 hover:text-red-600 hover:bg-red-50 transition-colors ${
+                                    sidebarCollapsed ? 'opacity-0 group-hover:opacity-100' : 'opacity-100'
+                                } transition-opacity duration-200`}
                             >
                                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     {sidebarCollapsed ? (

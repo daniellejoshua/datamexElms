@@ -16,6 +16,7 @@ class Announcement extends Model
         'priority',
         'is_published',
         'published_at',
+        'scheduled_at',
         'expires_at',
         'is_archived',
         'archived_at',
@@ -26,9 +27,15 @@ class Announcement extends Model
         'is_published' => 'boolean',
         'is_archived' => 'boolean',
         'published_at' => 'datetime',
+        'scheduled_at' => 'datetime',
         'expires_at' => 'datetime',
         'archived_at' => 'datetime',
         'rich_content' => 'array',
+    ];
+
+    protected $appends = [
+        'is_expired',
+        'is_scheduled',
     ];
 
     public function creator(): BelongsTo
@@ -46,10 +53,39 @@ class Announcement extends Model
         return $this->hasMany(AnnouncementReadStatus::class);
     }
 
+    public function getIsExpiredAttribute()
+    {
+        return $this->expires_at && $this->expires_at->isPast();
+    }
+
+    public function getIsScheduledAttribute()
+    {
+        return $this->scheduled_at && $this->scheduled_at->isFuture() && ! $this->is_published;
+    }
+
+    public function getReadCountAttribute()
+    {
+        return $this->readStatuses()->where('is_read', true)->count();
+    }
+
+    public function getUnreadCountAttribute()
+    {
+        return $this->readStatuses()->where('is_read', false)->count();
+    }
+
+    public function getTotalReadStatusCountAttribute()
+    {
+        return $this->readStatuses()->count();
+    }
+
     public function scopePublished($query)
     {
         return $query->where('is_published', true)
             ->where('is_archived', false)
+            ->where(function ($q) {
+                $q->whereNull('published_at')
+                    ->orWhere('published_at', '<=', now());
+            })
             ->where(function ($q) {
                 $q->whereNull('expires_at')
                     ->orWhere('expires_at', '>', now());
@@ -74,6 +110,24 @@ class Announcement extends Model
                     $subQ->where('visibility', 'students_only')
                         ->whereHas('creator', function ($creatorQ) {
                             $creatorQ->where('role', 'student');
+                        });
+                })
+                ->orWhere(function ($subQ) {
+                    $subQ->where('visibility', 'admins_only')
+                        ->whereHas('creator', function ($creatorQ) {
+                            $creatorQ->where('role', 'super_admin');
+                        });
+                })
+                ->orWhere(function ($subQ) {
+                    $subQ->where('visibility', 'registrars_only')
+                        ->whereHas('creator', function ($creatorQ) {
+                            $creatorQ->where('role', 'registrar');
+                        });
+                })
+                ->orWhere(function ($subQ) {
+                    $subQ->where('visibility', 'employees_only')
+                        ->whereHas('creator', function ($creatorQ) {
+                            $creatorQ->whereIn('role', ['teacher', 'registrar']);
                         });
                 });
         });

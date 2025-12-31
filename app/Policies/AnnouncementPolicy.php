@@ -37,6 +37,18 @@ class AnnouncementPolicy
             return true;
         }
 
+        if ($announcement->visibility === 'admins_only' && $user->role === 'super_admin') {
+            return true;
+        }
+
+        if ($announcement->visibility === 'registrars_only' && $user->role === 'registrar') {
+            return true;
+        }
+
+        if ($announcement->visibility === 'employees_only' && in_array($user->role, ['teacher', 'registrar'])) {
+            return true;
+        }
+
         return false;
     }
 

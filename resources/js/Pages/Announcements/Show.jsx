@@ -7,17 +7,19 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { Calendar, User, ArrowLeft, Edit, Trash2, Download, Paperclip, Clock, Eye, Share2, Bookmark, Newspaper, AlertTriangle, TrendingUp, Info, Users, GraduationCap, ArrowRight, MoreVertical } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Calendar, User, ArrowLeft, Edit, Trash2, Download, Paperclip, Clock, Eye, Share2, Bookmark, Newspaper, AlertTriangle, TrendingUp, Info, Users, GraduationCap, ArrowRight, MoreVertical, Shield, UserCheck, Briefcase } from 'lucide-react';
 import { useEffect, useState } from 'react';
+import AnnouncementForm from './AnnouncementFormNew';
 
-export default function Show({ announcement, auth }) {
+export default function Show({ announcement, recentAnnouncements, auth, readStats }) {
     const [deleting, setDeleting] = useState(false);
-    const [recentAnnouncements, setRecentAnnouncements] = useState([]);
+    const [showEditModal, setShowEditModal] = useState(false);
     const getPriorityColor = (priority) => {
         switch (priority) {
             case 'urgent': return 'bg-red-500';
             case 'high': return 'bg-orange-500';
-            case 'medium': return 'bg-blue-500';
+            case 'medium': return 'bg-white';
             case 'low': return 'bg-gray-500';
             default: return 'bg-gray-500';
         }
@@ -38,6 +40,9 @@ export default function Show({ announcement, auth }) {
             case 'all_users': return '🌐 Public';
             case 'teachers_only': return '👨‍🏫 Faculty';
             case 'students_only': return '🎓 Students';
+            case 'admins_only': return '🛡️ Admins';
+            case 'registrars_only': return '📋 Registrars';
+            case 'employees_only': return '💼 Employees';
             default: return '🌐 Public';
         }
     };
@@ -47,6 +52,9 @@ export default function Show({ announcement, auth }) {
             case 'all_users': return <Newspaper className="h-4 w-4" />;
             case 'teachers_only': return <Users className="h-4 w-4" />;
             case 'students_only': return <GraduationCap className="h-4 w-4" />;
+            case 'admins_only': return <Shield className="h-4 w-4" />;
+            case 'registrars_only': return <UserCheck className="h-4 w-4" />;
+            case 'employees_only': return <Briefcase className="h-4 w-4" />;
             default: return <Newspaper className="h-4 w-4" />;
         }
     };
@@ -74,35 +82,6 @@ export default function Show({ announcement, auth }) {
             });
         }
     }, [announcement.id, announcement.is_read]);
-
-    // Fetch recent announcements for navigation
-    useEffect(() => {
-        fetch(route('announcements.index'), {
-            method: 'GET',
-            headers: {
-                'Accept': 'application/json',
-                'X-Requested-With': 'XMLHttpRequest',
-            },
-        })
-        .then(response => {
-            if (response.headers.get('content-type')?.includes('application/json')) {
-                return response.json();
-            } else {
-                // If not JSON, try to parse as HTML and extract data (fallback)
-                return response.text().then(() => ({ announcements: [] }));
-            }
-        })
-        .then(data => {
-            // Filter out current announcement and take first 3
-            const otherAnnouncements = (data.announcements || data.data || [])
-                .filter(item => item.id !== announcement.id)
-                .slice(0, 3);
-            setRecentAnnouncements(otherAnnouncements);
-        })
-        .catch(() => {
-            // Silent error handling
-        });
-    }, [announcement.id]);
 
     const handleCardClick = (item) => {
         // Navigate to the show page for this announcement
@@ -173,12 +152,26 @@ export default function Show({ announcement, auth }) {
                                         </h3>
                                         <div className="flex items-center space-x-2 text-sm text-gray-500 dark:text-gray-400">
                                             <Calendar className="h-4 w-4" />
-                                            <time dateTime={announcement.published_at}>
-                                                {format(new Date(announcement.published_at), 'MMMM dd, yyyy')}
+                                            <time dateTime={announcement.published_at || announcement.scheduled_at}>
+                                                {new Date(announcement.published_at || announcement.scheduled_at).toLocaleDateString('en-US', { 
+                                                    year: 'numeric', 
+                                                    month: 'long', 
+                                                    day: 'numeric',
+                                                    timeZone: 'Asia/Manila'
+                                                })}
                                             </time>
                                             <span>•</span>
                                             <Clock className="h-4 w-4" />
-                                            <span>{format(new Date(announcement.published_at), 'h:mm a')}</span>
+                                            <span>{new Date(announcement.published_at || announcement.scheduled_at).toLocaleTimeString('en-US', { 
+                                                hour: 'numeric', 
+                                                minute: '2-digit',
+                                                hour12: true,
+                                                timeZone: 'Asia/Manila'
+                                            })}
+                                            {announcement.updated_at && new Date(announcement.updated_at) > new Date(announcement.created_at) && (
+                                                <span className="ml-1 text-gray-400 dark:text-gray-500">(edited)</span>
+                                            )}
+                                            </span>
                                         </div>
                                     </div>
                                 </div>
@@ -190,10 +183,20 @@ export default function Show({ announcement, auth }) {
                                         {getVisibilityIcon(announcement.visibility)}
                                         <span>{announcement.visibility.replace('_', ' ')}</span>
                                     </Badge>
-                                    <div className={`flex items-center space-x-1 px-2 py-1 rounded-full text-xs font-medium text-white ${getPriorityColor(announcement.priority)}`}>
+                                    <div className={`flex items-center space-x-1 px-2 py-1 rounded-full text-xs font-medium ${announcement.priority === 'urgent' ? 'text-white' : announcement.priority === 'medium' ? 'text-gray-900' : 'text-black'} ${getPriorityColor(announcement.priority)}`}>
                                         {getPriorityIcon(announcement.priority)}
                                         <span className="capitalize">{announcement.priority}</span>
                                     </div>
+                                    {announcement.is_expired && (
+                                        <Badge className="bg-gray-600 text-white border-0 font-medium">
+                                            Expired
+                                        </Badge>
+                                    )}
+                                    {!announcement.is_scheduled && !announcement.is_expired && announcement.is_published && (
+                                        <Badge className="bg-green-600 text-white border-0 font-medium">
+                                            Published
+                                        </Badge>
+                                    )}
                                     {(canEdit || canDelete) && (
                                         <DropdownMenu>
                                             <DropdownMenuTrigger asChild>
@@ -203,11 +206,9 @@ export default function Show({ announcement, auth }) {
                                             </DropdownMenuTrigger>
                                             <DropdownMenuContent align="end">
                                                 {canEdit && (
-                                                    <DropdownMenuItem asChild>
-                                                        <Link href={route('announcements.edit', announcement.id)} className="flex items-center">
-                                                            <Edit className="h-4 w-4 mr-2" />
-                                                            Edit Article
-                                                        </Link>
+                                                    <DropdownMenuItem onClick={() => setShowEditModal(true)} className="flex items-center">
+                                                        <Edit className="h-4 w-4 mr-2" />
+                                                        Edit Article
                                                     </DropdownMenuItem>
                                                 )}
                                                 {canDelete && (
@@ -308,10 +309,46 @@ export default function Show({ announcement, auth }) {
                                 </div>
 
                                 <div className="flex items-center space-x-2">
-                                    <Button variant="ghost" size="sm" className="text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200">
-                                        <Bookmark className="h-4 w-4 mr-2" />
-                                        Save Article
-                                    </Button>
+                                    {announcement.is_scheduled ? (
+                                        <div className="flex items-center space-x-1 text-blue-600 dark:text-blue-400">
+                                            <Clock className="h-4 w-4" />
+                                            <span className="text-sm">
+                                                Scheduled for {new Date(announcement.scheduled_at).toLocaleDateString('en-US', { 
+                                                    timeZone: 'Asia/Manila',
+                                                    month: 'short', 
+                                                    day: 'numeric',
+                                                    year: 'numeric'
+                                                })} at {new Date(announcement.scheduled_at).toLocaleTimeString('en-US', { 
+                                                    timeZone: 'Asia/Manila',
+                                                    hour: 'numeric',
+                                                    minute: '2-digit',
+                                                    hour12: true
+                                                })}
+                                            </span>
+                                        </div>
+                                    ) : announcement.expires_at && !announcement.is_expired ? (
+                                        <div className="flex items-center space-x-1 text-gray-600 dark:text-gray-400">
+                                            <Clock className="h-4 w-4" />
+                                            <span className="text-sm">
+                                                Expires {new Date(announcement.expires_at).toLocaleDateString('en-US', { 
+                                                    timeZone: 'Asia/Manila',
+                                                    month: 'short', 
+                                                    day: 'numeric',
+                                                    year: 'numeric'
+                                                })} at {new Date(announcement.expires_at).toLocaleTimeString('en-US', { 
+                                                    timeZone: 'Asia/Manila',
+                                                    hour: 'numeric',
+                                                    minute: '2-digit',
+                                                    hour12: true
+                                                })}
+                                            </span>
+                                        </div>
+                                    ) : (
+                                        <Button variant="ghost" size="sm" className="text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200">
+                                            <Bookmark className="h-4 w-4 mr-2" />
+                                            Save Article
+                                        </Button>
+                                    )}
                                     <Button variant="ghost" size="sm" className="text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200">
                                         <Share2 className="h-4 w-4 mr-2" />
                                         Share
@@ -336,12 +373,13 @@ export default function Show({ announcement, auth }) {
                             </Link>
                         </div>
 
-                        {recentAnnouncements.length > 0 ? (
+                        {recentAnnouncements && recentAnnouncements.length > 0 ? (
                             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                                 {recentAnnouncements.map((item) => (
                                     <div key={item.id} onClick={() => handleCardClick(item)} className="cursor-pointer">
                                         <Card className="hover:shadow-md transition-shadow border border-gray-200 dark:border-gray-700 hover:border-blue-300 dark:hover:border-blue-600 overflow-hidden">
-                                            {item.attachments && item.attachments.length > 0 && (
+                                            {/* Featured Image or Placeholder */}
+                                            {item.attachments && item.attachments.length > 0 ? (
                                                 <div className="aspect-video overflow-hidden">
                                                     <img
                                                         src={item.attachments[0].cloudinary_url}
@@ -352,6 +390,13 @@ export default function Show({ announcement, auth }) {
                                                             e.target.style.display = 'none';
                                                         }}
                                                     />
+                                                </div>
+                                            ) : (
+                                                <div className="aspect-video bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-800 dark:to-gray-700 flex items-center justify-center">
+                                                    <div className="text-center">
+                                                        <Newspaper className="w-8 h-8 text-gray-400 dark:text-gray-500 mx-auto mb-2" />
+                                                        <p className="text-xs text-gray-500 dark:text-gray-400">No image</p>
+                                                    </div>
                                                 </div>
                                             )}
                                             <CardContent className="p-4">
@@ -366,7 +411,7 @@ export default function Show({ announcement, auth }) {
                                                         <div className="flex items-center space-x-2 text-xs text-gray-500 dark:text-gray-400">
                                                             <Calendar className="h-3 w-3" />
                                                             <time dateTime={item.published_at}>
-                                                                {format(new Date(item.published_at), 'MMM dd')}
+                                                                {new Date(item.published_at).toLocaleDateString('en-US', { month: 'short', day: '2-digit' })}
                                                             </time>
                                                             {item.priority && (
                                                                 <>
@@ -375,12 +420,7 @@ export default function Show({ announcement, auth }) {
                                                                 </>
                                                             )}
                                                         </div>
-                                                        {item.attachments && item.attachments.length > 0 && (
-                                                            <div className="flex items-center space-x-1 mt-2 text-xs text-gray-400 dark:text-gray-500">
-                                                                <Paperclip className="h-3 w-3" />
-                                                                <span>{item.attachments.length} image{item.attachments.length > 1 ? 's' : ''}</span>
-                                                            </div>
-                                                        )}
+                                                       
                                                     </div>
                                                 </div>
                                             </CardContent>
@@ -389,55 +429,9 @@ export default function Show({ announcement, auth }) {
                                 ))}
                             </div>
                         ) : (
-                            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                                {/* Sample latest announcements for navigation */}
-                                {[
-                                    {
-                                        id: 'sample-1',
-                                        title: 'New Academic Year Begins',
-                                        published_at: new Date(Date.now() - 86400000).toISOString(), // 1 day ago
-                                        priority: 'high'
-                                    },
-                                    {
-                                        id: 'sample-2', 
-                                        title: 'Campus Library Extended Hours',
-                                        published_at: new Date(Date.now() - 172800000).toISOString(), // 2 days ago
-                                        priority: 'medium'
-                                    },
-                                    {
-                                        id: 'sample-3',
-                                        title: 'Student Council Elections',
-                                        published_at: new Date(Date.now() - 259200000).toISOString(), // 3 days ago
-                                        priority: 'low'
-                                    }
-                                ].map((item) => (
-                                    <Card key={item.id} className="border border-gray-200 dark:border-gray-700 opacity-60">
-                                        <CardContent className="p-4">
-                                            <div className="flex items-start space-x-3">
-                                                <div className="flex-shrink-0">
-                                                    <div className="w-2 h-2 rounded-full bg-blue-500 mt-2"></div>
-                                                </div>
-                                                <div className="flex-1 min-w-0">
-                                                    <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-1 line-clamp-2 leading-tight">
-                                                        {item.title}
-                                                    </h3>
-                                                    <div className="flex items-center space-x-2 text-xs text-gray-500 dark:text-gray-400">
-                                                        <Calendar className="h-3 w-3" />
-                                                        <time dateTime={item.published_at}>
-                                                            {format(new Date(item.published_at), 'MMM dd')}
-                                                        </time>
-                                                        {item.priority && (
-                                                            <>
-                                                                <span>•</span>
-                                                                <span className="capitalize">{item.priority}</span>
-                                                            </>
-                                                        )}
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </CardContent>
-                                    </Card>
-                                ))}
+                            <div className="text-center py-8">
+                                <Newspaper className="w-12 h-12 text-gray-400 dark:text-gray-500 mx-auto mb-4" />
+                                <p className="text-gray-500 dark:text-gray-400">No other announcements available</p>
                             </div>
                         )}
                     </div>
@@ -483,6 +477,21 @@ export default function Show({ announcement, auth }) {
                     )}
                 </div>
             </div>
+
+            {/* Edit Modal */}
+            <Dialog open={showEditModal} onOpenChange={setShowEditModal}>
+                <DialogContent className="max-w-3xl max-h-[90vh] overflow-hidden border border-gray-200 dark:border-gray-700 shadow-xl bg-white dark:bg-gray-900">
+                    <DialogHeader className="border-b border-gray-200 dark:border-gray-700 pb-4">
+                        <DialogTitle className="text-xl font-semibold flex items-center space-x-2 text-gray-900 dark:text-white">
+                            <Edit className="h-5 w-5" />
+                            <span>Edit Announcement</span>
+                        </DialogTitle>
+                    </DialogHeader>
+                    <div className="overflow-y-auto max-h-[calc(90vh-120px)]">
+                        <AnnouncementForm mode="edit" announcement={announcement} onClose={() => setShowEditModal(false)} auth={auth} />
+                    </div>
+                </DialogContent>
+            </Dialog>
         </AuthenticatedLayout>
     );
 }
