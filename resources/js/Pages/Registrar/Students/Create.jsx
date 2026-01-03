@@ -89,6 +89,14 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
     const [createGuideChecked, setCreateGuideChecked] = useState(false)
     const lastErrorRef = useRef('')
 
+    // Address dropdown states
+    const [provinces, setProvinces] = useState([])
+    const [cities, setCities] = useState([])
+    const [barangays, setBarangays] = useState([])
+    const [loadingProvinces, setLoadingProvinces] = useState(false)
+    const [loadingCities, setLoadingCities] = useState(false)
+    const [loadingBarangays, setLoadingBarangays] = useState(false)
+
     // Group programs by education level
     const collegePrograms = programs.filter(p => p.education_level === 'college')
     const shsPrograms = programs.filter(p => p.education_level === 'shs')
@@ -327,6 +335,80 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
             reset()
         }
     }, [flash?.success, reset])
+
+    // Fetch provinces on component mount
+    useEffect(() => {
+        const fetchProvinces = async () => {
+            setLoadingProvinces(true)
+            try {
+                const response = await fetch('/api/addresses/provinces')
+                if (response.ok) {
+                    const data = await response.json()
+                    setProvinces(data)
+                }
+            } catch (error) {
+                console.error('Error fetching provinces:', error)
+            } finally {
+                setLoadingProvinces(false)
+            }
+        }
+        fetchProvinces()
+    }, [])
+
+    // Fetch cities when province changes
+    useEffect(() => {
+        if (!data.province) {
+            setCities([])
+            setBarangays([])
+            return
+        }
+
+        const fetchCities = async () => {
+            setLoadingCities(true)
+            try {
+                const province = provinces.find(p => p.name === data.province)
+                if (province) {
+                    const response = await fetch(`/api/addresses/cities/${province.code}`)
+                    if (response.ok) {
+                        const data = await response.json()
+                        setCities(data)
+                    }
+                }
+            } catch (error) {
+                console.error('Error fetching cities:', error)
+            } finally {
+                setLoadingCities(false)
+            }
+        }
+        fetchCities()
+    }, [data.province, provinces])
+
+    // Fetch barangays when city changes
+    useEffect(() => {
+        if (!data.city) {
+            setBarangays([])
+            return
+        }
+
+        const fetchBarangays = async () => {
+            setLoadingBarangays(true)
+            try {
+                const city = cities.find(c => c.name === data.city)
+                if (city) {
+                    const response = await fetch(`/api/addresses/barangays/${city.code}`)
+                    if (response.ok) {
+                        const data = await response.json()
+                        setBarangays(data)
+                    }
+                }
+            } catch (error) {
+                console.error('Error fetching barangays:', error)
+            } finally {
+                setLoadingBarangays(false)
+            }
+        }
+        fetchBarangays()
+    }, [data.city, cities])
 
     const checkArchivedStudent = async () => {
         if (!data.email) return
@@ -964,12 +1046,25 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                             <div>
                                 <Label htmlFor="phone">Phone Number</Label>
-                                <Input 
-                                    id="phone"
-                                    value={data.phone}
-                                    onChange={e => setData('phone', e.target.value)}
-                                    placeholder="09123456789"
-                                />
+                                <div className="flex">
+                                    <span className="inline-flex items-center px-3 text-sm text-gray-900 bg-gray-200 border border-r-0 border-gray-300 rounded-l-md">
+                                        +63
+                                    </span>
+                                    <Input
+                                        id="phone"
+                                        type="tel"
+                                        value={data.phone.replace('+63', '')}
+                                        onChange={e => {
+                                            const value = e.target.value.replace(/\D/g, '');
+                                            if (value.length <= 10) {
+                                                setData('phone', '+63' + value);
+                                            }
+                                        }}
+                                        placeholder="9123456789"
+                                        maxLength="10"
+                                        className="rounded-l-none"
+                                    />
+                                </div>
                                 {errors.phone && (
                                     <p className="text-red-500 text-sm mt-1">{errors.phone}</p>
                                 )}
@@ -977,12 +1072,25 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
 
                             <div>
                                 <Label htmlFor="parent_contact">Parent/Guardian Contact</Label>
-                                <Input 
-                                    id="parent_contact"
-                                    value={data.parent_contact}
-                                    onChange={e => setData('parent_contact', e.target.value)}
-                                    placeholder="09123456789"
-                                />
+                                <div className="flex">
+                                    <span className="inline-flex items-center px-3 text-sm text-gray-900 bg-gray-200 border border-r-0 border-gray-300 rounded-l-md">
+                                        +63
+                                    </span>
+                                    <Input
+                                        id="parent_contact"
+                                        type="tel"
+                                        value={data.parent_contact.replace('+63', '')}
+                                        onChange={e => {
+                                            const value = e.target.value.replace(/\D/g, '');
+                                            if (value.length <= 10) {
+                                                setData('parent_contact', '+63' + value);
+                                            }
+                                        }}
+                                        placeholder="9123456789"
+                                        maxLength="10"
+                                        className="rounded-l-none"
+                                    />
+                                </div>
                                 {errors.parent_contact && (
                                     <p className="text-red-500 text-sm mt-1">{errors.parent_contact}</p>
                                 )}
@@ -994,7 +1102,7 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                                 <div>
                                     <Label htmlFor="street">Street/House No.</Label>
-                                    <Input 
+                                    <Input
                                         id="street"
                                         value={data.street}
                                         onChange={e => setData('street', e.target.value)}
@@ -1006,47 +1114,84 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                                 </div>
 
                                 <div>
-                                    <Label htmlFor="barangay">Barangay</Label>
-                                    <Input 
-                                        id="barangay"
-                                        value={data.barangay}
-                                        onChange={e => setData('barangay', e.target.value)}
-                                        placeholder="e.g. San Antonio"
-                                    />
-                                    {errors.barangay && (
-                                        <p className="text-red-500 text-sm mt-1">{errors.barangay}</p>
-                                    )}
-                                </div>
-
-                                <div>
-                                    <Label htmlFor="city">City/Municipality</Label>
-                                    <Input 
-                                        id="city"
-                                        value={data.city}
-                                        onChange={e => setData('city', e.target.value)}
-                                        placeholder="e.g. Makati City"
-                                    />
-                                    {errors.city && (
-                                        <p className="text-red-500 text-sm mt-1">{errors.city}</p>
-                                    )}
-                                </div>
-
-                                <div>
                                     <Label htmlFor="province">Province</Label>
-                                    <Input 
-                                        id="province"
+                                    <Select
                                         value={data.province}
-                                        onChange={e => setData('province', e.target.value)}
-                                        placeholder="e.g. Metro Manila"
-                                    />
+                                        onValueChange={(value) => {
+                                            setData('province', value)
+                                            setData('city', '') // Reset city when province changes
+                                            setData('barangay', '') // Reset barangay when province changes
+                                        }}
+                                        disabled={loadingProvinces}
+                                    >
+                                        <SelectTrigger>
+                                            <SelectValue placeholder={loadingProvinces ? "Loading provinces..." : "Select Province"} />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {provinces.map((province) => (
+                                                <SelectItem key={province.code} value={province.name}>
+                                                    {province.name}
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
                                     {errors.province && (
                                         <p className="text-red-500 text-sm mt-1">{errors.province}</p>
                                     )}
                                 </div>
 
                                 <div>
+                                    <Label htmlFor="city">City/Municipality</Label>
+                                    <Select
+                                        value={data.city}
+                                        onValueChange={(value) => {
+                                            setData('city', value)
+                                            setData('barangay', '') // Reset barangay when city changes
+                                        }}
+                                        disabled={!data.province || loadingCities}
+                                    >
+                                        <SelectTrigger>
+                                            <SelectValue placeholder={loadingCities ? "Loading cities..." : "Select City/Municipality"} />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {cities.map((city) => (
+                                                <SelectItem key={city.code} value={city.name}>
+                                                    {city.name}
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                    {errors.city && (
+                                        <p className="text-red-500 text-sm mt-1">{errors.city}</p>
+                                    )}
+                                </div>
+
+                                <div>
+                                    <Label htmlFor="barangay">Barangay</Label>
+                                    <Select
+                                        value={data.barangay}
+                                        onValueChange={(value) => setData('barangay', value)}
+                                        disabled={!data.city || loadingBarangays}
+                                    >
+                                        <SelectTrigger>
+                                            <SelectValue placeholder={loadingBarangays ? "Loading barangays..." : "Select Barangay"} />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {barangays.map((barangay) => (
+                                                <SelectItem key={barangay.code} value={barangay.name}>
+                                                    {barangay.name}
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                    {errors.barangay && (
+                                        <p className="text-red-500 text-sm mt-1">{errors.barangay}</p>
+                                    )}
+                                </div>
+
+                                <div>
                                     <Label htmlFor="zip_code">Zip Code</Label>
-                                    <Input 
+                                    <Input
                                         id="zip_code"
                                         value={data.zip_code}
                                         onChange={e => setData('zip_code', e.target.value)}
