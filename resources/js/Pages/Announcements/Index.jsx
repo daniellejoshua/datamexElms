@@ -122,7 +122,13 @@ export default function Index({ announcements, auth }) {
                             </div>
                             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
                                 {sortedAnnouncements.map((announcement, index) => (
-                                    <Card key={announcement.id} className={`group overflow-hidden hover:shadow-xl transition-all duration-300 border-0 shadow-lg ${announcement.is_expired ? 'opacity-75' : ''} ${announcement.is_scheduled ? 'border-2 border-blue-300 border-dashed' : ''} ${!announcement.is_read ? 'border-2 border-red-400' : ''}`}>
+                                    <Card key={announcement.id} className={`group relative overflow-hidden hover:shadow-xl transition-all duration-300 border-0 shadow-lg ${announcement.is_expired ? 'opacity-75' : ''} ${announcement.is_scheduled ? 'border-2 border-blue-300 border-dashed' : ''}`}>
+                                        {/* Unread Badge */}
+                                        {!announcement.is_read && (
+                                            <div className="absolute top-3 right-3 z-10">
+                                                <div className="w-3 h-3 bg-red-500 rounded-full"></div>
+                                            </div>
+                                        )}
                                         {/* Featured Image or Placeholder */}
                                         {announcement.attachments && announcement.attachments.length > 0 ? (
                                             <div className="relative h-48 overflow-hidden">

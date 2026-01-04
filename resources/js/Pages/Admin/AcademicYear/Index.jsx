@@ -2,6 +2,16 @@
 import React, { useState } from 'react';
 import { Head, useForm } from '@inertiajs/react';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/Components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Calendar, Archive, AlertTriangle, Users, DollarSign, Clock, ChevronRight, Shield, TrendingUp } from 'lucide-react';
 
 const Index = ({ archivedSections, academicYears, currentAcademicYear, currentSemester, unpaid_count = 0, unpaid_students = [] }) => {
     // Assume current semester is always available (e.g. from config or backend prop)
@@ -65,80 +75,197 @@ const Index = ({ archivedSections, academicYears, currentAcademicYear, currentSe
     return (
         <AuthenticatedLayout
             header={
-                <h2 className="text-xl font-semibold leading-tight text-gray-800 dark:text-gray-200">
-                    Academic Year Management
-                </h2>
+                <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                        <div className="bg-blue-100 p-1.5 rounded-md">
+                            <Calendar className="w-4 h-4 text-blue-600" />
+                        </div>
+                        <div>
+                            <h2 className="text-lg font-semibold text-gray-900">Academic Year Management</h2>
+                            <p className="text-xs text-gray-500 mt-0.5">Manage academic periods and archive completed semesters</p>
+                        </div>
+                    </div>
+                </div>
             }
         >
             <Head title="Academic Year Management" />
-            <div className="py-12">
-                <div className="max-w-2xl mx-auto bg-white dark:bg-gray-800 shadow rounded-lg p-8">
-                    <div className="mb-6">
-                        <div className="text-lg font-bold text-gray-800 dark:text-gray-100 mb-2">
-                            Current Academic Year: <span className="font-mono">{currentAcademicYear}</span>
-                        </div>
-                        <div className="text-lg font-bold text-gray-800 dark:text-gray-100 mb-4">
-                            Current Semester: <span className="font-mono">{getSemesterDisplay(currentSemester)}</span>
-                        </div>
-                        <div className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-                            After archiving, the system will automatically advance to: <span className="font-mono font-semibold">{nextPeriod.year} - {getSemesterDisplay(nextPeriod.semester)}</span>
-                        </div>
-                    </div>
-                    <div className="mb-8">
-                        <button
-                            className="bg-red-600 hover:bg-red-700 text-white px-6 py-3 rounded-md text-lg font-semibold shadow disabled:opacity-50"
-                            onClick={handleArchive}
-                            disabled={processing}
-                        >
-                            Archive {data.academic_year} {getSemesterDisplay(currentSemester)} & Advance to {nextPeriod.year} {getSemesterDisplay(nextPeriod.semester)}
-                        </button>
-                    </div>
-                    {unpaid_count > 0 && (
-                        <div className="max-w-2xl mx-auto mt-4 p-4 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg">
-                            <div className="text-sm text-yellow-700 dark:text-yellow-300 mb-2">
-                                There are <span className="font-semibold">{unpaid_count}</span> students with outstanding balances for {data.academic_year} {getSemesterDisplay(currentSemester)}. These students will be flagged as "On Hold" and cannot be auto-enrolled until balances are cleared.
-                            </div>
-                            <details className="mt-2">
-                                <summary className="cursor-pointer text-sm font-medium text-yellow-800 dark:text-yellow-200 hover:underline">
-                                    View Unpaid Students & Payment History
-                                </summary>
-                                <div className="mt-3 space-y-3">
-                                    {unpaid_students.map((student) => (
-                                        <div key={student.id} className="bg-white dark:bg-gray-800 p-3 rounded border border-yellow-300 dark:border-yellow-600">
-                                            <div className="flex justify-between items-start mb-2">
-                                                <div>
-                                                    <div className="font-medium text-gray-900 dark:text-gray-100">{student.name}</div>
-                                                    <div className="text-sm text-gray-600 dark:text-gray-400">Student #: {student.student_number}</div>
-                                                    <div className="text-sm text-gray-600 dark:text-gray-400">{student.academic_year} - {student.semester} Semester</div>
-                                                </div>
-                                                <div className="text-right">
-                                                    <div className="text-lg font-bold text-red-600 dark:text-red-400">₱{student.balance}</div>
-                                                    <div className="text-xs text-gray-500 dark:text-gray-400">Outstanding</div>
-                                                </div>
-                                            </div>
-                                            {student.payments.length > 0 && (
-                                                <div className="mt-2">
-                                                    <div className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Payment History:</div>
-                                                    <div className="space-y-1 max-h-32 overflow-y-auto">
-                                                        {student.payments.map((payment) => (
-                                                            <div key={payment.id} className="text-xs bg-gray-50 dark:bg-gray-700 p-2 rounded flex justify-between">
-                                                                <div>
-                                                                    <span className="font-medium">₱{payment.amount}</span>
-                                                                    {payment.reference_number && <span className="ml-2 text-gray-500">Ref: {payment.reference_number}</span>}
-                                                                </div>
-                                                                <div className="text-gray-500">
-                                                                    {new Date(payment.payment_date).toLocaleDateString()}
-                                                                </div>
-                                                            </div>
-                                                        ))}
-                                                    </div>
-                                                </div>
-                                            )}
-                                        </div>
-                                    ))}
+
+            <div className="py-6 px-4 sm:px-6 lg:px-8 bg-gray-50 dark:bg-gray-900 min-h-screen">
+                <div className="max-w-7xl mx-auto space-y-6 lg:space-y-8">
+
+                    {/* Current Academic Period Card */}
+                    <Card className="border-0 shadow-lg bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-950/30 dark:to-indigo-950/30">
+                        <CardHeader className="pb-4">
+                            <CardTitle className="flex items-center space-x-3 text-xl">
+                                <div className="p-2 bg-blue-100 dark:bg-blue-900/50 rounded-lg">
+                                    <Calendar className="h-5 w-5 text-blue-600 dark:text-blue-400" />
                                 </div>
-                            </details>
-                        </div>
+                                <span>Current Academic Period</span>
+                            </CardTitle>
+                        </CardHeader>
+                        <CardContent className="space-y-6">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <div className="bg-white dark:bg-gray-800 rounded-lg p-6 border border-gray-200 dark:border-gray-700">
+                                    <div className="flex items-center space-x-3 mb-2">
+                                        <Calendar className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                                        <span className="text-sm font-medium text-gray-600 dark:text-gray-400">Academic Year</span>
+                                    </div>
+                                    <div className="text-2xl font-bold text-gray-900 dark:text-white font-mono">
+                                        {currentAcademicYear}
+                                    </div>
+                                </div>
+
+                                <div className="bg-white dark:bg-gray-800 rounded-lg p-6 border border-gray-200 dark:border-gray-700">
+                                    <div className="flex items-center space-x-3 mb-2">
+                                        <Clock className="h-5 w-5 text-green-600 dark:text-green-400" />
+                                        <span className="text-sm font-medium text-gray-600 dark:text-gray-400">Current Semester</span>
+                                    </div>
+                                    <div className="text-2xl font-bold text-gray-900 dark:text-white">
+                                        {getSemesterDisplay(currentSemester)}
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="bg-white dark:bg-gray-800 rounded-lg p-6 border border-gray-200 dark:border-gray-700">
+                                <div className="flex items-center space-x-3 mb-3">
+                                    <ChevronRight className="h-5 w-5 text-purple-600 dark:text-purple-400" />
+                                    <span className="text-sm font-medium text-gray-600 dark:text-gray-400">Next Period</span>
+                                </div>
+                                <div className="text-lg font-semibold text-gray-900 dark:text-white">
+                                    <span className="font-mono">{nextPeriod.year}</span> - {getSemesterDisplay(nextPeriod.semester)}
+                                </div>
+                                <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                                    System will automatically advance after archiving
+                                </p>
+                            </div>
+                        </CardContent>
+                    </Card>
+                    {/* Archive Action Card */}
+                    <Card className="border-0 shadow-lg">
+                        <CardHeader>
+                            <CardTitle className="flex items-center space-x-3 text-xl">
+                                <div className="p-2 bg-red-100 dark:bg-red-900/30 rounded-lg">
+                                    <Archive className="h-5 w-5 text-red-600 dark:text-red-400" />
+                                </div>
+                                <span>Archive Current Period</span>
+                            </CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                            <div className="space-y-4">
+                                <p className="text-gray-600 dark:text-gray-400">
+                                    Archive the current academic period to finalize all grades and advance to the next semester.
+                                    This action will move all current sections and student data to the archive.
+                                </p>
+
+                                <div className="flex items-center space-x-4">
+                                    <Button
+                                        onClick={handleArchive}
+                                        disabled={processing}
+                                        className="bg-red-600 hover:bg-red-700 text-white px-6 py-3 h-auto"
+                                        size="lg"
+                                    >
+                                        <Archive className="h-5 w-5 mr-2" />
+                                        Archive & Advance Period
+                                    </Button>
+
+                                    <div className="text-sm text-gray-500 dark:text-gray-400">
+                                        <div className="flex items-center space-x-2">
+                                            <Shield className="h-4 w-4" />
+                                            <span>Requires password confirmation</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </CardContent>
+                    </Card>
+                    {/* Unpaid Students Alert */}
+                    {unpaid_count > 0 && (
+                        <Alert className="border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/20">
+                            <AlertTriangle className="h-5 w-5 text-amber-600" />
+                            <AlertDescription className="space-y-4">
+                                <div className="flex items-center justify-between">
+                                    <div className="flex items-center space-x-3">
+                                        <Users className="h-5 w-5 text-amber-600" />
+                                        <span className="font-semibold text-amber-800 dark:text-amber-200">
+                                            {unpaid_count} Students with Outstanding Balances
+                                        </span>
+                                    </div>
+                                    <Badge variant="outline" className="border-amber-300 text-amber-700">
+                                        Action Required
+                                    </Badge>
+                                </div>
+
+                                <p className="text-amber-700 dark:text-amber-300">
+                                    These students have unpaid balances for {data.academic_year} {getSemesterDisplay(currentSemester)}.
+                                    They will be flagged as "On Hold" and cannot be auto-enrolled until balances are cleared.
+                                </p>
+
+                                <details className="group">
+                                    <summary className="cursor-pointer text-sm font-medium text-amber-800 dark:text-amber-200 hover:text-amber-900 dark:hover:text-amber-100 flex items-center space-x-2">
+                                        <ChevronRight className="h-4 w-4 transition-transform group-open:rotate-90" />
+                                        <span>View Unpaid Students & Payment History</span>
+                                    </summary>
+
+                                    <div className="mt-4 space-y-3 max-h-96 overflow-y-auto">
+                                        {unpaid_students.map((student) => (
+                                            <Card key={student.id} className="border-amber-200 bg-white dark:bg-gray-800 dark:border-amber-800">
+                                                <CardContent className="p-4">
+                                                    <div className="flex justify-between items-start mb-3">
+                                                        <div className="space-y-1">
+                                                            <h4 className="font-semibold text-gray-900 dark:text-white">
+                                                                {student.name}
+                                                            </h4>
+                                                            <p className="text-sm text-gray-600 dark:text-gray-400">
+                                                                Student #: {student.student_number}
+                                                            </p>
+                                                            <p className="text-sm text-gray-600 dark:text-gray-400">
+                                                                {student.academic_year} - {student.semester} Semester
+                                                            </p>
+                                                        </div>
+                                                        <div className="text-right">
+                                                            <div className="text-xl font-bold text-red-600 dark:text-red-400">
+                                                                ₱{student.balance.toLocaleString()}
+                                                            </div>
+                                                            <Badge variant="destructive" className="text-xs">
+                                                                Outstanding
+                                                            </Badge>
+                                                        </div>
+                                                    </div>
+
+                                                    {student.payments.length > 0 && (
+                                                        <div className="border-t border-gray-200 dark:border-gray-700 pt-3">
+                                                            <h5 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 flex items-center space-x-2">
+                                                                <DollarSign className="h-4 w-4" />
+                                                                <span>Payment History</span>
+                                                            </h5>
+                                                            <div className="space-y-2 max-h-32 overflow-y-auto">
+                                                                {student.payments.map((payment) => (
+                                                                    <div key={payment.id} className="flex justify-between items-center bg-gray-50 dark:bg-gray-700 p-2 rounded text-xs">
+                                                                        <div className="space-y-1">
+                                                                            <div className="font-medium text-green-600 dark:text-green-400">
+                                                                                +₱{payment.amount.toLocaleString()}
+                                                                            </div>
+                                                                            {payment.reference_number && (
+                                                                                <div className="text-gray-500">
+                                                                                    Ref: {payment.reference_number}
+                                                                                </div>
+                                                                            )}
+                                                                        </div>
+                                                                        <div className="text-gray-500 text-right">
+                                                                            {new Date(payment.payment_date).toLocaleDateString()}
+                                                                        </div>
+                                                                    </div>
+                                                                ))}
+                                                            </div>
+                                                        </div>
+                                                    )}
+                                                </CardContent>
+                                            </Card>
+                                        ))}
+                                    </div>
+                                </details>
+                            </AlertDescription>
+                        </Alert>
                     )}
                     {errors.error && (
                         <div className="mb-4 text-center text-red-600 font-semibold">{errors.error}</div>

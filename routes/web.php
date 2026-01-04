@@ -203,10 +203,11 @@ Route::middleware(['auth', 'verified'])->prefix('admin')->name('admin.')->group(
 
         // Teacher Management Routes
         Route::resource('teachers', TeacherController::class);
+
+        // Registrar Management Routes
+        Route::resource('registrars', \App\Http\Controllers\Admin\RegistrarController::class);
     });
 });
-
-// Registrar Routes (Payment & Enrollment Management)
 Route::prefix('registrar')->name('registrar.')->middleware(['auth'])->group(function () {
     // Payment Management
     Route::get('payments', [App\Http\Controllers\Registrar\PaymentController::class, 'index'])->name('payments.index');

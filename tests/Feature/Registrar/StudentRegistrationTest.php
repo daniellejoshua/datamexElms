@@ -580,8 +580,9 @@ it('prevents duplicate enrollment when using email lookup', function () {
         ->assertSessionHasErrors(['student']);
 
     // Check that the error message mentions duplicate enrollment
+    $currentSemester = SchoolSetting::getCurrentSemester();
     $response->assertSessionHasErrors([
-        'student' => 'Student is already enrolled in the current semester (2025-2026 - 1st). Cannot enroll again.',
+        'student' => "Student is already enrolled in the current semester (2025-2026 - {$currentSemester}). Cannot enroll again.",
     ]);
 });
 

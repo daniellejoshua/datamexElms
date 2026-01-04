@@ -25,6 +25,7 @@ class User extends Authenticatable
         'password',
         'role',
         'is_active',
+        'employee_number',
     ];
 
     /**
@@ -44,19 +45,19 @@ class User extends Authenticatable
     }
 
     /**
-     * Get the registrar profile associated with the user.
-     */
-    public function registrar()
-    {
-        return $this->hasOne(Registrar::class);
-    }
-
-    /**
      * Check if user has a specific role.
      */
     public function hasRole(string $role): bool
     {
         return $this->role === $role;
+    }
+
+    /**
+     * Get the formatted employee number.
+     */
+    public function getFormattedEmployeeNumberAttribute(): string
+    {
+        return 'EMP-' . str_pad($this->id, 3, '0', STR_PAD_LEFT);
     }
 
     /**

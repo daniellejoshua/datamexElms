@@ -2,6 +2,7 @@
 
 namespace App\Http\Middleware;
 
+use App\Models\Announcement;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
 
@@ -29,10 +30,22 @@ class HandleInertiaRequests extends Middleware
      */
     public function share(Request $request): array
     {
+        $user = $request->user();
+        $unreadAnnouncementsCount = 0;
+
+        if ($user) {
+            $unreadAnnouncementsCount = Announcement::published()
+                ->visibleTo($user)
+                ->whereDoesntHave('readStatuses', function ($query) use ($user) {
+                    $query->where('user_id', $user->id)->where('is_read', true);
+                })
+                ->count();
+        }
+
         return [
             ...parent::share($request),
             'auth' => [
-                'user' => $request->user(),
+                'user' => $user,
             ],
             'flash' => [
                 'success' => $request->session()->get('success'),
@@ -41,6 +54,7 @@ class HandleInertiaRequests extends Middleware
                 'info' => $request->session()->get('info'),
                 'course_shift_required' => $request->session()->get('course_shift_required'),
             ],
+            'unreadAnnouncementsCount' => $unreadAnnouncementsCount,
         ];
     }
 }

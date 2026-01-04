@@ -3,7 +3,6 @@
 namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
-use App\Models\Registrar;
 use App\Models\User;
 use Illuminate\Auth\Events\Registered;
 use Illuminate\Http\RedirectResponse;
@@ -35,33 +34,20 @@ class RegisteredRegistrarController extends Controller
             'name' => 'required|string|max:255',
             'email' => 'required|string|lowercase|email|max:255|unique:'.User::class,
             'password' => ['required', 'confirmed', Rules\Password::defaults()],
-            'employee_number' => 'required|string|max:255|unique:registrars',
-            'first_name' => 'required|string|max:255',
-            'last_name' => 'required|string|max:255',
-            'middle_name' => 'nullable|string|max:255',
-            'department' => 'required|string|max:255',
-            'position' => 'required|string|max:255',
-            'hire_date' => 'required|date',
         ]);
 
-        // Create user account
+        // Create user account with registrar role
         $user = User::create([
             'name' => $request->name,
             'email' => $request->email,
             'password' => Hash::make($request->password),
             'role' => 'registrar',
+            'is_active' => true,
         ]);
 
-        // Create registrar profile
-        Registrar::create([
-            'user_id' => $user->id,
-            'employee_number' => $request->employee_number,
-            'first_name' => $request->first_name,
-            'last_name' => $request->last_name,
-            'middle_name' => $request->middle_name,
-            'department' => $request->department,
-            'position' => $request->position,
-            'hire_date' => $request->hire_date,
+        // Set formatted employee number
+        $user->update([
+            'employee_number' => $user->formatted_employee_number,
         ]);
 
         event(new Registered($user));

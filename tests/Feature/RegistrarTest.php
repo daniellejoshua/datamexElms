@@ -1,6 +1,5 @@
 <?php
 
-use App\Models\Registrar;
 use App\Models\User;
 
 // use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -11,15 +10,9 @@ it('can create a registrar account', function () {
     $registrarData = [
         'name' => 'John Registrar',
         'email' => 'registrar@example.com',
+        'employee_number' => 'EMP001',
         'password' => 'password123',
         'password_confirmation' => 'password123',
-        'employee_number' => 'REG-001',
-        'first_name' => 'John',
-        'last_name' => 'Doe',
-        'middle_name' => 'Smith',
-        'department' => 'Academic Affairs',
-        'position' => 'Registrar',
-        'hire_date' => '2024-01-15',
     ];
 
     $response = $this->post(route('registrar.register'), $registrarData);
@@ -27,16 +20,15 @@ it('can create a registrar account', function () {
     $response->assertRedirect(route('registrar.dashboard'));
 
     $this->assertDatabaseHas('users', [
+        'name' => 'John Registrar',
         'email' => 'registrar@example.com',
         'role' => 'registrar',
+        'is_active' => true,
     ]);
 
-    $this->assertDatabaseHas('registrars', [
-        'employee_number' => 'REG-001',
-        'first_name' => 'John',
-        'last_name' => 'Doe',
-        'department' => 'Academic Affairs',
-    ]);
+    // Check that employee_number follows the format EMP-XXX
+    $user = User::where('email', 'registrar@example.com')->first();
+    expect($user->employee_number)->toMatch('/^EMP-\d{3}$/');
 });
 
 it('requires authentication to access registrar dashboard', function () {
@@ -86,12 +78,6 @@ it('validates required fields in registrar registration', function () {
         'name',
         'email',
         'password',
-        'employee_number',
-        'first_name',
-        'last_name',
-        'department',
-        'position',
-        'hire_date',
     ]);
 });
 

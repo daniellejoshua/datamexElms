@@ -377,7 +377,13 @@ export default function Show({ announcement, recentAnnouncements, auth, readStat
                             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                                 {recentAnnouncements.map((item) => (
                                     <div key={item.id} onClick={() => handleCardClick(item)} className="cursor-pointer">
-                                        <Card className="hover:shadow-md transition-shadow border border-gray-200 dark:border-gray-700 hover:border-blue-300 dark:hover:border-blue-600 overflow-hidden">
+                                        <Card className="hover:shadow-md transition-shadow border border-gray-200 dark:border-gray-700 hover:border-blue-300 dark:hover:border-blue-600 overflow-hidden relative">
+                                            {/* Unread Badge */}
+                                            {!item.is_read && (
+                                                <div className="absolute top-3 right-3 z-10">
+                                                    <div className="w-3 h-3 bg-red-500 rounded-full"></div>
+                                                </div>
+                                            )}
                                             {/* Featured Image or Placeholder */}
                                             {item.attachments && item.attachments.length > 0 ? (
                                                 <div className="aspect-video overflow-hidden">
