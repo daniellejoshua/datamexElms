@@ -78,7 +78,7 @@ class DashboardController extends Controller
             'teacher' => [
                 'id' => $teacher->id,
                 'name' => trim($teacher->first_name.' '.$teacher->middle_name.' '.$teacher->last_name),
-                'employee_number' => $teacher->employee_number,
+                'employee_number' => $teacher->employee_number ?: $teacher->user->formatted_employee_number,
                 'department' => $teacher->department,
                 'specialization' => $teacher->specialization,
             ],

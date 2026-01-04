@@ -22,6 +22,7 @@ class Teacher extends Model
         'specialization',
         'hire_date',
         'status',
+        'profile_picture',
     ];
 
     protected $casts = [

@@ -18,7 +18,6 @@ class TeacherFactory extends Factory
     {
         return [
             'user_id' => \App\Models\User::factory(),
-            'employee_number' => $this->faker->unique()->numerify('EMP#####'),
             'first_name' => $this->faker->firstName(),
             'last_name' => $this->faker->lastName(),
             'middle_name' => $this->faker->firstName(),

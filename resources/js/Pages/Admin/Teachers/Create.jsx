@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import { Head, Link, router, useForm, usePage } from '@inertiajs/react';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -12,30 +12,59 @@ import { toast } from 'sonner';
 
 const Create = () => {
     const page = usePage();
+    const fileInputRef = useRef(null);
+    const [imagePreview, setImagePreview] = useState(null);
 
     const { data, setData, post, processing, errors, reset } = useForm({
         first_name: '',
         last_name: '',
         middle_name: '',
-        employee_number: '',
         email: '',
         department: '',
         specialization: '',
         hire_date: '',
         status: 'active',
+        profile_picture: null,
     }, {
         onSuccess: () => {
-            reset();
-            setData('status', 'active'); // Ensure status remains active after reset
+            toast.success('Teacher created successfully!');
+            router.visit(route('admin.teachers.index'));
         },
         onError: () => {
             toast.error('Failed to create teacher. Please check the errors.');
         }
     });
 
+    const handleProfilePictureClick = () => {
+        fileInputRef.current?.click();
+    };
+
+    // Handle file selection and create preview
+    const handleFileChange = (e) => {
+        const file = e.target.files[0];
+        setData('profile_picture', file);
+
+        if (file) {
+            const reader = new FileReader();
+            reader.onload = (e) => setImagePreview(e.target.result);
+            reader.readAsDataURL(file);
+        } else {
+            setImagePreview(null);
+        }
+    };
+
+    // Cleanup preview URL on unmount
+    useEffect(() => {
+        return () => {
+            if (imagePreview) {
+                URL.revokeObjectURL(imagePreview);
+            }
+        };
+    }, [imagePreview]);
+
     const handleSubmit = (e) => {
         e.preventDefault();
-        post(route('admin.teachers.store'));
+        post(route('admin.teachers.store'), data);
     };
 
     return (
@@ -78,7 +107,38 @@ const Create = () => {
                             </CardDescription>
                         </CardHeader>
                         <CardContent>
-                            <form onSubmit={handleSubmit} className="space-y-6">
+                            {/* Profile Picture Preview */}
+                            <div className="flex justify-start mb-6">
+                                <div className="flex items-center gap-4">
+                                    {imagePreview ? (
+                                        <img
+                                            src={imagePreview}
+                                            alt="Profile preview"
+                                            className="w-20 h-20 rounded-full object-cover border-4 border-gray-100 cursor-pointer hover:border-blue-300 transition-colors"
+                                            onClick={handleProfilePictureClick}
+                                            title="Click to change profile picture"
+                                        />
+                                    ) : (
+                                        <div
+                                            className="w-20 h-20 rounded-full bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center border-4 border-gray-100 cursor-pointer hover:border-blue-300 transition-colors"
+                                            onClick={handleProfilePictureClick}
+                                            title="Click to upload profile picture"
+                                        >
+                                            <span className="text-white font-bold text-xl">
+                                                {data.first_name.charAt(0) || '?'}{data.last_name.charAt(0) || ''}
+                                            </span>
+                                        </div>
+                                    )}
+                                    <div>
+                                        <p className="text-sm text-gray-600 font-medium">Profile Picture</p>
+                                        <p className="text-xs text-gray-500">
+                                            {imagePreview ? 'Click the image to change it' : 'Click the circle to upload an image'}
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <form onSubmit={handleSubmit} encType="multipart/form-data" className="space-y-6">
                                 {/* Personal Information */}
                                 <div className="space-y-4">
                                     <h3 className="text-lg font-medium text-gray-900 border-b pb-2">Personal Information</h3>
@@ -133,21 +193,6 @@ const Create = () => {
                                     <h3 className="text-lg font-medium text-gray-900 border-b pb-2">Account Information</h3>
 
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                        <div>
-                                            <Label htmlFor="employee_number">Employee Number *</Label>
-                                            <Input
-                                                id="employee_number"
-                                                type="text"
-                                                value={data.employee_number}
-                                                onChange={(e) => setData('employee_number', e.target.value)}
-                                                placeholder="e.g., EMP001"
-                                                className={errors.employee_number ? 'border-red-500' : ''}
-                                            />
-                                            {errors.employee_number && (
-                                                <p className="text-sm text-red-600 mt-1">{errors.employee_number}</p>
-                                            )}
-                                        </div>
-
                                         <div>
                                             <Label htmlFor="email">Email Address *</Label>
                                             <Input
@@ -266,6 +311,15 @@ const Create = () => {
                                     </Button>
                                 </div>
                             </form>
+
+                            {/* Hidden file input for profile picture */}
+                            <input
+                                ref={fileInputRef}
+                                type="file"
+                                accept="image/*"
+                                onChange={handleFileChange}
+                                className="hidden"
+                            />
                         </CardContent>
                     </Card>
                 </div>

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import { Head, Link, router, useForm } from '@inertiajs/react';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -10,6 +10,8 @@ import { ArrowLeft, Save, Edit as EditIcon, User } from 'lucide-react';
 import { toast } from 'sonner';
 
 const Edit = ({ teacher }) => {
+    const fileInputRef = useRef(null);
+    const [imagePreview, setImagePreview] = useState(null);
     // Format hire_date for date input (yyyy-MM-dd)
     const formatDateForInput = (dateString) => {
         if (!dateString) return '';
@@ -21,17 +23,53 @@ const Edit = ({ teacher }) => {
         first_name: teacher.first_name || '',
         last_name: teacher.last_name || '',
         middle_name: teacher.middle_name || '',
-        employee_number: teacher.employee_number || '',
         email: teacher.user?.email || '',
         department: teacher.department || '',
         specialization: teacher.specialization || '',
         hire_date: formatDateForInput(teacher.hire_date),
         status: teacher.status || 'active',
+        profile_picture: null,
     });
+
+    const handleProfilePictureClick = () => {
+        fileInputRef.current?.click();
+    };
+
+    // Handle file selection and create preview
+    const handleFileChange = (e) => {
+        const file = e.target.files[0];
+        setData('profile_picture', file);
+
+        if (file) {
+            const reader = new FileReader();
+            reader.onload = (e) => setImagePreview(e.target.result);
+            reader.readAsDataURL(file);
+        } else {
+            setImagePreview(null);
+        }
+    };
+
+    // Cleanup preview URL on unmount
+    useEffect(() => {
+        return () => {
+            if (imagePreview) {
+                URL.revokeObjectURL(imagePreview);
+            }
+        };
+    }, [imagePreview]);
 
     const handleSubmit = (e) => {
         e.preventDefault();
-        put(route('admin.teachers.update', teacher.id), {
+        put(route('admin.teachers.update', teacher.id), data, {
+            onSuccess: () => {
+                toast.success('Teacher updated successfully!', {
+                    style: {
+                        background: '#f0fdf4',
+                        color: '#166534',
+                        border: '1px solid #bbf7d0',
+                    },
+                });
+            },
             onError: (errors) => {
                 const errorMessage = Object.values(errors).flat().join(', ');
                 toast.error(`Failed to update teacher: ${errorMessage}`, {
@@ -85,7 +123,46 @@ const Edit = ({ teacher }) => {
                             </CardDescription>
                         </CardHeader>
                         <CardContent>
-                            <form onSubmit={handleSubmit} className="space-y-6">
+                            {/* Profile Picture Preview */}
+                            <div className="flex justify-start mb-6">
+                                <div className="flex items-center gap-4">
+                                    {imagePreview ? (
+                                        <img
+                                            src={imagePreview}
+                                            alt="Profile preview"
+                                            className="w-20 h-20 rounded-full object-cover border-4 border-gray-100 cursor-pointer hover:border-blue-300 transition-colors"
+                                            onClick={handleProfilePictureClick}
+                                            title="Click to change profile picture"
+                                        />
+                                    ) : teacher.profile_picture ? (
+                                        <img
+                                            src={teacher.profile_picture}
+                                            alt={`${teacher.first_name} ${teacher.last_name}`}
+                                            className="w-20 h-20 rounded-full object-cover border-4 border-gray-100 cursor-pointer hover:border-blue-300 transition-colors"
+                                            onClick={handleProfilePictureClick}
+                                            title="Click to update profile picture"
+                                        />
+                                    ) : (
+                                        <div
+                                            className="w-20 h-20 rounded-full bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center border-4 border-gray-100 cursor-pointer hover:border-blue-300 transition-colors"
+                                            onClick={handleProfilePictureClick}
+                                            title="Click to upload profile picture"
+                                        >
+                                            <span className="text-white font-bold text-xl">
+                                                {teacher.first_name.charAt(0)}{teacher.last_name.charAt(0)}
+                                            </span>
+                                        </div>
+                                    )}
+                                    <div>
+                                        <p className="text-sm text-gray-600 font-medium">Profile Picture</p>
+                                        <p className="text-xs text-gray-500">
+                                            {imagePreview ? 'Click the image to change it' : teacher.profile_picture ? 'Click the image to update it' : 'Click the circle to upload an image'}
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <form onSubmit={handleSubmit} encType="multipart/form-data" className="space-y-6">
                                 {/* Personal Information */}
                                 <div className="space-y-4">
                                     <h3 className="text-lg font-medium text-gray-900 border-b pb-2">Personal Information</h3>
@@ -140,21 +217,6 @@ const Edit = ({ teacher }) => {
                                     <h3 className="text-lg font-medium text-gray-900 border-b pb-2">Account Information</h3>
 
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                        <div>
-                                            <Label htmlFor="employee_number">Employee Number *</Label>
-                                            <Input
-                                                id="employee_number"
-                                                type="text"
-                                                value={data.employee_number}
-                                                onChange={(e) => setData('employee_number', e.target.value)}
-                                                placeholder="e.g., EMP001"
-                                                className={errors.employee_number ? 'border-red-500' : ''}
-                                            />
-                                            {errors.employee_number && (
-                                                <p className="text-sm text-red-600 mt-1">{errors.employee_number}</p>
-                                            )}
-                                        </div>
-
                                         <div>
                                             <Label htmlFor="email">Email Address *</Label>
                                             <Input
@@ -266,6 +328,15 @@ const Edit = ({ teacher }) => {
                                     </Button>
                                 </div>
                             </form>
+
+                            {/* Hidden file input for profile picture */}
+                            <input
+                                ref={fileInputRef}
+                                type="file"
+                                accept="image/*"
+                                onChange={handleFileChange}
+                                className="hidden"
+                            />
                         </CardContent>
                     </Card>
                 </div>

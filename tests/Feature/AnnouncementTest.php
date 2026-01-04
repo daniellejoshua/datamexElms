@@ -4,6 +4,7 @@ use App\Models\Announcement;
 use App\Models\AnnouncementAttachment;
 use App\Models\User;
 use CloudinaryLabs\CloudinaryLaravel\Facades\Cloudinary;
+use Cloudinary\Api\ApiResponse;
 use Illuminate\Http\UploadedFile;
 
 // uses(RefreshDatabase::class); // Removed to prevent clearing user data
@@ -14,13 +15,13 @@ test('head teacher can create announcement with images', function () {
     // Mock Cloudinary upload
     Cloudinary::shouldReceive('uploadApi->upload')
         ->once()
-        ->andReturn([
+        ->andReturn(new ApiResponse([
             'public_id' => 'test-public-id',
             'secure_url' => 'https://cloudinary.com/test-image.jpg',
             'format' => 'jpg',
             'width' => 1000,
             'height' => 1000,
-        ]);
+        ], []));
 
     $response = $this->actingAs($headTeacher)
         ->post(route('announcements.store'), [
@@ -59,13 +60,13 @@ test('duplicate images are referenced instead of uploaded again', function () {
     // Mock Cloudinary upload for first announcement
     Cloudinary::shouldReceive('uploadApi->upload')
         ->once()
-        ->andReturn([
+        ->andReturn(new ApiResponse([
             'public_id' => 'duplicate-public-id',
             'secure_url' => 'https://cloudinary.com/duplicate.jpg',
             'format' => 'jpg',
             'width' => 500,
             'height' => 500,
-        ]);
+        ], []));
 
     // Create first announcement with an image
     $this->actingAs($headTeacher)

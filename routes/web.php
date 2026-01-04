@@ -228,6 +228,7 @@ Route::middleware('auth')->group(function () {
     // Announcement Routes (create/edit pages moved to modals)
     Route::resource('announcements', \App\Http\Controllers\AnnouncementController::class)->except(['create', 'edit']);
     Route::post('announcements/{announcement}/mark-read', [\App\Http\Controllers\AnnouncementController::class, 'markAsRead'])->name('announcements.mark-read');
+    Route::get('announcements/{announcement}/attachments/{attachment}/download', [\App\Http\Controllers\AnnouncementController::class, 'downloadAttachment'])->name('announcements.download-attachment');
 
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');

@@ -115,6 +115,8 @@ class AnnouncementController extends Controller
             file_put_contents(storage_path('logs/debug.log'), 'Has images: '.($request->hasFile('images') ? 'true' : 'false')."\n", FILE_APPEND);
             file_put_contents(storage_path('logs/debug.log'), 'Images count: '.(is_array($request->file('images')) ? count($request->file('images')) : 'not array')."\n", FILE_APPEND);
             file_put_contents(storage_path('logs/debug.log'), 'Content-Type: '.$request->header('Content-Type')."\n", FILE_APPEND);
+            file_put_contents(storage_path('logs/debug.log'), 'Method: '.$request->method()."\n", FILE_APPEND);
+            file_put_contents(storage_path('logs/debug.log'), 'Request keys: '.json_encode(array_keys($request->all()))."\n", FILE_APPEND);
 
             $this->authorize('create', Announcement::class);
 
@@ -517,5 +519,34 @@ class AnnouncementController extends Controller
         foreach ($expiredToArchive as $announcement) {
             $announcement->update(['is_archived' => true, 'archived_at' => now()]);
         }
+    }
+
+    /**
+     * Download an announcement attachment
+     */
+    public function downloadAttachment(Announcement $announcement, AnnouncementAttachment $attachment)
+    {
+        // Check if the attachment belongs to the announcement
+        if ($attachment->announcement_id !== $announcement->id) {
+            abort(404);
+        }
+
+        // Check if user can view this announcement
+        $this->authorize('view', $announcement);
+
+        // Increment download count
+        $attachment->increment('download_count');
+
+        // If it's a Cloudinary file, redirect to the secure URL
+        if ($attachment->cloudinary_url) {
+            return redirect($attachment->cloudinary_url);
+        }
+
+        // Fallback: if stored locally (though we use Cloudinary)
+        if ($attachment->file_path && file_exists(storage_path('app/public/' . $attachment->file_path))) {
+            return response()->download(storage_path('app/public/' . $attachment->file_path), $attachment->original_name);
+        }
+
+        abort(404, 'File not found');
     }
 }

@@ -154,7 +154,7 @@ const Show = ({ teacher }) => {
                                             {teacher.first_name} {teacher.middle_name ? teacher.middle_name + ' ' : ''}{teacher.last_name}
                                         </h1>
                                         <p className="text-lg text-gray-600 mt-1">
-                                            Employee #{teacher.employee_number}
+                                            Employee #{teacher.employee_number || teacher.user?.formatted_employee_number || 'N/A'}
                                         </p>
                                         <div className="flex items-center gap-2 mt-2">
                                             {getStatusBadge(teacher.status)}

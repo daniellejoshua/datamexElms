@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\Teacher;
 use App\Models\User;
+use CloudinaryLabs\CloudinaryLaravel\Facades\Cloudinary;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
@@ -28,11 +29,11 @@ class TeacherController extends Controller
                 $q->where('first_name', 'like', '%'.$search.'%')
                     ->orWhere('last_name', 'like', '%'.$search.'%')
                     ->orWhere('middle_name', 'like', '%'.$search.'%')
-                    ->orWhere('employee_number', 'like', '%'.$search.'%')
                     ->orWhere('department', 'like', '%'.$search.'%')
                     ->orWhere('specialization', 'like', '%'.$search.'%')
                     ->orWhereHas('user', function ($userQuery) use ($search) {
-                        $userQuery->where('email', 'like', '%'.$search.'%');
+                        $userQuery->where('email', 'like', '%'.$search.'%')
+                            ->orWhere('employee_number', 'like', '%'.$search.'%');
                     });
             });
         }
@@ -77,15 +78,30 @@ class TeacherController extends Controller
             'first_name' => 'required|string|max:255',
             'last_name' => 'required|string|max:255',
             'middle_name' => 'nullable|string|max:255',
-            'employee_number' => 'required|string|max:255|unique:teachers,employee_number',
             'email' => 'required|email|max:255|unique:users,email',
             'department' => 'nullable|string|max:255',
             'specialization' => 'nullable|string|max:255',
             'hire_date' => 'nullable|date',
             'status' => 'required|in:active,inactive',
+            'profile_picture' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:5120', // 5MB max
         ]);
 
         try {
+            // Handle profile picture upload
+            $profilePictureUrl = null;
+            if ($request->hasFile('profile_picture')) {
+                $uploadedFile = $request->file('profile_picture');
+                $cloudinaryResponse = Cloudinary::uploadApi()->upload($uploadedFile->getRealPath(), [
+                    'folder' => 'teachers/profile-pictures',
+                    'public_id' => 'teacher_'.time().'_'.uniqid(),
+                    'transformation' => [
+                        ['width' => 300, 'height' => 300, 'crop' => 'fill'],
+                        ['quality' => 'auto'],
+                    ],
+                ]);
+                $profilePictureUrl = $cloudinaryResponse['secure_url'];
+            }
+
             // Create user account
             $user = User::create([
                 'name' => trim($validated['first_name'].' '.($validated['middle_name'] ? $validated['middle_name'].' ' : '').$validated['last_name']),
@@ -94,13 +110,15 @@ class TeacherController extends Controller
                 'role' => 'teacher',
             ]);
 
-            // Assign teacher role (removed since using direct role column)
-            // $user->assignRole('teacher');
+            // Set formatted employee number
+            $user->update([
+                'employee_number' => $user->formatted_employee_number,
+            ]);
 
             // Create teacher record
             $teacher = Teacher::create([
                 'user_id' => $user->id,
-                'employee_number' => $validated['employee_number'],
+                'employee_number' => $user->formatted_employee_number,
                 'first_name' => $validated['first_name'],
                 'last_name' => $validated['last_name'],
                 'middle_name' => $validated['middle_name'],
@@ -108,6 +126,7 @@ class TeacherController extends Controller
                 'specialization' => $validated['specialization'],
                 'hire_date' => $validated['hire_date'],
                 'status' => $validated['status'],
+                'profile_picture' => $profilePictureUrl,
             ]);
 
             Log::info('Teacher created successfully', [
@@ -162,15 +181,30 @@ class TeacherController extends Controller
             'first_name' => 'required|string|max:255',
             'last_name' => 'required|string|max:255',
             'middle_name' => 'nullable|string|max:255',
-            'employee_number' => ['required', 'string', 'max:255', Rule::unique('teachers')->ignore($teacher->id)],
             'email' => ['required', 'email', 'max:255', Rule::unique('users')->ignore($teacher->user_id)],
             'department' => 'nullable|string|max:255',
             'specialization' => 'nullable|string|max:255',
             'hire_date' => 'nullable|date',
             'status' => 'required|in:active,inactive',
+            'profile_picture' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:5120',
         ]);
 
         try {
+            // Handle profile picture upload
+            $profilePictureUrl = $teacher->profile_picture; // Keep existing if no new upload
+            if ($request->hasFile('profile_picture')) {
+                $uploadedFile = $request->file('profile_picture');
+                $uploadResult = Cloudinary::uploadApi()->upload($uploadedFile->getRealPath(), [
+                    'folder' => 'datamex_elms/teachers',
+                    'public_id' => 'teacher_'.$teacher->id.'_'.time(),
+                    'transformation' => [
+                        ['width' => 300, 'height' => 300, 'crop' => 'fill'],
+                        ['quality' => 'auto'],
+                    ],
+                ]);
+                $profilePictureUrl = $uploadResult['secure_url'];
+            }
+
             // Update user account
             $teacher->user->update([
                 'name' => trim($validated['first_name'].' '.($validated['middle_name'] ? $validated['middle_name'].' ' : '').$validated['last_name']),
@@ -179,7 +213,7 @@ class TeacherController extends Controller
 
             // Update teacher record
             $teacher->update([
-                'employee_number' => $validated['employee_number'],
+                'employee_number' => $teacher->user->formatted_employee_number,
                 'first_name' => $validated['first_name'],
                 'last_name' => $validated['last_name'],
                 'middle_name' => $validated['middle_name'],
@@ -187,6 +221,7 @@ class TeacherController extends Controller
                 'specialization' => $validated['specialization'],
                 'hire_date' => $validated['hire_date'],
                 'status' => $validated['status'],
+                'profile_picture' => $profilePictureUrl,
             ]);
 
             Log::info('Teacher updated successfully', [
