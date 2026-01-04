@@ -70,10 +70,18 @@ const Show = ({ registrar }) => {
                 <Card>
                     <CardContent className="pt-6">
                         <div className="flex items-start gap-6">
-                            <div className="w-20 h-20 bg-blue-500 rounded-full flex items-center justify-center flex-shrink-0">
-                                <span className="text-white font-bold text-2xl">
-                                    {registrar.name.split(' ').map(n => n.charAt(0)).join('').slice(0, 2)}
-                                </span>
+                            <div className="w-20 h-20 bg-blue-500 rounded-full flex items-center justify-center flex-shrink-0 overflow-hidden">
+                                {registrar.profile_picture ? (
+                                    <img
+                                        src={registrar.profile_picture}
+                                        alt={`${registrar.name}'s profile`}
+                                        className="w-full h-full object-cover"
+                                    />
+                                ) : (
+                                    <span className="text-white font-bold text-2xl">
+                                        {registrar.name.split(' ').map(n => n.charAt(0)).join('').slice(0, 2)}
+                                    </span>
+                                )}
                             </div>
 
                             <div className="flex-1 min-w-0">

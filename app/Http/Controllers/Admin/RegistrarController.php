@@ -59,9 +59,25 @@ class RegistrarController extends Controller
             'last_name' => 'required|string|max:255',
             'middle_name' => 'nullable|string|max:255',
             'email' => 'required|email|max:255|unique:users,email',
+            'profile_picture' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:5120', // 5MB max
         ]);
 
         try {
+            // Handle profile picture upload
+            $profilePictureUrl = null;
+            if ($request->hasFile('profile_picture')) {
+                $uploadedFile = $request->file('profile_picture');
+                $cloudinaryResponse = Cloudinary::uploadApi()->upload($uploadedFile->getRealPath(), [
+                    'folder' => 'registrars/profile-pictures',
+                    'public_id' => 'registrar_'.time().'_'.uniqid(),
+                    'transformation' => [
+                        ['width' => 300, 'height' => 300, 'crop' => 'fill'],
+                        ['quality' => 'auto'],
+                    ],
+                ]);
+                $profilePictureUrl = $cloudinaryResponse['secure_url'];
+            }
+
             // Create user account
             $user = User::create([
                 'name' => trim($validated['first_name'].' '.($validated['middle_name'] ? $validated['middle_name'].' ' : '').$validated['last_name']),
@@ -69,6 +85,7 @@ class RegistrarController extends Controller
                 'password' => Hash::make('password123'), // Default password
                 'role' => 'registrar',
                 'is_active' => true,
+                'profile_picture' => $profilePictureUrl,
             ]);
 
             // Set formatted employee number
@@ -131,14 +148,31 @@ class RegistrarController extends Controller
             'middle_name' => 'nullable|string|max:255',
             'email' => ['required', 'email', 'max:255', Rule::unique('users')->ignore($user->id)],
             'is_active' => 'required|boolean',
+            'profile_picture' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:5120',
         ]);
 
         try {
+            // Handle profile picture upload
+            $profilePictureUrl = $user->profile_picture; // Keep existing if no new upload
+            if ($request->hasFile('profile_picture')) {
+                $uploadedFile = $request->file('profile_picture');
+                $uploadResult = Cloudinary::uploadApi()->upload($uploadedFile->getRealPath(), [
+                    'folder' => 'registrars/profile-pictures',
+                    'public_id' => 'registrar_'.$user->id.'_'.time(),
+                    'transformation' => [
+                        ['width' => 300, 'height' => 300, 'crop' => 'fill'],
+                        ['quality' => 'auto'],
+                    ],
+                ]);
+                $profilePictureUrl = $uploadResult['secure_url'];
+            }
+
             // Update user account
             $user->update([
                 'name' => trim($validated['first_name'].' '.($validated['middle_name'] ? $validated['middle_name'].' ' : '').$validated['last_name']),
                 'email' => $validated['email'],
                 'is_active' => $validated['is_active'],
+                'profile_picture' => $profilePictureUrl,
             ]);
 
             Log::info('Registrar updated successfully', [

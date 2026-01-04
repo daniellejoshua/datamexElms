@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import { Head, Link, router, useForm } from '@inertiajs/react';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -6,31 +6,134 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { ArrowLeft, Save, Edit as EditIcon, User } from 'lucide-react';
+import { ArrowLeft, Save, Edit as EditIcon, User, Upload, X } from 'lucide-react';
 import { toast } from 'sonner';
 
 const Edit = ({ registrar }) => {
+    const fileInputRef = useRef(null);
+    const [imagePreview, setImagePreview] = useState(null);
+
     const { data, setData, put, processing, errors } = useForm({
         first_name: registrar.name.split(' ')[0] || '',
         last_name: registrar.name.split(' ').slice(-1)[0] || '',
         middle_name: registrar.name.split(' ').slice(1, -1).join(' ') || '',
         email: registrar.email || '',
         is_active: registrar.is_active || false,
+        profile_picture: null,
     });
+
+    const handleProfilePictureClick = () => {
+        fileInputRef.current?.click();
+    };
+
+    // Handle file selection and create preview
+    const handleFileChange = (e) => {
+        const file = e.target.files[0];
+        setData('profile_picture', file);
+
+        if (file) {
+            const reader = new FileReader();
+            reader.onload = (e) => setImagePreview(e.target.result);
+            reader.readAsDataURL(file);
+        } else {
+            setImagePreview(null);
+        }
+    };
+
+    // Clean up object URLs
+    useEffect(() => {
+        return () => {
+            if (imagePreview && imagePreview.startsWith('blob:')) {
+                URL.revokeObjectURL(imagePreview);
+            }
+        };
+    }, [imagePreview]);
 
     const handleSubmit = (e) => {
         e.preventDefault();
-        put(route('admin.registrars.update', registrar.id), {
-            onError: (errors) => {
-                const errorMessage = Object.values(errors).flat().join(', ');
-                toast.error(`Failed to update registrar: ${errorMessage}`, {
+
+        console.log('Form data before submission:', data);
+
+        // Prepare data for submission, excluding null profile_picture
+        const submitData = { ...data };
+        if (submitData.profile_picture === null) {
+            delete submitData.profile_picture;
+        }
+
+        console.log('Submitting registrar update with data:', submitData);
+
+        // Create FormData for submission
+        const formData = new FormData();
+        Object.entries(submitData).forEach(([key, value]) => {
+            if (value !== null && value !== undefined) {
+                formData.append(key, value);
+            }
+        });
+        formData.append('_method', 'PUT'); // Spoof PUT method
+
+        console.log('FormData contents:');
+        for (let [key, value] of formData.entries()) {
+            console.log(key, value);
+        }
+
+        console.log('Submitting to URL:', route('admin.registrars.update', registrar.id));
+
+        // Use fetch to send FormData as POST with _method
+        fetch(route('admin.registrars.update', registrar.id), {
+            method: 'POST',
+            body: formData,
+            headers: {
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
+                'X-Requested-With': 'XMLHttpRequest',
+                'X-Inertia': 'true',
+            },
+        })
+        .then(response => {
+            if (response.redirected || response.status === 302) {
+                console.log('Success response: redirect');
+                toast.success('Registrar updated successfully!', {
                     style: {
-                        background: '#fef2f2',
-                        color: '#dc2626',
-                        border: '1px solid #fecaca',
+                        background: '#f0fdf4',
+                        color: '#166534',
+                        border: '1px solid #bbf7d0',
                     },
                 });
-            },
+                router.visit(route('admin.registrars.show', registrar.id));
+            } else {
+                return response.json().then(data => {
+                    if (data.errors) {
+                        console.log('Error response:', data.errors);
+                        const errorMessage = Object.values(data.errors).flat().join(', ');
+                        toast.error(`Failed to update registrar: ${errorMessage}`, {
+                            style: {
+                                background: '#fef2f2',
+                                color: '#dc2626',
+                                border: '1px solid #fecaca',
+                            },
+                        });
+                    } else {
+                        console.log('Success response:', data);
+                        toast.success('Registrar updated successfully!', {
+                            style: {
+                                background: '#f0fdf4',
+                                color: '#166534',
+                                border: '1px solid #bbf7d0',
+                            },
+                        });
+                        router.visit(route('admin.registrars.show', registrar.id));
+                    }
+                });
+            }
+        })
+        .catch(error => {
+            console.log('Fetch error:', error);
+            toast.error('An error occurred while updating the registrar.', {
+                style: {
+                    background: '#fef2f2',
+                    color: '#dc2626',
+                    border: '1px solid #fecaca',
+                },
+            });
         });
     };
 
@@ -120,6 +223,89 @@ const Edit = ({ registrar }) => {
                                             {errors.last_name && (
                                                 <p className="text-sm text-red-600 mt-1">{errors.last_name}</p>
                                             )}
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Profile Picture */}
+                                <div className="space-y-4">
+                                    <h3 className="text-lg font-medium text-gray-900 border-b pb-2">Profile Picture</h3>
+
+                                    <div className="flex items-center gap-6">
+                                        <div className="relative">
+                                            <div className="w-24 h-24 rounded-full bg-gray-100 border-2 border-gray-200 flex items-center justify-center overflow-hidden">
+                                                {imagePreview ? (
+                                                    <img
+                                                        src={imagePreview}
+                                                        alt="Profile preview"
+                                                        className="w-full h-full object-cover"
+                                                    />
+                                                ) : registrar.profile_picture ? (
+                                                    <img
+                                                        src={registrar.profile_picture}
+                                                        alt="Current profile"
+                                                        className="w-full h-full object-cover"
+                                                    />
+                                                ) : (
+                                                    <User className="w-8 h-8 text-gray-400" />
+                                                )}
+                                            </div>
+                                            <button
+                                                type="button"
+                                                onClick={handleProfilePictureClick}
+                                                className="absolute -bottom-2 -right-2 bg-blue-600 text-white p-1.5 rounded-full hover:bg-blue-700 transition-colors"
+                                            >
+                                                <Upload className="w-3 h-3" />
+                                            </button>
+                                        </div>
+
+                                        <div className="flex-1">
+                                            <div className="space-y-2">
+                                                <Label>Profile Picture</Label>
+                                                <p className="text-sm text-gray-600">
+                                                    Upload a profile picture for the registrar. Recommended size: 400x400px.
+                                                </p>
+                                                <div className="flex items-center gap-2">
+                                                    <Button
+                                                        type="button"
+                                                        variant="outline"
+                                                        size="sm"
+                                                        onClick={handleProfilePictureClick}
+                                                    >
+                                                        <Upload className="w-4 h-4 mr-2" />
+                                                        Choose File
+                                                    </Button>
+                                                    {data.profile_picture && (
+                                                        <Button
+                                                            type="button"
+                                                            variant="ghost"
+                                                            size="sm"
+                                                            onClick={() => {
+                                                                setData('profile_picture', null);
+                                                                setImagePreview(null);
+                                                                if (fileInputRef.current) {
+                                                                    fileInputRef.current.value = '';
+                                                                }
+                                                            }}
+                                                        >
+                                                            <X className="w-4 h-4 mr-2" />
+                                                            Remove
+                                                        </Button>
+                                                    )}
+                                                </div>
+                                                <input
+                                                    ref={fileInputRef}
+                                                    type="file"
+                                                    accept="image/*"
+                                                    onChange={handleFileChange}
+                                                    className="hidden"
+                                                />
+                                                {data.profile_picture && (
+                                                    <p className="text-sm text-gray-500">
+                                                        Selected: {data.profile_picture.name}
+                                                    </p>
+                                                )}
+                                            </div>
                                         </div>
                                     </div>
                                 </div>

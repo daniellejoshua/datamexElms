@@ -1,34 +1,147 @@
-import React, { useState, useEffect } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import { Head, Link, router, useForm, usePage } from '@inertiajs/react';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { ArrowLeft, Save, UserPlus } from 'lucide-react';
+import { ArrowLeft, Save, UserPlus, Upload, X } from 'lucide-react';
 import { toast } from 'sonner';
 
 const Create = () => {
     const page = usePage();
+    const fileInputRef = useRef(null);
+    const [imagePreview, setImagePreview] = useState(null);
 
     const { data, setData, post, processing, errors, reset } = useForm({
         first_name: '',
         last_name: '',
         middle_name: '',
         email: '',
+        profile_picture: null,
     }, {
         onSuccess: () => {
             reset();
             toast.success('Registrar created successfully!');
+            router.visit(route('admin.registrars.index'));
         },
         onError: () => {
             toast.error('Failed to create registrar. Please check the errors.');
         }
     });
 
+    const handleProfilePictureClick = () => {
+        fileInputRef.current?.click();
+    };
+
+    // Handle file selection and create preview
+    const handleFileChange = (e) => {
+        const file = e.target.files[0];
+        setData('profile_picture', file);
+
+        if (file) {
+            const reader = new FileReader();
+            reader.onload = (e) => setImagePreview(e.target.result);
+            reader.readAsDataURL(file);
+        } else {
+            setImagePreview(null);
+        }
+    };
+
+    // Cleanup preview URL on unmount
+    useEffect(() => {
+        return () => {
+            if (imagePreview) {
+                URL.revokeObjectURL(imagePreview);
+            }
+        };
+    }, [imagePreview]);
+
     const handleSubmit = (e) => {
         e.preventDefault();
-        post(route('admin.registrars.store'));
+
+        console.log('Form data before submission:', data);
+
+        // Prepare data for submission, excluding null profile_picture
+        const submitData = { ...data };
+        if (submitData.profile_picture === null) {
+            delete submitData.profile_picture;
+        }
+
+        console.log('Submitting registrar creation with data:', submitData);
+
+        // Create FormData for submission
+        const formData = new FormData();
+        Object.entries(submitData).forEach(([key, value]) => {
+            if (value !== null && value !== undefined) {
+                formData.append(key, value);
+            }
+        });
+
+        console.log('FormData contents:');
+        for (let [key, value] of formData.entries()) {
+            console.log(key, value);
+        }
+
+        console.log('Submitting to URL:', route('admin.registrars.store'));
+
+        // Use fetch to send FormData as POST
+        fetch(route('admin.registrars.store'), {
+            method: 'POST',
+            body: formData,
+            headers: {
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
+                'X-Requested-With': 'XMLHttpRequest',
+                'X-Inertia': 'true',
+            },
+        })
+        .then(response => {
+            if (response.redirected || response.status === 302) {
+                console.log('Success response: redirect');
+                toast.success('Registrar created successfully!', {
+                    style: {
+                        background: '#f0fdf4',
+                        color: '#166534',
+                        border: '1px solid #bbf7d0',
+                    },
+                });
+                router.visit(route('admin.registrars.index'));
+            } else {
+                return response.json().then(data => {
+                    if (data.errors) {
+                        console.log('Error response:', data.errors);
+                        const errorMessage = Object.values(data.errors).flat().join(', ');
+                        toast.error(`Failed to create registrar: ${errorMessage}`, {
+                            style: {
+                                background: '#fef2f2',
+                                color: '#dc2626',
+                                border: '1px solid #fecaca',
+                            },
+                        });
+                    } else {
+                        console.log('Success response:', data);
+                        toast.success('Registrar created successfully!', {
+                            style: {
+                                background: '#f0fdf4',
+                                color: '#166534',
+                                border: '1px solid #bbf7d0',
+                            },
+                        });
+                        router.visit(route('admin.registrars.index'));
+                    }
+                });
+            }
+        })
+        .catch(error => {
+            console.log('Fetch error:', error);
+            toast.error('An error occurred while creating the registrar.', {
+                style: {
+                    background: '#fef2f2',
+                    color: '#dc2626',
+                    border: '1px solid #fecaca',
+                },
+            });
+        });
     };
 
     return (
@@ -71,6 +184,79 @@ const Create = () => {
                             </CardDescription>
                         </CardHeader>
                         <CardContent>
+                            {/* Profile Picture Preview */}
+                            <div className="flex justify-start mb-6">
+                                <div className="flex items-center gap-4">
+                                    <div className="relative">
+                                        <div className="w-20 h-20 rounded-full bg-gray-100 border-2 border-gray-200 flex items-center justify-center overflow-hidden cursor-pointer hover:border-blue-300 transition-colors" onClick={handleProfilePictureClick}>
+                                            {imagePreview ? (
+                                                <img
+                                                    src={imagePreview}
+                                                    alt="Profile preview"
+                                                    className="w-full h-full object-cover"
+                                                />
+                                            ) : (
+                                                <UserPlus className="w-8 h-8 text-gray-400" />
+                                            )}
+                                        </div>
+                                        {imagePreview && (
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    setData('profile_picture', null);
+                                                    setImagePreview(null);
+                                                    if (fileInputRef.current) {
+                                                        fileInputRef.current.value = '';
+                                                    }
+                                                }}
+                                                className="absolute -top-2 -right-2 bg-red-500 text-white p-1 rounded-full hover:bg-red-600 transition-colors"
+                                            >
+                                                <X className="w-3 h-3" />
+                                            </button>
+                                        )}
+                                    </div>
+                                    <div>
+                                        <p className="text-sm text-gray-600 font-medium">Profile Picture</p>
+                                        <p className="text-xs text-gray-500">
+                                            {imagePreview ? 'Click the image to change it' : 'Click the circle to upload an image'}
+                                        </p>
+                                        <div className="flex items-center gap-2 mt-2">
+                                            <Button
+                                                type="button"
+                                                variant="outline"
+                                                size="sm"
+                                                onClick={handleProfilePictureClick}
+                                            >
+                                                <Upload className="w-4 h-4 mr-2" />
+                                                Choose File
+                                            </Button>
+                                            {data.profile_picture && (
+                                                <Button
+                                                    type="button"
+                                                    variant="ghost"
+                                                    size="sm"
+                                                    onClick={() => {
+                                                        setData('profile_picture', null);
+                                                        setImagePreview(null);
+                                                        if (fileInputRef.current) {
+                                                            fileInputRef.current.value = '';
+                                                        }
+                                                    }}
+                                                >
+                                                    <X className="w-4 h-4 mr-2" />
+                                                    Remove
+                                                </Button>
+                                            )}
+                                        </div>
+                                        {data.profile_picture && (
+                                            <p className="text-xs text-gray-500 mt-1">
+                                                Selected: {data.profile_picture.name}
+                                            </p>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+
                             <form onSubmit={handleSubmit} className="space-y-6">
                                 {/* Personal Information */}
                                 <div className="space-y-4">
@@ -173,6 +359,15 @@ const Create = () => {
                                     </Button>
                                 </div>
                             </form>
+
+                            {/* Hidden file input for profile picture */}
+                            <input
+                                ref={fileInputRef}
+                                type="file"
+                                accept="image/*"
+                                onChange={handleFileChange}
+                                className="hidden"
+                            />
                         </CardContent>
                     </Card>
                 </div>

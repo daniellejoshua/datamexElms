@@ -246,12 +246,27 @@ const Index = ({ registrars, filters }) => {
                                         {registrars.data.map((registrar) => (
                                             <TableRow key={registrar.id}>
                                                 <TableCell>
-                                                    <div>
-                                                        <div className="font-medium text-gray-900">
-                                                            {registrar.name}
-                                                        </div>
-                                                        <div className="text-sm text-gray-500">
-                                                            Registrar Account
+                                                    <div className="flex items-center gap-3">
+                                                        {registrar.profile_picture ? (
+                                                            <img
+                                                                src={registrar.profile_picture}
+                                                                alt={`${registrar.name}`}
+                                                                className="w-10 h-10 rounded-full object-cover border-2 border-gray-200"
+                                                            />
+                                                        ) : (
+                                                            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center border-2 border-gray-200">
+                                                                <span className="text-white font-semibold text-sm">
+                                                                    {registrar.name.split(' ').map(n => n.charAt(0)).join('').slice(0, 2)}
+                                                                </span>
+                                                            </div>
+                                                        )}
+                                                        <div>
+                                                            <div className="font-medium text-gray-900">
+                                                                {registrar.name}
+                                                            </div>
+                                                            <div className="text-sm text-gray-500">
+                                                                Registrar Account
+                                                            </div>
                                                         </div>
                                                     </div>
                                                 </TableCell>
