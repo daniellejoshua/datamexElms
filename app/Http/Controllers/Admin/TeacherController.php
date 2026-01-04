@@ -170,6 +170,8 @@ class TeacherController extends Controller
     {
         $teacher->load('user');
 
+        \Log::info('Teacher edit data:', $teacher->toArray());
+
         return Inertia::render('Admin/Teachers/Edit', [
             'teacher' => $teacher,
         ]);
@@ -177,6 +179,13 @@ class TeacherController extends Controller
 
     public function update(Request $request, Teacher $teacher)
     {
+        \Log::info('Teacher update method called for teacher ' . $teacher->id);
+
+        \Log::info('Teacher update request data:', $request->all());
+        \Log::info('Teacher update files:', $request->allFiles());
+        \Log::info('Teacher update method: ' . $request->method());
+        \Log::info('Teacher update headers:', $request->headers->all());
+
         $validated = $request->validate([
             'first_name' => 'required|string|max:255',
             'last_name' => 'required|string|max:255',

@@ -141,11 +141,19 @@ const Show = ({ teacher }) => {
                 <Card>
                     <CardContent className="pt-6">
                         <div className="flex items-start gap-6">
-                            <div className="w-20 h-20 bg-blue-500 rounded-full flex items-center justify-center flex-shrink-0">
-                                <span className="text-white font-bold text-2xl">
-                                    {teacher.first_name.charAt(0)}{teacher.last_name.charAt(0)}
-                                </span>
-                            </div>
+                            {teacher.profile_picture ? (
+                                <img
+                                    src={teacher.profile_picture}
+                                    alt={`${teacher.first_name} ${teacher.last_name}`}
+                                    className="w-20 h-20 rounded-full object-cover border-4 border-gray-100 flex-shrink-0"
+                                />
+                            ) : (
+                                <div className="w-20 h-20 bg-blue-500 rounded-full flex items-center justify-center flex-shrink-0">
+                                    <span className="text-white font-bold text-2xl">
+                                        {teacher.first_name.charAt(0)}{teacher.last_name.charAt(0)}
+                                    </span>
+                                </div>
+                            )}
 
                             <div className="flex-1 min-w-0">
                                 <div className="flex items-start justify-between">

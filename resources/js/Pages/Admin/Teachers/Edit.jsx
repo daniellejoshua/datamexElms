@@ -60,8 +60,46 @@ const Edit = ({ teacher }) => {
 
     const handleSubmit = (e) => {
         e.preventDefault();
-        put(route('admin.teachers.update', teacher.id), data, {
-            onSuccess: () => {
+
+        console.log('Form data before submission:', data);
+
+        // Prepare data for submission, excluding null profile_picture
+        const submitData = { ...data };
+        if (submitData.profile_picture === null) {
+            delete submitData.profile_picture;
+        }
+
+        console.log('Submitting teacher update with data:', submitData);
+
+        // Create FormData for submission
+        const formData = new FormData();
+        Object.entries(submitData).forEach(([key, value]) => {
+            if (value !== null && value !== undefined) {
+                formData.append(key, value);
+            }
+        });
+        formData.append('_method', 'PUT'); // Spoof PUT method
+
+        console.log('FormData contents:');
+        for (let [key, value] of formData.entries()) {
+            console.log(key, value);
+        }
+
+        console.log('Submitting to URL:', route('admin.teachers.update', teacher.id));
+
+        // Use fetch to send FormData as POST with _method
+        fetch(route('admin.teachers.update', teacher.id), {
+            method: 'POST',
+            body: formData,
+            headers: {
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
+                'X-Requested-With': 'XMLHttpRequest',
+                'X-Inertia': 'true',
+            },
+        })
+        .then(response => {
+            if (response.redirected || response.status === 302) {
+                console.log('Success response: redirect');
                 toast.success('Teacher updated successfully!', {
                     style: {
                         background: '#f0fdf4',
@@ -69,17 +107,42 @@ const Edit = ({ teacher }) => {
                         border: '1px solid #bbf7d0',
                     },
                 });
-            },
-            onError: (errors) => {
-                const errorMessage = Object.values(errors).flat().join(', ');
-                toast.error(`Failed to update teacher: ${errorMessage}`, {
-                    style: {
-                        background: '#fef2f2',
-                        color: '#dc2626',
-                        border: '1px solid #fecaca',
-                    },
+                router.visit(route('admin.teachers.show', teacher.id));
+            } else {
+                return response.json().then(data => {
+                    if (data.errors) {
+                        console.log('Error response:', data.errors);
+                        const errorMessage = Object.values(data.errors).flat().join(', ');
+                        toast.error(`Failed to update teacher: ${errorMessage}`, {
+                            style: {
+                                background: '#fef2f2',
+                                color: '#dc2626',
+                                border: '1px solid #fecaca',
+                            },
+                        });
+                    } else {
+                        console.log('Success response:', data);
+                        toast.success('Teacher updated successfully!', {
+                            style: {
+                                background: '#f0fdf4',
+                                color: '#166534',
+                                border: '1px solid #bbf7d0',
+                            },
+                        });
+                        router.visit(route('admin.teachers.show', teacher.id));
+                    }
                 });
-            },
+            }
+        })
+        .catch(error => {
+            console.log('Fetch error:', error);
+            toast.error('An error occurred while updating the teacher.', {
+                style: {
+                    background: '#fef2f2',
+                    color: '#dc2626',
+                    border: '1px solid #fecaca',
+                },
+            });
         });
     };
 
