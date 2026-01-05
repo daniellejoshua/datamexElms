@@ -5,15 +5,20 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Check, X, Users, UserPlus, GraduationCap, ArrowLeft, Mail, Phone, MapPin, Calendar, BookOpen, User, Trash2, Settings, AlertTriangle } from 'lucide-react';
+import { toast } from 'sonner';
 
-export default function Students({ section, enrolledStudents, availableStudents }) {
+export default function Students({ section, enrolledStudents, availableStudents, canCarryForward }) {
     const { flash } = usePage().props;
     const [selectedStudents, setSelectedStudents] = useState([]);
     const [isEnrolling, setIsEnrolling] = useState(false);
+    const [isCarryingForward, setIsCarryingForward] = useState(false);
     const [selectedStudent, setSelectedStudent] = useState(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [isRemoveModalOpen, setIsRemoveModalOpen] = useState(false);
     const [studentToRemove, setStudentToRemove] = useState(null);
+    const [isCarryForwardModalOpen, setIsCarryForwardModalOpen] = useState(false);
+    const [carryForwardResults, setCarryForwardResults] = useState(null);
+    const [isResultsModalOpen, setIsResultsModalOpen] = useState(false);
 
     // Debug logging
     console.log('Component props:', { section, enrolledStudents, availableStudents });
@@ -47,6 +52,51 @@ export default function Students({ section, enrolledStudents, availableStudents 
             onFinish: () => {
                 setIsEnrolling(false);
             }
+        });
+    };
+
+    const handleCarryForwardStudents = () => {
+        setIsCarryForwardModalOpen(true);
+    };
+
+    const confirmCarryForwardStudents = () => {
+        setIsCarryForwardModalOpen(false);
+        setIsCarryingForward(true);
+
+        // Use fetch to get JSON response
+        fetch(route('admin.sections.carry-forward-students', section.id), {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
+                'X-Requested-With': 'XMLHttpRequest',
+            },
+            body: JSON.stringify({}),
+        })
+        .then(response => response.json())
+        .then(data => {
+            setCarryForwardResults(data);
+            setIsResultsModalOpen(true);
+            
+            // Show appropriate toast based on results
+            if (data.success && data.data && data.data.enrolled && data.data.enrolled.length > 0) {
+                toast.success(`Successfully imported ${data.data.enrolled.length} student${data.data.enrolled.length > 1 ? 's' : ''}!`, {
+                    description: `Students have been enrolled in ${section.section_name}`,
+                    duration: 5000,
+                });
+            } else if (!data.success) {
+                toast.error('No archived sections found', {
+                    description: 'There are no archived sections available to import students from.',
+                    duration: 5000,
+                });
+            }
+        })
+        .catch(error => {
+            console.error('Carry forward errors:', error);
+            setIsCarryingForward(false);
+        })
+        .finally(() => {
+            setIsCarryingForward(false);
         });
     };
 
@@ -171,11 +221,23 @@ export default function Students({ section, enrolledStudents, availableStudents 
                     {/* Enrolled Students */}
                     <div className="bg-white rounded-lg shadow-sm border overflow-hidden">
                         <div className="bg-gray-100 px-4 py-3 border-b">
-                            <div className="flex items-center gap-2">
-                                <Users className="h-4 w-4 text-gray-600" />
-                                <h2 className="font-medium text-gray-900">
-                                    Enrolled Students ({enrolledStudents.length})
-                                </h2>
+                            <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-2">
+                                    <Users className="h-4 w-4 text-gray-600" />
+                                    <h2 className="font-medium text-gray-900">
+                                        Enrolled Students ({enrolledStudents.length})
+                                    </h2>
+                                </div>
+                                <Button
+                                    onClick={handleCarryForwardStudents}
+                                    disabled={isCarryingForward}
+                                    size="sm"
+                                    variant="outline"
+                                    className="text-xs"
+                                >
+                                    <Users className="h-3 w-3 mr-1" />
+                                    {isCarryingForward ? 'Importing...' : 'Import Students'}
+                                </Button>
                             </div>
                         </div>
                         <div className="p-4">
@@ -573,6 +635,222 @@ export default function Students({ section, enrolledStudents, availableStudents 
 
                 <div className="flex justify-end mt-6 pt-4 border-t">
                     <Button variant="outline" onClick={closeStudentModal}>
+                        Close
+                    </Button>
+                </div>
+            </DialogContent>
+        </Dialog>
+
+        {/* Carry Forward Confirmation Modal */}
+        <Dialog open={isCarryForwardModalOpen} onOpenChange={setIsCarryForwardModalOpen}>
+            <DialogContent className="max-w-md">
+                <DialogHeader>
+                    <DialogTitle className="flex items-center gap-2 text-xl">
+                        <Users className="w-5 h-5 text-blue-600" />
+                        Confirm Student Import
+                    </DialogTitle>
+                    <DialogDescription>
+                        Are you sure you want to import students for this section?
+                    </DialogDescription>
+                </DialogHeader>
+                
+                <div className="py-4">
+                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                        <p className="text-sm text-blue-800">
+                            This will attempt to enroll students from archived sections or carry forward existing students. Students may also be moved to the next year level if applicable.
+                        </p>
+                    </div>
+                </div>
+
+                <div className="flex justify-end gap-3 mt-6 pt-4 border-t">
+                    <Button 
+                        variant="outline" 
+                        onClick={() => setIsCarryForwardModalOpen(false)}
+                    >
+                        Cancel
+                    </Button>
+                    <Button 
+                        onClick={confirmCarryForwardStudents}
+                        disabled={isCarryingForward}
+                        className="bg-blue-600 hover:bg-blue-700"
+                    >
+                        {isCarryingForward ? 'Importing...' : 'Import Students'}
+                    </Button>
+                </div>
+            </DialogContent>
+        </Dialog>
+
+        {/* Import Results Modal */}
+        <Dialog open={isResultsModalOpen} onOpenChange={setIsResultsModalOpen}>
+            <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+                <DialogHeader>
+                    <DialogTitle className="flex items-center gap-2 text-xl">
+                        <Users className="w-5 h-5 text-blue-600" />
+                        Import Results
+                    </DialogTitle>
+                    {carryForwardResults?.data?.archived_section && (
+                        <DialogDescription>
+                            <div className="mt-2 p-3 bg-gray-50 rounded-lg">
+                                <p className="text-sm text-gray-700">
+                                    <strong>Source:</strong> {carryForwardResults.data.archived_section.name}
+                                    (Year {carryForwardResults.data.archived_section.year_level},
+                                    {carryForwardResults.data.archived_section.academic_year} - {carryForwardResults.data.archived_section.semester})
+                                    {carryForwardResults.data.is_progression && (
+                                        <span className="ml-2 text-blue-600 font-medium">(Student Progression)</span>
+                                    )}
+                                </p>
+                            </div>
+                        </DialogDescription>
+                    )}
+                </DialogHeader>
+
+                <div className="space-y-6">
+                    {/* No archived sections found */}
+                    {carryForwardResults && !carryForwardResults.success && (
+                        <div className="text-center py-8">
+                            <AlertTriangle className="w-12 h-12 text-orange-400 mx-auto mb-4" />
+                            <h3 className="text-lg font-semibold text-gray-700 mb-2">No Archived Sections Found</h3>
+                            <p className="text-gray-600">
+                                {carryForwardResults.message || 'No archived sections are available to import students from.'}
+                            </p>
+                            <p className="text-sm text-gray-500 mt-2">
+                                Archived sections are created when semesters are archived. Contact an administrator if you need to import students from a different source.
+                            </p>
+                        </div>
+                    )}
+
+                    {/* Archived Students List */}
+                    {carryForwardResults?.data?.archived_students && carryForwardResults.data.archived_students.length > 0 && (
+                        <div>
+                            <h3 className="text-lg font-semibold text-blue-700 mb-3 flex items-center gap-2">
+                                <Users className="w-5 h-5" />
+                                Students from Archived Section ({carryForwardResults.data.archived_students.length})
+                            </h3>
+                            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
+                                    {carryForwardResults.data.archived_students.map((student, index) => (
+                                        <div key={student.id || index} className="flex items-center gap-2 text-sm text-blue-800">
+                                            <User className="w-4 h-4 flex-shrink-0" />
+                                            <div>
+                                                <div className="font-medium">{student.name}</div>
+                                                {student.student_number && (
+                                                    <div className="text-xs text-blue-600">#{student.student_number}</div>
+                                                )}
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Successfully Imported Students */}
+                    {carryForwardResults?.data?.enrolled && carryForwardResults.data.enrolled.length > 0 && (
+                        <div>
+                            <h3 className="text-lg font-semibold text-green-700 mb-3 flex items-center gap-2">
+                                <Check className="w-5 h-5" />
+                                Successfully Imported ({carryForwardResults.data.enrolled.length})
+                            </h3>
+                            <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
+                                    {carryForwardResults.data.enrolled.map((student, index) => (
+                                        <div key={student.id || index} className="flex items-center gap-2 text-sm text-green-800">
+                                            <Check className="w-4 h-4 flex-shrink-0" />
+                                            {student.name}
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Students Not Enrolled in Current Semester */}
+                    {carryForwardResults?.data?.not_enrolled && carryForwardResults.data.not_enrolled.length > 0 && (
+                        <div>
+                            <h3 className="text-lg font-semibold text-orange-700 mb-3 flex items-center gap-2">
+                                <AlertTriangle className="w-5 h-5" />
+                                Not Enrolled in Current Semester ({carryForwardResults.data.not_enrolled.length})
+                            </h3>
+                            <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
+                                    {carryForwardResults.data.not_enrolled.map((student, index) => (
+                                        <div key={student.id || index} className="flex items-center gap-2 text-sm text-orange-800">
+                                            <X className="w-4 h-4 flex-shrink-0" />
+                                            {student.name}
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Year Level Mismatch */}
+                    {carryForwardResults?.data?.year_level_mismatch && carryForwardResults.data.year_level_mismatch.length > 0 && (
+                        <div>
+                            <h3 className="text-lg font-semibold text-red-700 mb-3 flex items-center gap-2">
+                                <X className="w-5 h-5" />
+                                Year Level Mismatch ({carryForwardResults.data.year_level_mismatch.length})
+                            </h3>
+                            <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
+                                    {carryForwardResults.data.year_level_mismatch.map((student, index) => (
+                                        <div key={student.id || index} className="flex items-center gap-2 text-sm text-red-800">
+                                            <X className="w-4 h-4 flex-shrink-0" />
+                                            {student.name}
+                                            <span className="text-xs text-red-600">
+                                                (Level {student.current_year_level} → {student.section_year_level})
+                                            </span>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Other Skipped Students */}
+                    {carryForwardResults?.data?.skipped && carryForwardResults.data.skipped.length > 0 && (
+                        <div>
+                            <h3 className="text-lg font-semibold text-gray-700 mb-3 flex items-center gap-2">
+                                <X className="w-5 h-5" />
+                                Skipped ({carryForwardResults.data.skipped.length})
+                            </h3>
+                            <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
+                                    {carryForwardResults.data.skipped.map((student, index) => (
+                                        <div key={student.id || index} className="flex items-center gap-2 text-sm text-gray-800">
+                                            <X className="w-4 h-4 flex-shrink-0" />
+                                            {student.name}
+                                            <span className="text-xs text-gray-600">
+                                                ({student.reason})
+                                            </span>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* No students imported */}
+                    {carryForwardResults?.success && carryForwardResults?.data?.enrolled && carryForwardResults.data.enrolled.length === 0 && (
+                        <div className="text-center py-8">
+                            <AlertTriangle className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                            <h3 className="text-lg font-semibold text-gray-700 mb-2">No Students Imported</h3>
+                            <p className="text-gray-600">
+                                All students were skipped due to the reasons listed above.
+                            </p>
+                        </div>
+                    )}
+                </div>
+
+                <div className="flex justify-end gap-3 mt-6 pt-4 border-t">
+                    <Button
+                        onClick={() => {
+                            setIsResultsModalOpen(false);
+                            setCarryForwardResults(null);
+                            window.location.reload();
+                        }}
+                        className="bg-blue-600 hover:bg-blue-700"
+                    >
                         Close
                     </Button>
                 </div>

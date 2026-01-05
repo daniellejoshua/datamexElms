@@ -228,6 +228,37 @@ class AcademicYearController extends Controller
 
     protected function archiveSemesterSections(string $academicYear, string $semester, ?string $notes): void
     {
+        // Clean up old archived data - only keep the most recent archived academic year/semester
+        // since we now have carry forward functionality
+        $mostRecentArchived = ArchivedSection::selectRaw('academic_year, semester')
+            ->orderBy('academic_year', 'desc')
+            ->orderByRaw("CASE WHEN semester = 'first' THEN 1 WHEN semester = 'second' THEN 2 WHEN semester = 'summer' THEN 3 END DESC")
+            ->first();
+
+        if ($mostRecentArchived) {
+            // Get IDs of archived sections that are older than the most recent
+            $sectionsToDelete = ArchivedSection::where(function ($query) use ($mostRecentArchived) {
+                $query->where('academic_year', '<', $mostRecentArchived->academic_year)
+                    ->orWhere(function ($subQuery) use ($mostRecentArchived) {
+                        $subQuery->where('academic_year', $mostRecentArchived->academic_year)
+                            ->whereRaw("CASE WHEN semester = 'first' THEN 1 WHEN semester = 'second' THEN 2 WHEN semester = 'summer' THEN 3 END < CASE WHEN ? = 'first' THEN 1 WHEN ? = 'second' THEN 2 WHEN ? = 'summer' THEN 3 END", [
+                                $mostRecentArchived->semester,
+                                $mostRecentArchived->semester,
+                                $mostRecentArchived->semester,
+                            ]);
+                    });
+            })->pluck('id');
+
+            // Delete archived student enrollments for these sections first
+            ArchivedStudentEnrollment::whereIn('archived_section_id', $sectionsToDelete)->delete();
+
+            // Then delete the archived sections
+            ArchivedSection::whereIn('id', $sectionsToDelete)->delete();
+
+            // Also clean up any other orphaned archived student enrollments
+            ArchivedStudentEnrollment::whereDoesntHave('archivedSection')->delete();
+        }
+
         // Get all sections
         $sections = Section::with(['subjects', 'studentEnrollments.student.user'])
             ->get();
@@ -269,6 +300,9 @@ class AcademicYearController extends Controller
                 // Create archived section record
                 $archivedSection = ArchivedSection::create([
                     'original_section_id' => $section->id,
+                    'program_id' => $section->program_id,
+                    'curriculum_id' => $section->curriculum_id,
+                    'year_level' => $section->year_level,
                     'section_name' => $section->section_name,
                     'academic_year' => $academicYear,
                     'semester' => match ($semester) {

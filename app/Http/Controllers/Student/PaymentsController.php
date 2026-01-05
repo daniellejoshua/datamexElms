@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Student;
 
 use App\Http\Controllers\Controller;
+use App\Models\SchoolSetting;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -14,8 +15,8 @@ class PaymentsController extends Controller
         $student = $request->user()->student;
 
         // Get current semester payment status
-        $currentYear = '2024-2025';
-        $currentSemester = '1st';
+        $currentYear = SchoolSetting::getCurrentAcademicYear();
+        $currentSemester = SchoolSetting::getCurrentSemester();
 
         $currentPayment = $student->studentSemesterPayments()
             ->where('academic_year', $currentYear)

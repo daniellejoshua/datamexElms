@@ -6,6 +6,7 @@ use App\Helpers\AcademicHelper;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\StoreSectionRequest;
 use App\Http\Requests\Admin\UpdateSectionRequest;
+use App\Models\ArchivedSection;
 use App\Models\Program;
 use App\Models\SchoolSetting;
 use App\Models\Section;
@@ -109,8 +110,28 @@ class ShsSectionController extends Controller
             ->orderBy('program_code')
             ->get();
 
+        // Get archived sections for reference when creating new sections
+        // Get sections from the most recently archived semester (based on archived_at timestamp)
+        $mostRecentArchivedSemester = \App\Models\ArchivedSection::selectRaw('academic_year, semester, MAX(archived_at) as latest_archive')
+            ->groupBy('academic_year', 'semester')
+            ->orderBy('latest_archive', 'desc')
+            ->first();
+
+        $archivedSections = collect();
+        if ($mostRecentArchivedSemester) {
+            $archivedSections = \App\Models\ArchivedSection::with(['archivedEnrollments', 'program'])
+                ->where('academic_year', $mostRecentArchivedSemester->academic_year)
+                ->where('semester', $mostRecentArchivedSemester->semester)
+                ->whereHas('archivedEnrollments', function ($query) {
+                    $query->whereNotNull('student_id');
+                })
+                ->orderBy('section_name')
+                ->get();
+        }
+
         return Inertia::render('Admin/Sections/Shs/Sections/Create', [
             'programs' => $programs,
+            'archivedSections' => $archivedSections,
             'currentAcademicPeriod' => [
                 'academic_year' => $currentAcademicYear,
                 'semester' => $currentSemester,
@@ -250,5 +271,127 @@ class ShsSectionController extends Controller
         ]);
 
         return back()->with('success', 'Subject assigned to section successfully.');
+    }
+
+    public function carryForwardForm(Request $request): Response
+    {
+        $currentAcademicYear = SchoolSetting::getCurrentAcademicYear();
+        $currentSemester = SchoolSetting::getCurrentSemester();
+
+        // Get the most recent archived sections (since we now only keep the most recent archived data)
+        $mostRecentArchived = ArchivedSection::selectRaw('academic_year, semester')
+            ->orderBy('academic_year', 'desc')
+            ->orderByRaw("CASE WHEN semester = 'first' THEN 1 WHEN semester = 'second' THEN 2 WHEN semester = 'summer' THEN 3 END DESC")
+            ->first();
+
+        $archivedSections = collect();
+        if ($mostRecentArchived) {
+            $archivedSections = ArchivedSection::with(['archivedEnrollments.student.user', 'program'])
+                ->where('academic_year', $mostRecentArchived->academic_year)
+                ->where('semester', $mostRecentArchived->semester)
+                ->whereHas('archivedEnrollments', function ($query) {
+                    $query->whereNotNull('student_id');
+                })
+                ->orderBy('section_name')
+                ->get();
+
+            // Filter to only SHS sections by checking if they have a program that is SHS level
+            $archivedSections = $archivedSections->filter(function ($section) {
+                return $section->program && $section->program->education_level === 'shs';
+            });
+        }
+
+        return Inertia::render('Admin/Sections/Shs/Sections/CarryForward', [
+            'archivedSections' => $archivedSections,
+            'currentAcademicPeriod' => [
+                'academic_year' => $currentAcademicYear,
+                'semester' => $currentSemester,
+            ],
+            'previousSemester' => $mostRecentArchived ? $mostRecentArchived->semester : null,
+        ]);
+    }
+
+    public function carryForward(Request $request): RedirectResponse
+    {
+        $request->validate([
+            'archived_section_id' => 'required|exists:archived_sections,id',
+            'section_name' => 'required|string|max:50',
+            'academic_year' => 'required|string|max:20',
+            'semester' => 'required|in:1st,2nd',
+            'student_ids' => 'nullable|array',
+            'student_ids.*' => 'exists:students,id',
+        ]);
+
+        $archivedSection = ArchivedSection::with(['archivedEnrollments.student'])->findOrFail($request->archived_section_id);
+
+        // Use program and curriculum from archived section
+        if (! $archivedSection->program_id || ! $archivedSection->curriculum_id) {
+            return back()->withErrors(['archived_section_id' => 'Archived section is missing program or curriculum information.']);
+        }
+
+        // Validate it's an SHS section
+        if ($archivedSection->program->education_level !== 'shs') {
+            return back()->withErrors(['archived_section_id' => 'Selected section is not an SHS section.']);
+        }
+
+        // Create new section
+        $newSection = Section::create([
+            'program_id' => $archivedSection->program_id,
+            'curriculum_id' => $archivedSection->curriculum_id,
+            'section_name' => $request->section_name,
+            'year_level' => $archivedSection->year_level,
+            'academic_year' => $request->academic_year,
+            'semester' => $request->semester,
+            'status' => 'active',
+        ]);
+
+        // Recreate subjects from archived course data
+        $courseData = $archivedSection->course_data;
+        if ($courseData) {
+            foreach ($courseData as $course) {
+                $subject = \App\Models\Subject::where('id', $course['id'])->first();
+                if ($subject) {
+                    $newSection->sectionSubjects()->create([
+                        'subject_id' => $subject->id,
+                        'status' => 'active',
+                    ]);
+                }
+            }
+        }
+
+        // Enroll students
+        $studentIds = $request->student_ids ?? $archivedSection->archivedEnrollments->pluck('student_id')->toArray();
+
+        foreach ($studentIds as $studentId) {
+            // Check if student is still active and not already enrolled this semester
+            $student = Student::find($studentId);
+
+            if (! $student || $student->status !== 'active') {
+                continue;
+            }
+
+            // Check for existing enrollment this semester
+            $existingEnrollment = StudentEnrollment::where('student_id', $studentId)
+                ->where('academic_year', $request->academic_year)
+                ->where('semester', $request->semester)
+                ->exists();
+
+            if ($existingEnrollment) {
+                continue;
+            }
+
+            StudentEnrollment::create([
+                'student_id' => $studentId,
+                'section_id' => $newSection->id,
+                'enrollment_date' => now(),
+                'status' => 'active',
+                'academic_year' => $request->academic_year,
+                'semester' => $request->semester,
+                'enrolled_by' => Auth::id(),
+            ]);
+        }
+
+        return redirect()->route('admin.shs.sections.show', $newSection->id)
+            ->with('success', 'Section carried forward successfully with '.count($studentIds).' students enrolled.');
     }
 }

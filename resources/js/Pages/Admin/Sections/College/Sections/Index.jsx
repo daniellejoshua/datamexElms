@@ -16,7 +16,8 @@ import {
     Building2,
     ChevronRight,
     Star,
-    Filter
+    Filter,
+    RefreshCcw
 } from 'lucide-react';
 
 const Index = ({ 

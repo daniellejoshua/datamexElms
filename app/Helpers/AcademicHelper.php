@@ -44,12 +44,9 @@ class AcademicHelper
         if ($month >= 8 && $month <= 12) {
             // August to December = 1st semester
             return '1st';
-        } elseif ($month >= 1 && $month <= 5) {
-            // January to May = 2nd semester
-            return '2nd';
         } else {
-            // June to July = summer semester
-            return 'summer';
+            // January to July = 2nd semester
+            return '2nd';
         }
     }
 
@@ -84,7 +81,6 @@ class AcademicHelper
         return [
             ['value' => '1st', 'label' => '1st Semester'],
             ['value' => '2nd', 'label' => '2nd Semester'],
-            ['value' => 'summer', 'label' => 'Summer'],
         ];
     }
 

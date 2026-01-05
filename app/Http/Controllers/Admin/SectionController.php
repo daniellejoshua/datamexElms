@@ -6,6 +6,7 @@ use App\Helpers\AcademicHelper;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\StoreSectionRequest;
 use App\Http\Requests\Admin\UpdateSectionRequest;
+use App\Models\ArchivedSection;
 use App\Models\Program;
 use App\Models\SchoolSetting;
 use App\Models\Section;
@@ -136,9 +137,20 @@ class SectionController extends Controller
         $programs = Program::where('status', 'active')->orderBy('program_code')->get();
         $curricula = \App\Models\Curriculum::where('status', 'active')->with('program')->orderBy('curriculum_code')->get();
 
+        // Get archived sections for reference when creating new sections
+        $archivedSections = \App\Models\ArchivedSection::with(['archivedEnrollments'])
+            ->whereHas('archivedEnrollments', function ($query) {
+                $query->whereNotNull('student_id');
+            })
+            ->orderBy('academic_year', 'desc')
+            ->orderBy('semester', 'desc')
+            ->limit(50)
+            ->get();
+
         return Inertia::render('Admin/Sections/Create', [
             'programs' => $programs,
             'curricula' => $curricula,
+            'archivedSections' => $archivedSections,
             'currentAcademicPeriod' => [
                 'academic_year' => $currentAcademicYear,
                 'semester' => $currentSemester,
@@ -514,7 +526,298 @@ class SectionController extends Controller
             'section' => $section,
             'enrolledStudents' => $enrolledStudents,
             'availableStudents' => $availableStudents->values(), // Reset array keys after filtering
+            'canCarryForward' => $this->canCarryForwardStudents($section),
         ]);
+    }
+
+    /**
+     * Check if this section can carry forward students from an archived section
+     */
+    protected function canCarryForwardStudents(Section $section): bool
+    {
+        // Check for archived section with same year level (repeating students)
+        $sameYearArchived = ArchivedSection::where('section_name', $section->section_name)
+            ->where('program_id', $section->program_id)
+            ->where('year_level', $section->year_level)
+            ->orderBy('archived_at', 'desc')
+            ->first();
+
+        if ($sameYearArchived) {
+            return true;
+        }
+
+        // Check for archived section from previous year level (students progressing)
+        $previousYearLevel = $section->year_level - 1;
+        if ($previousYearLevel > 0) {
+            $previousYearArchived = ArchivedSection::where('section_name', $section->section_name)
+                ->where('program_id', $section->program_id)
+                ->where('year_level', $previousYearLevel)
+                ->orderBy('archived_at', 'desc')
+                ->first();
+
+            if ($previousYearArchived) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Carry forward students from the last archived version of this section
+     * Handles both:
+     * 1. Same year level (repeating students)
+     * 2. Previous year level (students progressing to next year)
+     */
+    public function carryForwardStudents(Section $section)
+    {
+        try {
+            $archivedSection = null;
+            $isProgression = false;
+
+            // Determine which archived section to look for based on semester progression
+            if ($section->semester === '1st') {
+                // For 1st semester sections, look for students progressing from previous year (2nd semester)
+                $previousYearLevel = $section->year_level - 1;
+                if ($previousYearLevel > 0) {
+                    $archivedSection = ArchivedSection::with(['archivedEnrollments.student.user'])
+                        ->where('section_name', $section->section_name)
+                        ->where('program_id', $section->program_id)
+                        ->where('year_level', $previousYearLevel)
+                        ->where('semester', 'second') // Look for 2nd semester of previous year
+                        ->orderBy('archived_at', 'desc')
+                        ->first();
+
+                    if ($archivedSection) {
+                        $isProgression = true;
+                    }
+                }
+            } else {
+                // For 2nd semester sections, look for continuing students from same year (1st semester)
+                $archivedSection = ArchivedSection::with(['archivedEnrollments.student.user'])
+                    ->where('section_name', $section->section_name)
+                    ->where('program_id', $section->program_id)
+                    ->where('year_level', $section->year_level)
+                    ->where('semester', 'first') // Look for 1st semester of same year
+                    ->orderBy('archived_at', 'desc')
+                    ->first();
+            }
+
+            // Fallback: if no specific semester match found, try the old logic
+            if (! $archivedSection) {
+                // First try to find archived section with same year level
+                $archivedSection = ArchivedSection::with(['archivedEnrollments.student.user'])
+                    ->where('section_name', $section->section_name)
+                    ->where('program_id', $section->program_id)
+                    ->where('year_level', $section->year_level)
+                    ->orderBy('archived_at', 'desc')
+                    ->first();
+
+                // If no same-year section found, look for previous year level (student progression)
+                if (! $archivedSection) {
+                    $previousYearLevel = $section->year_level - 1;
+                    if ($previousYearLevel > 0) {
+                        $archivedSection = ArchivedSection::with(['archivedEnrollments.student.user'])
+                            ->where('section_name', $section->section_name)
+                            ->where('program_id', $section->program_id)
+                            ->where('year_level', $previousYearLevel)
+                            ->orderBy('archived_at', 'desc')
+                            ->first();
+
+                        if ($archivedSection) {
+                            $isProgression = true;
+                        }
+                    }
+                }
+            }
+
+            if (! $archivedSection) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'No archived section found to carry forward students from.',
+                    'data' => [
+                        'enrolled' => [],
+                        'skipped' => [],
+                        'not_enrolled' => [],
+                        'year_level_mismatch' => [],
+                        'archived_students' => [],
+                        'is_progression' => false,
+                    ],
+                ]);
+            }
+
+            // Get all archived students for display
+            $archivedStudents = $archivedSection->archivedEnrollments
+                ->map(function ($enrollment) {
+                    return [
+                        'id' => $enrollment->student_id,
+                        'name' => $enrollment->student->user->name ?? 'Unknown Student',
+                        'student_number' => $enrollment->student->student_number ?? '',
+                        'year_level' => $enrollment->student->current_year_level ?? '',
+                    ];
+                })
+                ->sortBy('name')
+                ->values()
+                ->toArray();
+
+            $enrolledStudents = [];
+            $skippedStudents = [];
+            $notEnrolledStudents = [];
+            $yearLevelMismatch = [];
+
+            // Get all students who were enrolled in the archived section
+            $archivedStudentIds = $archivedSection->archivedEnrollments
+                ->pluck('student_id')
+                ->unique()
+                ->toArray();
+
+            foreach ($archivedStudentIds as $studentId) {
+                $student = Student::with('user')->find($studentId);
+
+                if (! $student) {
+                    $skippedStudents[] = [
+                        'id' => $studentId,
+                        'name' => "Student ID {$studentId}",
+                        'reason' => 'not found',
+                    ];
+
+                    continue;
+                }
+
+                // Check if student's current year level matches the section's year level
+                // This is important for progression - students who progressed should match
+                if ($student->current_year_level != $section->year_level && $student->student_type !== 'irregular') {
+                    $yearLevelMismatch[] = [
+                        'id' => $student->id,
+                        'name' => $student->user->name,
+                        'current_year_level' => $student->current_year_level,
+                        'section_year_level' => $section->year_level,
+                        'reason' => 'year level mismatch',
+                    ];
+
+                    continue;
+                }
+
+                // Skip students who are not enrolled in the current semester OR are already in a current section
+                $isCurrentlyEnrolled = StudentEnrollment::where('student_id', $studentId)
+                    ->where('academic_year', $section->academic_year)
+                    ->where('semester', $section->semester)
+                    ->where('status', 'active')
+                    ->exists();
+
+                if (!$isCurrentlyEnrolled) {
+                    $notEnrolledStudents[] = [
+                        'id' => $student->id,
+                        'name' => $student->user->name,
+                        'reason' => 'not enrolled in current semester'
+                    ];
+                    continue;
+                }
+
+                // Check if student is already enrolled in any section for the current semester
+                $existingEnrollment = StudentEnrollment::where([
+                    'student_id' => $studentId,
+                    'academic_year' => $section->academic_year,
+                    'semester' => $section->semester,
+                    'status' => 'active',
+                ])->first();
+
+                if ($existingEnrollment) {
+                    $conflictSection = Section::with('program')->find($existingEnrollment->section_id);
+                    $skippedStudents[] = [
+                        'id' => $student->id,
+                        'name' => $student->user->name,
+                        'reason' => 'already enrolled in ' . ($conflictSection ? $conflictSection->section_name : 'another section'),
+                    ];
+                    continue;
+                }
+
+                // Create the enrollment record
+                StudentEnrollment::create([
+                    'student_id' => $studentId,
+                    'section_id' => $section->id,
+                    'enrolled_by' => Auth::id(),
+                    'enrollment_date' => now(),
+                    'academic_year' => $section->academic_year,
+                    'semester' => $section->semester,
+                    'status' => 'active',
+                ]);
+
+                // Automatically enroll student in all section subjects
+                $sectionSubjects = SectionSubject::where('section_id', $section->id)
+                    ->where('status', 'active')
+                    ->get();
+
+                foreach ($sectionSubjects as $sectionSubject) {
+                    $existingSubjectEnrollment = StudentSubjectEnrollment::where([
+                        'student_id' => $studentId,
+                        'section_subject_id' => $sectionSubject->id,
+                        'academic_year' => $section->academic_year,
+                        'semester' => $section->semester,
+                    ])->first();
+
+                    if (! $existingSubjectEnrollment) {
+                        StudentSubjectEnrollment::create([
+                            'student_id' => $studentId,
+                            'section_subject_id' => $sectionSubject->id,
+                            'enrollment_type' => 'regular',
+                            'academic_year' => $section->academic_year,
+                            'semester' => $section->semester,
+                            'status' => 'active',
+                            'enrollment_date' => now(),
+                            'enrolled_by' => Auth::id(),
+                        ]);
+                    }
+                }
+
+                // Ensure student has payment records
+                $student->ensurePaymentRecords($section->academic_year, $section->semester);
+
+                $enrolledStudents[] = [
+                    'id' => $student->id,
+                    'name' => $student->user->name,
+                ];
+            }
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Carry forward operation completed',
+                'data' => [
+                    'enrolled' => $enrolledStudents,
+                    'skipped' => $skippedStudents,
+                    'not_enrolled' => $notEnrolledStudents,
+                    'year_level_mismatch' => $yearLevelMismatch,
+                    'archived_students' => $archivedStudents,
+                    'is_progression' => $isProgression,
+                    'archived_section' => [
+                        'name' => $archivedSection->section_name,
+                        'year_level' => $archivedSection->year_level,
+                        'academic_year' => $archivedSection->academic_year,
+                        'semester' => $archivedSection->semester,
+                    ],
+                ],
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Carry forward students failed', [
+                'section_id' => $section->id,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to carry forward students: '.$e->getMessage(),
+                'data' => [
+                    'enrolled' => [],
+                    'skipped' => [],
+                    'not_enrolled' => [],
+                    'year_level_mismatch' => [],
+                    'archived_students' => [],
+                    'is_progression' => false,
+                ],
+            ]);
+        }
     }
 
     public function enrollStudent(Request $request, Section $section): RedirectResponse

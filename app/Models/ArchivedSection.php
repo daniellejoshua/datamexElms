@@ -13,6 +13,9 @@ class ArchivedSection extends Model
 
     protected $fillable = [
         'original_section_id',
+        'program_id',
+        'curriculum_id',
+        'year_level',
         'section_name',
         'academic_year',
         'semester',
@@ -45,6 +48,16 @@ class ArchivedSection extends Model
     public function archivedBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'archived_by');
+    }
+
+    public function program(): BelongsTo
+    {
+        return $this->belongsTo(Program::class);
+    }
+
+    public function curriculum(): BelongsTo
+    {
+        return $this->belongsTo(Curriculum::class);
     }
 
     public function scopeByAcademicYear($query, string $year)

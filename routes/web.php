@@ -130,6 +130,7 @@ Route::middleware(['auth', 'verified'])->prefix('admin')->name('admin.')->group(
         Route::resource('sections', SectionController::class);
         Route::get('sections/{section}/students', [SectionController::class, 'students'])->name('sections.students');
         Route::post('sections/{section}/students', [SectionController::class, 'enrollStudent'])->name('sections.enroll');
+        Route::post('sections/{section}/students/carry-forward', [SectionController::class, 'carryForwardStudents'])->name('sections.carry-forward-students');
         Route::delete('sections/{section}/students', [SectionController::class, 'removeStudent'])->name('sections.remove-student');
 
         // Enrollment Management
@@ -154,7 +155,7 @@ Route::middleware(['auth', 'verified'])->prefix('admin')->name('admin.')->group(
 
         // College Management Routes
         Route::prefix('college')->name('college.')->group(function () {
-            // College Sections
+            // College Sections Resource
             Route::resource('sections', CollegeSectionController::class);
             Route::get('sections/{section}/subjects', [CollegeSectionController::class, 'subjects'])->name('sections.subjects');
             Route::post('sections/{section}/subjects', [CollegeSectionController::class, 'attachSubject'])->name('sections.attach-subject');
@@ -165,7 +166,7 @@ Route::middleware(['auth', 'verified'])->prefix('admin')->name('admin.')->group(
 
         // SHS Management Routes
         Route::prefix('shs')->name('shs.')->group(function () {
-            // SHS Sections
+            // SHS Sections Resource
             Route::resource('sections', ShsSectionController::class);
             Route::get('sections/{section}/subjects', [ShsSectionController::class, 'subjects'])->name('sections.subjects');
             Route::post('sections/{section}/subjects', [ShsSectionController::class, 'attachSubject'])->name('sections.attach-subject');

@@ -15,7 +15,7 @@ class SetAcademicPeriod extends Command
      */
     protected $signature = 'academic:set-period 
                            {--year= : Academic year (e.g., 2024-2025)}
-                           {--semester= : Semester (1st, 2nd, summer)}
+                           {--semester= : Semester (1st, 2nd)}
                            {--auto : Use automatic calculation}';
 
     /**
@@ -66,8 +66,8 @@ class SetAcademicPeriod extends Command
         }
 
         // Validate semester
-        if (! in_array($semester, ['1st', '2nd', 'summer'])) {
-            $this->error('❌ Invalid semester. Use: 1st, 2nd, or summer');
+        if (! in_array($semester, ['1st', '2nd'])) {
+            $this->error('❌ Invalid semester. Use: 1st or 2nd');
 
             return 1;
         }

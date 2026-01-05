@@ -296,22 +296,22 @@ export default function Dashboard({
                             {todaySchedule && todaySchedule.length > 0 ? (
                                 <div className="space-y-3">
                                     {todaySchedule.map((schedule, index) => (
-                                        <div key={index} className="flex items-center gap-3 p-3 bg-white rounded-lg border border-green-100 shadow-sm hover:shadow-md transition-shadow">
+                                        <div key={index} className="flex flex-col sm:flex-row items-start sm:items-center gap-3 p-3 bg-white rounded-lg border border-green-100 shadow-sm hover:shadow-md transition-shadow">
                                             <div className="flex-shrink-0">
                                                 <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center">
                                                     <Clock className="w-4 h-4 text-green-600" />
                                                 </div>
                                             </div>
-                                            <div className="flex-1 min-w-0">
-                                                <div className="flex items-center justify-between mb-1">
-                                                    <h4 className="font-semibold text-gray-900 truncate">
-                                                        {schedule.subject_name || schedule.subject_code}
+                                            <div className="flex-1 min-w-0 w-full">
+                                                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-1 gap-2">
+                                                    <h4 className="font-semibold text-gray-900">
+                                                        {schedule.subject_code}
                                                     </h4>
-                                                    <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 text-xs">
+                                                    <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 text-xs self-start sm:self-auto">
                                                         {schedule.start_time} - {schedule.end_time}
                                                     </Badge>
                                                 </div>
-                                                <div className="flex items-center gap-4 text-xs text-gray-600">
+                                                <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 text-xs text-gray-600">
                                                     <span className="flex items-center gap-1">
                                                         <MapPin className="w-3 h-3" />
                                                         Room {schedule.room || 'TBA'}

@@ -25,9 +25,17 @@ class StoreSectionRequest extends FormRequest
         return [
             'program_id' => ['required', 'exists:programs,id'],
             'curriculum_id' => ['nullable', 'exists:curriculum,id'],
-            'section_name' => ['required', 'string', 'max:50'],
+            'section_name' => [
+                'required',
+                'string',
+                'max:50',
+                Rule::unique('sections')->where(function ($query) {
+                    return $query->where('program_id', $this->program_id)
+                        ->where('year_level', $this->year_level);
+                }),
+            ],
             'academic_year' => ['required', 'string', 'max:20'],
-            'semester' => ['required', Rule::in(['1st', '2nd', 'summer'])],
+            'semester' => ['required', Rule::in(['1st', '2nd'])],
             'year_level' => ['required', 'integer', 'min:1', 'max:4'],
             'status' => ['required', Rule::in(['active', 'inactive'])],
         ];
@@ -43,6 +51,7 @@ class StoreSectionRequest extends FormRequest
             'program_id.exists' => 'The selected program is invalid.',
             'curriculum_id.exists' => 'The selected curriculum is invalid.',
             'section_name.required' => 'Section name is required.',
+            'section_name.unique' => 'A section with this name already exists for the selected program and year level.',
             'academic_year.required' => 'Academic year is required.',
             'semester.required' => 'Semester is required.',
             'year_level.required' => 'Year level is required.',

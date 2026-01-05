@@ -10,7 +10,7 @@ import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { ArrowLeft, GraduationCap, Users, Calendar, BookOpen, AlertCircle } from 'lucide-react';
 
-const Create = ({ programs, currentAcademicPeriod, academicYearOptions, semesterOptions }) => {
+const Create = ({ programs, archivedSections, currentAcademicPeriod, academicYearOptions, semesterOptions }) => {
     const { data, setData, post, processing, errors } = useForm({
         program_id: '',
         section_name: '',
@@ -22,6 +22,14 @@ const Create = ({ programs, currentAcademicPeriod, academicYearOptions, semester
 
     const [selectedProgram, setSelectedProgram] = useState(null);
     const [generatedSectionName, setGeneratedSectionName] = useState('');
+
+    // Filter archived sections based on selected program and year level
+    const filteredArchivedSections = archivedSections?.filter(section => {
+        if (!selectedProgram || !data.year_level) return true; // Show all if nothing selected
+        
+        // Check if this archived section belongs to the same program and year level
+        return section.program_id === selectedProgram.id && section.year_level === data.year_level;
+    }) || [];
 
     // Determine current semester for display
     const getCurrentSemester = () => {
@@ -50,6 +58,25 @@ const Create = ({ programs, currentAcademicPeriod, academicYearOptions, semester
         // Only allow single letters
         const letter = value.replace(/[^A-Za-z]/g, '').toUpperCase().slice(0, 1);
         setData('section_name', letter);
+    };
+
+    const handleArchivedSectionClick = (archivedSection) => {
+        // Carry forward data from the archived section
+        const sectionLetter = archivedSection.section_name.slice(-1); // Get the last character (should be the letter)
+        
+        // Pre-fill form data from archived section
+        setData({
+            ...data,
+            program_id: archivedSection.program_id?.toString() || data.program_id,
+            year_level: archivedSection.year_level || data.year_level,
+            section_name: sectionLetter,
+        });
+        
+        // Update selected program if it changed
+        if (archivedSection.program_id && archivedSection.program_id !== parseInt(data.program_id)) {
+            const program = programs.find(p => p.id === archivedSection.program_id);
+            setSelectedProgram(program || null);
+        }
     };
 
     const handleSubmit = (e) => {
@@ -107,6 +134,9 @@ const Create = ({ programs, currentAcademicPeriod, academicYearOptions, semester
                                             {getCurrentSemester()} Semester
                                         </Badge>
                                     </div>
+                                    <p className="text-xs text-purple-600 mt-2">
+                                        New sections will be created for this academic period
+                                    </p>
                                 </div>
 
                                 {/* Program and Year Level Row */}
@@ -118,18 +148,20 @@ const Create = ({ programs, currentAcademicPeriod, academicYearOptions, semester
                                         </Label>
                                         <Select value={data.program_id} onValueChange={(value) => setData('program_id', value)}>
                                             <SelectTrigger className={`h-10 ${errors.program_id ? 'border-red-500' : 'border-gray-300 focus:border-purple-500'}`}>
-                                                <SelectValue placeholder="Select SHS track" />
+                                                <SelectValue placeholder="Select SHS track">
+                                                    {data.program_id && programs?.find(p => p.id.toString() === data.program_id) && (
+                                                        <Badge variant="secondary" className="font-mono text-xs">
+                                                            {programs.find(p => p.id.toString() === data.program_id).program_code}
+                                                        </Badge>
+                                                    )}
+                                                </SelectValue>
                                             </SelectTrigger>
                                             <SelectContent>
                                                 {programs?.map((program) => (
                                                     <SelectItem key={program.id} value={program.id.toString()}>
-                                                        <div className="flex items-center gap-2">
-                                                            <Badge variant="secondary" className="font-mono text-xs">
-                                                                {program.program_code}
-                                                            </Badge>
-                                                            <span className="text-sm">{program.program_name}</span>
-                                                          
-                                                        </div>
+                                                        <Badge variant="secondary" className="font-mono text-xs">
+                                                            {program.program_code}
+                                                        </Badge>
                                                     </SelectItem>
                                                 ))}
                                             </SelectContent>
@@ -200,83 +232,13 @@ const Create = ({ programs, currentAcademicPeriod, academicYearOptions, semester
                                     )}
                                 </div>
 
-                                {/* Academic Year and Semester Row */}
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    {/* Academic Year */}
-                                    <div className="space-y-2">
-                                        <Label htmlFor="academic_year" className="font-medium">Academic Year</Label>
-                                        <Select value={data.academic_year} onValueChange={(value) => setData('academic_year', value)}>
-                                            <SelectTrigger className={`h-10 ${errors.academic_year ? 'border-red-500' : 'border-gray-300 focus:border-purple-500'}`}>
-                                                <SelectValue />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                {academicYearOptions?.map((year) => (
-                                                    <SelectItem key={year} value={year}>
-                                                        {year} {year === currentAcademicPeriod?.academic_year && '(Current)'}
-                                                    </SelectItem>
-                                                ))}
-                                            </SelectContent>
-                                        </Select>
-                                        {errors.academic_year && (
-                                            <Alert variant="destructive" className="py-2">
-                                                <AlertCircle className="h-4 w-4" />
-                                                <AlertDescription className="text-sm">{errors.academic_year}</AlertDescription>
-                                            </Alert>
-                                        )}
-                                    </div>
-
-                                    {/* Semester */}
-                                    <div className="space-y-2">
-                                        <Label htmlFor="semester" className="font-medium">Semester</Label>
-                                        <Select value={data.semester} onValueChange={(value) => setData('semester', value)}>
-                                            <SelectTrigger className={`h-10 ${errors.semester ? 'border-red-500' : 'border-gray-300 focus:border-purple-500'}`}>
-                                                <SelectValue />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                {semesterOptions?.map((semester) => (
-                                                    <SelectItem key={semester.value} value={semester.value}>
-                                                        {semester.label} {semester.value === currentAcademicPeriod?.semester && '(Current)'}
-                                                    </SelectItem>
-                                                ))}
-                                            </SelectContent>
-                                        </Select>
-                                        {errors.semester && (
-                                            <Alert variant="destructive" className="py-2">
-                                                <AlertCircle className="h-4 w-4" />
-                                                <AlertDescription className="text-sm">{errors.semester}</AlertDescription>
-                                            </Alert>
-                                        )}
-                                    </div>
-                                </div>
-
                                 {/* Status */}
                                 <div className="space-y-2">
-                                    <Label htmlFor="status" className="font-medium">Status</Label>
-                                    <Select value={data.status} onValueChange={(value) => setData('status', value)}>
-                                        <SelectTrigger className={`h-10 max-w-xs ${errors.status ? 'border-red-500' : 'border-gray-300 focus:border-purple-500'}`}>
-                                            <SelectValue />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            <SelectItem value="active">
-                                                <div className="flex items-center gap-2">
-                                                    <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                                                    <span>Active</span>
-                                                </div>
-                                            </SelectItem>
-                                            <SelectItem value="inactive">
-                                                <div className="flex items-center gap-2">
-                                                    <div className="w-2 h-2 bg-gray-500 rounded-full"></div>
-                                                    <span>Inactive</span>
-                                                </div>
-                                            </SelectItem>
-                                        </SelectContent>
-                                    </Select>
-                                    {errors.status && (
-                                        <Alert variant="destructive" className="py-2">
-                                            <AlertCircle className="h-4 w-4" />
-                                            <AlertDescription className="text-sm">{errors.status}</AlertDescription>
-                                        </Alert>
-                                    )}
+                                    <Label className="font-medium">Status</Label>
+                                    <div className="flex items-center gap-2">
+                                        <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                                        <span className="text-sm font-medium">Active</span>
+                                    </div>
                                 </div>
 
                                 {/* Submit Buttons */}
@@ -298,6 +260,113 @@ const Create = ({ programs, currentAcademicPeriod, academicYearOptions, semester
                         </CardContent>
                     </Card>
                 </div>
+
+                {/* Archived Sections Reference */}
+                {archivedSections && archivedSections.length > 0 && (
+                    <div className="max-w-4xl mx-auto mt-8">
+                        <Card className="shadow-lg">
+                            <CardHeader>
+                                <CardTitle className="flex items-center gap-2 text-lg">
+                                    <BookOpen className="w-5 h-5 text-amber-600" />
+                                    Previous Sections Reference
+                                </CardTitle>
+                                <CardDescription>
+                                    Historical section data from the most recently archived semester for reference when creating new sections. Click on any section to carry forward its program, grade level, and section name.
+                                </CardDescription>
+                            </CardHeader>
+                            <CardContent className="p-6">
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                    {filteredArchivedSections.slice(0, 12).map((archivedSection) => (
+                                        <div 
+                                            key={archivedSection.id} 
+                                            className="bg-gray-50 p-4 rounded-lg border border-gray-200 hover:bg-purple-50 hover:border-purple-300 cursor-pointer transition-colors"
+                                            onClick={() => handleArchivedSectionClick(archivedSection)}
+                                            title="Click to use this section name"
+                                        >
+                                            <div className="flex items-center justify-between mb-2">
+                                                <h4 className="font-medium text-gray-900">{archivedSection.section_name}</h4>
+                                                <Badge variant="outline" className="text-xs">
+                                                    {archivedSection.academic_year} {archivedSection.semester}
+                                                </Badge>
+                                            </div>
+                                            <div className="space-y-1 text-sm text-gray-600">
+                                                <div className="flex justify-between">
+                                                    <span>Enrolled:</span>
+                                                    <span className="font-medium">{archivedSection.total_enrolled_students || 0}</span>
+                                                </div>
+                                                <div className="flex justify-between">
+                                                    <span>Completed:</span>
+                                                    <span className="font-medium text-green-600">{archivedSection.completed_students || 0}</span>
+                                                </div>
+                                                <div className="flex justify-between">
+                                                    <span>Dropped:</span>
+                                                    <span className="font-medium text-red-600">{archivedSection.dropped_students || 0}</span>
+                                                </div>
+                                                {archivedSection.section_average_grade && (
+                                                    <div className="flex justify-between">
+                                                        <span>Avg Grade:</span>
+                                                        <span className="font-medium">{archivedSection.section_average_grade}%</span>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                                {filteredArchivedSections.length > 12 && (
+                                    <div className="mt-4 text-center">
+                                        <p className="text-sm text-gray-500">
+                                            Showing 12 of {filteredArchivedSections.length} archived sections
+                                        </p>
+                                    </div>
+                                )}
+                                {archivedSections && archivedSections.length > 0 && filteredArchivedSections.length === 0 && (
+                                    <div className="mt-4 text-center">
+                                        <p className="text-sm text-amber-600">
+                                            No archived sections found for the selected program and grade level. Showing all available sections.
+                                        </p>
+                                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mt-4">
+                                            {archivedSections.slice(0, 6).map((archivedSection) => (
+                                                <div 
+                                                    key={archivedSection.id} 
+                                                    className="bg-gray-50 p-4 rounded-lg border border-gray-200 hover:bg-purple-50 hover:border-purple-300 cursor-pointer transition-colors opacity-60"
+                                                    onClick={() => handleArchivedSectionClick(archivedSection)}
+                                                    title="Click to use this section name"
+                                                >
+                                                    <div className="flex items-center justify-between mb-2">
+                                                        <h4 className="font-medium text-gray-900">{archivedSection.section_name}</h4>
+                                                        <Badge variant="outline" className="text-xs">
+                                                            {archivedSection.academic_year} {archivedSection.semester}
+                                                        </Badge>
+                                                    </div>
+                                                    <div className="space-y-1 text-sm text-gray-600">
+                                                        <div className="flex justify-between">
+                                                            <span>Enrolled:</span>
+                                                            <span className="font-medium">{archivedSection.total_enrolled_students || 0}</span>
+                                                        </div>
+                                                        <div className="flex justify-between">
+                                                            <span>Completed:</span>
+                                                            <span className="font-medium text-green-600">{archivedSection.completed_students || 0}</span>
+                                                        </div>
+                                                        <div className="flex justify-between">
+                                                            <span>Dropped:</span>
+                                                            <span className="font-medium text-red-600">{archivedSection.dropped_students || 0}</span>
+                                                        </div>
+                                                        {archivedSection.section_average_grade && (
+                                                            <div className="flex justify-between">
+                                                                <span>Avg Grade:</span>
+                                                                <span className="font-medium">{archivedSection.section_average_grade}%</span>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+                            </CardContent>
+                        </Card>
+                    </div>
+                )}
             </div>
         </AuthenticatedLayout>
     );
