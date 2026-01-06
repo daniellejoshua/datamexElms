@@ -59,9 +59,26 @@ export default function Create({ programs, subjects: initialSubjects }) {
                     return response.json();
                 })
                 .then(majorSubjects => {
-                    // Combine minor subjects with major subjects for the selected program
+                    // Filter minor subjects based on program's education level
+                    let filteredMinorSubjects = initialSubjects;
+                    if (selectedProgram) {
+                        if (selectedProgram.education_level === 'senior_high') {
+                            // For senior high programs, only show senior high minor subjects
+                            filteredMinorSubjects = initialSubjects.filter(subject =>
+                                subject.education_level === 'senior_high'
+                            );
+                        } else if (selectedProgram.education_level === 'college') {
+                            // For college programs, only show college minor subjects
+                            filteredMinorSubjects = initialSubjects.filter(subject =>
+                                subject.education_level === 'college'
+                            );
+                        }
+                        // For other education levels, show all minor subjects as fallback
+                    }
+
+                    // Combine filtered minor subjects with major subjects for the selected program
                     const combinedSubjects = [
-                        ...initialSubjects, // These are the minor subjects
+                        ...filteredMinorSubjects,
                         ...majorSubjects.filter(major => major.subject_type === 'major') // Only add major subjects
                     ];
                     setSubjects(combinedSubjects);
@@ -159,16 +176,25 @@ export default function Create({ programs, subjects: initialSubjects }) {
     return (
         <AuthenticatedLayout
             header={
-                <div className="flex items-center gap-4">
-                    <Link href={route('admin.curriculum.index')}>
-                        <Button variant="outline" size="sm">
-                            <ArrowLeft className="w-4 h-4 mr-2" />
-                            Back to Curriculum
+                <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                        <Button asChild variant="ghost" size="sm">
+                            <Link href={route('admin.curriculum.index')} className="flex items-center gap-2">
+                                <ArrowLeft className="w-4 h-4" />
+                                Back to Curriculum
+                            </Link>
                         </Button>
-                    </Link>
-                    <h2 className="font-semibold text-xl text-gray-800 leading-tight">
-                        Create New Curriculum - Step {currentStep} of 2
-                    </h2>
+                        <div className="h-6 w-px bg-gray-300"></div>
+                        <div className="flex items-center gap-2">
+                            <div className="bg-blue-100 p-1.5 rounded-md">
+                                <FileText className="w-4 h-4 text-blue-600" />
+                            </div>
+                            <div>
+                                <h2 className="text-lg font-semibold text-gray-900">Create New Curriculum</h2>
+                                <p className="text-xs text-gray-500 mt-0.5">Step {currentStep} of 2 - {currentStep === 1 ? 'Basic Information' : 'Subject Selection'}</p>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             }
         >
@@ -400,7 +426,7 @@ export default function Create({ programs, subjects: initialSubjects }) {
                             />
                         </div>
                         {/* Minor Subjects */}
-                        {filteredSubjects.filter(s => s.subject_type === 'minor').length > 0 && (
+                        {filteredSubjects.filter(s => s.subject_type === 'minor').length > 0 ? (
                             <div>
                                 <div className="flex items-center gap-2 mb-3">
                                     <div className="w-2 h-2 bg-green-500 rounded-full"></div>
@@ -433,10 +459,21 @@ export default function Create({ programs, subjects: initialSubjects }) {
                                     ))}
                                 </div>
                             </div>
+                        ) : (
+                            <div>
+                                <div className="flex items-center gap-2 mb-3">
+                                    <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                                    <h4 className="font-semibold text-green-700">Minor Subjects</h4>
+                                </div>
+                                <div className="text-center py-8 text-gray-500">
+                                    <BookOpen className="w-12 h-12 mx-auto mb-3 text-gray-300" />
+                                    <p className="text-sm">No minor subjects available for this program</p>
+                                </div>
+                            </div>
                         )}
 
                         {/* Major Subjects */}
-                        {filteredSubjects.filter(s => s.subject_type === 'major').length > 0 && (
+                        {filteredSubjects.filter(s => s.subject_type === 'major').length > 0 ? (
                             <div>
                                 <div className="flex items-center gap-2 mb-3">
                                     <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
@@ -467,6 +504,17 @@ export default function Create({ programs, subjects: initialSubjects }) {
                                             </label>
                                         </div>
                                     ))}
+                                </div>
+                            </div>
+                        ) : (
+                            <div>
+                                <div className="flex items-center gap-2 mb-3">
+                                    <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                                    <h4 className="font-semibold text-blue-700">Major Subjects</h4>
+                                </div>
+                                <div className="text-center py-8 text-gray-500">
+                                    <BookOpen className="w-12 h-12 mx-auto mb-3 text-gray-300" />
+                                    <p className="text-sm">No major subjects available for this program</p>
                                 </div>
                             </div>
                         )}

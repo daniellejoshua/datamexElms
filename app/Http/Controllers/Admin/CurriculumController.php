@@ -97,6 +97,9 @@ class CurriculumController extends Controller
             'program_id' => 'required|exists:programs,id',
         ]);
 
+        $program = \App\Models\Program::find($request->program_id);
+
+        // For all programs, show major subjects for that specific program
         $subjects = Subject::where('program_id', $request->program_id)
             ->where('subject_type', 'major')
             ->where('status', 'active')
