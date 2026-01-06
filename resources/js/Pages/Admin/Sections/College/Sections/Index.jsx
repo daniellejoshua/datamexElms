@@ -76,8 +76,8 @@ const Index = ({
             header={
                 <div className="flex items-center justify-between px-2 py-1">
                     <div className="flex items-center gap-2">
-                        <div className="bg-blue-100 p-1.5 rounded-md">
-                            <School className="w-4 h-4 text-blue-600" />
+                        <div className="bg-red-100 p-1.5 rounded-md">
+                            <School className="w-4 h-4 text-red-600" />
                         </div>
                         <div>
                             <h2 className="text-lg font-semibold text-gray-900">College Sections</h2>
@@ -99,7 +99,7 @@ const Index = ({
                                 <span className="text-sm font-medium">Filter Sections</span>
                             </div>
                             {/* Current Period Badge - Top Right */}
-                            <Badge variant="outline" className="bg-white border-blue-200 text-blue-600 px-3 py-2">
+                            <Badge variant="outline" className="bg-white border-red-200 text-red-600 px-3 py-2">
                                 <Calendar className="w-4 h-4 mr-2" />
                                 Academic Year: {currentAcademicPeriod.academic_year} - {currentAcademicPeriod.semester}
                             </Badge>
@@ -175,7 +175,7 @@ const Index = ({
                             <div className="space-y-1">
                                 <label className="text-xs font-medium text-gray-600 opacity-0">Action</label>
                                 <div className="h-8 flex items-center">
-                                    <Button asChild size="sm" className="bg-blue-600 hover:bg-blue-700 text-white">
+                                    <Button asChild size="sm" className="bg-red-600 hover:bg-red-700 text-white">
                                         <Link href={route('admin.college.sections.create')}>
                                             <Plus className="w-3 h-3 mr-1" />
                                             Create Section
@@ -193,7 +193,7 @@ const Index = ({
                         sections.data.map((section) => {
                             return (
                                 <Link key={section.id} href={route('admin.sections.show', section.id)} className="block">
-                                    <Card className="group hover:shadow-xl transition-all duration-300 border-2 hover:border-blue-300 relative overflow-hidden cursor-pointer">
+                                    <Card className="group hover:shadow-xl transition-all duration-300 border-2 hover:border-red-300 relative overflow-hidden cursor-pointer">
                                         {/* Status Badge */}
                                         <div className="absolute top-4 right-4">
                                             <Badge 
@@ -209,14 +209,14 @@ const Index = ({
 
                                         <CardHeader className="pb-4">
                                             <div className="flex items-start space-x-3">
-                                                <div className="p-3 bg-blue-600 rounded-xl flex-shrink-0 shadow-md group-hover:scale-110 transition-transform duration-300">
+                                                <div className="p-3 bg-red-600 rounded-xl flex-shrink-0 shadow-md group-hover:scale-110 transition-transform duration-300">
                                                     <School className="w-6 h-6 text-white" />
                                                 </div>
                                                 <div className="flex-1 min-w-0">
-                                                    <CardTitle className="text-lg font-bold text-gray-900 truncate group-hover:text-blue-700 transition-colors">
+                                                    <CardTitle className="text-lg font-bold text-gray-900 truncate group-hover:text-red-700 transition-colors">
                                                         {section.program?.program_code}-{section.year_level}{section.section_name}
                                                     </CardTitle>
-                                                    <CardDescription className="text-blue-600 font-semibold truncate">
+                                                    <CardDescription className="text-red-600 font-semibold truncate">
                                                         {section.program?.program_name || 'N/A'}
                                                     </CardDescription>
                                                 </div>
@@ -257,9 +257,9 @@ const Index = ({
                                                     </Card>
                                                 </div>
                                                 
-                                                <Card className="p-3 bg-blue-50 border-blue-200">
+                                                <Card className="p-3 bg-red-50 border-red-200">
                                                     <div className="flex items-center text-sm">
-                                                        <Calendar className="w-4 h-4 text-blue-600 mr-3 flex-shrink-0" />
+                                                        <Calendar className="w-4 h-4 text-red-600 mr-3 flex-shrink-0" />
                                                     <span className="text-gray-700 font-medium truncate">
                                                         {section.academic_year} - {getSemesterDisplayName(section.semester)}
                                                     </span>
@@ -269,7 +269,7 @@ const Index = ({
                                         
                                         {/* Action Buttons - Prevent event bubbling */}
                                         <div className="space-y-3" onClick={(e) => e.preventDefault()}>
-                                            <Button asChild className="w-full bg-blue-600 hover:bg-blue-700 text-white shadow-md">
+                                            <Button asChild className="w-full bg-red-600 hover:bg-red-700 text-white shadow-md">
                                                 <Link href={route('admin.college.sections.subjects', section.id)}>
                                                     <BookOpen className="w-4 h-4 mr-2" />
                                                     Manage Subjects
@@ -278,7 +278,7 @@ const Index = ({
                                             </Button>
                                             
                                             <div className="grid grid-cols-2 gap-2">
-                                                <Button asChild variant="outline" className="border-2 border-blue-300 text-blue-700 hover:bg-blue-50 font-medium">
+                                                <Button asChild variant="outline" className="border-2 border-red-300 text-red-700 hover:bg-red-50 font-medium">
                                                     <Link href={route('admin.sections.students', section.id)}>
                                                         <Users className="w-3 h-3 mr-1" />
                                                         Students
@@ -299,17 +299,17 @@ const Index = ({
                         })
                     ) : (
                         <div className="col-span-full">
-                            <Card className="p-16 text-center border-2 border-dashed border-gray-300 hover:border-blue-400 transition-colors bg-gradient-to-br from-gray-50 to-blue-50">
+                            <Card className="p-16 text-center border-2 border-dashed border-gray-300">
                                 <div className="space-y-6">
-                                    <div className="p-6 bg-gradient-to-br from-blue-100 to-green-100 rounded-full w-24 h-24 mx-auto flex items-center justify-center shadow-lg">
-                                        <Building2 className="w-10 h-10 text-blue-600" />
+                                    <div className="p-6 bg-gray-100 rounded-full w-24 h-24 mx-auto flex items-center justify-center">
+                                        <Building2 className="w-10 h-10 text-gray-600" />
                                     </div>
                                     <div>
                                         <h3 className="text-2xl font-bold text-gray-900 mb-3">No college sections found</h3>
                                         <p className="text-gray-600 mb-8 max-w-md mx-auto leading-relaxed">
                                             Create your first college section to get started with managing college academic programs and student enrollments.
                                         </p>
-                                        <Button asChild className="bg-red-600 hover:bg-red-700 text-white shadow-lg px-8 py-3 text-base">
+                                        <Button asChild className="bg-red-600 hover:bg-red-700 text-white px-8 py-3 text-base">
                                             <Link href={route('admin.college.sections.create')}>
                                                 <Plus className="w-5 h-5 mr-2" />
                                                 Create First Section
@@ -337,8 +337,8 @@ const Index = ({
                                                 size="sm"
                                                 className={`h-7 px-2 text-xs ${
                                                     link.active 
-                                                        ? "bg-blue-600 hover:bg-blue-700 text-white" 
-                                                        : "border-gray-300 hover:border-blue-300 text-gray-700"
+                                                        ? "bg-red-600 hover:bg-red-700 text-white" 
+                                                        : "border-gray-300 hover:border-red-300 text-gray-700"
                                                 }`}
                                             >
                                                 <Link href={link.url}>

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Head, Link, router, useForm } from '@inertiajs/react';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -24,7 +24,8 @@ import {
     X,
     MoreHorizontal,
     ChevronDown,
-    ChevronUp
+    ChevronUp,
+    Upload
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -47,6 +48,8 @@ const Index = ({ registrars, filters }) => {
     const [viewModalOpen, setViewModalOpen] = useState(false);
     const [editModalOpen, setEditModalOpen] = useState(false);
     const [selectedRegistrar, setSelectedRegistrar] = useState(null);
+    const [imagePreview, setImagePreview] = useState(null);
+    const fileInputRef = useRef(null);
 
     const { data, setData, put, processing, errors, reset } = useForm({
         first_name: '',
@@ -54,6 +57,7 @@ const Index = ({ registrars, filters }) => {
         middle_name: '',
         email: '',
         is_active: false,
+        profile_picture: null,
     });
 
     // Debounced search function
@@ -89,7 +93,9 @@ const Index = ({ registrars, filters }) => {
             middle_name: nameParts.slice(1, -1).join(' ') || '',
             email: registrar.email || '',
             is_active: registrar.is_active || false,
+            profile_picture: null,
         });
+        setImagePreview(null);
         setEditModalOpen(true);
     };
 
@@ -97,11 +103,46 @@ const Index = ({ registrars, filters }) => {
         setViewModalOpen(false);
         setEditModalOpen(false);
         setSelectedRegistrar(null);
+        setImagePreview(null);
         reset();
     };
 
+    const handleProfilePictureClick = () => {
+        fileInputRef.current?.click();
+    };
+
+    const handleFileChange = (e) => {
+        const file = e.target.files[0];
+        setData('profile_picture', file);
+
+        if (file) {
+            const reader = new FileReader();
+            reader.onload = (e) => setImagePreview(e.target.result);
+            reader.readAsDataURL(file);
+        } else {
+            setImagePreview(null);
+        }
+    };
+
+    // Cleanup preview URL on unmount
+    useEffect(() => {
+        return () => {
+            if (imagePreview && imagePreview.startsWith('blob:')) {
+                URL.revokeObjectURL(imagePreview);
+            }
+        };
+    }, [imagePreview]);
+
     const saveEditing = (registrarId) => {
+        // Prepare data for submission, excluding null profile_picture
+        const submitData = { ...data };
+        if (submitData.profile_picture === null) {
+            delete submitData.profile_picture;
+        }
+
         put(route('admin.registrars.update', registrarId), {
+            data: submitData,
+            forceFormData: true,
             onSuccess: () => {
                 closeModals();
                 toast.success('Registrar updated successfully!');
@@ -363,7 +404,7 @@ const Index = ({ registrars, filters }) => {
 
                 {/* View Modal */}
                 <Dialog open={viewModalOpen} onOpenChange={setViewModalOpen}>
-                    <DialogContent className="sm:max-w-md">
+                    <DialogContent className="sm:max-w-lg">
                         <DialogHeader>
                             <DialogTitle className="flex items-center">
                                 <Eye className="w-5 h-5 mr-2" />
@@ -375,33 +416,58 @@ const Index = ({ registrars, filters }) => {
                         </DialogHeader>
                         {selectedRegistrar && (
                             <div className="space-y-4">
-                                <div className="grid grid-cols-2 gap-4">
-                                    <div>
-                                        <Label className="text-sm font-medium">Name</Label>
-                                        <p className="text-sm text-gray-600 mt-1">{selectedRegistrar.name}</p>
-                                    </div>
-                                    <div>
-                                        <Label className="text-sm font-medium">Employee Number</Label>
-                                        <p className="text-sm text-gray-600 mt-1 font-mono">{selectedRegistrar.employee_number || 'N/A'}</p>
-                                    </div>
-                                    <div>
-                                        <Label className="text-sm font-medium">Email</Label>
-                                        <p className="text-sm text-gray-600 mt-1">{selectedRegistrar.email}</p>
-                                    </div>
-                                    <div>
-                                        <Label className="text-sm font-medium">Status</Label>
-                                        <div className="mt-1">
-                                            {getStatusBadge(selectedRegistrar.is_active)}
-                                        </div>
-                                    </div>
-                                    <div className="col-span-2">
-                                        <Label className="text-sm font-medium">Created</Label>
-                                        <p className="text-sm text-gray-600 mt-1">
-                                            {new Date(selectedRegistrar.created_at).toLocaleDateString()}
-                                        </p>
+                                {/* Profile Picture Section */}
+                                <div className="flex items-center justify-center">
+                                    <div className="relative">
+                                        {selectedRegistrar.profile_picture ? (
+                                            <img
+                                                src={selectedRegistrar.profile_picture}
+                                                alt={`${selectedRegistrar.name}`}
+                                                className="w-20 h-20 rounded-full object-cover border-4 border-gray-100"
+                                            />
+                                        ) : (
+                                            <div className="w-20 h-20 rounded-full bg-gray-100 border-4 border-gray-200 flex items-center justify-center">
+                                                <span className="text-gray-500 font-semibold text-lg">
+                                                    {selectedRegistrar.name.split(' ').map(n => n.charAt(0)).join('').slice(0, 2)}
+                                                </span>
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
-                                <div className="flex justify-end">
+
+                                {/* Basic Information */}
+                                <div className="space-y-3">
+                                    <div className="text-center">
+                                        <h3 className="text-lg font-semibold text-gray-900">{selectedRegistrar.name}</h3>
+                                        <p className="text-sm text-gray-500">Registrar Account</p>
+                                    </div>
+
+                                    <div className="grid grid-cols-1 gap-3">
+                                        <div className="flex items-center justify-between py-1.5 border-b border-gray-100">
+                                            <Label className="text-sm font-medium text-gray-600">Employee Number</Label>
+                                            <span className="text-sm font-mono text-gray-900">{selectedRegistrar.employee_number || 'N/A'}</span>
+                                        </div>
+
+                                        <div className="flex items-center justify-between py-1.5 border-b border-gray-100">
+                                            <Label className="text-sm font-medium text-gray-600">Email</Label>
+                                            <span className="text-sm text-gray-900">{selectedRegistrar.email}</span>
+                                        </div>
+
+                                        <div className="flex items-center justify-between py-1.5 border-b border-gray-100">
+                                            <Label className="text-sm font-medium text-gray-600">Status</Label>
+                                            <div>{getStatusBadge(selectedRegistrar.is_active)}</div>
+                                        </div>
+
+                                        <div className="flex items-center justify-between py-1.5">
+                                            <Label className="text-sm font-medium text-gray-600">Created</Label>
+                                            <span className="text-sm text-gray-900">
+                                                {new Date(selectedRegistrar.created_at).toLocaleDateString()}
+                                            </span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="flex justify-end pt-3 border-t">
                                     <Button variant="outline" onClick={closeModals}>
                                         Close
                                     </Button>
@@ -413,77 +479,157 @@ const Index = ({ registrars, filters }) => {
 
                 {/* Edit Modal */}
                 <Dialog open={editModalOpen} onOpenChange={setEditModalOpen}>
-                    <DialogContent className="sm:max-w-md">
+                    <DialogContent className="sm:max-w-lg">
                         <DialogHeader>
                             <DialogTitle className="flex items-center">
                                 <Edit className="w-5 h-5 mr-2" />
                                 Edit Registrar
                             </DialogTitle>
                             <DialogDescription>
-                                Update the registrar's information and status.
+                                Update the registrar's information and profile picture.
                             </DialogDescription>
                         </DialogHeader>
                         {selectedRegistrar && (
                             <div className="space-y-4">
-                                <div className="space-y-2">
-                                    <Label htmlFor="first_name">First Name</Label>
-                                    <Input
-                                        id="first_name"
-                                        value={data.first_name}
-                                        onChange={(e) => setData('first_name', e.target.value)}
-                                        placeholder="First Name"
-                                    />
-                                    {errors.first_name && <p className="text-sm text-red-600">{errors.first_name}</p>}
+                                {/* Profile Picture Section */}
+                                <div className="flex items-center justify-center">
+                                    <div className="relative">
+                                        <div className="w-16 h-16 rounded-full bg-gray-100 border-2 border-gray-200 flex items-center justify-center overflow-hidden">
+                                            {imagePreview ? (
+                                                <img
+                                                    src={imagePreview}
+                                                    alt="Profile preview"
+                                                    className="w-full h-full object-cover"
+                                                />
+                                            ) : selectedRegistrar.profile_picture ? (
+                                                <img
+                                                    src={selectedRegistrar.profile_picture}
+                                                    alt="Current profile"
+                                                    className="w-full h-full object-cover"
+                                                />
+                                            ) : (
+                                                <span className="text-gray-500 font-semibold text-sm">
+                                                    {selectedRegistrar.name.split(' ').map(n => n.charAt(0)).join('').slice(0, 2)}
+                                                </span>
+                                            )}
+                                        </div>
+                                        <button
+                                            type="button"
+                                            onClick={handleProfilePictureClick}
+                                            className="absolute -bottom-1 -right-1 bg-gray-600 text-white p-1 rounded-full hover:bg-gray-700 transition-colors"
+                                        >
+                                            <Edit className="w-2.5 h-2.5" />
+                                        </button>
+                                    </div>
                                 </div>
 
-                                <div className="space-y-2">
-                                    <Label htmlFor="middle_name">Middle Name (Optional)</Label>
-                                    <Input
-                                        id="middle_name"
-                                        value={data.middle_name}
-                                        onChange={(e) => setData('middle_name', e.target.value)}
-                                        placeholder="Middle Name"
-                                    />
-                                    {errors.middle_name && <p className="text-sm text-red-600">{errors.middle_name}</p>}
+                                <div className="text-center -mt-2">
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={handleProfilePictureClick}
+                                        className="text-xs h-7"
+                                    >
+                                        <Upload className="w-3 h-3 mr-1" />
+                                        Change Picture
+                                    </Button>
+                                    {data.profile_picture && (
+                                        <Button
+                                            type="button"
+                                            variant="ghost"
+                                            size="sm"
+                                            onClick={() => {
+                                                setData('profile_picture', null);
+                                                setImagePreview(null);
+                                                if (fileInputRef.current) {
+                                                    fileInputRef.current.value = '';
+                                                }
+                                            }}
+                                            className="ml-2 text-xs h-7"
+                                        >
+                                            <X className="w-3 h-3 mr-1" />
+                                            Remove
+                                        </Button>
+                                    )}
                                 </div>
 
-                                <div className="space-y-2">
-                                    <Label htmlFor="last_name">Last Name</Label>
-                                    <Input
-                                        id="last_name"
-                                        value={data.last_name}
-                                        onChange={(e) => setData('last_name', e.target.value)}
-                                        placeholder="Last Name"
-                                    />
-                                    {errors.last_name && <p className="text-sm text-red-600">{errors.last_name}</p>}
+                                <input
+                                    ref={fileInputRef}
+                                    type="file"
+                                    accept="image/*"
+                                    onChange={handleFileChange}
+                                    className="hidden"
+                                />
+
+                                {/* Form Fields */}
+                                <div className="space-y-3">
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <div className="space-y-1">
+                                            <Label htmlFor="first_name" className="text-sm">First Name</Label>
+                                            <Input
+                                                id="first_name"
+                                                value={data.first_name}
+                                                onChange={(e) => setData('first_name', e.target.value)}
+                                                placeholder="First Name"
+                                                className="h-8"
+                                            />
+                                            {errors.first_name && <p className="text-xs text-red-600">{errors.first_name}</p>}
+                                        </div>
+
+                                        <div className="space-y-1">
+                                            <Label htmlFor="last_name" className="text-sm">Last Name</Label>
+                                            <Input
+                                                id="last_name"
+                                                value={data.last_name}
+                                                onChange={(e) => setData('last_name', e.target.value)}
+                                                placeholder="Last Name"
+                                                className="h-8"
+                                            />
+                                            {errors.last_name && <p className="text-xs text-red-600">{errors.last_name}</p>}
+                                        </div>
+                                    </div>
+
+                                    <div className="space-y-1">
+                                        <Label htmlFor="middle_name" className="text-sm">Middle Name (Optional)</Label>
+                                        <Input
+                                            id="middle_name"
+                                            value={data.middle_name}
+                                            onChange={(e) => setData('middle_name', e.target.value)}
+                                            placeholder="Middle Name"
+                                            className="h-8"
+                                        />
+                                        {errors.middle_name && <p className="text-xs text-red-600">{errors.middle_name}</p>}
+                                    </div>
+
+                                    <div className="space-y-1">
+                                        <Label htmlFor="email" className="text-sm">Email</Label>
+                                        <Input
+                                            id="email"
+                                            type="email"
+                                            value={data.email}
+                                            onChange={(e) => setData('email', e.target.value)}
+                                            placeholder="Email Address"
+                                            className="h-8"
+                                        />
+                                        {errors.email && <p className="text-xs text-red-600">{errors.email}</p>}
+                                    </div>
+
+                                    <div className="space-y-1">
+                                        <Label className="text-sm">Status</Label>
+                                        {getStatusSelect(data.is_active)}
+                                        {errors.is_active && <p className="text-xs text-red-600">{errors.is_active}</p>}
+                                    </div>
                                 </div>
 
-                                <div className="space-y-2">
-                                    <Label htmlFor="email">Email</Label>
-                                    <Input
-                                        id="email"
-                                        type="email"
-                                        value={data.email}
-                                        onChange={(e) => setData('email', e.target.value)}
-                                        placeholder="Email Address"
-                                    />
-                                    {errors.email && <p className="text-sm text-red-600">{errors.email}</p>}
-                                </div>
-
-                                <div className="space-y-2">
-                                    <Label>Status</Label>
-                                    {getStatusSelect(data.is_active)}
-                                    {errors.is_active && <p className="text-sm text-red-600">{errors.is_active}</p>}
-                                </div>
-
-                                <div className="flex justify-end gap-2 pt-4">
-                                    <Button variant="outline" onClick={closeModals}>
+                                <div className="flex justify-end gap-2 pt-3 border-t">
+                                    <Button variant="outline" onClick={closeModals} size="sm">
                                         Cancel
                                     </Button>
                                     <Button
                                         onClick={() => saveEditing(selectedRegistrar.id)}
                                         disabled={processing}
-                                        className="bg-blue-600 hover:bg-blue-700"
+                                        size="sm"
                                     >
                                         {processing ? 'Saving...' : 'Save Changes'}
                                     </Button>

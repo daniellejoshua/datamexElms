@@ -1151,30 +1151,4 @@ class RegistrarController extends Controller
 
         return sprintf('%s-%s-%04d', $year, $prefix, $newNumber);
     }
-
-    /**
-     * Show all teachers for management.
-     */
-    public function teachers(): Response
-    {
-        $teachers = Teacher::with('user')
-            ->paginate(15);
-
-        return Inertia::render('Registrar/Teachers/Index', [
-            'teachers' => $teachers,
-        ]);
-    }
-
-    /**
-     * Show all sections for management.
-     */
-    public function sections(): Response
-    {
-        $sections = Section::with(['teacher', 'program'])
-            ->paginate(15);
-
-        return Inertia::render('Registrar/Sections/Index', [
-            'sections' => $sections,
-        ]);
-    }
 }

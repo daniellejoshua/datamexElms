@@ -10,10 +10,13 @@ use App\Models\ArchivedSection;
 use App\Models\Program;
 use App\Models\SchoolSetting;
 use App\Models\Section;
+use App\Models\Student;
+use App\Models\StudentEnrollment;
 use App\Models\Subject;
 use App\Models\Teacher;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Inertia\Inertia;
 use Inertia\Response;
 

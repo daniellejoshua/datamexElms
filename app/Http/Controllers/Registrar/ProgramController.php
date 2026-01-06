@@ -195,21 +195,4 @@ class ProgramController extends Controller
 
         return response()->json($subjects);
     }
-
-    /**
-     * Store a subject for a program (assign existing subject)
-     */
-    public function storeSubject(Request $request, Program $program)
-    {
-        $validated = $request->validate([
-            'subject_ids' => 'required|array',
-            'subject_ids.*' => 'exists:subjects,id',
-        ]);
-
-        // Sync subjects with the program
-        $program->subjects()->sync($validated['subject_ids']);
-
-        return redirect()->route('registrar.programs.index')
-            ->with('success', 'Program subjects updated successfully.');
-    }
 }

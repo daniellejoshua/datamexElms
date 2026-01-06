@@ -7,6 +7,7 @@ use App\Models\Teacher;
 use App\Models\User;
 use CloudinaryLabs\CloudinaryLaravel\Facades\Cloudinary;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\Rule;
@@ -132,7 +133,7 @@ class TeacherController extends Controller
             Log::info('Teacher created successfully', [
                 'teacher_id' => $teacher->id,
                 'user_id' => $user->id,
-                'created_by' => auth()->id(),
+                'created_by' => Auth::id(),
             ]);
 
             return redirect()->back()
@@ -170,7 +171,7 @@ class TeacherController extends Controller
     {
         $teacher->load('user');
 
-        \Log::info('Teacher edit data:', $teacher->toArray());
+        Log::info('Teacher edit data:', $teacher->toArray());
 
         return Inertia::render('Admin/Teachers/Edit', [
             'teacher' => $teacher,
@@ -179,12 +180,12 @@ class TeacherController extends Controller
 
     public function update(Request $request, Teacher $teacher)
     {
-        \Log::info('Teacher update method called for teacher ' . $teacher->id);
+        Log::info('Teacher update method called for teacher ' . $teacher->id);
 
-        \Log::info('Teacher update request data:', $request->all());
-        \Log::info('Teacher update files:', $request->allFiles());
-        \Log::info('Teacher update method: ' . $request->method());
-        \Log::info('Teacher update headers:', $request->headers->all());
+        Log::info('Teacher update request data:', $request->all());
+        Log::info('Teacher update files:', $request->allFiles());
+        Log::info('Teacher update method: ' . $request->method());
+        Log::info('Teacher update headers:', $request->headers->all());
 
         $validated = $request->validate([
             'first_name' => 'required|string|max:255',
@@ -235,7 +236,7 @@ class TeacherController extends Controller
 
             Log::info('Teacher updated successfully', [
                 'teacher_id' => $teacher->id,
-                'updated_by' => auth()->id(),
+                'updated_by' => Auth::id(),
             ]);
 
             return redirect()->route('admin.teachers.show', $teacher->id)
@@ -273,7 +274,7 @@ class TeacherController extends Controller
 
             Log::info('Teacher deleted successfully', [
                 'teacher_id' => $teacher->id,
-                'deleted_by' => auth()->id(),
+                'deleted_by' => Auth::id(),
             ]);
 
             return redirect()->route('admin.teachers.index')

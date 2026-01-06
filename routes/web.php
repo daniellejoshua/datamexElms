@@ -49,8 +49,6 @@ Route::middleware(['auth', 'verified', 'role:registrar', 'throttle.api'])->prefi
     Route::get('/students/create', [RegistrarController::class, 'create'])->name('students.create');
     Route::post('/students', [RegistrarController::class, 'store'])->name('students.store');
     Route::put('/students/{student}', [RegistrarController::class, 'update'])->name('students.update');
-    Route::get('/teachers', [RegistrarController::class, 'teachers'])->name('teachers');
-    Route::get('/sections', [RegistrarController::class, 'sections'])->name('sections');
     Route::get('/enrollments', [RegistrarController::class, 'students'])->name('enrollments.index');
 
     // College Payment Routes
@@ -81,7 +79,6 @@ Route::middleware(['auth', 'verified', 'role:registrar', 'throttle.api'])->prefi
         Route::delete('/{program}', [ProgramController::class, 'destroy'])->name('destroy');
 
         // Subject Management within Programs
-        Route::post('/{program}/subjects', [ProgramController::class, 'storeSubject'])->name('subjects.store');
         Route::get('/subjects/{educationLevel}', [ProgramController::class, 'getSubjectsByEducationLevel'])->name('subjects.by-education-level');
     });
 

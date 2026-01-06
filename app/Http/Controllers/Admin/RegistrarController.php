@@ -4,7 +4,9 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\User;
+use CloudinaryLabs\CloudinaryLaravel\Facades\Cloudinary;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\Rule;
@@ -95,7 +97,7 @@ class RegistrarController extends Controller
 
             Log::info('Registrar created successfully', [
                 'user_id' => $user->id,
-                'created_by' => auth()->id(),
+                'created_by' => Auth::id(),
             ]);
 
             return redirect()->route('admin.registrars.index')
@@ -177,7 +179,7 @@ class RegistrarController extends Controller
 
             Log::info('Registrar updated successfully', [
                 'user_id' => $user->id,
-                'updated_by' => auth()->id(),
+                'updated_by' => Auth::id(),
             ]);
 
             return redirect()->route('admin.registrars.show', $user->id)
@@ -210,7 +212,7 @@ class RegistrarController extends Controller
 
             Log::info('Registrar deleted successfully', [
                 'user_id' => $user->id,
-                'deleted_by' => auth()->id(),
+                'deleted_by' => Auth::id(),
             ]);
 
             return redirect()->route('admin.registrars.index')

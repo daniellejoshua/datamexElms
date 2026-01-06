@@ -19,8 +19,15 @@ const Edit = ({ registrar }) => {
         middle_name: registrar.name.split(' ').slice(1, -1).join(' ') || '',
         email: registrar.email || '',
         is_active: registrar.is_active || false,
-        profile_picture: null,
-    });
+        profile_picture: null,    }, {
+        onSuccess: () => {
+            reset();
+            toast.success('Registrar updated successfully!');
+            router.visit(route('admin.registrars.show', registrar.id));
+        },
+        onError: () => {
+            toast.error('Failed to update registrar. Please check the errors.');
+        }    });
 
     const handleProfilePictureClick = () => {
         fileInputRef.current?.click();
@@ -62,78 +69,9 @@ const Edit = ({ registrar }) => {
 
         console.log('Submitting registrar update with data:', submitData);
 
-        // Create FormData for submission
-        const formData = new FormData();
-        Object.entries(submitData).forEach(([key, value]) => {
-            if (value !== null && value !== undefined) {
-                formData.append(key, value);
-            }
-        });
-        formData.append('_method', 'PUT'); // Spoof PUT method
-
-        console.log('FormData contents:');
-        for (let [key, value] of formData.entries()) {
-            console.log(key, value);
-        }
-
-        console.log('Submitting to URL:', route('admin.registrars.update', registrar.id));
-
-        // Use fetch to send FormData as POST with _method
-        fetch(route('admin.registrars.update', registrar.id), {
-            method: 'POST',
-            body: formData,
-            headers: {
-                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
-                'X-Requested-With': 'XMLHttpRequest',
-                'X-Inertia': 'true',
-            },
-        })
-        .then(response => {
-            if (response.redirected || response.status === 302) {
-                console.log('Success response: redirect');
-                toast.success('Registrar updated successfully!', {
-                    style: {
-                        background: '#f0fdf4',
-                        color: '#166534',
-                        border: '1px solid #bbf7d0',
-                    },
-                });
-                router.visit(route('admin.registrars.show', registrar.id));
-            } else {
-                return response.json().then(data => {
-                    if (data.errors) {
-                        console.log('Error response:', data.errors);
-                        const errorMessage = Object.values(data.errors).flat().join(', ');
-                        toast.error(`Failed to update registrar: ${errorMessage}`, {
-                            style: {
-                                background: '#fef2f2',
-                                color: '#dc2626',
-                                border: '1px solid #fecaca',
-                            },
-                        });
-                    } else {
-                        console.log('Success response:', data);
-                        toast.success('Registrar updated successfully!', {
-                            style: {
-                                background: '#f0fdf4',
-                                color: '#166534',
-                                border: '1px solid #bbf7d0',
-                            },
-                        });
-                        router.visit(route('admin.registrars.show', registrar.id));
-                    }
-                });
-            }
-        })
-        .catch(error => {
-            console.log('Fetch error:', error);
-            toast.error('An error occurred while updating the registrar.', {
-                style: {
-                    background: '#fef2f2',
-                    color: '#dc2626',
-                    border: '1px solid #fecaca',
-                },
-            });
+        put(route('admin.registrars.update', registrar.id), {
+            data: submitData,
+            forceFormData: true, // This ensures file uploads work properly
         });
     };
 

@@ -75,8 +75,8 @@ const Index = ({
             header={
                 <div className="flex items-center justify-between px-2 py-1">
                     <div className="flex items-center gap-2">
-                        <div className="bg-purple-100 p-1.5 rounded-md">
-                            <School className="w-4 h-4 text-purple-600" />
+                        <div className="bg-blue-100 p-1.5 rounded-md">
+                            <School className="w-4 h-4 text-blue-600" />
                         </div>
                         <div>
                             <h2 className="text-lg font-semibold text-gray-900">SHS Sections</h2>
@@ -174,7 +174,7 @@ const Index = ({
                             <div className="space-y-1">
                                 <label className="text-xs font-medium text-gray-600 opacity-0">Action</label>
                                 <div className="h-8 flex items-center">
-                                    <Button asChild size="sm" className="bg-purple-600 hover:bg-purple-700 text-white">
+                                    <Button asChild size="sm" className="bg-blue-600 hover:bg-blue-700 text-white">
                                         <Link href={route('admin.shs.sections.create')}>
                                             <Plus className="w-3 h-3 mr-1" />
                                             Create Section
@@ -189,7 +189,7 @@ const Index = ({
                     {sections?.data?.length > 0 ? (
                         sections.data.map((section) => {
                             return (
-                                <Card key={section.id} className="group hover:shadow-xl transition-all duration-300 border-2 hover:border-purple-300 relative overflow-hidden">
+                                <Card key={section.id} className="group hover:shadow-xl transition-all duration-300 border-2 hover:border-blue-300 relative overflow-hidden">
                                     {/* Status Badge */}
                                     <div className="absolute top-4 right-4">
                                         <Badge 
@@ -205,14 +205,14 @@ const Index = ({
 
                                     <CardHeader className="pb-4">
                                         <div className="flex items-start space-x-3">
-                                            <div className="p-3 bg-purple-600 rounded-xl flex-shrink-0 shadow-md group-hover:scale-110 transition-transform duration-300">
+                                            <div className="p-3 bg-blue-600 rounded-xl flex-shrink-0 shadow-md group-hover:scale-110 transition-transform duration-300">
                                                 <School className="w-6 h-6 text-white" />
                                             </div>
                                             <div className="flex-1 min-w-0">
-                                                <CardTitle className="text-lg font-bold text-gray-900 truncate group-hover:text-purple-700 transition-colors">
+                                                <CardTitle className="text-lg font-bold text-gray-900 truncate group-hover:text-blue-700 transition-colors">
                                                     {section.program?.program_code}-{section.year_level}{section.section_name}
                                                 </CardTitle>
-                                                <CardDescription className="text-purple-600 font-semibold truncate">
+                                                <CardDescription className="text-blue-600 font-semibold truncate">
                                                     {section.program?.track || 'N/A'}
                                                 </CardDescription>
                                             </div>
@@ -294,17 +294,17 @@ const Index = ({
                         })
                     ) : (
                         <div className="col-span-full">
-                            <Card className="p-16 text-center border-2 border-dashed border-gray-300 hover:border-purple-400 transition-colors bg-gradient-to-br from-gray-50 to-purple-50">
+                            <Card className="p-16 text-center border-2 border-dashed border-gray-300">
                                 <div className="space-y-6">
-                                    <div className="p-6 bg-gradient-to-br from-purple-100 to-pink-100 rounded-full w-24 h-24 mx-auto flex items-center justify-center shadow-lg">
-                                        <Building2 className="w-10 h-10 text-purple-600" />
+                                    <div className="p-6 bg-gray-100 rounded-full w-24 h-24 mx-auto flex items-center justify-center">
+                                        <Building2 className="w-10 h-10 text-gray-600" />
                                     </div>
                                     <div>
                                         <h3 className="text-2xl font-bold text-gray-900 mb-3">No SHS sections found</h3>
                                         <p className="text-gray-600 mb-8 max-w-md mx-auto leading-relaxed">
                                             Create your first SHS section to get started with managing senior high school academic programs and student enrollments.
                                         </p>
-                                        <Button asChild className="bg-purple-600 hover:bg-purple-700 text-white shadow-lg px-8 py-3 text-base">
+                                        <Button asChild className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-3 text-base">
                                             <Link href={route('admin.shs.sections.create')}>
                                                 <Plus className="w-5 h-5 mr-2" />
                                                 Create First SHS Section
@@ -332,8 +332,8 @@ const Index = ({
                                                 size="sm"
                                                 className={`h-7 px-2 text-xs ${
                                                     link.active 
-                                                        ? "bg-purple-600 hover:bg-purple-700 text-white" 
-                                                        : "border-gray-300 hover:border-purple-300 text-gray-700"
+                                                        ? "bg-blue-600 hover:bg-blue-700 text-white" 
+                                                        : "border-gray-300 hover:border-blue-300 text-gray-700"
                                                 }`}
                                             >
                                                 <Link href={link.url}>

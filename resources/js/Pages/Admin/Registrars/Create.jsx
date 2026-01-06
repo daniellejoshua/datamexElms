@@ -70,77 +70,9 @@ const Create = () => {
 
         console.log('Submitting registrar creation with data:', submitData);
 
-        // Create FormData for submission
-        const formData = new FormData();
-        Object.entries(submitData).forEach(([key, value]) => {
-            if (value !== null && value !== undefined) {
-                formData.append(key, value);
-            }
-        });
-
-        console.log('FormData contents:');
-        for (let [key, value] of formData.entries()) {
-            console.log(key, value);
-        }
-
-        console.log('Submitting to URL:', route('admin.registrars.store'));
-
-        // Use fetch to send FormData as POST
-        fetch(route('admin.registrars.store'), {
-            method: 'POST',
-            body: formData,
-            headers: {
-                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
-                'X-Requested-With': 'XMLHttpRequest',
-                'X-Inertia': 'true',
-            },
-        })
-        .then(response => {
-            if (response.redirected || response.status === 302) {
-                console.log('Success response: redirect');
-                toast.success('Registrar created successfully!', {
-                    style: {
-                        background: '#f0fdf4',
-                        color: '#166534',
-                        border: '1px solid #bbf7d0',
-                    },
-                });
-                router.visit(route('admin.registrars.index'));
-            } else {
-                return response.json().then(data => {
-                    if (data.errors) {
-                        console.log('Error response:', data.errors);
-                        const errorMessage = Object.values(data.errors).flat().join(', ');
-                        toast.error(`Failed to create registrar: ${errorMessage}`, {
-                            style: {
-                                background: '#fef2f2',
-                                color: '#dc2626',
-                                border: '1px solid #fecaca',
-                            },
-                        });
-                    } else {
-                        console.log('Success response:', data);
-                        toast.success('Registrar created successfully!', {
-                            style: {
-                                background: '#f0fdf4',
-                                color: '#166534',
-                                border: '1px solid #bbf7d0',
-                            },
-                        });
-                        router.visit(route('admin.registrars.index'));
-                    }
-                });
-            }
-        })
-        .catch(error => {
-            console.log('Fetch error:', error);
-            toast.error('An error occurred while creating the registrar.', {
-                style: {
-                    background: '#fef2f2',
-                    color: '#dc2626',
-                    border: '1px solid #fecaca',
-                },
-            });
+        post(route('admin.registrars.store'), {
+            data: submitData,
+            forceFormData: true, // This ensures file uploads work properly
         });
     };
 

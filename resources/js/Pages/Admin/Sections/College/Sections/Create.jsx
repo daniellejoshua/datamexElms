@@ -226,9 +226,12 @@ const Create = ({ programs, curricula, archivedSections, currentAcademicPeriod, 
                                             <SelectContent>
                                                 {programs?.map((program) => (
                                                     <SelectItem key={program.id} value={program.id.toString()}>
-                                                        <Badge variant="secondary" className="font-mono text-xs">
-                                                            {program.program_code}
-                                                        </Badge>
+                                                        <div className="flex items-center w-full">
+                                                            <Badge variant="secondary" className="font-mono text-xs mr-2">
+                                                                {program.program_code}
+                                                            </Badge>
+                                                            <span>{program.program_name}</span>
+                                                        </div>
                                                     </SelectItem>
                                                 ))}
                                             </SelectContent>
