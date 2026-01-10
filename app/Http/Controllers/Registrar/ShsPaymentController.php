@@ -18,22 +18,22 @@ class ShsPaymentController extends Controller
     {
         $payments = ShsStudentPayment::with(['student.user'])
             ->whereHas('student', function ($query) {
-                $query->where('education_level', 'shs');
+                $query->where('education_level', 'senior_high');
             })
             ->paginate(15);
 
         $stats = [
             'total_payments' => ShsStudentPayment::whereHas('student', function ($query) {
-                $query->where('education_level', 'shs');
+                $query->where('education_level', 'senior_high');
             })->count(),
             'pending_payments' => ShsStudentPayment::whereHas('student', function ($query) {
-                $query->where('education_level', 'shs');
+                $query->where('education_level', 'senior_high');
             })->where('balance', '>', 0)->count(),
             'overdue_payments' => ShsStudentPayment::whereHas('student', function ($query) {
-                $query->where('education_level', 'shs');
+                $query->where('education_level', 'senior_high');
             })->where('balance', '>', 0)->count(), // SHS doesn't have overdue status
             'total_collectible' => ShsStudentPayment::whereHas('student', function ($query) {
-                $query->where('education_level', 'shs');
+                $query->where('education_level', 'senior_high');
             })->sum('balance'),
         ];
 
@@ -50,7 +50,7 @@ class ShsPaymentController extends Controller
     {
         $student->load(['user']);
 
-        if ($student->education_level !== 'shs') {
+        if ($student->education_level !== 'senior_high') {
             abort(404, 'Student not found in SHS records.');
         }
 
@@ -85,7 +85,7 @@ class ShsPaymentController extends Controller
 
         $student = Student::findOrFail($validated['student_id']);
 
-        if ($student->education_level !== 'shs') {
+        if ($student->education_level !== 'senior_high') {
             return back()->withErrors(['student_id' => 'Student must be enrolled in SHS.']);
         }
 

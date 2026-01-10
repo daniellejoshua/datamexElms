@@ -140,7 +140,7 @@ const Show = ({ section, sectionSubjects, availableStudents }) => {
                         <AccordionTrigger className="px-6 py-4 hover:no-underline">
                             <div className="flex items-center">
                                 <GraduationCap className="w-5 h-5 mr-2" />
-                                <span className="text-lg font-semibold">Subject Assignments ({sectionSubjects?.length || 0})</span>
+                                <span className="text-lg font-semibold">Subjects({sectionSubjects?.length || 0})</span>
                             </div>
                             <p className="text-sm text-muted-foreground mt-1">
                                 Subjects assigned to this section with teacher information
@@ -172,9 +172,11 @@ const Show = ({ section, sectionSubjects, availableStudents }) => {
                                         <AccordionTrigger className="hover:no-underline">
                                             <div className="flex items-center gap-4 text-left">
                                                 <div className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 ${
-                                                    sectionSubject.subject ? 'bg-blue-500' : 'bg-red-500'
+                                                    sectionSubject.subject ? 'bg-blue-100' : 'bg-red-100'
                                                 }`}>
-                                                    <BookOpen className="w-5 h-5 text-white" />
+                                                    <BookOpen className={`w-5 h-5 ${
+                                                        sectionSubject.subject ? 'text-blue-600' : 'text-red-600'
+                                                    }`} />
                                                 </div>
                                                 <div className="flex-1 min-w-0">
                                                     <h4 className="font-semibold text-gray-900 text-base truncate">
@@ -255,19 +257,21 @@ const Show = ({ section, sectionSubjects, availableStudents }) => {
                                                 </div>
 
                                                 {/* View Teacher Button */}
-                                                <div className="mt-6 pt-4 border-t border-gray-200">
-                                                    <Button
-                                                        asChild
-                                                        variant="outline"
-                                                        size="sm"
-                                                        className="w-full"
-                                                    >
-                                                        <Link href={sectionSubject.teacher?.id ? route('admin.teachers.show', sectionSubject.teacher.id) : '#'}>
-                                                            <User className="w-4 h-4 mr-2" />
-                                                            View Teacher Details
-                                                        </Link>
-                                                    </Button>
-                                                </div>
+                                                {sectionSubject.teacher?.id && (
+                                                    <div className="mt-6 pt-4 border-t border-gray-200">
+                                                        <Button
+                                                            asChild
+                                                            variant="outline"
+                                                            size="sm"
+                                                            className="w-full"
+                                                        >
+                                                            <Link href={route('admin.teachers.show', sectionSubject.teacher.id)}>
+                                                                <User className="w-4 h-4 mr-2" />
+                                                                View Teacher Details
+                                                            </Link>
+                                                        </Button>
+                                                    </div>
+                                                )}
                                             </div>
                                         </AccordionContent>
                                     </AccordionItem>
@@ -302,7 +306,7 @@ const Show = ({ section, sectionSubjects, availableStudents }) => {
                         {section.student_enrollments && section.student_enrollments.length > 0 ? (
                             <div className="space-y-4">
                                 {/* Search Input */}
-                                <div className="relative">
+                                <div className="relative mt-4">
                                     <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
                                     <Input
                                         type="text"

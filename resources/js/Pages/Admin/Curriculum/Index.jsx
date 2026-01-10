@@ -3,9 +3,8 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Plus, Eye, Edit, FileText, Search, Filter, CheckCircle, ChevronRight } from 'lucide-react';
+import { Plus, Eye, Edit, FileText, Search, Filter, CheckCircle, ChevronRight, Star, Menu, X } from 'lucide-react';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { useState } from 'react';
 
@@ -13,6 +12,7 @@ export default function Index({ curricula, programs, filters = {} }) {
     const [selectedProgram, setSelectedProgram] = useState(filters.program_id || 'all');
     const [selectedStatus, setSelectedStatus] = useState(filters.status || 'all');
     const [searchQuery, setSearchQuery] = useState(filters.search || '');
+    const [showMobileFilters, setShowMobileFilters] = useState(false);
 
     const handleFilterChange = (key, value) => {
         const filters = {
@@ -48,7 +48,7 @@ export default function Index({ curricula, programs, filters = {} }) {
     return (
         <AuthenticatedLayout
             header={
-                <div className="flex items-center px-2 py-1">
+                <div className="flex items-center justify-between px-2 py-1">
                     <div className="flex items-center gap-2">
                         <div className="bg-blue-100 p-1.5 rounded-md">
                             <FileText className="w-4 h-4 text-blue-600" />
@@ -63,101 +63,222 @@ export default function Index({ curricula, programs, filters = {} }) {
         >
             <Head title="Curriculum Management" />
 
-            <div className="space-y-6">
+            <div className="p-2 sm:p-3 lg:p-4">
                 {/* Filters */}
-                <Card className="ml-2">
-                    <CardHeader className="pb-3">
-                        <CardTitle className="flex items-center text-sm">
-                            <Filter className="w-3 h-3 mr-2" />
-                            Filters
-                        </CardTitle>
-                    </CardHeader>
-                    <CardContent className="pt-0">
-                        <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-                            <div>
-                                <Label htmlFor="search" className="text-sm">Search</Label>
-                                <div className="relative mt-1">
-                                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-3 h-3" />
-                                    <Input
-                                        id="search"
-                                        placeholder="Search curricula..."
-                                        value={searchQuery}
-                                        onChange={(e) => handleFilterChange('search', e.target.value)}
-                                        className="pl-9 text-sm h-8"
-                                    />
-                                </div>
+                <Card className="mb-4">
+                    <CardContent className="pt-3 pb-3">
+                        <div className="flex items-center justify-between mb-2">
+                            <div className="flex items-center gap-3">
+                                <Filter className="w-4 h-4" />
+                                <span className="text-sm font-medium">Filter Sections</span>
                             </div>
-                            <div>
-                                <Label htmlFor="program" className="text-sm">Program</Label>
-                                <Select
-                                    value={selectedProgram}
-                                    onValueChange={(value) => handleFilterChange('program_id', value)}
+                            {/* Mobile Filter Toggle */}
+                            <div className="lg:hidden">
+                                <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => setShowMobileFilters(!showMobileFilters)}
+                                    className="h-8 w-8 p-0"
                                 >
-                                    <SelectTrigger className="mt-1 h-8 text-sm">
-                                        <SelectValue placeholder="All Programs" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="all">All Programs</SelectItem>
-                                        {programs.map((program) => (
-                                            <SelectItem key={program.id} value={program.id.toString()}>
-                                                {program.program_name} ({program.program_code})
-                                            </SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
-                            </div>
-                            <div className="md:col-span-1">
-                                <Label htmlFor="status" className="text-sm">Status</Label>
-                                <Select
-                                    value={selectedStatus}
-                                    onValueChange={(value) => handleFilterChange('status', value)}
-                                >
-                                    <SelectTrigger className="mt-1 h-8 text-sm">
-                                        <SelectValue placeholder="All Status" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="all">All Status</SelectItem>
-                                        <SelectItem value="active">Active</SelectItem>
-                                        <SelectItem value="inactive">Inactive</SelectItem>
-                                    </SelectContent>
-                                </Select>
-                            </div>
-                            <div className="flex items-end justify-end">
-                                <Button asChild size="sm" className="bg-blue-600 hover:bg-blue-700 text-white">
-                                    <Link href={route('admin.curriculum.create')}>
-                                        <Plus className="w-3 h-3 mr-1" />
-                                        Create Curriculum
-                                    </Link>
+                                    {showMobileFilters ? (
+                                        <X className="w-4 h-4" />
+                                    ) : (
+                                        <Menu className="w-4 h-4" />
+                                    )}
                                 </Button>
                             </div>
                         </div>
+                        <div className="hidden lg:grid lg:grid-cols-4 xl:grid-cols-4 gap-3">
+                            {/* Filters Container */}
+                            <div className="contents">
+                                {/* Search Filter */}
+                                <div className="space-y-1">
+                                    <label className="text-xs font-medium text-gray-600">Search</label>
+                                    <div className="relative">
+                                        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-3 h-3" />
+                                        <Input
+                                            placeholder="Search curricula..."
+                                            value={searchQuery}
+                                            onChange={(e) => handleFilterChange('search', e.target.value)}
+                                            className="pl-9 text-sm h-8 w-full"
+                                        />
+                                    </div>
+                                </div>
+
+                                {/* Program Filter */}
+                                <div className="space-y-1">
+                                    <label className="text-xs font-medium text-gray-600">Program</label>
+                                    <Select
+                                        value={selectedProgram}
+                                        onValueChange={(value) => handleFilterChange('program_id', value)}
+                                    >
+                                        <SelectTrigger className="h-8 w-full text-sm">
+                                            <SelectValue placeholder="All Programs" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="all">All Programs</SelectItem>
+                                            {programs.map((program) => (
+                                                <SelectItem key={program.id} value={program.id.toString()}>
+                                                    <Badge variant="secondary" className="font-mono text-xs">
+                                                        {program.program_code}
+                                                    </Badge>
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+
+                                {/* Status Filter */}
+                                <div className="space-y-1">
+                                    <label className="text-xs font-medium text-gray-600">Status</label>
+                                    <Select
+                                        value={selectedStatus}
+                                        onValueChange={(value) => handleFilterChange('status', value)}
+                                    >
+                                        <SelectTrigger className="h-8 w-full text-sm">
+                                            <SelectValue placeholder="All Status" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="all">All Status</SelectItem>
+                                            <SelectItem value="active">
+                                                <div className="flex items-center gap-2">
+                                                    <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                                                    <span>Active</span>
+                                                </div>
+                                            </SelectItem>
+                                            <SelectItem value="inactive">
+                                                <div className="flex items-center gap-2">
+                                                    <div className="w-2 h-2 bg-gray-500 rounded-full"></div>
+                                                    <span>Inactive</span>
+                                                </div>
+                                            </SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                            </div>
+
+                            {/* Create Curriculum Button - Right Side */}
+                            <div className="space-y-1">
+                                <label className="text-xs font-medium text-gray-600 opacity-0">Action</label>
+                                <div className="h-8 flex items-center justify-end">
+                                    <Button asChild size="sm" className="bg-blue-600 hover:bg-blue-700 text-white">
+                                        <Link href={route('admin.curriculum.create')}>
+                                            <Plus className="w-3 h-3 mr-1" />
+                                            Create Curriculum
+                                        </Link>
+                                    </Button>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Mobile Filters - Collapsible */}
+                        {showMobileFilters && (
+                            <div className="lg:hidden pt-3 border-t border-gray-200 space-y-4">
+                                {/* Search Filter */}
+                                <div className="space-y-2">
+                                    <label className="text-sm font-medium text-gray-700">Search</label>
+                                    <div className="relative">
+                                        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                                        <Input
+                                            placeholder="Search curricula..."
+                                            value={searchQuery}
+                                            onChange={(e) => handleFilterChange('search', e.target.value)}
+                                            className="pl-10 text-sm h-10 w-full"
+                                        />
+                                    </div>
+                                </div>
+
+                                {/* Program Filter */}
+                                <div className="space-y-2">
+                                    <label className="text-sm font-medium text-gray-700">Program</label>
+                                    <Select
+                                        value={selectedProgram}
+                                        onValueChange={(value) => handleFilterChange('program_id', value)}
+                                    >
+                                        <SelectTrigger className="h-10 w-full text-sm">
+                                            <SelectValue placeholder="All Programs" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="all">All Programs</SelectItem>
+                                            {programs.map((program) => (
+                                                <SelectItem key={program.id} value={program.id.toString()}>
+                                                    <Badge variant="secondary" className="font-mono text-xs">
+                                                        {program.program_code}
+                                                    </Badge>
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+
+                                {/* Status Filter */}
+                                <div className="space-y-2">
+                                    <label className="text-sm font-medium text-gray-700">Status</label>
+                                    <Select
+                                        value={selectedStatus}
+                                        onValueChange={(value) => handleFilterChange('status', value)}
+                                    >
+                                        <SelectTrigger className="h-10 w-full text-sm">
+                                            <SelectValue placeholder="All Status" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="all">All Status</SelectItem>
+                                            <SelectItem value="active">
+                                                <div className="flex items-center gap-2">
+                                                    <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                                                    <span>Active</span>
+                                                </div>
+                                            </SelectItem>
+                                            <SelectItem value="inactive">
+                                                <div className="flex items-center gap-2">
+                                                    <div className="w-2 h-2 bg-gray-500 rounded-full"></div>
+                                                    <span>Inactive</span>
+                                                </div>
+                                            </SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+
+                                {/* Create Curriculum Button */}
+                                <div className="flex justify-end pt-2">
+                                    <Button asChild className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2">
+                                        <Link href={route('admin.curriculum.create')}>
+                                            <Plus className="w-4 h-4 mr-2" />
+                                            Create Curriculum
+                                        </Link>
+                                    </Button>
+                                </div>
+                            </div>
+                        )}
+
                     </CardContent>
                 </Card>
 
                 {/* Curricula Grid */}
                 {filteredCurricula.length > 0 ? (
                     <div className="px-2">
-                        <div className="grid gap-4 md:gap-6 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 mb-6">
                             {filteredCurricula.map((curriculum) => (
                                 <Card key={curriculum.id} className="group hover:shadow-xl transition-all duration-300 border-2 hover:border-blue-300 relative overflow-hidden">
                                 {/* Status Badge */}
-                                <div className="absolute top-3 right-3 z-10">
+                                <div className="absolute top-4 right-4 z-10">
                                     {(curriculum.is_current === 1 || curriculum.is_current === true || curriculum.is_current === '1') ? (
-                                        <div className="flex items-center gap-1 bg-gradient-to-r from-yellow-400 to-orange-500 text-white px-2 py-1 rounded-full text-xs font-bold shadow-lg border-2 border-yellow-300">
-                                            <span className="w-2 h-2 bg-white rounded-full animate-pulse"></span>
+                                        <Badge className="flex items-center gap-1.5 bg-gradient-to-r from-amber-400 to-orange-500 hover:from-amber-500 hover:to-orange-600 text-white px-2 py-1 rounded-full text-xs font-bold shadow-lg border-0">
+                                            <Star className="w-3 h-3 fill-white" />
                                             Current
-                                        </div>
-                                    ) : (
-                                        <Badge
-                                            variant="outline"
-                                            className={`font-semibold border-2 ${
-                                                curriculum.status === 'active' || curriculum.status === 1 || curriculum.status === true
-                                                    ? 'text-green-600 border-green-600 bg-transparent'
-                                                    : 'text-red-600 border-red-600 bg-transparent'
-                                            }`}
-                                        >
-                                            {curriculum.status === 'active' || curriculum.status === 1 || curriculum.status === true ? 'Active' : 'Inactive'}
                                         </Badge>
+                                    ) : (
+                                        curriculum.status === 'active' || curriculum.status === 1 || curriculum.status === true ? (
+                                            <Badge className="bg-emerald-100 text-emerald-800 border-emerald-300 font-semibold px-2 py-1 text-xs flex items-center gap-1">
+                                                <CheckCircle className="w-3 h-3" />
+                                                Active
+                                            </Badge>
+                                        ) : (
+                                            <Badge className="bg-gray-100 text-gray-600 border-gray-300 font-semibold px-2 py-1 text-xs flex items-center gap-1">
+                                                <Eye className="w-3 h-3" />
+                                                Inactive
+                                            </Badge>
+                                        )
                                     )}
                                 </div>
 

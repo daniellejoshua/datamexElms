@@ -20,6 +20,22 @@ export default function Students({ section, enrolledStudents, availableStudents,
     const [carryForwardResults, setCarryForwardResults] = useState(null);
     const [isResultsModalOpen, setIsResultsModalOpen] = useState(false);
 
+    // Check if section is read-only (past academic year or past semester in current year)
+    const isReadOnly = (() => {
+        const sectionYear = parseInt(section.academic_year);
+        const currentYear = parseInt(section.current_academic_year);
+        
+        if (sectionYear < currentYear) return true;
+        if (sectionYear > currentYear) return false;
+        
+        // Same year, check semester
+        const semesterOrder = { '1st': 1, '2nd': 2, 'summer': 3 };
+        const sectionSemesterOrder = semesterOrder[section.semester] || 0;
+        const currentSemesterOrder = semesterOrder[section.current_semester] || 0;
+        
+        return sectionSemesterOrder < currentSemesterOrder;
+    })();
+
     // Debug logging
     console.log('Component props:', { section, enrolledStudents, availableStudents });
     console.log('Enrolled students count:', enrolledStudents?.length);
@@ -217,6 +233,14 @@ export default function Students({ section, enrolledStudents, availableStudents,
                         </div>
                     )}
 
+                    {/* Read-only notice for past academic years */}
+                    {isReadOnly && (
+                        <div className="bg-amber-50 border border-amber-300 text-amber-800 px-4 py-3 rounded mb-4 flex items-center gap-2">
+                            <AlertTriangle className="h-4 w-4" />
+                            <span>This section is from a past academic year ({section.academic_year}) and is read-only. Student enrollment cannot be modified.</span>
+                        </div>
+                    )}
+
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                     {/* Enrolled Students */}
                     <div className="bg-white rounded-lg shadow-sm border overflow-hidden">
@@ -230,10 +254,10 @@ export default function Students({ section, enrolledStudents, availableStudents,
                                 </div>
                                 <Button
                                     onClick={handleCarryForwardStudents}
-                                    disabled={isCarryingForward}
+                                    disabled={isCarryingForward || isReadOnly}
                                     size="sm"
                                     variant="outline"
-                                    className="text-xs"
+                                    className={`text-xs ${isReadOnly ? 'cursor-not-allowed opacity-50' : ''}`}
                                 >
                                     <Users className="h-3 w-3 mr-1" />
                                     {isCarryingForward ? 'Importing...' : 'Import Students'}
@@ -278,7 +302,12 @@ export default function Students({ section, enrolledStudents, availableStudents,
                                                             e.stopPropagation();
                                                             handleManageSubjects(enrollment.student.id);
                                                         }}
-                                                        className="opacity-0 group-hover:opacity-100 transition-opacity p-1.5 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded"
+                                                        disabled={isReadOnly}
+                                                        className={`p-1.5 rounded transition-opacity ${
+                                                            isReadOnly 
+                                                                ? 'text-gray-400 cursor-not-allowed opacity-50' 
+                                                                : 'opacity-0 group-hover:opacity-100 text-blue-600 hover:text-blue-800 hover:bg-blue-50'
+                                                        }`}
                                                         title="Manage subjects"
                                                     >
                                                         <Settings className="h-3.5 w-3.5" />
@@ -289,7 +318,12 @@ export default function Students({ section, enrolledStudents, availableStudents,
                                                         e.stopPropagation();
                                                         handleRemoveStudent(enrollment.student.id, enrollment.student.user.name);
                                                     }}
-                                                    className="opacity-0 group-hover:opacity-100 transition-opacity p-1.5 text-red-600 hover:text-red-800 hover:bg-red-50 rounded"
+                                                    disabled={isReadOnly}
+                                                    className={`p-1.5 rounded transition-opacity ${
+                                                        isReadOnly 
+                                                            ? 'text-gray-400 cursor-not-allowed opacity-50' 
+                                                            : 'opacity-0 group-hover:opacity-100 text-red-600 hover:text-red-800 hover:bg-red-50'
+                                                    }`}
                                                     title="Remove from section"
                                                 >
                                                     <Trash2 className="h-3.5 w-3.5" />
@@ -315,8 +349,12 @@ export default function Students({ section, enrolledStudents, availableStudents,
                                 {selectedStudents.length > 0 && (
                                     <button
                                         onClick={handleEnrollStudents}
-                                        disabled={isEnrolling}
-                                        className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white px-3 py-1 rounded text-sm font-medium flex items-center gap-1"
+                                        disabled={isEnrolling || isReadOnly}
+                                        className={`px-3 py-1 rounded text-sm font-medium flex items-center gap-1 ${
+                                            isReadOnly 
+                                                ? 'bg-gray-400 cursor-not-allowed text-gray-600' 
+                                                : 'bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white'
+                                        }`}
                                     >
                                         {isEnrolling ? (
                                             <>
@@ -346,20 +384,26 @@ export default function Students({ section, enrolledStudents, availableStudents,
                                     availableStudents.map((student) => (
                                         <div 
                                             key={student.id} 
-                                            className={`flex items-center p-3 border rounded cursor-pointer hover:bg-gray-50 transition-colors ${
+                                            className={`flex items-center p-3 border rounded transition-colors ${
+                                                isReadOnly 
+                                                    ? 'cursor-not-allowed opacity-60' 
+                                                    : 'cursor-pointer hover:bg-gray-50'
+                                            } ${
                                                 selectedStudents.includes(student.id) 
                                                     ? 'border-blue-300 bg-blue-50' 
                                                     : 'border-gray-200'
                                             }`}
-                                            onClick={() => toggleStudent(student.id)}
+                                            onClick={() => !isReadOnly && toggleStudent(student.id)}
                                         >
                                             <div className="flex items-center mr-3">
                                                 <div className={`w-4 h-4 border-2 rounded flex items-center justify-center transition-colors ${
-                                                    selectedStudents.includes(student.id)
-                                                        ? 'bg-blue-600 border-blue-600'
-                                                        : 'bg-white border-gray-300'
+                                                    isReadOnly 
+                                                        ? 'bg-gray-200 border-gray-300 cursor-not-allowed' 
+                                                        : selectedStudents.includes(student.id)
+                                                            ? 'bg-blue-600 border-blue-600'
+                                                            : 'bg-white border-gray-300'
                                                 }`}>
-                                                    {selectedStudents.includes(student.id) && (
+                                                    {selectedStudents.includes(student.id) && !isReadOnly && (
                                                         <Check className="h-3 w-3 text-white" />
                                                     )}
                                                 </div>
@@ -671,8 +715,12 @@ export default function Students({ section, enrolledStudents, availableStudents,
                     </Button>
                     <Button 
                         onClick={confirmCarryForwardStudents}
-                        disabled={isCarryingForward}
-                        className="bg-blue-600 hover:bg-blue-700"
+                        disabled={isCarryingForward || isReadOnly}
+                        className={`${
+                            isReadOnly 
+                                ? 'bg-gray-400 cursor-not-allowed' 
+                                : 'bg-blue-600 hover:bg-blue-700'
+                        }`}
                     >
                         {isCarryingForward ? 'Importing...' : 'Import Students'}
                     </Button>
@@ -896,7 +944,12 @@ export default function Students({ section, enrolledStudents, availableStudents,
                     <Button 
                         variant="destructive" 
                         onClick={confirmRemoveStudent}
-                        className="bg-red-600 hover:bg-red-700"
+                        disabled={isReadOnly}
+                        className={`${
+                            isReadOnly 
+                                ? 'bg-gray-400 cursor-not-allowed hover:bg-gray-400' 
+                                : 'bg-red-600 hover:bg-red-700'
+                        }`}
                     >
                         Remove Student
                     </Button>

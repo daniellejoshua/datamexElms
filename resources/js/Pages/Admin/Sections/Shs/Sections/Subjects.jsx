@@ -7,7 +7,7 @@ const Subjects = ({ section, subjects, teachers }) => {
     const [showAssignForm, setShowAssignForm] = useState(false);
     const [editingSubject, setEditingSubject] = useState(null);
     const [openDropdown, setOpenDropdown] = useState(null);
-    
+
     // Check if section is read-only (past academic year or past semester in current year)
     const isReadOnly = (() => {
         const sectionYear = parseInt(section.academic_year);
@@ -43,7 +43,7 @@ const Subjects = ({ section, subjects, teachers }) => {
 
     const handleAssignSubject = (e) => {
         e.preventDefault();
-        post(route('admin.sections.attach-subject', section.id), {
+        post(route('admin.shs.sections.attach-subject', section.id), {
             onSuccess: () => {
                 reset();
                 setShowAssignForm(false);
@@ -64,7 +64,7 @@ const Subjects = ({ section, subjects, teachers }) => {
 
     const handleUpdateSubject = (e) => {
         e.preventDefault();
-        patch(route('admin.sections.update-subject', [section.id, editingSubject.subject.id]), {
+        patch(route('admin.shs.sections.update-subject', [section.id, editingSubject.subject.id]), {
             onSuccess: () => {
                 resetEdit();
                 setEditingSubject(null);
@@ -79,12 +79,12 @@ const Subjects = ({ section, subjects, teachers }) => {
 
     const handleDetachSubject = (subjectId) => {
         if (confirm('Are you sure you want to remove this subject from the section?')) {
-            router.delete(route('admin.sections.detach-subject', [section.id, subjectId]));
+            router.delete(route('admin.shs.sections.detach-subject', [section.id, subjectId]));
         }
     };
 
     const assignedSubjectIds = section.section_subjects?.map(ss => ss.subject.id) || [];
-    const availableSubjects = subjects.filter(subject => 
+    const availableSubjects = subjects.filter(subject =>
         !assignedSubjectIds.includes(subject.id)
     );
 
@@ -100,35 +100,35 @@ const Subjects = ({ section, subjects, teachers }) => {
     // Create common day patterns
     const getCommonDayPattern = (days) => {
         if (!days || !Array.isArray(days)) return null;
-        
+
         const daySet = new Set(days);
-        
+
         // Check for MWF pattern
         if (daySet.has('monday') && daySet.has('wednesday') && daySet.has('friday') && daySet.size === 3) {
             return 'MWF';
         }
-        
-        // Check for TTH pattern  
+
+        // Check for TTH pattern
         if (daySet.has('tuesday') && daySet.has('thursday') && daySet.size === 2) {
             return 'TTH';
         }
-        
+
         // Check for weekdays
-        if (daySet.has('monday') && daySet.has('tuesday') && daySet.has('wednesday') && 
+        if (daySet.has('monday') && daySet.has('tuesday') && daySet.has('wednesday') &&
             daySet.has('thursday') && daySet.has('friday') && daySet.size === 5) {
             return 'M-F';
         }
-        
+
         return null;
     };
 
     const formatScheduleDays = (days) => {
         if (!days || !Array.isArray(days)) return 'Not scheduled';
-        
+
         // Check for common patterns first
         const pattern = getCommonDayPattern(days);
         if (pattern) return pattern;
-        
+
         // Otherwise, use abbreviations
         return days.map(day => {
             const dayOption = dayOptions.find(d => d.value === day);
@@ -138,12 +138,12 @@ const Subjects = ({ section, subjects, teachers }) => {
 
     const formatTime = (time) => {
         if (!time) return 'Not set';
-        
+
         const [hours, minutes] = time.split(':');
         const hour24 = parseInt(hours);
         const hour12 = hour24 === 0 ? 12 : hour24 > 12 ? hour24 - 12 : hour24;
         const ampm = hour24 >= 12 ? 'PM' : 'AM';
-        
+
         return `${hour12}:${minutes} ${ampm}`;
     };
 
@@ -157,7 +157,7 @@ const Subjects = ({ section, subjects, teachers }) => {
                 <div className="flex items-center gap-2 sm:gap-3 min-h-[44px]">
                     {/* Back Navigation - Icon only */}
                     <button className="flex items-center justify-center w-8 h-8 sm:w-10 sm:h-10 rounded-md text-gray-600 hover:text-gray-900 hover:bg-gray-100 transition-colors flex-shrink-0">
-                        <Link href={route('admin.sections.index')} className="flex items-center justify-center w-full h-full">
+                        <Link href={route('admin.shs.sections.index')} className="flex items-center justify-center w-full h-full">
                             <ArrowLeft className="w-4 h-4" />
                         </Link>
                     </button>
@@ -167,7 +167,7 @@ const Subjects = ({ section, subjects, teachers }) => {
                         <h2 className="text-lg sm:text-xl lg:text-2xl font-bold text-gray-900 truncate">
                             {section.program?.program_code}-{section.year_level}{section.section_name}
                         </h2>
-                        <p className="text-xs sm:text-sm text-red-600 font-medium mt-0.5 hidden sm:block">
+                        <p className="text-xs sm:text-sm text-blue-600 font-medium mt-0.5 hidden sm:block">
                             {section.academic_year} • {section.semester} Semester
                         </p>
                     </div>
@@ -176,7 +176,7 @@ const Subjects = ({ section, subjects, teachers }) => {
         >
             <Head title={`Subjects - ${section.program?.program_code}-${section.year_level}${section.section_name}`} />
 
-            <div className="py-6 sm:py-12">
+<div className="py-6 sm:py-12">
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-4 sm:space-y-6">
 
                     {/* Header Actions */}
@@ -184,24 +184,19 @@ const Subjects = ({ section, subjects, teachers }) => {
                         <div className="text-sm text-gray-600 dark:text-gray-400">
                             {section.section_subjects?.length || 0} subject{section.section_subjects?.length !== 1 ? 's' : ''} assigned
                         </div>
-                        {isReadOnly && (
-                            <div className="text-sm text-red-600 font-medium bg-red-50 px-3 py-2 rounded-md border border-red-200">
-                                Read-only: Past academic year ({section.academic_year})
-                            </div>
-                        )}
                         <button
                             onClick={() => setShowAssignForm(!showAssignForm)}
                             disabled={isReadOnly}
                             className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors duration-200 w-full sm:w-auto ${
                                 isReadOnly 
                                     ? 'bg-gray-400 cursor-not-allowed text-gray-600' 
-                                    : 'bg-red-600 hover:bg-red-700 text-white'
+                                    : 'bg-blue-600 hover:bg-blue-700 text-white'
                             }`}
                         >
                             {showAssignForm ? 'Cancel Assignment' : '+ Assign Subject'}
                         </button>
                     </div>
-                    
+
                     {/* Assignment Form */}
                     {showAssignForm && (
                         <div className="bg-white dark:bg-gray-800 overflow-hidden shadow-sm sm:rounded-lg">
@@ -209,12 +204,12 @@ const Subjects = ({ section, subjects, teachers }) => {
                                 <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100 mb-4">
                                     Assign Subject to Section
                                 </h3>
-                                
+
                                 <form onSubmit={handleAssignSubject} className="space-y-6">
                                     {/* Basic Information */}
-                                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                                         {/* Subject Selection */}
-                                        <div className="sm:col-span-2 lg:col-span-1">
+                                        <div>
                                             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                                                 Subject *
                                             </label>
@@ -237,7 +232,7 @@ const Subjects = ({ section, subjects, teachers }) => {
                                         </div>
 
                                         {/* Teacher Selection */}
-                                        <div className="sm:col-span-2 lg:col-span-1">
+                                        <div>
                                             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                                                 Teacher
                                             </label>
@@ -259,7 +254,7 @@ const Subjects = ({ section, subjects, teachers }) => {
                                         </div>
 
                                         {/* Room */}
-                                        <div className="sm:col-span-2 lg:col-span-1">
+                                        <div>
                                             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                                                 Room
                                             </label>
@@ -281,7 +276,7 @@ const Subjects = ({ section, subjects, teachers }) => {
                                         <h4 className="text-md font-medium text-gray-900 dark:text-gray-100 mb-4">
                                             Schedule Information
                                         </h4>
-                                        
+
                                         {/* Days of Week */}
                                         <div className="mb-4">
                                             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
@@ -289,7 +284,7 @@ const Subjects = ({ section, subjects, teachers }) => {
                                             </label>
                                             <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-2 sm:gap-4">
                                                 {dayOptions.map((day) => (
-                                                    <div key={day.value} 
+                                                    <div key={day.value}
                                                          onClick={() => {
                                                              const isSelected = data.schedule_days.includes(day.value);
                                                              if (isSelected) {
@@ -314,7 +309,8 @@ const Subjects = ({ section, subjects, teachers }) => {
                                                                 : 'text-gray-500 dark:text-gray-400'
                                                         }`}>{day.label}</span>
                                                     </div>
-                                                ))}                               </div>
+                                                ))}
+                                            </div>
                                             {errors.schedule_days && (
                                                 <p className="mt-1 text-sm text-red-600 dark:text-red-400">{errors.schedule_days}</p>
                                             )}
@@ -336,7 +332,7 @@ const Subjects = ({ section, subjects, teachers }) => {
                                                     <p className="mt-1 text-sm text-red-600 dark:text-red-400">{errors.start_time}</p>
                                                 )}
                                             </div>
-                                            
+
                                             <div>
                                                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                                                     End Time
@@ -379,7 +375,7 @@ const Subjects = ({ section, subjects, teachers }) => {
                                 <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100 mb-4">
                                     Edit Subject Schedule: {editingSubject.subject.subject_code} - {editingSubject.subject.subject_name}
                                 </h3>
-                                
+
                                 <form onSubmit={handleUpdateSubject} className="space-y-6">
                                     {/* Basic Information */}
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -428,7 +424,7 @@ const Subjects = ({ section, subjects, teachers }) => {
                                         <h4 className="text-md font-medium text-gray-900 dark:text-gray-100 mb-4">
                                             Schedule Information
                                         </h4>
-                                        
+
                                         {/* Days of Week */}
                                         <div className="mb-4">
                                             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
@@ -436,7 +432,7 @@ const Subjects = ({ section, subjects, teachers }) => {
                                             </label>
                                             <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-2 sm:gap-4">
                                                 {dayOptions.map((day) => (
-                                                    <div key={day.value} 
+                                                    <div key={day.value}
                                                          onClick={() => {
                                                              const isSelected = editData.schedule_days.includes(day.value);
                                                              if (isSelected) {
@@ -484,7 +480,7 @@ const Subjects = ({ section, subjects, teachers }) => {
                                                     <p className="mt-1 text-sm text-red-600 dark:text-red-400">{editErrors.start_time}</p>
                                                 )}
                                             </div>
-                                            
+
                                             <div>
                                                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                                                     End Time
@@ -512,8 +508,12 @@ const Subjects = ({ section, subjects, teachers }) => {
                                         </button>
                                         <button
                                             type="submit"
-                                            disabled={editProcessing}
-                                            className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-md text-sm font-medium transition-colors duration-200 disabled:opacity-50"
+                                            disabled={editProcessing || isReadOnly}
+                                            className={`px-4 py-2 rounded-md text-sm font-medium transition-colors duration-200 ${
+                                                isReadOnly 
+                                                    ? 'bg-gray-400 cursor-not-allowed text-gray-600' 
+                                                    : 'bg-indigo-600 hover:bg-indigo-700 text-white disabled:opacity-50'
+                                            }`}
                                         >
                                             {editProcessing ? 'Updating...' : 'Update Schedule'}
                                         </button>
@@ -529,7 +529,7 @@ const Subjects = ({ section, subjects, teachers }) => {
                             <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100 mb-4">
                                 Assigned Subjects ({section.section_subjects?.length || 0})
                             </h3>
-                            
+
                             {section.section_subjects && section.section_subjects.length > 0 ? (
                                 <div className="overflow-x-auto">
                                     <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
@@ -638,18 +638,13 @@ const Subjects = ({ section, subjects, teachers }) => {
                                                     <td className="px-4 sm:px-6 py-4 whitespace-nowrap text-right text-sm font-medium relative">
                                                         <button
                                                             onClick={() => toggleDropdown(sectionSubject.id)}
-                                                            disabled={isReadOnly}
-                                                            className={`p-2 transition-colors ${
-                                                                isReadOnly 
-                                                                    ? 'text-gray-300 cursor-not-allowed' 
-                                                                    : 'text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300'
-                                                            }`}
+                                                            className="p-2 text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300 transition-colors"
                                                         >
                                                             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 5v.01M12 12v.01M12 19v.01" />
                                                             </svg>
                                                         </button>
-                                                        
+
                                                         {openDropdown === sectionSubject.id && (
                                                             <div className="absolute right-0 top-0 mt-8 w-48 bg-white dark:bg-gray-800 rounded-md shadow-lg border border-gray-200 dark:border-gray-700 z-50">
                                                                 <div className="py-1 flex">
@@ -675,7 +670,7 @@ const Subjects = ({ section, subjects, teachers }) => {
                                                                         disabled={isReadOnly}
                                                                         className={`flex-1 px-4 py-2 text-sm transition-colors ${
                                                                             isReadOnly 
-                                                                                ? 'text-red-300 cursor-not-allowed' 
+                                                                                ? 'text-gray-400 cursor-not-allowed' 
                                                                                 : 'text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20'
                                                                         }`}
                                                                     >
@@ -706,8 +701,8 @@ const Subjects = ({ section, subjects, teachers }) => {
 
             {/* Click outside handler for dropdown */}
             {openDropdown && (
-                <div 
-                    className="fixed inset-0 z-0" 
+                <div
+                    className="fixed inset-0 z-0"
                     onClick={() => setOpenDropdown(null)}
                 ></div>
             )}

@@ -451,6 +451,10 @@ class SectionController extends Controller
             'timestamp' => now(),
         ]);
 
+        // Get current academic period
+        $currentAcademicYear = SchoolSetting::getCurrentAcademicYear();
+        $currentSemester = SchoolSetting::getCurrentSemester();
+
         $section->load(['program', 'sectionSubjects.subject', 'studentEnrollments.student.user']);
 
         $enrolledStudents = $section->studentEnrollments()
@@ -523,7 +527,10 @@ class SectionController extends Controller
         ]);
 
         return Inertia::render('Admin/Sections/Students', [
-            'section' => $section,
+            'section' => array_merge($section->toArray(), [
+                'current_academic_year' => $currentAcademicYear,
+                'current_semester' => $currentSemester,
+            ]),
             'enrolledStudents' => $enrolledStudents,
             'availableStudents' => $availableStudents->values(), // Reset array keys after filtering
             'canCarryForward' => $this->canCarryForwardStudents($section),
@@ -705,12 +712,13 @@ class SectionController extends Controller
                     ->where('status', 'active')
                     ->exists();
 
-                if (!$isCurrentlyEnrolled) {
+                if (! $isCurrentlyEnrolled) {
                     $notEnrolledStudents[] = [
                         'id' => $student->id,
                         'name' => $student->user->name,
-                        'reason' => 'not enrolled in current semester'
+                        'reason' => 'not enrolled in current semester',
                     ];
+
                     continue;
                 }
 
@@ -727,8 +735,9 @@ class SectionController extends Controller
                     $skippedStudents[] = [
                         'id' => $student->id,
                         'name' => $student->user->name,
-                        'reason' => 'already enrolled in ' . ($conflictSection ? $conflictSection->section_name : 'another section'),
+                        'reason' => 'already enrolled in '.($conflictSection ? $conflictSection->section_name : 'another section'),
                     ];
+
                     continue;
                 }
 

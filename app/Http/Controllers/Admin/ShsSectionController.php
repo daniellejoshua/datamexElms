@@ -14,6 +14,7 @@ use App\Models\Student;
 use App\Models\StudentEnrollment;
 use App\Models\Subject;
 use App\Models\Teacher;
+use App\Rules\TeacherScheduleConflict;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -30,7 +31,7 @@ class ShsSectionController extends Controller
 
         $query = Section::with(['program', 'subjects', 'sectionSubjects.teacher.user'])
             ->whereHas('program', function ($programQuery) {
-                $programQuery->where('education_level', 'shs');
+                $programQuery->where('education_level', 'senior_high');
             })
             ->withCount(['studentEnrollments as enrolled_count' => function ($query) {
                 $query->where('status', 'active');
@@ -80,9 +81,9 @@ class ShsSectionController extends Controller
             ->paginate(6)
             ->withQueryString();
 
-        $programs = Program::where('education_level', 'shs')->orderBy('track')->orderBy('program_code')->get();
-        $subjects = Subject::where('education_level', 'shs')->orderBy('subject_code')->get();
-        $tracks = Program::where('education_level', 'shs')->distinct()->pluck('track')->filter();
+        $programs = Program::where('education_level', 'senior_high')->orderBy('track')->orderBy('program_code')->get();
+        $subjects = Subject::where('education_level', 'senior_high')->orderBy('subject_code')->get();
+        $tracks = Program::where('education_level', 'senior_high')->distinct()->pluck('track')->filter();
 
         return Inertia::render('Admin/Sections/Shs/Sections/Index', [
             'sections' => $sections,
@@ -107,7 +108,7 @@ class ShsSectionController extends Controller
         $currentAcademicYear = SchoolSetting::getCurrentAcademicYear();
         $currentSemester = SchoolSetting::getCurrentSemester();
 
-        $programs = Program::where('education_level', 'shs')
+        $programs = Program::where('education_level', 'senior_high')
             ->where('status', 'active')
             ->orderBy('track')
             ->orderBy('program_code')
@@ -148,7 +149,7 @@ class ShsSectionController extends Controller
     {
         // Validate that the program is SHS level
         $program = Program::findOrFail($request->program_id);
-        if ($program->education_level !== 'shs') {
+        if ($program->education_level !== 'senior_high') {
             return back()->withErrors(['program_id' => 'Selected program is not an SHS program.']);
         }
 
@@ -160,7 +161,7 @@ class ShsSectionController extends Controller
 
     public function show(Section $section): Response
     {
-        if ($section->program->education_level !== 'shs') {
+        if ($section->program->education_level !== 'senior_high') {
             abort(404);
         }
 
@@ -173,11 +174,11 @@ class ShsSectionController extends Controller
 
     public function edit(Section $section): Response
     {
-        if ($section->program->education_level !== 'shs') {
+        if ($section->program->education_level !== 'senior_high') {
             abort(404);
         }
 
-        $programs = Program::where('education_level', 'shs')
+        $programs = Program::where('education_level', 'senior_high')
             ->where('status', 'active')
             ->orderBy('track')
             ->orderBy('program_code')
@@ -193,13 +194,13 @@ class ShsSectionController extends Controller
 
     public function update(UpdateSectionRequest $request, Section $section): RedirectResponse
     {
-        if ($section->program->education_level !== 'shs') {
+        if ($section->program->education_level !== 'senior_high') {
             abort(404);
         }
 
         // Validate that the program is SHS level
         $program = Program::findOrFail($request->program_id);
-        if ($program->education_level !== 'shs') {
+        if ($program->education_level !== 'senior_high') {
             return back()->withErrors(['program_id' => 'Selected program is not an SHS program.']);
         }
 
@@ -211,7 +212,7 @@ class ShsSectionController extends Controller
 
     public function destroy(Section $section): RedirectResponse
     {
-        if ($section->program->education_level !== 'shs') {
+        if ($section->program->education_level !== 'senior_high') {
             abort(404);
         }
 
@@ -223,13 +224,13 @@ class ShsSectionController extends Controller
 
     public function subjects(Section $section): Response
     {
-        if ($section->program->education_level !== 'shs') {
+        if ($section->program->education_level !== 'senior_high') {
             abort(404);
         }
 
         $section->load(['program', 'sectionSubjects.subject', 'sectionSubjects.teacher.user']);
 
-        $subjects = Subject::where('education_level', 'shs')
+        $subjects = Subject::where('education_level', 'senior_high')
             ->orderBy('subject_code')
             ->get();
 
@@ -244,7 +245,7 @@ class ShsSectionController extends Controller
 
     public function attachSubject(Request $request, Section $section)
     {
-        if ($section->program->education_level !== 'shs') {
+        if ($section->program->education_level !== 'senior_high') {
             abort(404);
         }
 
@@ -259,7 +260,7 @@ class ShsSectionController extends Controller
 
         // Validate subject is SHS level
         $subject = Subject::findOrFail($request->subject_id);
-        if ($subject->education_level !== 'shs') {
+        if ($subject->education_level !== 'senior_high') {
             return back()->withErrors(['subject_id' => 'Selected subject is not an SHS subject.']);
         }
 
@@ -300,7 +301,7 @@ class ShsSectionController extends Controller
 
             // Filter to only SHS sections by checking if they have a program that is SHS level
             $archivedSections = $archivedSections->filter(function ($section) {
-                return $section->program && $section->program->education_level === 'shs';
+                return $section->program && $section->program->education_level === 'senior_high';
             });
         }
 
@@ -333,7 +334,7 @@ class ShsSectionController extends Controller
         }
 
         // Validate it's an SHS section
-        if ($archivedSection->program->education_level !== 'shs') {
+        if ($archivedSection->program->education_level !== 'senior_high') {
             return back()->withErrors(['archived_section_id' => 'Selected section is not an SHS section.']);
         }
 
@@ -396,5 +397,66 @@ class ShsSectionController extends Controller
 
         return redirect()->route('admin.shs.sections.show', $newSection->id)
             ->with('success', 'Section carried forward successfully with '.count($studentIds).' students enrolled.');
+    }
+
+    public function updateSubject(Request $request, Section $section, Subject $subject): RedirectResponse
+    {
+        if ($section->program->education_level !== 'senior_high') {
+            abort(404);
+        }
+
+        $validated = $request->validate([
+            'teacher_id' => 'nullable|exists:teachers,id',
+            'room' => 'nullable|string|max:50',
+            'schedule_days' => 'nullable|array',
+            'schedule_days.*' => 'in:monday,tuesday,wednesday,thursday,friday,saturday,sunday',
+            'start_time' => 'nullable|date_format:H:i',
+            'end_time' => 'nullable|date_format:H:i|after:start_time',
+        ]);
+
+        // Get the current section subject for exclusion in conflict check
+        $sectionSubject = $section->subjects()->where('subject_id', $subject->id)->firstOrFail();
+
+        // Additional teacher schedule conflict validation if teacher and schedule are provided
+        if ($validated['teacher_id'] && $validated['schedule_days'] && $validated['start_time'] && $validated['end_time']) {
+            $teacherConflictRule = new TeacherScheduleConflict(
+                $validated['teacher_id'],
+                $subject->id,
+                $section->id,
+                $validated['schedule_days'],
+                $validated['start_time'],
+                $validated['end_time'],
+                $sectionSubject->id // Exclude current assignment from conflict check
+            );
+
+            $validator = validator($validated, [
+                'teacher_id' => [$teacherConflictRule],
+            ]);
+
+            if ($validator->fails()) {
+                return back()->withErrors($validator)->withInput();
+            }
+        }
+
+        $section->subjects()->updateExistingPivot($subject->id, [
+            'teacher_id' => $validated['teacher_id'],
+            'room' => $validated['room'],
+            'schedule_days' => $validated['schedule_days'] ? json_encode($validated['schedule_days']) : null,
+            'start_time' => $validated['start_time'],
+            'end_time' => $validated['end_time'],
+        ]);
+
+        return back()->with('success', 'Subject schedule updated successfully.');
+    }
+
+    public function detachSubject(Section $section, Subject $subject): RedirectResponse
+    {
+        if ($section->program->education_level !== 'senior_high') {
+            abort(404);
+        }
+
+        $section->subjects()->detach($subject->id);
+
+        return back()->with('success', 'Subject removed from section successfully.');
     }
 }

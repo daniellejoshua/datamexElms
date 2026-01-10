@@ -484,48 +484,25 @@ export default function AuthenticatedLayout({ header, children }) {
                             </div>
                         ))}
                     </nav>
-                </div>
-            </div>
 
-            {/* Main Content */}
-            <div className="flex-1 flex flex-col overflow-hidden">
-                {/* Top Header */}
-                <header className="bg-white border-b border-gray-200 px-6 py-4">
-                    <div className="flex items-center justify-between">
-                        <div className="flex items-center">
-                            {/* Mobile Menu Button */}
-                            <button
-                                onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-                                className="lg:hidden p-2 rounded-lg text-gray-500 hover:text-red-600 hover:bg-red-50 transition-colors mr-4"
-                            >
-                                {mobileMenuOpen ? (
-                                    <X className="w-6 h-6" />
-                                ) : (
-                                    <Menu className="w-6 h-6" />
-                                )}
-                            </button>
-                            <div className="flex-1">
-                                {header}
-                            </div>
-                        </div>
-                        
-                        {/* Profile Dropdown */}
+                    {/* Profile Section - Mobile Only */}
+                    <div className="mt-auto p-4 border-t border-gray-200 lg:hidden">
                         <DropdownMenu>
                             <DropdownMenuTrigger asChild>
-                                <Button variant="ghost" className="flex items-center space-x-2 px-3 py-2 h-auto">
-                                    <Avatar className="w-8 h-8">
-                                        <AvatarFallback className="bg-red-600 text-white text-xs">
+                                <Button variant="ghost" className="w-full flex items-center space-x-3 px-3 py-2 h-auto justify-start">
+                                    <Avatar className="w-8 h-8 flex-shrink-0">
+                                        <AvatarFallback className="bg-red-600 text-white text-sm">
                                             {user.name.charAt(0).toUpperCase()}
                                         </AvatarFallback>
                                     </Avatar>
-                                    <div className="hidden md:block text-left">
-                                        <p className="text-sm font-medium text-gray-900">{user.name}</p>
+                                    <div className="flex-1 text-left min-w-0">
+                                        <p className="text-sm font-medium text-gray-900 truncate">{user.name}</p>
                                         <p className="text-xs text-blue-600 capitalize">{user.role.replace('_', ' ')}</p>
                                     </div>
-                                    <ChevronDown className="w-4 h-4 text-gray-500" />
+                                    <ChevronDown className="w-4 h-4 text-gray-500 flex-shrink-0" />
                                 </Button>
                             </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end" className="w-56">
+                            <DropdownMenuContent align="start" className="w-56" sideOffset={4}>
                                 <DropdownMenuLabel>
                                     <div className="flex flex-col space-y-1">
                                         <p className="text-sm font-medium">{user.name}</p>
@@ -553,6 +530,78 @@ export default function AuthenticatedLayout({ header, children }) {
                                 </DropdownMenuItem>
                             </DropdownMenuContent>
                         </DropdownMenu>
+                    </div>
+                </div>
+            </div>
+
+            {/* Main Content */}
+            <div className="flex-1 flex flex-col overflow-hidden">
+                {/* Top Header */}
+                <header className="bg-white border-b border-gray-200 px-6 py-4">
+                    <div className="flex items-center justify-between">
+                        <div className="flex items-center">
+                            {/* Mobile Menu Button */}
+                            <button
+                                onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+                                className="lg:hidden p-2 rounded-lg text-gray-500 hover:text-red-600 hover:bg-red-50 transition-colors mr-4"
+                            >
+                                {mobileMenuOpen ? (
+                                    <X className="w-6 h-6" />
+                                ) : (
+                                    <Menu className="w-6 h-6" />
+                                )}
+                            </button>
+                            <div className="flex-1">
+                                {header}
+                            </div>
+                        </div>
+                        
+                        {/* Profile Dropdown - Desktop Only */}
+                        <div className="hidden lg:block">
+                            <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                    <Button variant="ghost" className="flex items-center space-x-2 px-2 sm:px-3 py-2 h-auto min-w-0">
+                                        <Avatar className="w-6 h-6 sm:w-8 sm:h-8 flex-shrink-0">
+                                            <AvatarFallback className="bg-red-600 text-white text-xs">
+                                                {user.name.charAt(0).toUpperCase()}
+                                            </AvatarFallback>
+                                        </Avatar>
+                                        <div className="hidden sm:block text-left min-w-0 flex-1">
+                                            <p className="text-xs sm:text-sm font-medium text-gray-900 truncate">{user.name}</p>
+                                            <p className="text-xs text-blue-600 capitalize hidden md:block">{user.role.replace('_', ' ')}</p>
+                                        </div>
+                                        <ChevronDown className="w-3 h-3 sm:w-4 sm:h-4 text-gray-500 flex-shrink-0" />
+                                    </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end" className="w-48 sm:w-56 z-50" sideOffset={4}>
+                                    <DropdownMenuLabel>
+                                        <div className="flex flex-col space-y-1">
+                                            <p className="text-sm font-medium">{user.name}</p>
+                                            <p className="text-xs text-blue-600 capitalize">{user.role.replace('_', ' ')}</p>
+                                        </div>
+                                    </DropdownMenuLabel>
+                                    <DropdownMenuSeparator />
+                                    <DropdownMenuItem asChild>
+                                        <Link href={route('profile.edit')} className="cursor-pointer">
+                                            <User className="w-4 h-4 mr-2" />
+                                            Profile Settings
+                                        </Link>
+                                    </DropdownMenuItem>
+                                    <DropdownMenuSeparator />
+                                    <DropdownMenuItem asChild>
+                                        <Link 
+                                            href={route('logout')}
+                                            method="post"
+                                            as="button"
+                                            className="cursor-pointer text-red-600 focus:text-red-600 w-full"
+                                        >
+                                            <LogOut className="w-4 h-4 mr-2" />
+                                            Sign Out
+                                        </Link>
+                                    </DropdownMenuItem>
+                                </DropdownMenuContent>
+                            </DropdownMenu>
+                        </div>
                     </div>
                 </header>
 

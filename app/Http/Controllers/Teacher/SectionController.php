@@ -300,7 +300,7 @@ class SectionController extends Controller
             ->where('teacher_id', $teacher->id)
             ->where('section_subjects.status', 'active')
             ->whereHas('section.program', function ($q) {
-                $q->where('education_level', 'shs');
+                $q->where('education_level', 'senior_high');
             });
 
         // Apply search filter if provided

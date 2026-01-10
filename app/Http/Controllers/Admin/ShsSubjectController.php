@@ -13,7 +13,7 @@ class ShsSubjectController extends Controller
 {
     public function index(Request $request): Response
     {
-        $query = Subject::where('education_level', 'shs');
+        $query = Subject::where('education_level', 'senior_high');
 
         if ($request->has('search') && $request->search) {
             $query->where(function ($q) use ($request) {
@@ -70,8 +70,8 @@ class ShsSubjectController extends Controller
             'status' => 'required|in:active,inactive',
         ]);
 
-        // Force education level to shs
-        $validated['education_level'] = 'shs';
+        // Force education level to senior_high
+        $validated['education_level'] = 'senior_high';
 
         Subject::create($validated);
 
@@ -81,7 +81,7 @@ class ShsSubjectController extends Controller
 
     public function show(Subject $subject): Response
     {
-        if ($subject->education_level !== 'shs') {
+        if ($subject->education_level !== 'senior_high') {
             abort(404);
         }
 
@@ -92,7 +92,7 @@ class ShsSubjectController extends Controller
 
     public function edit(Subject $subject): Response
     {
-        if ($subject->education_level !== 'shs') {
+        if ($subject->education_level !== 'senior_high') {
             abort(404);
         }
 
@@ -119,8 +119,8 @@ class ShsSubjectController extends Controller
             'status' => 'required|in:active,inactive',
         ]);
 
-        // Ensure education level stays shs
-        $validated['education_level'] = 'shs';
+        // Ensure education level stays senior_high
+        $validated['education_level'] = 'senior_high';
 
         $subject->update($validated);
 
@@ -130,7 +130,7 @@ class ShsSubjectController extends Controller
 
     public function destroy(Subject $subject): RedirectResponse
     {
-        if ($subject->education_level !== 'shs') {
+        if ($subject->education_level !== 'senior_high') {
             abort(404);
         }
 

@@ -18,12 +18,9 @@ class SubjectController extends Controller
 
         // Apply filters
         if ($request->filled('program_id') && $request->program_id !== 'all') {
-            $query->where(function ($q) use ($request) {
-                $q->where('program_id', $request->program_id)
-                    ->orWhereHas('curriculumSubjects.curriculum', function ($subQ) use ($request) {
-                        $subQ->where('program_id', $request->program_id);
-                    });
-            });
+            // Only show major subjects for the selected program
+            $query->where('program_id', $request->program_id)
+                ->where('subject_type', 'major');
         }
 
         if ($request->filled('education_level') && $request->education_level !== 'all') {

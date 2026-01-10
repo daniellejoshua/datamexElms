@@ -167,6 +167,8 @@ Route::middleware(['auth', 'verified'])->prefix('admin')->name('admin.')->group(
             Route::resource('sections', ShsSectionController::class);
             Route::get('sections/{section}/subjects', [ShsSectionController::class, 'subjects'])->name('sections.subjects');
             Route::post('sections/{section}/subjects', [ShsSectionController::class, 'attachSubject'])->name('sections.attach-subject');
+            Route::patch('sections/{section}/subjects/{subject}', [ShsSectionController::class, 'updateSubject'])->name('sections.update-subject');
+            Route::delete('sections/{section}/subjects/{subject}', [ShsSectionController::class, 'detachSubject'])->name('sections.detach-subject');
 
             // SHS Subjects
             Route::resource('subjects', ShsSubjectController::class);

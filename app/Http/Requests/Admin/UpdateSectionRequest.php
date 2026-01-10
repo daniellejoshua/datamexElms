@@ -22,6 +22,10 @@ class UpdateSectionRequest extends FormRequest
      */
     public function rules(): array
     {
+        $programId = $this->program_id ?? $this->route('section')->program_id;
+        $program = \App\Models\Program::find($programId);
+        $maxYearLevel = $program && $program->education_level === 'senior_high' ? 12 : 4;
+
         return [
             'program_id' => ['sometimes', 'exists:programs,id'],
             'curriculum_id' => ['sometimes', 'exists:curriculum,id'],
@@ -36,7 +40,7 @@ class UpdateSectionRequest extends FormRequest
             ],
             'academic_year' => ['sometimes', 'string', 'max:20'],
             'semester' => ['sometimes', Rule::in(['1st', '2nd'])],
-            'year_level' => ['sometimes', 'integer', 'min:1', 'max:4'],
+            'year_level' => ['sometimes', 'integer', 'min:1', 'max:'.$maxYearLevel],
             'status' => ['required', Rule::in(['active', 'inactive'])],
         ];
     }

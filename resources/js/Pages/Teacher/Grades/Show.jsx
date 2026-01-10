@@ -318,12 +318,11 @@ export default function Show({ section, sectionSubject, enrollments, isCollegeLe
             header={
                 <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
-                        <button 
+                        <button
                             onClick={() => router.visit(route('teacher.sections.college'))}
-                            className="flex items-center gap-2 px-3 py-1.5 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-md transition-colors"
+                            className="flex items-center justify-center w-10 h-10 rounded-md text-gray-600 hover:text-gray-900 hover:bg-gray-100 transition-colors"
                         >
                             <ArrowLeft className="w-4 h-4" />
-                            Back to Subjects
                         </button>
                         <div className="h-6 w-px bg-gray-300"></div>
                         <div>

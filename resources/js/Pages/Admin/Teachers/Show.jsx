@@ -1,12 +1,10 @@
-import React, { useState, useMemo } from 'react';
+import React from 'react';
 import { Head, Link, router } from '@inertiajs/react';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import {
     ArrowLeft,
     Edit,
@@ -16,19 +14,13 @@ import {
     Building2,
     GraduationCap,
     User,
-    Users,
     UserCheck,
     UserX,
     MapPin,
-    Clock,
-    Search
+    Clock
 } from 'lucide-react';
 
 const Show = ({ teacher }) => {
-    const [studentSearch, setStudentSearch] = useState('');
-    const [selectedStudent, setSelectedStudent] = useState(null);
-    const [isStudentModalOpen, setIsStudentModalOpen] = useState(false);
-
     const getStatusBadge = (status) => {
         return status === 'active' ? (
             <Badge className="bg-green-100 text-green-800 border-green-200">
@@ -70,44 +62,6 @@ const Show = ({ teacher }) => {
         const displayHour = hour % 12 || 12;
         return `${displayHour}:${minutes} ${ampm}`;
     };
-
-    // Get all enrolled students from sections where teacher teaches
-    const enrolledStudents = useMemo(() => {
-        const studentMap = new Map();
-        
-        teacher.section_subjects?.forEach(assignment => {
-            assignment.section?.student_enrollments?.forEach(enrollment => {
-                if (enrollment.student && !studentMap.has(enrollment.student.id)) {
-                    studentMap.set(enrollment.student.id, {
-                        ...enrollment.student,
-                        sections: [assignment.section]
-                    });
-                } else if (enrollment.student) {
-                    // Add section if not already included
-                    const existingStudent = studentMap.get(enrollment.student.id);
-                    if (existingStudent && !existingStudent.sections.some(s => s.id === assignment.section.id)) {
-                        existingStudent.sections.push(assignment.section);
-                    }
-                }
-            });
-        });
-        
-        return Array.from(studentMap.values());
-    }, [teacher.section_subjects]);
-
-    // Filter students based on search
-    const filteredStudents = useMemo(() => {
-        if (!studentSearch.trim()) return enrolledStudents;
-        
-        const searchTerm = studentSearch.toLowerCase();
-        return enrolledStudents.filter(student => 
-            student.first_name?.toLowerCase().includes(searchTerm) ||
-            student.middle_name?.toLowerCase().includes(searchTerm) ||
-            student.last_name?.toLowerCase().includes(searchTerm) ||
-            student.student_number?.toLowerCase().includes(searchTerm) ||
-            student.user?.email?.toLowerCase().includes(searchTerm)
-        );
-    }, [enrolledStudents, studentSearch]);
 
     return (
         <AuthenticatedLayout
@@ -338,130 +292,6 @@ const Show = ({ teacher }) => {
                                 <h3 className="text-lg font-medium text-gray-900 mb-1">No Subject Assignments</h3>
                                 <p className="text-gray-500 text-sm">
                                     This teacher is not currently assigned to any subjects.
-                                </p>
-                            </div>
-                        )}
-                    </CardContent>
-                </Card>
-
-                {/* Enrolled Students */}
-                <Card>
-                    <CardHeader>
-                        <CardTitle className="flex items-center">
-                            <Users className="w-5 h-5 mr-2" />
-                            Enrolled Students ({enrolledStudents.length})
-                        </CardTitle>
-                        <CardDescription>
-                            Students enrolled in sections where this teacher teaches
-                        </CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                        {enrolledStudents.length > 0 ? (
-                            <div className="space-y-4">
-                                {/* Search Input */}
-                                <div className="relative">
-                                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-                                    <Input
-                                        type="text"
-                                        placeholder="Search students by name, student number, or email..."
-                                        value={studentSearch}
-                                        onChange={(e) => setStudentSearch(e.target.value)}
-                                        className="pl-10"
-                                    />
-                                </div>
-
-                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                                    {filteredStudents.length > 0 ? (
-                                        filteredStudents.map((student) => (
-                                            <Dialog key={student.id}>
-                                                <DialogTrigger asChild>
-                                                    <Card className="hover:shadow-lg transition-all duration-200 cursor-pointer">
-                                                        <CardHeader className="pb-3">
-                                                            <div className="flex items-center gap-3">
-                                                                <div className="w-10 h-10 bg-green-500 rounded-full flex items-center justify-center flex-shrink-0">
-                                                                    <span className="text-white font-bold text-sm">
-                                                                        {student.first_name.charAt(0)}{student.last_name.charAt(0)}
-                                                                    </span>
-                                                                </div>
-                                                                <div className="flex-1 min-w-0">
-                                                                    <CardTitle className="text-base truncate">
-                                                                        {student.first_name} {student.middle_name ? student.middle_name + ' ' : ''}{student.last_name}
-                                                                    </CardTitle>
-                                                                    <CardDescription className="text-sm truncate">
-                                                                        Student #{student.student_number}
-                                                                    </CardDescription>
-                                                                </div>
-                                                            </div>
-                                                        </CardHeader>
-                                                    </Card>
-                                                </DialogTrigger>
-                                                <DialogContent className="sm:max-w-[500px]">
-                                                    <DialogHeader>
-                                                        <DialogTitle className="flex items-center gap-3">
-                                                            <div className="w-12 h-12 bg-green-500 rounded-full flex items-center justify-center flex-shrink-0">
-                                                                <span className="text-white font-bold text-lg">
-                                                                    {student.first_name.charAt(0)}{student.last_name.charAt(0)}
-                                                                </span>
-                                                            </div>
-                                                            <div>
-                                                                <div className="text-lg font-semibold">
-                                                                    {student.first_name} {student.middle_name ? student.middle_name + ' ' : ''}{student.last_name}
-                                                                </div>
-                                                                <div className="text-sm text-muted-foreground">
-                                                                    Student #{student.student_number}
-                                                                </div>
-                                                            </div>
-                                                        </DialogTitle>
-                                                        <DialogDescription>
-                                                            Student information
-                                                        </DialogDescription>
-                                                    </DialogHeader>
-                                                    <div className="space-y-4">
-                                                        <div className="grid grid-cols-2 gap-4">
-                                                            <div>
-                                                                <label className="text-sm font-medium text-gray-700">Email</label>
-                                                                <p className="text-sm text-gray-900 break-all">{student.user?.email || 'N/A'}</p>
-                                                            </div>
-                                                            <div>
-                                                                <label className="text-sm font-medium text-gray-700">Phone</label>
-                                                                <p className="text-sm text-gray-900">{student.phone || 'N/A'}</p>
-                                                            </div>
-                                                            <div>
-                                                                <label className="text-sm font-medium text-gray-700">Status</label>
-                                                                <div className="mt-1">
-                                                                    {getStatusBadge(student.status)}
-                                                                </div>
-                                                            </div>
-                                                            <div>
-                                                                <label className="text-sm font-medium text-gray-700">Student Type</label>
-                                                                <div className="mt-1">
-                                                                    <Badge variant="outline" className="capitalize">
-                                                                        {student.student_type || 'Regular'}
-                                                                    </Badge>
-                                                                </div>
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                </DialogContent>
-                                            </Dialog>
-                                        ))
-                                    ) : (
-                                        <div className="col-span-full text-center py-8">
-                                            <Users className="w-12 h-12 text-gray-400 mx-auto mb-3" />
-                                            <h3 className="text-lg font-medium text-gray-900 mb-1">No students found</h3>
-                                            <p className="text-gray-500 text-sm">
-                                                {studentSearch ? 'No students match your search criteria.' : 'No students are currently enrolled in this teacher\'s sections.'}
-                                            </p>
-                                        </div>
-                                    )}
-                                </div>
-                            </div>
-                        ) : (
-                            <div className="text-center py-8">
-                                <Users className="w-12 h-12 text-gray-400 mx-auto mb-3" />
-                                <h3 className="text-lg font-medium text-gray-900 mb-1">No Enrolled Students</h3>
-                                <p className="text-gray-500 text-sm">
-                                    No students are currently enrolled in sections where this teacher teaches.
                                 </p>
                             </div>
                         )}

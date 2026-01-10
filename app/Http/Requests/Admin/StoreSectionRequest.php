@@ -22,6 +22,9 @@ class StoreSectionRequest extends FormRequest
      */
     public function rules(): array
     {
+        $program = \App\Models\Program::find($this->program_id);
+        $maxYearLevel = $program && $program->education_level === 'senior_high' ? 12 : 4;
+
         return [
             'program_id' => ['required', 'exists:programs,id'],
             'curriculum_id' => ['nullable', 'exists:curriculum,id'],
@@ -36,7 +39,7 @@ class StoreSectionRequest extends FormRequest
             ],
             'academic_year' => ['required', 'string', 'max:20'],
             'semester' => ['required', Rule::in(['1st', '2nd'])],
-            'year_level' => ['required', 'integer', 'min:1', 'max:4'],
+            'year_level' => ['required', 'integer', 'min:1', 'max:'.$maxYearLevel],
             'status' => ['required', Rule::in(['active', 'inactive'])],
         ];
     }

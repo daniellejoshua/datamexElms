@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { Plus, Eye, Edit, Search, Filter, BookOpen, Users, Calendar, GraduationCap, Building2 } from 'lucide-react'
+import { Plus, Eye, Edit, Search, Filter, BookOpen, Users, Calendar, GraduationCap, Building2, Menu, X } from 'lucide-react'
 import { useState, useEffect } from 'react'
 import { Toaster, toast } from 'sonner'
 
@@ -23,6 +23,7 @@ export default function SubjectsIndex({ subjects, programs, auth, filters = {} }
     const [viewModalOpen, setViewModalOpen] = useState(false);
     const [editModalOpen, setEditModalOpen] = useState(false);
     const [selectedSubject, setSelectedSubject] = useState(null);
+    const [showMobileFilters, setShowMobileFilters] = useState(false);
 
   
 
@@ -362,103 +363,115 @@ export default function SubjectsIndex({ subjects, programs, auth, filters = {} }
         >
             <Head title="Subjects" />
 
-            <div className="space-y-6">
+            <div className="space-y-6 m-2">
                 {/* Filters */}
-                <Card>
-                    <CardHeader>
-                        <CardTitle className="flex items-center text-base">
-                            <Filter className="w-4 h-4 mr-2" />
-                            Filters
-                        </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                        <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
-                            <div className="md:col-span-2">
-                                <label className="block text-sm font-medium text-gray-700 mb-1">
-                                    Search
-                                </label>
-                                <div className="relative">
-                                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-                                    <Input
-                                        type="text"
-                                        placeholder="Search by subject code or name..."
-                                        value={searchQuery}
-                                        onChange={(e) => handleFilterChange('search', e.target.value)}
-                                        className="pl-10"
-                                    />
+                <Card className="m-222">
+                    <CardContent className="pt-3 pb-3">
+                        <div className="flex items-center justify-between mb-2">
+                            <div className="flex items-center gap-3 ml-1">
+                                <Filter className="w-4 h-4" />
+                                <span className="text-sm font-medium">Filter Subjects</span>
+                            </div>
+                            <Button
+                                variant="ghost"
+                                size="sm"
+                                className="lg:hidden"
+                                onClick={() => setShowMobileFilters(!showMobileFilters)}
+                            >
+                                {showMobileFilters ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
+                            </Button>
+                        </div>
+                        <div className="hidden lg:flex items-end gap-3">
+                            {/* Filters Container */}
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 flex-1">
+                                {/* Search Filter */}
+                                <div className="space-y-1">
+                                    <label className="text-xs font-medium text-gray-600">Search</label>
+                                    <div className="relative">
+                                        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-3 h-3" />
+                                        <Input
+                                            type="text"
+                                            placeholder="Search by subject code or name..."
+                                            value={searchQuery}
+                                            onChange={(e) => handleFilterChange('search', e.target.value)}
+                                            className="pl-9 text-sm h-8"
+                                        />
+                                    </div>
+                                </div>
+
+                                {/* Program Filter */}
+                                <div className="space-y-1">
+                                    <label className="text-xs font-medium text-gray-600">Program Major Subjects</label>
+                                    <Select
+                                        value={selectedProgram}
+                                        onValueChange={(value) => handleFilterChange('program_id', value)}
+                                    >
+                                        <SelectTrigger className="h-8 text-sm">
+                                            <SelectValue placeholder="All Programs" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="all">All Programs</SelectItem>
+                                            {programs.map(program => (
+                                                <SelectItem key={program.id} value={program.id.toString()}>
+                                                    <Badge variant="secondary" className="font-mono text-xs">
+                                                        {program.program_code}
+                                                    </Badge>
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+
+                                {/* Education Level Filter */}
+                                <div className="space-y-1">
+                                    <label className="text-xs font-medium text-gray-600">Education Level</label>
+                                    <Select
+                                        value={selectedEducationLevel}
+                                        onValueChange={(value) => handleFilterChange('education_level', value)}
+                                    >
+                                        <SelectTrigger className="h-8 text-sm">
+                                            <SelectValue placeholder="All Levels" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="all">All Levels</SelectItem>
+                                            {educationLevels.map(level => (
+                                                <SelectItem key={level.value} value={level.value}>
+                                                    {level.label}
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+
+                                {/* Status Filter */}
+                                <div className="space-y-1">
+                                    <label className="text-xs font-medium text-gray-600">Status</label>
+                                    <Select
+                                        value={selectedStatus}
+                                        onValueChange={(value) => handleFilterChange('status', value)}
+                                    >
+                                        <SelectTrigger className="h-8 text-sm">
+                                            <SelectValue placeholder="All Status" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="all">All Status</SelectItem>
+                                            {statusOptions.map(status => (
+                                                <SelectItem key={status.value} value={status.value}>
+                                                    <div className="flex items-center gap-2">
+                                                        <div className={`w-2 h-2 rounded-full ${
+                                                            status.value === 'active' ? 'bg-green-500' : 'bg-red-500'
+                                                        }`} />
+                                                        {status.label}
+                                                    </div>
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
                                 </div>
                             </div>
 
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">
-                                    Program Major Subjects
-                                </label>
-                                <Select
-                                    value={selectedProgram}
-                                    onValueChange={(value) => handleFilterChange('program_id', value)}
-                                >
-                                    <SelectTrigger>
-                                        <SelectValue placeholder="All Programs" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="all">All Programs</SelectItem>
-                                        {programs.map(program => (
-                                            <SelectItem key={program.id} value={program.id.toString()}>
-                                                <Badge variant="secondary" className="font-mono text-xs">
-                                                    {program.program_code}
-                                                </Badge>
-                                            </SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
-                            </div>
-
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">
-                                    Education Level
-                                </label>
-                                <Select
-                                    value={selectedEducationLevel}
-                                    onValueChange={(value) => handleFilterChange('education_level', value)}
-                                >
-                                    <SelectTrigger>
-                                        <SelectValue placeholder="All Levels" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="all">All Levels</SelectItem>
-                                        {educationLevels.map(level => (
-                                            <SelectItem key={level.value} value={level.value}>
-                                                {level.label}
-                                            </SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
-                            </div>
-
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">
-                                    Status
-                                </label>
-                                <Select
-                                    value={selectedStatus}
-                                    onValueChange={(value) => handleFilterChange('status', value)}
-                                >
-                                    <SelectTrigger>
-                                        <SelectValue placeholder="All Status" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="all">All Status</SelectItem>
-                                        {statusOptions.map(status => (
-                                            <SelectItem key={status.value} value={status.value}>
-                                                {status.label}
-                                            </SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
-                            </div>
-
-                            <div className="flex items-end justify-end">
-                                <Button asChild size="sm" className="bg-green-600 hover:bg-green-700 text-white">
+                            <div className="flex items-end">
+                                <Button asChild size="sm" className="bg-green-600 hover:bg-green-700 text-white h-8">
                                     <Link href={route('admin.subjects.create')}>
                                         <Plus className="w-3 h-3 mr-1" />
                                         Create Subject
@@ -466,6 +479,108 @@ export default function SubjectsIndex({ subjects, programs, auth, filters = {} }
                                 </Button>
                             </div>
                         </div>
+
+                        {/* Mobile Filters */}
+                        {showMobileFilters && (
+                            <div className="lg:hidden space-y-3 pt-3 border-t">
+                                <div className="grid grid-cols-1 gap-3">
+                                    {/* Search Filter */}
+                                    <div className="space-y-1">
+                                        <label className="text-xs font-medium text-gray-600">Search</label>
+                                        <div className="relative">
+                                            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-3 h-3" />
+                                            <Input
+                                                type="text"
+                                                placeholder="Search by subject code or name..."
+                                                value={searchQuery}
+                                                onChange={(e) => handleFilterChange('search', e.target.value)}
+                                                className="pl-9 text-sm h-8"
+                                            />
+                                        </div>
+                                    </div>
+
+                                    {/* Program Filter */}
+                                    <div className="space-y-1">
+                                        <label className="text-xs font-medium text-gray-600">Program Major Subjects</label>
+                                        <Select
+                                            value={selectedProgram}
+                                            onValueChange={(value) => handleFilterChange('program_id', value)}
+                                        >
+                                            <SelectTrigger className="h-8 text-sm">
+                                                <SelectValue placeholder="All Programs" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="all">All Programs</SelectItem>
+                                                {programs.map(program => (
+                                                    <SelectItem key={program.id} value={program.id.toString()}>
+                                                        <Badge variant="secondary" className="font-mono text-xs">
+                                                            {program.program_code}
+                                                        </Badge>
+                                                    </SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+
+                                    {/* Education Level Filter */}
+                                    <div className="space-y-1">
+                                        <label className="text-xs font-medium text-gray-600">Education Level</label>
+                                        <Select
+                                            value={selectedEducationLevel}
+                                            onValueChange={(value) => handleFilterChange('education_level', value)}
+                                        >
+                                            <SelectTrigger className="h-8 text-sm">
+                                                <SelectValue placeholder="All Levels" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="all">All Levels</SelectItem>
+                                                {educationLevels.map(level => (
+                                                    <SelectItem key={level.value} value={level.value}>
+                                                        {level.label}
+                                                    </SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+
+                                    {/* Status Filter */}
+                                    <div className="space-y-1">
+                                        <label className="text-xs font-medium text-gray-600">Status</label>
+                                        <Select
+                                            value={selectedStatus}
+                                            onValueChange={(value) => handleFilterChange('status', value)}
+                                        >
+                                            <SelectTrigger className="h-8 text-sm">
+                                                <SelectValue placeholder="All Status" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="all">All Status</SelectItem>
+                                                {statusOptions.map(status => (
+                                                    <SelectItem key={status.value} value={status.value}>
+                                                        <div className="flex items-center gap-2">
+                                                            <div className={`w-2 h-2 rounded-full ${
+                                                                status.value === 'active' ? 'bg-green-500' : 'bg-red-500'
+                                                            }`} />
+                                                            {status.label}
+                                                        </div>
+                                                    </SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+
+                                    {/* Create Button in Mobile */}
+                                    <div className="pt-2">
+                                        <Button asChild size="sm" className="bg-green-600 hover:bg-green-700 text-white h-8 w-full">
+                                            <Link href={route('admin.subjects.create')}>
+                                                <Plus className="w-3 h-3 mr-1" />
+                                                Create Subject
+                                            </Link>
+                                        </Button>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
                     </CardContent>
                 </Card>
 
