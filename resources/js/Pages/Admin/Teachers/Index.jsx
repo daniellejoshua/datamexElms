@@ -17,7 +17,8 @@ import {
     UserX,
     Filter,
     Mail,
-    GraduationCap
+    GraduationCap,
+    FileText
 } from 'lucide-react';
 
 // Debounce utility function
@@ -96,12 +97,22 @@ const Index = ({ teachers, departments, filters }) => {
                                     <Users className="w-5 h-5 mr-2" />
                                     Teachers ({teachers.total || 0})
                                 </CardTitle>
-                                <Button asChild className="bg-blue-600 hover:bg-blue-700">
-                                    <Link href={route('admin.teachers.create')}>
-                                        <Plus className="w-4 h-4 mr-2" />
-                                        Add Teacher
-                                    </Link>
-                                </Button>
+                                <div className="flex gap-2">
+                                    <Button
+                                        onClick={() => window.open(route('admin.teachers.pdf'), '_blank')}
+                                        variant="outline"
+                                        className="border-blue-600 text-blue-600 hover:bg-blue-50"
+                                    >
+                                        <FileText className="w-4 h-4 mr-2" />
+                                        Export PDF
+                                    </Button>
+                                    <Button asChild className="bg-blue-600 hover:bg-blue-700">
+                                        <Link href={route('admin.teachers.create')}>
+                                            <Plus className="w-4 h-4 mr-2" />
+                                            Add Teacher
+                                        </Link>
+                                    </Button>
+                                </div>
                             </div>
 
                             <div className="flex flex-col sm:flex-row gap-3">

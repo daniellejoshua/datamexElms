@@ -126,6 +126,7 @@ Route::middleware(['auth', 'verified'])->prefix('admin')->name('admin.')->group(
         // Section Management
         Route::resource('sections', SectionController::class);
         Route::get('sections/{section}/students', [SectionController::class, 'students'])->name('sections.students');
+        Route::get('sections/{section}/students-pdf', [SectionController::class, 'studentsPdf'])->name('sections.students-pdf');
         Route::post('sections/{section}/students', [SectionController::class, 'enrollStudent'])->name('sections.enroll');
         Route::post('sections/{section}/students/carry-forward', [SectionController::class, 'carryForwardStudents'])->name('sections.carry-forward-students');
         Route::delete('sections/{section}/students', [SectionController::class, 'removeStudent'])->name('sections.remove-student');
@@ -203,6 +204,7 @@ Route::middleware(['auth', 'verified'])->prefix('admin')->name('admin.')->group(
 
         // Teacher Management Routes
         Route::resource('teachers', TeacherController::class);
+        Route::get('teachers-pdf', [TeacherController::class, 'teachersPdf'])->name('teachers.pdf');
 
         // Registrar Management Routes
         Route::resource('registrars', \App\Http\Controllers\Admin\RegistrarController::class);

@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\Teacher;
 use App\Models\User;
+use Barryvdh\DomPDF\Facade\Pdf;
 use CloudinaryLabs\CloudinaryLaravel\Facades\Cloudinary;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -180,11 +181,11 @@ class TeacherController extends Controller
 
     public function update(Request $request, Teacher $teacher)
     {
-        Log::info('Teacher update method called for teacher ' . $teacher->id);
+        Log::info('Teacher update method called for teacher '.$teacher->id);
 
         Log::info('Teacher update request data:', $request->all());
         Log::info('Teacher update files:', $request->allFiles());
-        Log::info('Teacher update method: ' . $request->method());
+        Log::info('Teacher update method: '.$request->method());
         Log::info('Teacher update headers:', $request->headers->all());
 
         $validated = $request->validate([
@@ -288,5 +289,27 @@ class TeacherController extends Controller
 
             return back()->withErrors(['error' => 'Failed to delete teacher. Please try again.']);
         }
+    }
+
+    public function teachersPdf()
+    {
+        // Get all teachers with their user data
+        $teachers = Teacher::with('user')
+            ->orderBy('last_name')
+            ->orderBy('first_name')
+            ->get();
+
+        // Get current date and time in Asia/Manila timezone
+        $currentDateTime = now('Asia/Manila')->format('F j, Y g:i A');
+
+        $data = [
+            'teachers' => $teachers,
+            'currentDateTime' => $currentDateTime,
+            'totalTeachers' => $teachers->count(),
+        ];
+
+        $pdf = Pdf::loadView('pdf.teachers', $data);
+
+        return $pdf->download('teachers-report-'.now('Asia/Manila')->format('Y-m-d-H-i-s').'.pdf');
     }
 }

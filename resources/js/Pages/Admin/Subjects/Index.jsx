@@ -457,12 +457,7 @@ export default function SubjectsIndex({ subjects, programs, auth, filters = {} }
                                             <SelectItem value="all">All Status</SelectItem>
                                             {statusOptions.map(status => (
                                                 <SelectItem key={status.value} value={status.value}>
-                                                    <div className="flex items-center gap-2">
-                                                        <div className={`w-2 h-2 rounded-full ${
-                                                            status.value === 'active' ? 'bg-green-500' : 'bg-red-500'
-                                                        }`} />
-                                                        {status.label}
-                                                    </div>
+                                                    {status.label}
                                                 </SelectItem>
                                             ))}
                                         </SelectContent>
@@ -557,12 +552,7 @@ export default function SubjectsIndex({ subjects, programs, auth, filters = {} }
                                                 <SelectItem value="all">All Status</SelectItem>
                                                 {statusOptions.map(status => (
                                                     <SelectItem key={status.value} value={status.value}>
-                                                        <div className="flex items-center gap-2">
-                                                            <div className={`w-2 h-2 rounded-full ${
-                                                                status.value === 'active' ? 'bg-green-500' : 'bg-red-500'
-                                                            }`} />
-                                                            {status.label}
-                                                        </div>
+                                                        {status.label}
                                                     </SelectItem>
                                                 ))}
                                             </SelectContent>

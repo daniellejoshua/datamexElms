@@ -19,11 +19,16 @@ import {
     BookOpen,
     UserCheck,
     UserX,
-    Search
+    Search,
+    FileText,
+    ChevronLeft,
+    ChevronRight
 } from 'lucide-react';
 
 const Show = ({ section, sectionSubjects, availableStudents }) => {
     const [studentSearch, setStudentSearch] = useState('');
+    const [currentPage, setCurrentPage] = useState(1);
+    const studentsPerPage = 12;
     const getStatusBadge = (status) => {
         return status === 'active' ? (
             <Badge className="bg-green-100 text-green-800 border-green-200">
@@ -68,6 +73,17 @@ const Show = ({ section, sectionSubjects, availableStudents }) => {
             return fullName.includes(searchTerm) || studentNumber.includes(searchTerm) || email.includes(searchTerm);
         });
     }, [section.student_enrollments, studentSearch]);
+
+    // Pagination logic
+    const totalPages = Math.ceil(filteredStudents.length / studentsPerPage);
+    const startIndex = (currentPage - 1) * studentsPerPage;
+    const endIndex = startIndex + studentsPerPage;
+    const currentStudents = filteredStudents.slice(startIndex, endIndex);
+
+    // Reset to page 1 when search changes
+    React.useEffect(() => {
+        setCurrentPage(1);
+    }, [studentSearch]);
 
     return (
         <AuthenticatedLayout
@@ -306,20 +322,33 @@ const Show = ({ section, sectionSubjects, availableStudents }) => {
                         {section.student_enrollments && section.student_enrollments.length > 0 ? (
                             <div className="space-y-4">
                                 {/* Search Input */}
-                                <div className="relative mt-4">
-                                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-                                    <Input
-                                        type="text"
-                                        placeholder="Search students by name, student number, or email..."
-                                        value={studentSearch}
-                                        onChange={(e) => setStudentSearch(e.target.value)}
-                                        className="pl-10"
-                                    />
+                                <div className="flex flex-col lg:flex-row gap-4 mt-4">
+                                    <div className="relative flex-1">
+                                        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                                        <Input
+                                            type="text"
+                                            placeholder="Search students by name, student number, or email..."
+                                            value={studentSearch}
+                                            onChange={(e) => setStudentSearch(e.target.value)}
+                                            className="pl-10"
+                                        />
+                                    </div>
+
+                                    {/* PDF Export Button */}
+                                    <div className="flex-shrink-0">
+                                        <Button
+                                            onClick={() => window.open(route('admin.sections.students-pdf', section.id), '_blank')}
+                                            className="bg-blue-600 hover:bg-blue-700 text-white w-full lg:w-auto"
+                                        >
+                                            <FileText className="w-4 h-4 mr-2" />
+                                            Import Students
+                                        </Button>
+                                    </div>
                                 </div>
 
-                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                                    {filteredStudents.length > 0 ? (
-                                        filteredStudents.map((enrollment) => (
+                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                                    {currentStudents.length > 0 ? (
+                                        currentStudents.map((enrollment) => (
                                             <div key={enrollment.id} className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-all duration-200 bg-white">
                                                 <div className="flex items-center gap-3">
                                                     <div className="w-10 h-10 bg-green-500 rounded-full flex items-center justify-center flex-shrink-0">
@@ -353,6 +382,61 @@ const Show = ({ section, sectionSubjects, availableStudents }) => {
                                         </div>
                                     )}
                                 </div>
+
+                                {/* Pagination Controls */}
+                                {totalPages > 1 && (
+                                    <div className="flex items-center justify-between mt-6 pt-4 border-t border-gray-200">
+                                        <div className="text-sm text-gray-700">
+                                            Showing {startIndex + 1} to {Math.min(endIndex, filteredStudents.length)} of {filteredStudents.length} students
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            <Button
+                                                variant="outline"
+                                                size="sm"
+                                                onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                                                disabled={currentPage === 1}
+                                            >
+                                                <ChevronLeft className="w-4 h-4" />
+                                                Previous
+                                            </Button>
+                                            <div className="flex items-center gap-1">
+                                                {Array.from({ length: Math.min(totalPages, 5) }, (_, i) => {
+                                                    let pageNum;
+                                                    if (totalPages <= 5) {
+                                                        pageNum = i + 1;
+                                                    } else if (currentPage <= 3) {
+                                                        pageNum = i + 1;
+                                                    } else if (currentPage >= totalPages - 2) {
+                                                        pageNum = totalPages - 4 + i;
+                                                    } else {
+                                                        pageNum = currentPage - 2 + i;
+                                                    }
+
+                                                    return (
+                                                        <Button
+                                                            key={pageNum}
+                                                            variant={currentPage === pageNum ? "default" : "outline"}
+                                                            size="sm"
+                                                            onClick={() => setCurrentPage(pageNum)}
+                                                            className="w-8 h-8 p-0"
+                                                        >
+                                                            {pageNum}
+                                                        </Button>
+                                                    );
+                                                })}
+                                            </div>
+                                            <Button
+                                                variant="outline"
+                                                size="sm"
+                                                onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                                                disabled={currentPage === totalPages}
+                                            >
+                                                Next
+                                                <ChevronRight className="w-4 h-4" />
+                                            </Button>
+                                        </div>
+                                    </div>
+                                )}
                             </div>
                         ) : (
                             <div className="text-center py-8">

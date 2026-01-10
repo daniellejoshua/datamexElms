@@ -38,6 +38,7 @@ class Student extends Model
         'strand',
         'status',
         'enrolled_date',
+        'gender',
     ];
 
     protected function casts(): array

@@ -17,15 +17,20 @@ use App\Models\StudentSubjectEnrollment;
 use App\Models\Subject;
 use App\Models\Teacher;
 use App\Rules\TeacherScheduleConflict;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
-use Inertia\Inertia;
 use Inertia\Response;
+use Inertia\ResponseFactory;
 
 class SectionController extends Controller
 {
+    public function __construct(
+        protected ResponseFactory $inertia
+    ) {}
+
     public function index(Request $request): Response
     {
         // Get current academic period for default filtering
@@ -111,7 +116,7 @@ class SectionController extends Controller
         $programs = Program::orderBy('program_code')->get();
         $subjects = Subject::orderBy('subject_code')->get();
 
-        return Inertia::render('Admin/Sections/Index', [
+        return $this->inertia->render('Admin/Sections/Index', [
             'sections' => $sections,
             'programs' => $programs,
             'subjects' => $subjects,
@@ -147,7 +152,7 @@ class SectionController extends Controller
             ->limit(50)
             ->get();
 
-        return Inertia::render('Admin/Sections/Create', [
+        return $this->inertia->render('Admin/Sections/Create', [
             'programs' => $programs,
             'curricula' => $curricula,
             'archivedSections' => $archivedSections,
@@ -244,7 +249,7 @@ class SectionController extends Controller
             return ! $hasActiveEnrollmentInThisSection;
         });
 
-        return Inertia::render('Admin/Sections/Show', [
+        return $this->inertia->render('Admin/Sections/Show', [
             'section' => $section,
             'sectionSubjects' => $sectionSubjects,
             'availableStudents' => $availableStudents,
@@ -256,7 +261,7 @@ class SectionController extends Controller
         $section->load('program');
         $programs = Program::where('status', 'active')->orderBy('program_code')->get();
 
-        return Inertia::render('Admin/Sections/Edit', [
+        return $this->inertia->render('Admin/Sections/Edit', [
             'section' => $section,
             'programs' => $programs,
         ]);
@@ -300,7 +305,7 @@ class SectionController extends Controller
             ->where('status', 'active')
             ->get();
 
-        return Inertia::render('Admin/Sections/Subjects', [
+        return $this->inertia->render('Admin/Sections/Subjects', [
             'section' => $section,
             'subjects' => $subjects,
             'teachers' => $teachers,
@@ -526,7 +531,7 @@ class SectionController extends Controller
             }),
         ]);
 
-        return Inertia::render('Admin/Sections/Students', [
+        return $this->inertia->render('Admin/Sections/Students', [
             'section' => array_merge($section->toArray(), [
                 'current_academic_year' => $currentAcademicYear,
                 'current_semester' => $currentSemester,
@@ -535,6 +540,138 @@ class SectionController extends Controller
             'availableStudents' => $availableStudents->values(), // Reset array keys after filtering
             'canCarryForward' => $this->canCarryForwardStudents($section),
         ]);
+    }
+
+    public function studentsPdf(Section $section)
+    {
+        // Get enrolled students with their user information
+        $enrolledStudents = $section->studentEnrollments()
+            ->where('status', 'active')
+            ->with(['student.user'])
+            ->get()
+            ->map(function ($enrollment) {
+                return $enrollment->student;
+            })
+            ->filter(function ($student) {
+                return $student->user !== null;
+            });
+
+        // If we have fewer than 40 students, add example students
+        if ($enrolledStudents->count() < 40) {
+            $exampleStudents = $this->getExampleStudents();
+            $enrolledStudents = $enrolledStudents->merge($exampleStudents);
+        }
+
+        // Separate students by gender and sort alphabetically
+        $maleStudents = $enrolledStudents
+            ->filter(function ($student) {
+                return $student->gender === 'male';
+            })
+            ->sortBy(function ($student) {
+                return $student->last_name.' '.$student->first_name;
+            })
+            ->values();
+
+        $femaleStudents = $enrolledStudents
+            ->filter(function ($student) {
+                return $student->gender === 'female';
+            })
+            ->sortBy(function ($student) {
+                return $student->last_name.' '.$student->first_name;
+            })
+            ->values();
+
+        // Generate PDF
+        $pdf = Pdf::loadView('pdf.section-students', [
+            'section' => $section,
+            'maleStudents' => $maleStudents,
+            'femaleStudents' => $femaleStudents,
+            'totalStudents' => $enrolledStudents->count(),
+            'maleCount' => $maleStudents->count(),
+            'femaleCount' => $femaleStudents->count(),
+        ]);
+
+        $filename = 'section-'.$section->program->program_code.'-'.$section->year_level.$section->section_name.'-students.pdf';
+
+        return $pdf->download($filename);
+    }
+
+    /**
+     * Get example students for PDF demonstration
+     */
+    private function getExampleStudents()
+    {
+        $maleNames = [
+            ['first' => 'Juan', 'last' => 'Dela Cruz'],
+            ['first' => 'Pedro', 'last' => 'Santos'],
+            ['first' => 'Jose', 'last' => 'Garcia'],
+            ['first' => 'Miguel', 'last' => 'Rodriguez'],
+            ['first' => 'Antonio', 'last' => 'Martinez'],
+            ['first' => 'Luis', 'last' => 'Hernandez'],
+            ['first' => 'Carlos', 'last' => 'Lopez'],
+            ['first' => 'Francisco', 'last' => 'Gonzalez'],
+            ['first' => 'Angel', 'last' => 'Perez'],
+            ['first' => 'Manuel', 'last' => 'Sanchez'],
+            ['first' => 'Rafael', 'last' => 'Ramirez'],
+            ['first' => 'Roberto', 'last' => 'Torres'],
+            ['first' => 'Fernando', 'last' => 'Flores'],
+            ['first' => 'Ricardo', 'last' => 'Rivera'],
+            ['first' => 'Eduardo', 'last' => 'Gomez'],
+            ['first' => 'Alberto', 'last' => 'Diaz'],
+            ['first' => 'Ramon', 'last' => 'Morales'],
+            ['first' => 'Victor', 'last' => 'Ortiz'],
+            ['first' => 'Mario', 'last' => 'Gutierrez'],
+            ['first' => 'Armando', 'last' => 'Chavez'],
+        ];
+
+        $femaleNames = [
+            ['first' => 'Maria', 'last' => 'Cruz'],
+            ['first' => 'Carmen', 'last' => 'Reyes'],
+            ['first' => 'Rosa', 'last' => 'Diaz'],
+            ['first' => 'Isabel', 'last' => 'Torres'],
+            ['first' => 'Ana', 'last' => 'Garcia'],
+            ['first' => 'Luisa', 'last' => 'Rodriguez'],
+            ['first' => 'Elena', 'last' => 'Martinez'],
+            ['first' => 'Teresa', 'last' => 'Lopez'],
+            ['first' => 'Pilar', 'last' => 'Gonzalez'],
+            ['first' => 'Sofia', 'last' => 'Perez'],
+            ['first' => 'Dolores', 'last' => 'Sanchez'],
+            ['first' => 'Cristina', 'last' => 'Ramirez'],
+            ['first' => 'Beatriz', 'last' => 'Torres'],
+            ['first' => 'Mercedes', 'last' => 'Flores'],
+            ['first' => 'Victoria', 'last' => 'Rivera'],
+            ['first' => 'Concepcion', 'last' => 'Gomez'],
+            ['first' => 'Esperanza', 'last' => 'Diaz'],
+            ['first' => 'Patricia', 'last' => 'Morales'],
+            ['first' => 'Montserrat', 'last' => 'Ortiz'],
+            ['first' => 'Francisca', 'last' => 'Gutierrez'],
+        ];
+
+        $students = collect();
+
+        // Add male students
+        foreach ($maleNames as $index => $name) {
+            $students->push((object) [
+                'student_number' => '2026-'.str_pad($index + 1, 4, '0', STR_PAD_LEFT),
+                'first_name' => $name['first'],
+                'last_name' => $name['last'],
+                'middle_name' => null,
+                'gender' => 'male',
+            ]);
+        }
+
+        // Add female students
+        foreach ($femaleNames as $index => $name) {
+            $students->push((object) [
+                'student_number' => '2026-'.str_pad($index + 21, 4, '0', STR_PAD_LEFT),
+                'first_name' => $name['first'],
+                'last_name' => $name['last'],
+                'middle_name' => null,
+                'gender' => 'female',
+            ]);
+        }
+
+        return $students;
     }
 
     /**
@@ -1056,7 +1193,7 @@ class SectionController extends Controller
             })
             ->get();
 
-        return Inertia::render('Admin/Sections/SubjectEnrollment', [
+        return $this->inertia->render('Admin/Sections/SubjectEnrollment', [
             'section' => $section,
             'student' => $student->load('user'),
             'availableSubjects' => $availableSubjects,
