@@ -27,8 +27,8 @@ class SubjectController extends Controller
             $query->where('education_level', $request->education_level);
         }
 
-        if ($request->filled('status') && $request->status !== 'all') {
-            $query->where('status', $request->status);
+        if ($request->filled('subject_type') && $request->subject_type !== 'all') {
+            $query->where('subject_type', $request->subject_type);
         }
 
         if ($request->filled('search')) {
@@ -48,7 +48,7 @@ class SubjectController extends Controller
         return Inertia::render('Admin/Subjects/Index', [
             'subjects' => $subjects,
             'programs' => $programs,
-            'filters' => $request->only(['program_id', 'education_level', 'status', 'search']),
+            'filters' => $request->only(['program_id', 'education_level', 'subject_type', 'search']),
         ]);
     }
 
@@ -70,13 +70,13 @@ class SubjectController extends Controller
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'subject_type' => 'required|in:major,minor',
-            'program_id' => 'required_if:subject_type,major|nullable|exists:programs,id',
+            'subject_type' => 'required|in:major,minor,core,applied,specialized',
+            'program_id' => 'required_if:subject_type,major,specialized|nullable|exists:programs,id',
             'subject_code' => 'required|string|max:20|unique:subjects',
             'subject_name' => 'required|string|max:255',
             'description' => 'nullable|string',
             'education_level' => 'required|in:college,senior_high',
-            'units' => 'required|numeric|min:0|max:10',
+            'units' => 'required|numeric|min:1|max:9',
             'status' => 'required|in:active,inactive',
         ]);
 
@@ -105,13 +105,13 @@ class SubjectController extends Controller
     public function update(Request $request, Subject $subject)
     {
         $validated = $request->validate([
-            'subject_type' => 'required|in:major,minor',
-            'program_id' => 'required_if:subject_type,major|nullable|exists:programs,id',
+            'subject_type' => 'required|in:major,minor,core,applied,specialized',
+            'program_id' => 'required_if:subject_type,major,specialized|nullable|exists:programs,id',
             'subject_code' => 'required|string|max:20|unique:subjects,subject_code,'.$subject->id,
             'subject_name' => 'required|string|max:255',
             'description' => 'nullable|string',
             'education_level' => 'required|in:college,senior_high',
-            'units' => 'required|numeric|min:0|max:10',
+            'units' => 'required|numeric|min:1|max:9',
             'status' => 'required|in:active,inactive',
         ]);
 
