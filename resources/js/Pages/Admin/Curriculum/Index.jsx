@@ -36,7 +36,9 @@ export default function Index({ curricula, programs, filters = {} }) {
 
     const filteredCurricula = curricula.data.filter((curriculum) => {
         const matchesProgram = !selectedProgram || selectedProgram === 'all' || curriculum.program_id.toString() === selectedProgram;
-        const matchesStatus = !selectedStatus || selectedStatus === 'all' || curriculum.status === selectedStatus;
+        const matchesStatus = !selectedStatus || selectedStatus === 'all' || 
+            (selectedStatus === 'current' && (curriculum.is_current === 1 || curriculum.is_current === true || curriculum.is_current === '1')) ||
+            (selectedStatus === 'old' && !(curriculum.is_current === 1 || curriculum.is_current === true || curriculum.is_current === '1'));
         const matchesSearch = !searchQuery ||
             curriculum.curriculum_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
             curriculum.curriculum_code.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -130,26 +132,26 @@ export default function Index({ curricula, programs, filters = {} }) {
 
                                 {/* Status Filter */}
                                 <div className="space-y-1">
-                                    <label className="text-xs font-medium text-gray-600">Status</label>
+                                    <label className="text-xs font-medium text-gray-600">Type</label>
                                     <Select
                                         value={selectedStatus}
                                         onValueChange={(value) => handleFilterChange('status', value)}
                                     >
                                         <SelectTrigger className="h-8 w-full text-sm">
-                                            <SelectValue placeholder="All Status" />
+                                            <SelectValue placeholder="All Types" />
                                         </SelectTrigger>
                                         <SelectContent>
-                                            <SelectItem value="all">All Status</SelectItem>
-                                            <SelectItem value="active">
+                                            <SelectItem value="all">All Types</SelectItem>
+                                            <SelectItem value="current">
                                                 <div className="flex items-center gap-2">
-                                                    <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                                                    <span>Active</span>
+                                                    <div className="w-2 h-2 bg-amber-500 rounded-full"></div>
+                                                    <span>Current</span>
                                                 </div>
                                             </SelectItem>
-                                            <SelectItem value="inactive">
+                                            <SelectItem value="old">
                                                 <div className="flex items-center gap-2">
                                                     <div className="w-2 h-2 bg-gray-500 rounded-full"></div>
-                                                    <span>Inactive</span>
+                                                    <span>Old</span>
                                                 </div>
                                             </SelectItem>
                                         </SelectContent>
@@ -213,26 +215,26 @@ export default function Index({ curricula, programs, filters = {} }) {
 
                                 {/* Status Filter */}
                                 <div className="space-y-2">
-                                    <label className="text-sm font-medium text-gray-700">Status</label>
+                                    <label className="text-sm font-medium text-gray-700">Type</label>
                                     <Select
                                         value={selectedStatus}
                                         onValueChange={(value) => handleFilterChange('status', value)}
                                     >
                                         <SelectTrigger className="h-10 w-full text-sm">
-                                            <SelectValue placeholder="All Status" />
+                                            <SelectValue placeholder="All Types" />
                                         </SelectTrigger>
                                         <SelectContent>
-                                            <SelectItem value="all">All Status</SelectItem>
-                                            <SelectItem value="active">
+                                            <SelectItem value="all">All Types</SelectItem>
+                                            <SelectItem value="current">
                                                 <div className="flex items-center gap-2">
-                                                    <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                                                    <span>Active</span>
+                                                    <div className="w-2 h-2 bg-amber-500 rounded-full"></div>
+                                                    <span>Current</span>
                                                 </div>
                                             </SelectItem>
-                                            <SelectItem value="inactive">
+                                            <SelectItem value="old">
                                                 <div className="flex items-center gap-2">
                                                     <div className="w-2 h-2 bg-gray-500 rounded-full"></div>
-                                                    <span>Inactive</span>
+                                                    <span>Old</span>
                                                 </div>
                                             </SelectItem>
                                         </SelectContent>
@@ -268,17 +270,10 @@ export default function Index({ curricula, programs, filters = {} }) {
                                             Current
                                         </Badge>
                                     ) : (
-                                        curriculum.status === 'active' || curriculum.status === 1 || curriculum.status === true ? (
-                                            <Badge className="bg-emerald-100 text-emerald-800 border-emerald-300 font-semibold px-2 py-1 text-xs flex items-center gap-1">
-                                                <CheckCircle className="w-3 h-3" />
-                                                Active
-                                            </Badge>
-                                        ) : (
-                                            <Badge className="bg-gray-100 text-gray-600 border-gray-300 font-semibold px-2 py-1 text-xs flex items-center gap-1">
-                                                <Eye className="w-3 h-3" />
-                                                Inactive
-                                            </Badge>
-                                        )
+                                        <Badge className="bg-gray-100 text-gray-600 border-gray-300 font-semibold px-2 py-1 text-xs flex items-center gap-1">
+                                            <Eye className="w-3 h-3" />
+                                            Old
+                                        </Badge>
                                     )}
                                 </div>
 

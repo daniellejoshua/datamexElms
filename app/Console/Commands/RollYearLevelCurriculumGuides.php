@@ -106,7 +106,7 @@ class RollYearLevelCurriculumGuides extends Command
         // For college programs, typically up to 4 years
         if ($program->education_level === 'college') {
             $maxYear = 4;
-        } elseif ($program->education_level === 'senior_high' || $program->education_level === 'shs') {
+        } elseif ($program->education_level === 'senior_high') {
             $maxYear = 12; // Grade 12
         } else {
             $maxYear = 4;

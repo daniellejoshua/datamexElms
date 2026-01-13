@@ -13,7 +13,7 @@ import { Plus, Eye, Edit, Search, Filter, BookOpen, Users, Calendar, GraduationC
 import { useState, useEffect } from 'react'
 import { Toaster, toast } from 'sonner'
 
-export default function SubjectsIndex({ subjects, programs, auth, filters = {} }) {
+export default function SubjectsIndex({ subjects, programs, auth, filters = {}, stats }) {
     const page = usePage();
 
     const [selectedProgram, setSelectedProgram] = useState(filters.program_id || '');
@@ -401,6 +401,56 @@ export default function SubjectsIndex({ subjects, programs, auth, filters = {} }
             <Head title="Subjects" />
 
             <div className="space-y-6 m-2">
+                {/* Overview Cards */}
+                {stats && (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                        <Card>
+                            <CardContent className="pt-6">
+                                <div className="flex items-center">
+                                    <BookOpen className="w-8 h-8 text-blue-600" />
+                                    <div className="ml-4">
+                                        <p className="text-sm font-medium text-gray-600">Total Subjects</p>
+                                        <p className="text-2xl font-bold text-gray-900">{stats.total}</p>
+                                    </div>
+                                </div>
+                            </CardContent>
+                        </Card>
+                        <Card>
+                            <CardContent className="pt-6">
+                                <div className="flex items-center">
+                                    <Users className="w-8 h-8 text-green-600" />
+                                    <div className="ml-4">
+                                        <p className="text-sm font-medium text-gray-600">Active Subjects</p>
+                                        <p className="text-2xl font-bold text-gray-900">{stats.active}</p>
+                                    </div>
+                                </div>
+                            </CardContent>
+                        </Card>
+                        <Card>
+                            <CardContent className="pt-6">
+                                <div className="flex items-center">
+                                    <GraduationCap className="w-8 h-8 text-purple-600" />
+                                    <div className="ml-4">
+                                        <p className="text-sm font-medium text-gray-600">College Subjects</p>
+                                        <p className="text-2xl font-bold text-gray-900">{stats.college}</p>
+                                    </div>
+                                </div>
+                            </CardContent>
+                        </Card>
+                        <Card>
+                            <CardContent className="pt-6">
+                                <div className="flex items-center">
+                                    <Building2 className="w-8 h-8 text-orange-600" />
+                                    <div className="ml-4">
+                                        <p className="text-sm font-medium text-gray-600">SHS Subjects</p>
+                                        <p className="text-2xl font-bold text-gray-900">{stats.senior_high}</p>
+                                    </div>
+                                </div>
+                            </CardContent>
+                        </Card>
+                    </div>
+                )}
+
                 {/* Filters */}
                 <Card className="m-222">
                     <CardContent className="pt-3 pb-3">

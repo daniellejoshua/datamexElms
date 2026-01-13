@@ -14,31 +14,61 @@ class ProgramController extends Controller
      */
     public function index(Request $request)
     {
-        $query = Program::with(['subjects', 'programFees', 'curriculums' => function ($query) {
+        $programs = Program::with(['programFees', 'curriculums' => function ($query) {
             $query->active()->orderBy('is_current', 'desc')->orderBy('created_at', 'desc');
-        }, 'curriculums.curriculumSubjects.subject'])->withCount('students');
+        }, 'curriculums.curriculumSubjects.subject'])->withCount('students')->get();
 
         // Apply filters
         if ($request->filled('education_level') && $request->education_level !== 'all') {
-            $query->where('education_level', $request->education_level);
+            $programs = $programs->where('education_level', $request->education_level);
         }
 
         if ($request->filled('status') && $request->status !== 'all') {
-            $query->where('status', $request->status);
+            $programs = $programs->where('status', $request->status);
         }
 
         if ($request->filled('search')) {
             $search = $request->search;
-            $query->where(function ($q) use ($search) {
-                $q->where('program_name', 'like', "%{$search}%")
-                    ->orWhere('program_code', 'like', "%{$search}%");
+            $programs = $programs->filter(function ($program) use ($search) {
+                return str_contains(strtolower($program->program_name), strtolower($search)) ||
+                       str_contains(strtolower($program->program_code), strtolower($search));
             });
         }
 
-        $programs = $query->paginate(6)->appends($request->query());
+        // Load subjects and calculate correct counts for each program
+        $programs->each(function ($program) {
+            $program->load('subjects');
+
+            // For SHS programs, include core and applied subjects that are available to all SHS students
+            if ($program->education_level === 'senior_high') {
+                $coreAppliedSubjects = \App\Models\Subject::where('education_level', 'senior_high')
+                    ->whereIn('subject_type', ['core', 'applied'])
+                    ->whereNull('program_id')
+                    ->get();
+
+                // Merge program's specialized subjects with core/applied subjects
+                $allSubjects = $program->subjects->merge($coreAppliedSubjects);
+                $program->setRelation('subjects', $allSubjects->unique('id'));
+            }
+        });
+
+        // Manual pagination
+        $perPage = 6;
+        $currentPage = $request->get('page', 1);
+        $total = $programs->count();
+        $paginatedPrograms = $programs->forPage($currentPage, $perPage);
+
+        $paginatedResult = new \Illuminate\Pagination\LengthAwarePaginator(
+            $paginatedPrograms,
+            $total,
+            $perPage,
+            $currentPage,
+            ['path' => $request->url(), 'pageName' => 'page']
+        );
+        $paginatedResult->appends($request->query());
 
         return Inertia::render('Registrar/Programs/Index', [
-            'programs' => $programs,
+            'programs' => $paginatedResult,
             'filters' => $request->only(['education_level', 'status', 'search']),
         ]);
     }
@@ -60,7 +90,7 @@ class ProgramController extends Controller
             'program_code' => 'required|string|max:20|unique:programs',
             'program_name' => 'required|string|max:255',
             'description' => 'nullable|string',
-            'education_level' => 'required|in:college,shs',
+            'education_level' => 'required|in:college,senior_high',
             'track' => 'nullable|string|max:255',
             'total_years' => 'required|integer|min:1|max:6',
             'semester_fee' => 'required|numeric|min:0',
@@ -79,6 +109,18 @@ class ProgramController extends Controller
     public function show(Program $program)
     {
         $program->load(['subjects', 'sections', 'students', 'programFees']);
+
+        // For SHS programs, include core and applied subjects that are available to all SHS students
+        if ($program->education_level === 'senior_high') {
+            $coreAppliedSubjects = \App\Models\Subject::where('education_level', 'senior_high')
+                ->whereIn('subject_type', ['core', 'applied'])
+                ->whereNull('program_id')
+                ->get();
+
+            // Merge program's specialized subjects with core/applied subjects
+            $allSubjects = $program->subjects->merge($coreAppliedSubjects);
+            $program->setRelation('subjects', $allSubjects->unique('id'));
+        }
 
         // Count only currently enrolled students (with enrollments for current academic year/semester)
         $currentAcademicYear = \App\Models\SchoolSetting::getCurrentAcademicYear();
@@ -107,7 +149,7 @@ class ProgramController extends Controller
             'program_name' => 'required|string|max:255',
             'program_code' => 'required|string|max:20|unique:programs,program_code,'.$program->id,
             'description' => 'nullable|string',
-            'education_level' => 'required|in:college,masteral,shs',
+            'education_level' => 'required|in:college,masteral,senior_high',
             'semester_fee' => 'nullable|numeric|min:0',
             'program_fees' => 'required|array',
             'program_fees.*.year_level' => 'required|integer|min:1|max:4',
@@ -143,7 +185,7 @@ class ProgramController extends Controller
         if ($request->has('modal')) {
             return response()->json([
                 'program' => $program->load(['subjects', 'sections', 'students', 'programFees']),
-                'message' => 'Program updated successfully.'
+                'message' => 'Program updated successfully.',
             ]);
         }
 

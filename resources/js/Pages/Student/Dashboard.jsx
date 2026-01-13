@@ -46,7 +46,7 @@ const formatSectionName = (section) => {
 const getProgramDisplayName = (student) => {
     if (!student) return 'N/A';
 
-    if (student.education_level === 'shs') {
+    if (student.education_level === 'senior_high') {
         if (student.track && student.strand) {
             return `${student.track} - ${student.strand}`;
         }

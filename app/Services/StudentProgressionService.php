@@ -290,8 +290,8 @@ class StudentProgressionService
      */
     private function shouldGraduate(Student $student, string $academicYear, string $semester): bool
     {
-        $maxYearLevel = $student->education_level === 'shs' ? '12' : '4';
-        $finalSemester = $student->education_level === 'shs' ? '2nd' : '2nd';
+        $maxYearLevel = $student->education_level === 'senior_high' ? '12' : '4';
+        $finalSemester = $student->education_level === 'senior_high' ? '2nd' : '2nd';
 
         return $student->current_year_level == $maxYearLevel &&
                $semester === $finalSemester &&

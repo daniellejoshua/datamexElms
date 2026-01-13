@@ -138,7 +138,7 @@ export default function StudentBalances({ balances, students, auth }) {
                         </CardHeader>
                         <CardContent>
                             <div className="text-2xl font-bold text-green-600">
-                                {balances.filter(b => b.education_level === 'shs').length}
+                                {balances.filter(b => b.education_level === 'senior_high').length}
                             </div>
                             <p className="text-xs text-muted-foreground">
                                 SHS balances

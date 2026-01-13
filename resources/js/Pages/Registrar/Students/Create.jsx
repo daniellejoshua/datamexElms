@@ -411,7 +411,7 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
 
     // Group programs by education level
     const collegePrograms = programs.filter(p => p.education_level === 'college')
-    const shsPrograms = programs.filter(p => p.education_level === 'shs')
+    const shsPrograms = programs.filter(p => p.education_level === 'senior_high')
 
     useEffect(() => {
         if (data.program_id) {
@@ -1007,18 +1007,21 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
     return (
         <AuthenticatedLayout
             header={
-                <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
+                <div className="flex items-center px-2 py-1">
+                    <div className="flex items-center gap-2">
                         <Button asChild variant="ghost" size="sm">
                             <Link href={route('registrar.students')} className="flex items-center gap-2">
                                 <ArrowLeft className="w-4 h-4" />
                                 Back to Students
                             </Link>
                         </Button>
-                        <div className="h-6 w-px bg-gray-300"></div>
+                        <div className="h-4 w-px bg-gray-300"></div>
+                        <div className="bg-blue-100 p-1.5 rounded-md">
+                            <UserPlus className="w-4 h-4 text-blue-600" />
+                        </div>
                         <div>
-                            <h2 className="text-2xl font-bold text-gray-900">Student Registration & Enrollment</h2>
-                            <p className="text-sm text-purple-600 font-medium mt-1">Register new students or update existing student records</p>
+                            <h2 className="text-lg font-semibold text-gray-900">Student Registration</h2>
+                            <p className="text-xs text-gray-500 mt-0.5">Register new students or update existing records</p>
                         </div>
                     </div>
                 </div>
@@ -1027,7 +1030,7 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
         
             <Head title="Register New Student" />
 
-            <form onSubmit={handleSubmit} className="space-y-6">
+            <form onSubmit={handleSubmit} className="space-y-6 m-2">
                 {/* Student Number Check */}
                 <Card className="border-t-4 border-t-green-500">
                     <CardHeader className="bg-gradient-to-r from-green-50 to-transparent">
@@ -1520,11 +1523,11 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                                             )}
                                             {shsPrograms.map(program => (
                                                 <SelectItem key={program.id} value={program.id.toString()}>
-                                                    <div className="flex flex-col">
-                                                        <span className="text-sm font-medium">{program.program_name || program.name}</span>
-                                                        {program.track && program.strand && (
-                                                            <span className="text-xs text-gray-500">{program.track} - {program.strand}</span>
-                                                        )}
+                                                    <div className="flex items-center gap-2">
+                                                        <Badge variant="secondary" className="font-mono text-xs">
+                                                            {program.program_code}
+                                                        </Badge>
+                                                        <span className="text-sm">{program.program_name || program.name}</span>
                                                     </div>
                                                 </SelectItem>
                                             ))}

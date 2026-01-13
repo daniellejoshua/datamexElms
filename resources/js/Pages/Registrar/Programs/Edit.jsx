@@ -24,15 +24,15 @@ export default function ProgramsEdit({ program, auth }) {
 
     const educationLevels = [
         { value: 'college', label: 'College' },
-        { value: 'shs', label: 'Senior High School' },
+        { value: 'senior_high', label: 'Senior High School' },
     ];
 
     // Initialize program fees if empty
     useEffect(() => {
         if (program && (!data.program_fees || data.program_fees.length === 0)) {
             const defaultFees = [];
-            // Create fees for each year level (1-4 for bachelor's, 1-2 for master's)
-            const maxYears = data.education_level === 'masteral' ? 2 : 4;
+            // Create fees for each year level (1-4 for college, 1-2 for senior high)
+            const maxYears = data.education_level === 'senior_high' ? 2 : 4;
 
             for (let year = 1; year <= maxYears; year++) {
                 defaultFees.push({
@@ -177,11 +177,12 @@ export default function ProgramsEdit({ program, auth }) {
                             <CardTitle>Fee Structure</CardTitle>
                             <CardDescription>
                                 Set semester fees for each year level. These fees will be automatically applied to regular students during enrollment.
+                                {data.education_level === 'senior_high' ? ' (Senior High fees are annual)' : ''}
                             </CardDescription>
                         </CardHeader>
                         <CardContent>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                {Array.from({ length: data.education_level === 'masteral' ? 2 : 4 }, (_, i) => i + 1).map((year) => {
+                                {Array.from({ length: data.education_level === 'senior_high' ? 2 : data.education_level === 'masteral' ? 2 : 4 }, (_, i) => i + 1).map((year) => {
                                     const fee = data.program_fees.find(
                                         f => f.year_level === year && f.fee_type === 'regular'
                                     );
@@ -190,7 +191,7 @@ export default function ProgramsEdit({ program, auth }) {
                                     return (
                                         <div key={year} className="flex items-center gap-3 p-3 border rounded-lg bg-gray-50">
                                             <Label className="text-sm font-medium w-24 flex-shrink-0">
-                                                {year}{year === 1 ? 'st' : year === 2 ? 'nd' : year === 3 ? 'rd' : 'th'} Year:
+                                                {data.education_level === 'senior_high' ? `Grade ${year + 10}` : `${year}${year === 1 ? 'st' : year === 2 ? 'nd' : year === 3 ? 'rd' : 'th'} Year`}:
                                             </Label>
                                             <div className="relative flex-1 max-w-32">
                                                 <span className="absolute left-2 top-1/2 transform -translate-y-1/2 text-gray-500 text-xs">
@@ -206,7 +207,7 @@ export default function ProgramsEdit({ program, auth }) {
                                                     placeholder="0.00"
                                                 />
                                             </div>
-                                            <span className="text-xs text-gray-500">per semester</span>
+                                            <span className="text-xs text-gray-500">{data.education_level === 'senior_high' ? 'per year' : 'per semester'}</span>
                                         </div>
                                     );
                                 })}

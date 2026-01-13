@@ -35,7 +35,7 @@ export default function SubjectsEdit({ auth, subject, programs }) {
 
     // Dynamic year levels based on education level
     const getYearLevels = () => {
-        if (data.education_level === 'shs') {
+        if (data.education_level === 'senior_high') {
             return [
                 { value: 11, label: 'Grade 11' },
                 { value: 12, label: 'Grade 12' },

@@ -12,14 +12,16 @@ import { Badge } from '@/components/ui/badge';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { useEffect } from 'react';
 
-export default function Edit({ curriculum, programs }) {
+export default function Edit({ curriculum, programs, currentSemester }) {
     const { data, setData, put, processing, errors } = useForm({
         program_id: curriculum.program_id,
         curriculum_code: curriculum.curriculum_code,
         curriculum_name: curriculum.curriculum_name,
-        status: curriculum.status || 'active',
         is_current: curriculum.is_current || false,
     });
+
+    const isAcademicYearOngoing = currentSemester === '1st' || currentSemester === '2nd';
+    const canSetAsCurrent = currentSemester !== '2nd';
 
     const submit = (e) => {
         e.preventDefault();
@@ -77,22 +79,6 @@ export default function Edit({ curriculum, programs }) {
                                 </div>
                                 <div className="space-y-4">
                                     <div>
-                                        <Label className="text-sm font-medium text-gray-700">Status</Label>
-                                        <div className="flex items-center gap-2">
-                                            {curriculum.status === 'active' || curriculum.status === 1 || curriculum.status === true ? (
-                                                <Badge className="bg-green-500 text-white">
-                                                    <CheckCircle className="w-3 h-3 mr-1" />
-                                                    Active
-                                                </Badge>
-                                            ) : (
-                                                <Badge variant="destructive">
-                                                    <XCircle className="w-3 h-3 mr-1" />
-                                                    Inactive
-                                                </Badge>
-                                            )}
-                                        </div>
-                                    </div>
-                                    <div>
                                         <Label className="text-sm font-medium text-gray-700">Current Status</Label>
                                         <div className="flex items-center gap-2">
                                             {curriculum.is_current === 1 || curriculum.is_current === true ? (
@@ -102,7 +88,7 @@ export default function Edit({ curriculum, programs }) {
                                                 </Badge>
                                             ) : (
                                                 <Badge variant="outline" className="text-gray-600 border-gray-400">
-                                                    Not Current
+                                                    Old
                                                 </Badge>
                                             )}
                                         </div>
@@ -170,36 +156,38 @@ export default function Edit({ curriculum, programs }) {
                                     )}
                                 </div>
 
-                                <div className="space-y-2">
-                                    <Label htmlFor="status">Status</Label>
-                                    <Select value={data.status} onValueChange={(value) => setData('status', value)}>
-                                        <SelectTrigger>
-                                            <SelectValue placeholder="Select status" />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            <SelectItem value="active">Active</SelectItem>
-                                            <SelectItem value="inactive">Inactive</SelectItem>
-                                        </SelectContent>
-                                    </Select>
-                                    {errors.status && (
-                                        <p className="text-sm text-red-600">{errors.status}</p>
-                                    )}
-                                </div>
-
                                 <div className="flex items-center space-x-2">
                                     <Checkbox
                                         id="is_current"
                                         checked={data.is_current}
                                         onCheckedChange={(checked) => setData('is_current', checked)}
+                                        disabled={!canSetAsCurrent}
                                     />
-                                    <Label htmlFor="is_current" className="text-sm font-medium">
+                                    <Label htmlFor="is_current" className={`text-sm font-medium ${!canSetAsCurrent ? 'text-gray-400' : ''}`}>
                                         Set as Current Curriculum for Program
                                     </Label>
                                 </div>
+                                
+                                {(currentSemester === '2nd' || (currentSemester === '1st' && !curriculum.is_current)) && (
+                                    <Alert variant="destructive" className="mt-2">
+                                        <AlertCircle className="h-4 w-4" />
+                                        <AlertDescription>
+                                            <strong>Academic Year in Progress:</strong> You cannot set a curriculum as current during an ongoing academic year ({currentSemester} Semester). This can only be done after the 2nd semester is complete to prevent disruption to current students.
+                                        </AlertDescription>
+                                    </Alert>
+                                )}
+                                
                                 <p className="text-xs text-gray-500">
                                     When checked, all new students in this program will be assigned to this curriculum.
                                     Only one curriculum per program can be current at a time.
                                 </p>
+                                
+                                {errors.is_current && (
+                                    <Alert variant="destructive">
+                                        <AlertCircle className="h-4 w-4" />
+                                        <AlertDescription>{errors.is_current}</AlertDescription>
+                                    </Alert>
+                                )}
 
                                 <Alert>
                                     <AlertCircle className="h-4 w-4" />

@@ -45,10 +45,22 @@ class SubjectController extends Controller
 
         $programs = \App\Models\Program::active()->get();
 
+        // Get statistics
+        $totalSubjects = Subject::count();
+        $activeSubjects = Subject::where('status', 'active')->count();
+        $collegeSubjects = Subject::where('education_level', 'college')->count();
+        $shsSubjects = Subject::where('education_level', 'senior_high')->count();
+
         return Inertia::render('Admin/Subjects/Index', [
             'subjects' => $subjects,
             'programs' => $programs,
             'filters' => $request->only(['program_id', 'education_level', 'subject_type', 'search']),
+            'stats' => [
+                'total' => $totalSubjects,
+                'active' => $activeSubjects,
+                'college' => $collegeSubjects,
+                'senior_high' => $shsSubjects,
+            ],
         ]);
     }
 

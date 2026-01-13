@@ -30,7 +30,7 @@ class YearLevelCurriculumGuideSeeder extends Seeder
                 ], [
                     'curriculum_id' => $program->currentCurriculum->id,
                 ]);
-            } elseif ($program->education_level === 'senior_high' || $program->education_level === 'shs') {
+            } elseif ($program->education_level === 'senior_high') {
                 YearLevelCurriculumGuide::updateOrCreate([
                     'program_id' => $program->id,
                     'academic_year' => $currentAcademicYear,

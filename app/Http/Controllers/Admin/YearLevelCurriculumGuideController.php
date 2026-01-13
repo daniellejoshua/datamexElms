@@ -18,7 +18,10 @@ class YearLevelCurriculumGuideController extends Controller
     {
         $currentAcademicYear = SchoolSetting::getCurrentAcademicYear();
 
-        $query = YearLevelCurriculumGuide::with(['program', 'curriculum'])
+        $query = YearLevelCurriculumGuide::with(['program', 'curriculum' => function ($query) {
+                // Force fresh curriculum data with is_current flag
+                $query->select('id', 'program_id', 'curriculum_code', 'curriculum_name', 'description', 'status', 'is_current');
+            }])
             ->where('academic_year', $currentAcademicYear);
 
         // Apply filters

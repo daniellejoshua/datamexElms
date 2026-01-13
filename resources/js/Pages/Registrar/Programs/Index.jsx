@@ -10,7 +10,7 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Loader2, Save } from 'lucide-react'
-import { Plus, Eye, Edit, BookOpen, Users, DollarSign, Filter, Search, GraduationCap, Building2, ChevronRight, Star } from 'lucide-react'
+import { Plus, Eye, Edit, BookOpen, Users, DollarSign, Filter, Search, GraduationCap, Building2, ChevronRight, Star, Menu, X } from 'lucide-react'
 import { useState, useEffect } from 'react'
 
 export default function ProgramsIndex({ programs, auth, filters = {} }) {
@@ -28,6 +28,7 @@ export default function ProgramsIndex({ programs, auth, filters = {} }) {
     const [selectedEducationLevel, setSelectedEducationLevel] = useState(filters.education_level || '');
     const [selectedStatus, setSelectedStatus] = useState(filters.status || '');
     const [searchQuery, setSearchQuery] = useState(filters.search || '');
+    const [showMobileFilters, setShowMobileFilters] = useState(false);
 
     const { data, setData, put, processing, errors, reset } = useForm({
         program_name: '',
@@ -153,7 +154,7 @@ export default function ProgramsIndex({ programs, auth, filters = {} }) {
     return (
         <AuthenticatedLayout
             header={
-                <div className="flex items-center justify-between px-2 py-1">
+                <div className="flex items-center px-2 py-1">
                     <div className="flex items-center gap-2">
                         <div className="bg-purple-100 p-2 rounded-lg">
                             <GraduationCap className="w-6 h-6 text-purple-600" />
@@ -163,86 +164,177 @@ export default function ProgramsIndex({ programs, auth, filters = {} }) {
                             <p className="text-xs text-gray-500 mt-0.5">Manage academic programs and curriculum</p>
                         </div>
                     </div>
-                    <Button asChild size="sm" className="bg-red-600 hover:bg-red-700 text-white text-xs h-7 px-2">
-                        <Link href={route('registrar.programs.create')}>
-                            <Plus className="w-3 h-3 mr-1" />
-                            Create
-                        </Link>
-                    </Button>
                 </div>
             }
         >
             <Head title="Course Management" />
 
-            <div className="space-y-6">
+            <div className="space-y-6 m-2">
                 {/* Filters */}
-                <Card className="border-0 shadow-sm bg-gradient-to-r from-blue-50 to-indigo-50">
-                    <CardContent className="pt-4 pb-4">
-                        <div className="flex items-center gap-3 mb-3">
-                            <Filter className="w-4 h-4 text-blue-600" />
-                            <span className="text-sm font-medium text-blue-900">Filter Programs</span>
+                <Card className="m-222">
+                    <CardContent className="pt-3 pb-3">
+                        <div className="flex items-center justify-between mb-2">
+                            <div className="flex items-center gap-3 ml-1">
+                                <Filter className="w-4 h-4" />
+                                <span className="text-sm font-medium">Filter Programs</span>
+                            </div>
+                            <Button
+                                variant="ghost"
+                                size="sm"
+                                className="lg:hidden"
+                                onClick={() => setShowMobileFilters(!showMobileFilters)}
+                            >
+                                {showMobileFilters ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
+                            </Button>
                         </div>
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                            {/* Search Filter */}
-                            <div className="space-y-2">
-                                <label className="text-xs font-medium text-gray-600 flex items-center gap-1 h-4">
-                                    <Search className="w-3 h-3" />
-                                    Search Programs
-                                </label>
-                                <Input
-                                    placeholder="Search by name or code..."
-                                    value={searchQuery}
-                                    onChange={(e) => handleFilterChange('search', e.target.value)}
-                                    className="h-8 text-sm border-blue-200 hover:border-blue-400 focus:border-blue-500 focus:ring-blue-200"
-                                />
+                        <div className="hidden lg:flex items-end gap-3">
+                            {/* Filters Container */}
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 flex-1">
+                                {/* Search Filter */}
+                                <div className="space-y-1">
+                                    <label className="text-xs font-medium text-gray-600">Search</label>
+                                    <div className="relative">
+                                        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-3 h-3" />
+                                        <Input
+                                            type="text"
+                                            placeholder="Search by name or code..."
+                                            value={searchQuery}
+                                            onChange={(e) => handleFilterChange('search', e.target.value)}
+                                            className="pl-9 text-sm h-8"
+                                        />
+                                    </div>
+                                </div>
+
+                                {/* Education Level Filter */}
+                                <div className="space-y-1">
+                                    <label className="text-xs font-medium text-gray-600">Education Level</label>
+                                    <Select
+                                        value={selectedEducationLevel || 'all'}
+                                        onValueChange={(value) => handleFilterChange('education_level', value)}
+                                    >
+                                        <SelectTrigger className="h-8 text-sm">
+                                            <SelectValue placeholder="All Levels" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="all">All Education Levels</SelectItem>
+                                            {educationLevels.map((level) => (
+                                                <SelectItem key={level.value} value={level.value}>
+                                                    {level.label}
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+
+                                {/* Status Filter */}
+                                <div className="space-y-1">
+                                    <label className="text-xs font-medium text-gray-600">Status</label>
+                                    <Select
+                                        value={selectedStatus || 'all'}
+                                        onValueChange={(value) => handleFilterChange('status', value)}
+                                    >
+                                        <SelectTrigger className="h-8 text-sm">
+                                            <SelectValue placeholder="All Status" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="all">All Status</SelectItem>
+                                            {statusOptions.map((status) => (
+                                                <SelectItem key={status.value} value={status.value}>
+                                                    {status.label}
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
                             </div>
 
-                            {/* Education Level Filter */}
-                            <div className="space-y-2">
-                                <label className="text-xs font-medium text-gray-600 h-4 flex items-center">Education Level</label>
-                                <Select
-                                    value={selectedEducationLevel || 'all'}
-                                    onValueChange={(value) => handleFilterChange('education_level', value)}
-                                >
-                                    <SelectTrigger className="h-8 text-sm border-blue-200 hover:border-blue-400 focus:border-blue-500 focus:ring-blue-200">
-                                        <SelectValue placeholder="All Levels" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="all">All Education Levels</SelectItem>
-                                        {educationLevels.map((level) => (
-                                            <SelectItem key={level.value} value={level.value}>
-                                                {level.label}
-                                            </SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
-                            </div>
-
-                            {/* Status Filter */}
-                            <div className="space-y-2">
-                                <label className="text-xs font-medium text-gray-600 h-4 flex items-center">Status</label>
-                                <Select
-                                    value={selectedStatus || 'all'}
-                                    onValueChange={(value) => handleFilterChange('status', value)}
-                                >
-                                    <SelectTrigger className="h-8 text-sm border-blue-200 hover:border-blue-400 focus:border-blue-500 focus:ring-blue-200">
-                                        <SelectValue placeholder="All Status" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="all">All Status</SelectItem>
-                                        {statusOptions.map((status) => (
-                                            <SelectItem key={status.value} value={status.value}>
-                                                {status.label}
-                                            </SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
+                            <div className="flex items-end">
+                                <Button asChild size="sm" className="bg-red-600 hover:bg-red-700 text-white h-8">
+                                    <Link href={route('registrar.programs.create')}>
+                                        <Plus className="w-3 h-3 mr-1" />
+                                        Create Program
+                                    </Link>
+                                </Button>
                             </div>
                         </div>
+
+                        {/* Mobile Filters */}
+                        {showMobileFilters && (
+                            <div className="lg:hidden space-y-3 pt-3 border-t">
+                                <div className="grid grid-cols-1 gap-3">
+                                    {/* Search Filter */}
+                                    <div className="space-y-1">
+                                        <label className="text-xs font-medium text-gray-600">Search</label>
+                                        <div className="relative">
+                                            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-3 h-3" />
+                                            <Input
+                                                type="text"
+                                                placeholder="Search by name or code..."
+                                                value={searchQuery}
+                                                onChange={(e) => handleFilterChange('search', e.target.value)}
+                                                className="pl-9 text-sm h-8"
+                                            />
+                                        </div>
+                                    </div>
+
+                                    {/* Education Level Filter */}
+                                    <div className="space-y-1">
+                                        <label className="text-xs font-medium text-gray-600">Education Level</label>
+                                        <Select
+                                            value={selectedEducationLevel || 'all'}
+                                            onValueChange={(value) => handleFilterChange('education_level', value)}
+                                        >
+                                            <SelectTrigger className="h-8 text-sm">
+                                                <SelectValue placeholder="All Levels" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="all">All Education Levels</SelectItem>
+                                                {educationLevels.map((level) => (
+                                                    <SelectItem key={level.value} value={level.value}>
+                                                        {level.label}
+                                                    </SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+
+                                    {/* Status Filter */}
+                                    <div className="space-y-1">
+                                        <label className="text-xs font-medium text-gray-600">Status</label>
+                                        <Select
+                                            value={selectedStatus || 'all'}
+                                            onValueChange={(value) => handleFilterChange('status', value)}
+                                        >
+                                            <SelectTrigger className="h-8 text-sm">
+                                                <SelectValue placeholder="All Status" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="all">All Status</SelectItem>
+                                                {statusOptions.map((status) => (
+                                                    <SelectItem key={status.value} value={status.value}>
+                                                        {status.label}
+                                                    </SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+
+                                    {/* Create Button in Mobile */}
+                                    <div className="pt-2 flex justify-end">
+                                        <Button asChild size="sm" className="bg-red-600 hover:bg-red-700 text-white h-8">
+                                            <Link href={route('registrar.programs.create')}>
+                                                <Plus className="w-3 h-3 mr-1" />
+                                                Create Program
+                                            </Link>
+                                        </Button>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
                     </CardContent>
                 </Card>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 px-4 ">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                     {programs.data.map((program) => (
                         <Card key={program.id} className="group hover:shadow-xl transition-all duration-300 border-2 hover:border-blue-300 relative overflow-hidden">
                             {/* Status Badge */}

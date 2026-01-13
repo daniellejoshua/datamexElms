@@ -177,7 +177,7 @@ class StudentProgressionController extends Controller
         $request->validate([
             'academic_year' => 'required|string',
             'semester' => 'required|in:1st,2nd',
-            'education_level' => 'required|in:college,shs',
+            'education_level' => 'required|in:college,senior_high',
             'track' => 'nullable|string',
             'notes' => 'nullable|string|max:1000',
         ]);

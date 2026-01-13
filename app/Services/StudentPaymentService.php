@@ -43,16 +43,22 @@ class StudentPaymentService
         $enrollmentFeePercentage = $customRates['enrollment_fee_percentage'] ?? 0.25; // 25% as downpayment
         $irregularSubjectFee = $customRates['irregular_subject_fee'] ?? 300.00;
 
-        // Calculate enrollment fee (downpayment)
-        $enrollmentFee = $baseSemesterFee * $enrollmentFeePercentage;
-
         // Add irregular subject fees
         $irregularFees = $irregularSubjectsCount * $irregularSubjectFee;
         $totalSemesterFee = $baseSemesterFee + $irregularFees;
 
-        // Calculate remaining balance to be divided among terms
-        $remainingBalance = $totalSemesterFee - $enrollmentFee;
-        $termPayment = $remainingBalance / 4; // Divide among 4 terms
+        // For SHS, fees are annual, so pay full amount at enrollment
+        if ($student->program->education_level === 'senior_high') {
+            $enrollmentFee = $totalSemesterFee;
+            $termPayment = 0;
+        } else {
+            // Calculate enrollment fee (downpayment)
+            $enrollmentFee = $baseSemesterFee * $enrollmentFeePercentage;
+
+            // Calculate remaining balance to be divided among terms
+            $remainingBalance = $totalSemesterFee - $enrollmentFee;
+            $termPayment = $remainingBalance / 4; // Divide among 4 terms
+        }
 
         return StudentSemesterPayment::create([
             'student_id' => $student->id,

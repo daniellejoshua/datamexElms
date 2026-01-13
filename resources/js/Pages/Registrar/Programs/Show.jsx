@@ -58,7 +58,7 @@ export default function ProgramsShow({ program, enrolled_students_count, auth })
                                                 {program.status}
                                             </Badge>
                                             <Badge variant="outline">
-                                                {program.education_level.toUpperCase()}
+                                                {program.education_level.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
                                             </Badge>
                                             <Badge variant="outline">
                                                 {program.total_years} Years

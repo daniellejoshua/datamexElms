@@ -25,7 +25,11 @@ class CurriculumController extends Controller
         }
 
         if ($request->filled('status') && $request->status !== 'all') {
-            $query->where('status', $request->status);
+            if ($request->status === 'current') {
+                $query->where('is_current', true);
+            } elseif ($request->status === 'old') {
+                $query->where('is_current', false);
+            }
         }
 
         if ($request->filled('search')) {
@@ -119,20 +123,46 @@ class CurriculumController extends Controller
             'curriculum_code' => 'required|string|unique:curriculum',
             'curriculum_name' => 'required|string',
             'description' => 'nullable|string',
-            'status' => 'required|in:active,inactive',
+            'is_current' => 'boolean',
             'curriculum_subjects' => 'required|array',
             'curriculum_subjects.*.subject_id' => 'required|exists:subjects,id',
             'curriculum_subjects.*.year_level' => 'required|integer|min:1',
             'curriculum_subjects.*.semester' => 'required|in:1st,2nd',
         ]);
 
+        // If setting this curriculum as current, check if academic year is complete
+        if (isset($validated['is_current']) && $validated['is_current']) {
+            $currentSemester = \App\Models\SchoolSetting::getCurrentSemester();
+            
+            // Prevent setting as current during 2nd semester
+            if ($currentSemester === '2nd') {
+                return redirect()->back()
+                    ->withErrors(['is_current' => 'Cannot set curriculum as current during 2nd semester. Please wait until after the 2nd semester is complete.'])
+                    ->withInput();
+            }
+            
+            Curriculum::where('program_id', $validated['program_id'])
+                ->update(['is_current' => false]);
+        }
+
         $curriculum = Curriculum::create([
             'program_id' => $validated['program_id'],
             'curriculum_code' => $validated['curriculum_code'],
             'curriculum_name' => $validated['curriculum_name'],
             'description' => $request->input('description'),
-            'status' => $validated['status'],
+            'status' => 'active',
+            'is_current' => $validated['is_current'] ?? false,
         ]);
+
+        // If this is set as current, update only year level 1 guides to use this curriculum
+        // Other year levels continue with their existing curriculum
+        if (isset($validated['is_current']) && $validated['is_current']) {
+            $currentAcademicYear = \App\Models\SchoolSetting::getCurrentAcademicYear();
+            \App\Models\YearLevelCurriculumGuide::where('program_id', $validated['program_id'])
+                ->where('academic_year', $currentAcademicYear)
+                ->where('year_level', 1)
+                ->update(['curriculum_id' => $curriculum->id]);
+        }
 
         // Create curriculum subjects
         foreach ($validated['curriculum_subjects'] as $subjectData) {
@@ -196,10 +226,12 @@ class CurriculumController extends Controller
     public function edit(Curriculum $curriculum)
     {
         $programs = Program::active()->get();
+        $currentSemester = \App\Models\SchoolSetting::getCurrentSemester();
 
         return Inertia::render('Admin/Curriculum/Edit', [
             'curriculum' => $curriculum->load('program'),
             'programs' => $programs,
+            'currentSemester' => $currentSemester,
         ]);
     }
 
@@ -215,16 +247,45 @@ class CurriculumController extends Controller
             'is_current' => 'boolean',
         ]);
 
-        // If setting this curriculum as current, deactivate all other curricula for this program
-        if ($validated['is_current']) {
-            Curriculum::where('program_id', $curriculum->program_id)
-                ->where('id', '!=', $curriculum->id)
-                ->update(['is_current' => false]);
+        // Check if trying to change the current status
+        $isCurrentChanging = isset($validated['is_current']) && $validated['is_current'] !== $curriculum->is_current;
+        
+        if ($isCurrentChanging) {
+            $currentSemester = \App\Models\SchoolSetting::getCurrentSemester();
+            
+            // During 2nd semester, prevent any changes to current status
+            if ($currentSemester === '2nd') {
+                return redirect()->back()
+                    ->withErrors(['is_current' => 'Cannot change curriculum current status during 2nd semester. Please wait until after the 2nd semester is complete.'])
+                    ->withInput();
+            }
+            
+            // During 1st semester, only allow setting as current (not unsetting)
+            if ($currentSemester === '1st' && !$validated['is_current']) {
+                return redirect()->back()
+                    ->withErrors(['is_current' => 'Cannot unset curriculum as current during 1st semester. Please wait until after the 2nd semester is complete.'])
+                    ->withInput();
+            }
+            
+            // If setting this curriculum as current, ensure no other curriculum in the same program is current
+            if ($validated['is_current']) {
+                Curriculum::where('program_id', $curriculum->program_id)
+                    ->where('id', '!=', $curriculum->id)
+                    ->update(['is_current' => false]);
+                
+                // Update only year level 1 guides to use the new current curriculum
+                // Other year levels continue with their existing curriculum
+                $currentAcademicYear = \App\Models\SchoolSetting::getCurrentAcademicYear();
+                \App\Models\YearLevelCurriculumGuide::where('program_id', $curriculum->program_id)
+                    ->where('academic_year', $currentAcademicYear)
+                    ->where('year_level', 1)
+                    ->update(['curriculum_id' => $curriculum->id]);
+            }
         }
 
         $curriculum->update($validated);
 
         return redirect()->route('admin.curriculum.index')
-            ->with('success', 'Curriculum updated successfully.');
+            ->with('success', 'Curriculum updated successfully. Year 1 guides have been updated to use this curriculum.');
     }
 }

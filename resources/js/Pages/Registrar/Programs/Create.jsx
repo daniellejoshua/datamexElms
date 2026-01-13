@@ -131,7 +131,7 @@ export default function CreateProgram({ auth }) {
                                         </SelectTrigger>
                                         <SelectContent>
                                             <SelectItem value="college">College</SelectItem>
-                                            <SelectItem value="shs">Senior High School</SelectItem>
+                                            <SelectItem value="senior_high">Senior High School</SelectItem>
                                         </SelectContent>
                                     </Select>
                                     {errors.education_level && (

@@ -150,7 +150,7 @@ class Student extends Model
      */
     public function payments(): HasMany
     {
-        return $this->education_level === 'shs'
+        return $this->education_level === 'senior_high'
             ? $this->shsPayments()
             : $this->semesterPayments();
     }
@@ -160,7 +160,7 @@ class Student extends Model
      */
     public function isShs(): bool
     {
-        return $this->education_level === 'shs';
+        return $this->education_level === 'senior_high';
     }
 
     /**

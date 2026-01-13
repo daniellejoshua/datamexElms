@@ -29,7 +29,7 @@ class UpdateCourseRequest extends FormRequest
             'course_name' => ['required', 'string', 'max:255'],
             'description' => ['nullable', 'string', 'max:1000'],
             'credits' => ['required', 'integer', 'min:1', 'max:10'],
-            'education_level' => ['required', Rule::in(['college', 'shs'])],
+            'education_level' => ['required', Rule::in(['college', 'senior_high'])],
             'year_level' => ['nullable', 'string', 'max:20'],
             'semester' => ['nullable', Rule::in(['1st', '2nd', 'summer'])],
             'prerequisites' => ['nullable', 'string', 'max:500'],

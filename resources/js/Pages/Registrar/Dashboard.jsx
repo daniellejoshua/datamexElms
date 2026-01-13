@@ -369,7 +369,7 @@ export default function RegistrarDashboard({ stats, auth }) {
                                         Program Distribution
                                     </CardTitle>
                                     <CardDescription>
-                                        {programFilter === 'college' ? 'College programs by department' : 'SHS tracks and strands'}
+                                        {programFilter === 'college' ? 'College programs by department' : 'Senior High tracks and strands'}
                                     </CardDescription>
                                 </div>
                                 <Select value={programFilter} onValueChange={setProgramFilter}>
@@ -378,7 +378,7 @@ export default function RegistrarDashboard({ stats, auth }) {
                                     </SelectTrigger>
                                     <SelectContent>
                                         <SelectItem value="college">College</SelectItem>
-                                        <SelectItem value="senior_high">SHS</SelectItem>
+                                        <SelectItem value="senior_high">Senior High</SelectItem>
                                     </SelectContent>
                                 </Select>
                             </div>
