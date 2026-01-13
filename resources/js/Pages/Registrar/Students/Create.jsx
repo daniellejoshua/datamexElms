@@ -424,57 +424,33 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
 
     useEffect(() => {
         if (selectedProgram) {
-            // Prefer a curriculum that matches the student's batch for transfer
-            // students who are entering above 1st year. This ensures a transferee
-            // joins the same curriculum their cohort is using (older curriculum)
-            // instead of being auto-assigned to the newest/current curriculum.
-            let curriculum = selectedProgram.current_curriculum
+            // Use year level guide to determine the appropriate curriculum for this student
+            let curriculum = null
 
             try {
                 const numericYear = getNumericYearLevel(data.year_level || '', selectedProgram.education_level)
 
                 // Check for an explicit year-level guide first (admin-provided mapping)
-                if (!isExistingStudent && !isReturningStudent && numericYear > 1) {
+                if (!isExistingStudent && !isReturningStudent) {
                     const guides = selectedProgram.year_level_guides || []
                     const guide = guides.find(g => g.year_level === numericYear && g.curriculum)
                     if (guide && guide.curriculum) {
                         curriculum = guide.curriculum
-                    } else {
-                        // Parse start year from currentAcademicYear (e.g., '2025' from '2025-2026')
-                        const match = (currentAcademicYear || '').match(/(\d{4})/)
-                        if (match) {
-                            const startYear = parseInt(match[1], 10)
-                            const batchStart = startYear - (numericYear - 1)
-                            // Look up program-specific curriculum mappings which include academic_year
-                            const foundMapping = (selectedProgram.program_curricula || []).find(mapping => {
-                                const ay = mapping.academic_year || ''
-                                // Try to extract a 4-digit start year, otherwise fall back to substring match
-                                const m = ay.match(/(\d{4})/)
-                                if (m) {
-                                    return parseInt(m[1], 10) === batchStart
-                                }
-                                return ay.includes(String(batchStart))
-                            })
-
-                            if (foundMapping && foundMapping.curriculum) {
-                                curriculum = foundMapping.curriculum
-                            }
-                        }
                     }
                 }
             } catch (e) {
-                // Fall back to current curriculum if anything goes wrong
-                curriculum = selectedProgram.current_curriculum
+                // If anything goes wrong, curriculum will remain null and be fetched from API
+                console.error('Error determining curriculum from guide:', e)
             }
 
             setSelectedCurriculum(curriculum)
 
-            // If it's a first-year (or numericYear <= 1) or not a transferee, ensure the form's curriculum_id is set to the program's current curriculum
+            // Set the curriculum ID if we found one from the guide
             const numericYear = getNumericYearLevel(data.year_level || '', selectedProgram.education_level)
             if (isExistingStudent || isReturningStudent) {
                 // Do not override existing/returning student data
-            } else if (numericYear <= 1) {
-                setData('curriculum_id', curriculum?.id || '')
+            } else if (curriculum) {
+                setData('curriculum_id', curriculum.id)
             }
         } else {
             setSelectedCurriculum(null)
@@ -482,7 +458,7 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
         }
     }, [selectedProgram, data.year_level, isExistingStudent, isReturningStudent, currentAcademicYear])
 
-    // Fetch suggested curriculum from the server when program/year level changes for new transferees
+    // Fetch suggested curriculum from the server when program/year level changes
     useEffect(() => {
         const fetchSuggested = async () => {
             if (!selectedProgram || !data.year_level) {
@@ -491,21 +467,21 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                 return
             }
 
-            const numericYear = getNumericYearLevel(data.year_level || '', selectedProgram.education_level)
-
-            // Only fetch for prospective transferees (not existing/returning) entering above 1st year
-            if (isExistingStudent || isReturningStudent || numericYear <= 1) {
+            // Skip fetch for existing/returning students
+            if (isExistingStudent || isReturningStudent) {
                 setSuggestedCurriculum(null)
                 setSuggestedSource(null)
-
-                // For first year or existing students, ensure curriculum_id reflects current curriculum
-                const current = selectedProgram?.current_curriculum || null
-                setSelectedCurriculum(current)
-                setData('curriculum_id', current?.id || '')
-
                 return
             }
 
+            // If we already have a curriculum from the guide, use that
+            if (selectedCurriculum) {
+                setSuggestedCurriculum(selectedCurriculum)
+                setSuggestedSource('guide')
+                return
+            }
+
+            // Otherwise fetch from API
             try {
                 const params = new URLSearchParams({
                     year_level: data.year_level,
@@ -535,7 +511,7 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
         }
 
         fetchSuggested()
-    }, [selectedProgram, data.year_level, isExistingStudent, isReturningStudent, currentAcademicYear])
+    }, [selectedProgram, data.year_level, isExistingStudent, isReturningStudent, currentAcademicYear, selectedCurriculum])
 
     useEffect(() => {
         if (data.program_id && data.year_level && data.student_type) {
@@ -1546,28 +1522,6 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                                             {selectedProgram.education_level === 'college' ? '🎓 College Program' : '📚 Senior High School'}
                                         </p>
                                         {selectedCurriculum && (() => {
-                                            const numericYear = getNumericYearLevel(data.year_level || '', selectedProgram.education_level)
-                                            const isNewTransferee = !isExistingStudent && !isReturningStudent && numericYear > 1
-
-                                            if (isNewTransferee) {
-                                                const sourceLabel = suggestedSource === 'guide' ? 'Guide' : (suggestedSource === 'program_curriculum' ? 'Program mapping' : (suggestedSource === 'cohort_majority' ? 'Cohort majority' : 'Current'))
-                                                return (
-                                                    <div className="mt-1 p-2 bg-green-50 rounded-md border border-green-200">
-                                                        <p className="text-xs font-medium text-green-800">📌 Assigned Curriculum for transferees</p>
-                                                        <p className="text-xs text-green-700 mt-1"><strong>{selectedCurriculum.curriculum_name} ({selectedCurriculum.curriculum_code})</strong></p>
-                                                        <p className="text-xs text-green-600 mt-1">Source: {sourceLabel}. This curriculum will be automatically assigned when registering transferees entering {data.year_level}.</p>
-
-                                                {suggestedSource === 'current' && (
-                                                    <div className="mt-2 flex items-center gap-2">
-                                                        <input id="create_guide" type="checkbox" className="h-4 w-4" checked={createGuideChecked} onChange={(e) => setCreateGuideChecked(e.target.checked)} />
-                                                        <label htmlFor="create_guide" className="text-xs text-gray-700">Save this assignment as a Year-Level Curriculum Guide for future transferees</label>
-                                                    </div>
-                                                )}
-
-                                                    </div>
-                                                )
-                                            }
-
                                             return (
                                                 <div className="mt-1">
                                                     <p className="text-xs text-blue-600">
@@ -1593,17 +1547,7 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                                                 )
                                             }
 
-                                            // If no explicit guide, show the server-suggested curriculum (cohort match / mapping)
-                                            if (suggestedCurriculum) {
-                                                const sourceLabel = suggestedSource === 'guide' ? 'Guide' : (suggestedSource === 'program_curriculum' ? 'Program mapping' : (suggestedSource === 'cohort_majority' ? 'Cohort majority' : 'Current'))
-                                                return (
-                                                    <div className="mt-2 p-2 bg-yellow-50 rounded-md border border-yellow-200">
-                                                        <p className="text-xs font-medium text-yellow-800">🔎 Suggested Curriculum for Transferees</p>
-                                                        <p className="text-xs text-yellow-700 mt-1">Expected curriculum for transferees entering {data.year_level}: <strong>{suggestedCurriculum.curriculum_name} ({suggestedCurriculum.curriculum_code})</strong></p>
-                                                        <p className="text-xs text-yellow-600 mt-1">Source: {sourceLabel} — this will be used when registering transferees above 1st year.</p>
-                                                    </div>
-                                                )
-                                            }
+                                           
 
                                             return null
                                         })()}
