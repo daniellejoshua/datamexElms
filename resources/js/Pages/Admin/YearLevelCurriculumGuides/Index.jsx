@@ -29,7 +29,9 @@ export default function Index({ guides, programs, currentAcademicYear, filters }
             return labels[yearLevel - 1] || `Year ${yearLevel}`
         } else {
             // Senior high is always Grade 11 and Grade 12
-            return `Grade ${yearLevel + 10}` // Grade 11, 12
+            // Check if yearLevel is already 11 or 12 (not needing conversion)
+            const gradeNum = yearLevel <= 2 ? yearLevel + 10 : yearLevel;
+            return `Grade ${gradeNum}`
         }
     }
 

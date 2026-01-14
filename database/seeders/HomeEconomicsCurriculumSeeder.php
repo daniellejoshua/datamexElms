@@ -2,11 +2,11 @@
 
 namespace Database\Seeders;
 
-use Illuminate\Database\Seeder;
-use App\Models\Program;
-use App\Models\Subject;
 use App\Models\Curriculum;
 use App\Models\CurriculumSubject;
+use App\Models\Program;
+use App\Models\Subject;
+use Illuminate\Database\Seeder;
 
 class HomeEconomicsCurriculumSeeder extends Seeder
 {
@@ -20,8 +20,9 @@ class HomeEconomicsCurriculumSeeder extends Seeder
             ->where('education_level', 'senior_high')
             ->first();
 
-        if (!$program) {
+        if (! $program) {
             $this->command->error('Home Economics program not found! Please create it first.');
+
             return;
         }
 
@@ -132,6 +133,6 @@ class HomeEconomicsCurriculumSeeder extends Seeder
             $this->command->info("✓ {$subjectData['code']} - {$subjectData['name']}");
         }
 
-        $this->command->info("\n✅ Home Economics 2025 Curriculum seeded successfully with " . count($subjects) . " subjects!");
+        $this->command->info("\n✅ Home Economics 2025 Curriculum seeded successfully with ".count($subjects).' subjects!');
     }
 }

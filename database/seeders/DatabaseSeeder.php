@@ -17,6 +17,12 @@ class DatabaseSeeder extends Seeder
             TeacherSeeder::class,
             SubjectSeeder::class,
             BSITCurriculumSeeder::class,
+            BSHMCurriculumSeeder::class,
+            STEMCurriculumSeeder::class,
+            HUMSSCurriculumSeeder::class,
+            ABMCurriculumSeeder::class,
+            ICTCurriculumSeeder::class,
+            HomeEconomicsCurriculumSeeder::class,
             YearLevelCurriculumGuideSeeder::class,
         ]);
     }

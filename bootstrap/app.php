@@ -20,10 +20,10 @@ return Application::configure(basePath: dirname(__DIR__))
         // Register role middleware
         $middleware->alias([
             'role' => \App\Http\Middleware\RoleMiddleware::class,
-        'throttle.api' => \App\Http\Middleware\CustomThrottleRequests::class.':120,1',
-        'throttle.searches' => \App\Http\Middleware\CustomThrottleRequests::class.':30,1',
-        'throttle.uploads' => \App\Http\Middleware\CustomThrottleRequests::class.':10,1',
-        'throttle.data-heavy' => \App\Http\Middleware\CustomThrottleRequests::class.':50,1',
+            'throttle.api' => \App\Http\Middleware\CustomThrottleRequests::class.':120,1',
+            'throttle.searches' => \App\Http\Middleware\CustomThrottleRequests::class.':30,1',
+            'throttle.uploads' => \App\Http\Middleware\CustomThrottleRequests::class.':10,1',
+            'throttle.data-heavy' => \App\Http\Middleware\CustomThrottleRequests::class.':50,1',
         ]);
 
         // Exempt API authentication endpoints from CSRF protection
@@ -44,7 +44,7 @@ return Application::configure(basePath: dirname(__DIR__))
             }
 
             // For web requests (non-Inertia), return custom HTML page
-            if (!$request->header('X-Inertia')) {
+            if (! $request->header('X-Inertia')) {
                 return response()->view('errors.429', [
                     'message' => 'Too many requests. Please try again later.',
                     'retry_after' => $e->getHeaders()['Retry-After'] ?? 60,

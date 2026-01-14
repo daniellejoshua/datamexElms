@@ -255,7 +255,6 @@ Route::middleware(['web', 'auth:web', 'throttle.api'])->group(function () {
 
         // Check for explicit year-level guide
         $guide = \App\Models\YearLevelCurriculumGuide::where('program_id', $program->id)
-            ->where('academic_year', $academicYear)
             ->where('year_level', $numeric)
             ->with('curriculum')
             ->first();
@@ -327,4 +326,10 @@ Route::middleware(['web', 'auth:web', 'throttle.api'])->group(function () {
 
         return response()->json(['curriculum' => null, 'source' => 'none']);
     })->middleware(['role:registrar', 'throttle.searches'])->name('api.programs.suggested-curriculum');
+
+    // Course shift subject comparison
+    Route::get('/students/{student}/course-shift-comparison', [
+        \App\Http\Controllers\Api\CourseShiftComparisonController::class,
+        'compare',
+    ])->middleware(['role:registrar'])->name('api.students.course-shift-comparison');
 });

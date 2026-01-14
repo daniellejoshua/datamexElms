@@ -7,6 +7,7 @@ use App\Models\SectionSubject;
 use App\Models\StudentSubjectEnrollment;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Cache;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -16,15 +17,14 @@ class SectionController extends Controller
     {
         $teacher = Auth::user()->teacher;
 
+        // Clear any cached data to ensure fresh results
+        Cache::forget('teacher_sections_college_'.$teacher->id);
+
         // Get subjects that this teacher teaches for college programs
         $query = SectionSubject::with([
             'subject',
             'section.program',
-            'section' => function ($q) {
-                $q->whereHas('program', function ($programQuery) {
-                    $programQuery->where('education_level', 'college');
-                });
-            },
+            'section',
         ])
             ->where('teacher_id', $teacher->id)
             ->where('section_subjects.status', 'active')
@@ -105,6 +105,9 @@ class SectionController extends Controller
     public function shs(Request $request): Response
     {
         $teacher = Auth::user()->teacher;
+
+        // Clear any cached data to ensure fresh results
+        Cache::forget('teacher_sections_shs_'.$teacher->id);
 
         // Get subjects that this teacher teaches for SHS programs
         $query = SectionSubject::with([
@@ -243,8 +246,17 @@ class SectionController extends Controller
                     ->distinct('student_id')
                     ->count('student_id');
 
-                // Get the teacher's subject for this section (just pick the first one for now)
-                $teacherSubject = $subjectGroup->first();
+                // Get all teacher's subjects for this section
+                $teacherSubjects = $subjectGroup->map(function ($subject) {
+                    return [
+                        'id' => $subject->id,
+                        'subject' => $subject->subject,
+                        'schedule_days' => $subject->schedule_days,
+                        'start_time' => $subject->start_time ? $subject->start_time->format('H:i') : null,
+                        'end_time' => $subject->end_time ? $subject->end_time->format('H:i') : null,
+                        'room' => $subject->room,
+                    ];
+                });
 
                 return [
                     'id' => $section->id,
@@ -254,13 +266,7 @@ class SectionController extends Controller
                     'semester' => $section->semester,
                     'academic_year' => $section->academic_year,
                     'enrolled_count' => $enrolledCount,
-                    'teacher_subject' => [
-                        'subject' => $teacherSubject->subject,
-                        'schedule_days' => $teacherSubject->schedule_days,
-                        'start_time' => $teacherSubject->start_time ? $teacherSubject->start_time->format('H:i') : null,
-                        'end_time' => $teacherSubject->end_time ? $teacherSubject->end_time->format('H:i') : null,
-                        'room' => $teacherSubject->room,
-                    ],
+                    'teacher_subjects' => $teacherSubjects,
                 ];
             })
             ->values();
@@ -336,8 +342,17 @@ class SectionController extends Controller
                     ->distinct('student_id')
                     ->count('student_id');
 
-                // Get the teacher's subject for this section (just pick the first one for now)
-                $teacherSubject = $subjectGroup->first();
+                // Get all teacher's subjects for this section
+                $teacherSubjects = $subjectGroup->map(function ($subject) {
+                    return [
+                        'id' => $subject->id,
+                        'subject' => $subject->subject,
+                        'schedule_days' => $subject->schedule_days,
+                        'start_time' => $subject->start_time ? $subject->start_time->format('H:i') : null,
+                        'end_time' => $subject->end_time ? $subject->end_time->format('H:i') : null,
+                        'room' => $subject->room,
+                    ];
+                });
 
                 return [
                     'id' => $section->id,
@@ -347,13 +362,7 @@ class SectionController extends Controller
                     'semester' => $section->semester,
                     'academic_year' => $section->academic_year,
                     'enrolled_count' => $enrolledCount,
-                    'teacher_subject' => [
-                        'subject' => $teacherSubject->subject,
-                        'schedule_days' => $teacherSubject->schedule_days,
-                        'start_time' => $teacherSubject->start_time ? $teacherSubject->start_time->format('H:i') : null,
-                        'end_time' => $teacherSubject->end_time ? $teacherSubject->end_time->format('H:i') : null,
-                        'room' => $teacherSubject->room,
-                    ],
+                    'teacher_subjects' => $teacherSubjects,
                 ];
             })
             ->values();

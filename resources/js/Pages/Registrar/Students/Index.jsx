@@ -260,14 +260,14 @@ export default function StudentsIndex({ students, programs, filters, auth, on_ho
             <TooltipProvider>
             <Head title="Student Management" />
 
-            <div className="space-y-6">
+            <div className="p-2 sm:p-3 lg:p-4">
                 {/* Search and Filters - Collapsible */}
-                <Card>
-                    <CardHeader className="pb-3">
-                        <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-2">
-                                <Filter className="w-5 h-5 text-purple-600" />
-                                <CardTitle className="text-lg">Search & Filter Students</CardTitle>
+                <Card className="mb-4">
+                    <CardContent className="pt-3 pb-3">
+                        <div className="flex items-center justify-between mb-2">
+                            <div className="flex items-center gap-3">
+                                <Filter className="w-4 h-4" />
+                                <span className="text-sm font-medium">Filter Students</span>
                             </div>
                             <div className="flex items-center gap-2">
                                 <Link href={route('registrar.students.create')}>
@@ -305,7 +305,7 @@ export default function StudentsIndex({ students, programs, filters, auth, on_ho
                                 </Button>
                             </div>
                         </div>
-                    </CardHeader>
+                    </CardContent>
                     {isFiltersExpanded && (
                         <CardContent className="pt-0">
                             <div className="space-y-6">
@@ -426,7 +426,7 @@ export default function StudentsIndex({ students, programs, filters, auth, on_ho
                 </Card>
 
                 {/* Students List */}
-                <Card>
+                <Card className="mb-4">
                     <CardHeader>
                         <div className="flex justify-between items-center">
                             <div>
@@ -524,7 +524,9 @@ export default function StudentsIndex({ students, programs, filters, auth, on_ho
                                                     <Badge variant="outline" className="font-medium">
                                                         {student.education_level === 'college' 
                                                             ? `${student.current_year_level || student.year_level} Year`
-                                                            : `Grade ${student.year_level}`
+                                                            : student.year_level.startsWith('Grade ') 
+                                                                ? student.year_level 
+                                                                : `Grade ${student.year_level}`
                                                         }
                                                     </Badge>
                                                 </td>
@@ -680,7 +682,9 @@ export default function StudentsIndex({ students, programs, filters, auth, on_ho
                                     <div className="text-2xl font-bold text-blue-600">
                                         {selectedStudent.education_level === 'college'
                                             ? `${selectedStudent.current_year_level || selectedStudent.year_level}Y`
-                                            : `G${selectedStudent.year_level}`
+                                            : selectedStudent.year_level.startsWith('Grade ')
+                                                ? selectedStudent.year_level
+                                                : `Grade ${selectedStudent.year_level}`
                                         }
                                     </div>
                                     <div className="text-xs text-gray-600 uppercase tracking-wide">Year Level</div>
@@ -912,7 +916,9 @@ export default function StudentsIndex({ students, programs, filters, auth, on_ho
                                                             <div className="font-semibold text-gray-900">
                                                                 {selectedStudent.education_level === 'college'
                                                                     ? `${selectedStudent.current_year_level || selectedStudent.year_level} Year`
-                                                                    : `Grade ${selectedStudent.year_level}`
+                                                                    : selectedStudent.year_level.startsWith('Grade ') 
+                                                                        ? selectedStudent.year_level 
+                                                                        : `Grade ${selectedStudent.year_level}`
                                                                 }
                                                             </div>
                                                         </div>
@@ -988,7 +994,9 @@ export default function StudentsIndex({ students, programs, filters, auth, on_ho
                                                     <div className="p-3 bg-gradient-to-r from-green-50 to-emerald-50 rounded-lg border border-green-200">
                                                         <div className="flex items-center gap-2 mb-1">
                                                             <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                                                            <span className="text-xs font-medium text-green-700 uppercase tracking-wide">Program</span>
+                                                            <span className="text-xs font-medium text-green-700 uppercase tracking-wide">
+                                                                Program
+                                                            </span>
                                                         </div>
                                                         <div className="font-semibold text-green-900">
                                                             {selectedStudent.program?.program_code || 'N/A'}
@@ -1013,7 +1021,9 @@ export default function StudentsIndex({ students, programs, filters, auth, on_ho
                                                         <div className="font-semibold text-purple-900">
                                                             {selectedStudent.education_level === 'college'
                                                                 ? `${selectedStudent.current_year_level || selectedStudent.year_level} Year`
-                                                                : `Grade ${selectedStudent.year_level}`
+                                                                : selectedStudent.year_level.startsWith('Grade ') 
+                                                                    ? selectedStudent.year_level 
+                                                                    : `Grade ${selectedStudent.year_level}`
                                                             }
                                                         </div>
                                                     </div>
@@ -1034,16 +1044,6 @@ export default function StudentsIndex({ students, programs, filters, auth, on_ho
                                                         </Badge>
                                                     </div>
                                                 </div>
-
-                                                {selectedStudent.track && (
-                                                    <div className="p-3 bg-gradient-to-r from-cyan-50 to-teal-50 rounded-lg border border-cyan-200">
-                                                        <div className="flex items-center gap-2 mb-1">
-                                                            <div className="w-2 h-2 bg-cyan-500 rounded-full"></div>
-                                                            <span className="text-xs font-medium text-cyan-700 uppercase tracking-wide">Track</span>
-                                                        </div>
-                                                        <div className="font-semibold text-cyan-900">{selectedStudent.track}</div>
-                                                    </div>
-                                                )}
 
                                                 {selectedStudent.strand && (
                                                     <div className="p-3 bg-gradient-to-r from-pink-50 to-rose-50 rounded-lg border border-pink-200">
@@ -1084,6 +1084,55 @@ export default function StudentsIndex({ students, programs, filters, auth, on_ho
                                                                 month: 'long',
                                                                 day: 'numeric'
                                                             })}
+                                                        </div>
+                                                    </div>
+                                                )}
+
+                                                {/* Voucher Information - Only show for SHS students */}
+                                                {selectedStudent.education_level === 'senior_high' && (
+                                                    <div className="p-4 bg-gradient-to-r from-yellow-50 to-amber-50 rounded-lg border border-yellow-200">
+                                                        <div className="flex items-center gap-2 mb-2">
+                                                            <div className={`w-3 h-3 rounded-full ${
+                                                                selectedStudent.has_voucher && selectedStudent.voucher_status === 'active'
+                                                                    ? 'bg-green-500'
+                                                                    : selectedStudent.has_voucher && selectedStudent.voucher_status === 'invalid'
+                                                                    ? 'bg-red-500'
+                                                                    : 'bg-gray-400'
+                                                            }`}></div>
+                                                            <span className="text-sm font-medium text-yellow-800 uppercase tracking-wide">SHS Voucher</span>
+                                                        </div>
+                                                        <div className="space-y-1">
+                                                            {selectedStudent.has_voucher ? (
+                                                                <div className="space-y-2">
+                                                                    <div className="flex items-center justify-between">
+                                                                        <span className="text-sm text-yellow-900">Status:</span>
+                                                                        <Badge
+                                                                            variant="secondary"
+                                                                            className={
+                                                                                selectedStudent.voucher_status === 'active'
+                                                                                    ? 'bg-green-100 text-green-800'
+                                                                                    : 'bg-red-100 text-red-800'
+                                                                            }
+                                                                        >
+                                                                            {selectedStudent.voucher_status === 'active' ? 'Active' : 'Invalid'}
+                                                                        </Badge>
+                                                                    </div>
+                                                                    {selectedStudent.voucher_id && (
+                                                                        <div className="p-2 bg-yellow-100 rounded border border-yellow-300">
+                                                                            <span className="text-xs text-yellow-800 font-medium">
+                                                                                Voucher ID: <span className="font-mono">{selectedStudent.voucher_id}</span>
+                                                                            </span>
+                                                                        </div>
+                                                                    )}
+                                                                </div>
+                                                            ) : (
+                                                                <div className="text-sm text-yellow-900">
+                                                                    <span className="font-medium">No voucher assigned</span>
+                                                                </div>
+                                                            )}
+                                                            <div className="text-xs text-yellow-700 mt-1">
+                                                                SHS students are eligible for tuition fee vouchers through the program.
+                                                            </div>
                                                         </div>
                                                     </div>
                                                 )}

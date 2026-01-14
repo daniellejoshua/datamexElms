@@ -27,8 +27,9 @@ class ResetDatabaseKeepCoreData extends Command
      */
     public function handle()
     {
-        if (!$this->option('force') && !$this->confirm('This will delete ALL data except programs, subjects, curricula, and non-student users. Are you sure?')) {
+        if (! $this->option('force') && ! $this->confirm('This will delete ALL data except programs, subjects, curricula, and non-student users. Are you sure?')) {
             $this->info('Operation cancelled.');
+
             return;
         }
 
@@ -94,7 +95,7 @@ class ResetDatabaseKeepCoreData extends Command
             $this->info('Deleted: all student, enrollment, grade, section, and related data');
 
         } catch (\Exception $e) {
-            $this->error('Error during reset: ' . $e->getMessage());
+            $this->error('Error during reset: '.$e->getMessage());
             throw $e;
         } finally {
             // Re-enable foreign key checks

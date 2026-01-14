@@ -66,7 +66,7 @@ const Create = ({ programs, curricula, archivedSections, currentAcademicPeriod, 
 
             try {
                 // Check if there's a year level guide for this program and year level
-                const guide = selectedProgram.year_level_guides?.find(g => g.year_level === parseInt(data.year_level));
+                const guide = selectedProgram.yearLevelGuides?.find(g => g.year_level === parseInt(data.year_level));
                 if (guide && guide.curriculum) {
                     setAutoSelectedCurriculum(guide.curriculum);
                     setSelectedCurriculum(guide.curriculum);

@@ -21,18 +21,22 @@ use Maatwebsite\Excel\Facades\Excel;
 class GradeController extends Controller
 {
     /**
-     * Show grades for a specific section
+     * Show grades for a specific section subject
      */
-    public function show(Section $section): Response
+    public function show(SectionSubject $sectionSubject): Response
     {
         $user = Auth::user();
         $teacher = Teacher::where('user_id', $user->id)->firstOrFail();
 
-        // Verify teacher is assigned to this section
-        $sectionSubject = SectionSubject::with(['subject'])
-            ->where('section_id', $section->id)
-            ->where('teacher_id', $teacher->id)
-            ->firstOrFail();
+        // Verify teacher is assigned to this section subject
+        if ($sectionSubject->teacher_id !== $teacher->id) {
+            abort(403, 'Unauthorized access to this section subject.');
+        }
+
+        // Load the section and subject relationships
+        $sectionSubject->load(['section.program', 'subject']);
+
+        $section = $sectionSubject->section;
 
         // Get students enrolled in this specific subject for this teacher
         // This includes both regular students (enrolled through section) and irregular students (enrolled per subject)
@@ -141,17 +145,17 @@ class GradeController extends Controller
     }
 
     /**
-     * Update grades for students
+     * Update grades for students in a section subject
      */
-    public function updateGrades(Request $request, Section $section)
+    public function updateGrades(Request $request, SectionSubject $sectionSubject)
     {
         $user = Auth::user();
         $teacher = Teacher::where('user_id', $user->id)->firstOrFail();
 
-        // Verify teacher is assigned to this section
-        SectionSubject::where('section_id', $section->id)
-            ->where('teacher_id', $teacher->id)
-            ->firstOrFail();
+        // Verify teacher is assigned to this section subject
+        if ($sectionSubject->teacher_id !== $teacher->id) {
+            abort(403, 'Unauthorized access to this section subject.');
+        }
 
         $validated = $request->validate([
             'grades' => 'required|array',
@@ -202,7 +206,7 @@ class GradeController extends Controller
                 // Handle college grades
                 $grade = StudentGrade::firstOrNew([
                     'student_enrollment_id' => $enrollment->id,
-                    'section_subject_id' => $section->sectionSubjects->where('teacher_id', $teacher->id)->first()?->id,
+                    'section_subject_id' => $sectionSubject->id,
                     'teacher_id' => $teacher->id,
                 ]);
 
@@ -237,7 +241,7 @@ class GradeController extends Controller
                 // Handle SHS grades
                 $grade = ShsStudentGrade::firstOrNew([
                     'student_enrollment_id' => $enrollment->id,
-                    'section_subject_id' => $section->sectionSubjects->where('teacher_id', $teacher->id)->first()?->id,
+                    'section_subject_id' => $sectionSubject->id,
                     'teacher_id' => $teacher->id,
                 ]);
 

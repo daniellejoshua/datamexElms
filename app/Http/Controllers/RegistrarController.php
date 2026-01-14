@@ -15,7 +15,6 @@ use App\Models\StudentSemesterPayment;
 use App\Models\Teacher;
 use App\Models\User;
 use Illuminate\Http\Request;
-use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
@@ -557,11 +556,36 @@ class RegistrarController extends Controller
 
             // Payment Information
             'enrollment_fee' => ['required', 'numeric', 'min:0'],
-            'payment_amount' => ['required', 'numeric', 'min:0'],
+            'payment_amount' => ['nullable', 'numeric', 'min:0'],
 
             // Course shifting confirmation
             'confirm_course_shift' => ['nullable', 'boolean'],
             'create_year_level_guide' => ['nullable', 'boolean'],
+
+            // Credit transfer data (for shiftees/transferees)
+            'transfer_type' => ['nullable', Rule::in(['shiftee', 'transferee'])],
+            'previous_program_id' => ['nullable', 'exists:programs,id'],
+            'previous_school' => ['nullable', 'string', 'max:255'],
+            'credited_subjects' => ['nullable', 'array'],
+            'credited_subjects.*.subject_id' => ['nullable', 'exists:subjects,id'],
+            'credited_subjects.*.subject_code' => ['nullable', 'string'],
+            'credited_subjects.*.subject_name' => ['nullable', 'string'],
+            'credited_subjects.*.units' => ['nullable', 'numeric'],
+            'credited_subjects.*.year_level' => ['nullable', 'integer'],
+            'credited_subjects.*.semester' => ['nullable', 'string'],
+            'credited_subjects.*.fee_adjustment' => ['nullable', 'numeric'],
+            'subjects_to_catch_up' => ['nullable', 'array'],
+            'subjects_to_catch_up.*.subject_id' => ['nullable', 'exists:subjects,id'],
+            'subjects_to_catch_up.*.subject_code' => ['nullable', 'string'],
+            'subjects_to_catch_up.*.subject_name' => ['nullable', 'string'],
+            'subjects_to_catch_up.*.units' => ['nullable', 'numeric'],
+            'subjects_to_catch_up.*.year_level' => ['nullable', 'integer'],
+            'subjects_to_catch_up.*.semester' => ['nullable', 'string'],
+            'subjects_to_catch_up.*.fee_adjustment' => ['nullable', 'numeric'],
+            'fee_adjustments' => ['nullable', 'array'],
+            'fee_adjustments.credits' => ['nullable', 'numeric'],
+            'fee_adjustments.catchup' => ['nullable', 'numeric'],
+            'fee_adjustments.total' => ['nullable', 'numeric'],
         ]);
 
         // Check if this is an existing student being updated
@@ -637,56 +661,50 @@ class RegistrarController extends Controller
             $numericYearLevel = $this->extractNumericYearLevel($validated['year_level'], $validated['education_level']);
 
             // --- Year-level progression validation for existing/returning students ---
-            // Rule: 1 academic year == 2 semesters. We determine how many archived
-            // semesters have happened since the student's enrolled date (archived
-            // semesters imply completion). Existing or returning students cannot
-            // be advanced beyond the number of completed academic years + 1.
+            // Simple rule: Use current_year_level from Student model (auto-updated by ArchivedStudentEnrollmentObserver)
+            // Students can only enroll in their current_year_level or higher (forward progression only)
             if ($isUpdatingExisting || $isReturningStudent) {
-                // Prevent decreasing year level for existing/returning students.
-                if ($isUpdatingExisting) {
-                    $existingNumeric = $existingStudent->current_year_level ?? $this->extractNumericYearLevel($existingStudent->year_level ?? '1', $existingStudent->education_level ?? $validated['education_level']);
-                    if ($numericYearLevel < $existingNumeric) {
-                        return back()->withErrors([
-                            'year_level' => "Invalid year level. Cannot decrease from {$existingNumeric} to {$numericYearLevel}.",
-                        ])->withInput();
-                    }
-                    $enrolledDate = $existingStudent->enrolled_date ?? $existingStudent->created_at;
+                $student = $isUpdatingExisting ? $existingStudent : null;
+                $studentId = $isUpdatingExisting ? $existingStudent->id : ($archivedStudent->original_student_id ?? null);
+
+                // Get current allowed year level from database
+                if ($student) {
+                    $currentAllowedYearLevel = $student->current_year_level ?? 1;
+                } elseif ($studentId) {
+                    // For returning students, check their original student record
+                    $originalStudent = Student::find($studentId);
+                    $currentAllowedYearLevel = $originalStudent?->current_year_level ?? 1;
                 } else {
-                    $archivedNumeric = $this->extractNumericYearLevel($archivedStudent->year_level ?? '1', $archivedStudent->education_level ?? $validated['education_level']);
-                    if ($numericYearLevel < $archivedNumeric) {
-                        return back()->withErrors([
-                            'year_level' => "Invalid year level. Cannot decrease from {$archivedNumeric} to {$numericYearLevel}.",
-                        ])->withInput();
-                    }
-                    $enrolledDate = $archivedStudent->enrolled_date ?? $archivedStudent->archived_at ?? now();
+                    $currentAllowedYearLevel = 1;
                 }
 
-                if ($enrolledDate) {
-                    // Count archived student enrollments for this student which represent
-                    // completed semesters. Use per-student archived enrollments rather
-                    // than global section archives.
-                    $studentIdForArchiveCount = $isUpdatingExisting ? $existingStudent->id : ($archivedStudent->original_student_id ?? null);
+                // Validate: Cannot go backwards, can only go forward or stay at current level
+                if ($numericYearLevel < $currentAllowedYearLevel) {
+                    return back()->withErrors([
+                        'year_level' => "Cannot enroll in year {$numericYearLevel}. You are already in year {$currentAllowedYearLevel}. You cannot move backwards.",
+                    ])->withInput();
+                }
 
-                    // Count completed archived semesters for this student. Use only
-                    // archived enrollments with a final_status indicating completion
-                    // to avoid counting dropped/failed semesters.
-                    $archivedSemestersCount = 0;
-                    if ($studentIdForArchiveCount) {
-                        $archivedSemestersCount = ArchivedStudentEnrollment::where('student_id', $studentIdForArchiveCount)
-                            ->where('final_status', 'completed')
-                            ->count();
-                    }
+                // Validate: Cannot skip year levels
+                $nextYearLevel = $currentAllowedYearLevel + 1;
+                if ($numericYearLevel > $nextYearLevel) {
+                    return back()->withErrors([
+                        'year_level' => "Cannot skip to year {$numericYearLevel}. You can only enroll in year {$currentAllowedYearLevel} or {$nextYearLevel} (after completing both semesters).",
+                    ])->withInput();
+                }
 
-                    // Each academic year = 2 semesters. The allowed year is the
-                    // baseline starting year (1) plus completed full years.
-                    $completedAcademicYears = intdiv($archivedSemestersCount, 2);
+                // If trying to advance to next year (+1), verify they completed both semesters of current year
+                if ($numericYearLevel > $currentAllowedYearLevel && $studentId) {
+                    // Count completed semesters at the current year level
+                    $completedSemestersAtCurrentLevel = ArchivedStudentEnrollment::where('student_id', $studentId)
+                        ->where('final_status', 'completed')
+                        ->whereIn('semester', ['first', 'second']) // Match stored format
+                        ->count();
 
-                    // Allowed year level is 1 + completed full academic years.
-                    $allowedYearLevel = 1 + $completedAcademicYears;
-
-                    if ($numericYearLevel > $allowedYearLevel) {
+                    // Must complete at least 2 semesters (1st and 2nd) to advance
+                    if ($completedSemestersAtCurrentLevel < 2 * ($currentAllowedYearLevel)) {
                         return back()->withErrors([
-                            'year_level' => "Requested year level not allowed. Based on archived semesters, the student may only be up to '".($allowedYearLevel)."' at this time.",
+                            'year_level' => "Cannot advance to year {$numericYearLevel}. Complete both semesters of year {$currentAllowedYearLevel} first. (You have {$completedSemestersAtCurrentLevel} semesters completed)",
                         ])->withInput();
                     }
                 }
@@ -727,9 +745,11 @@ class RegistrarController extends Controller
                         'course_shift_required' => [
                             'current_program' => $currentProgram->program_name ?? 'Unknown',
                             'current_program_code' => $currentProgram->program_code ?? null,
+                            'current_curriculum' => $existingStudent->curriculum?->curriculum_name ?? null,
                             'new_program' => $newProgram->program_name ?? 'Unknown',
                             'new_program_code' => $newProgram->program_code ?? null,
                             'student_name' => $existingStudent->first_name.' '.$existingStudent->last_name,
+                            'student_id' => $existingStudent->id,
                         ],
                         'old' => $request->all(), // Preserve form input
                     ]);
@@ -756,9 +776,11 @@ class RegistrarController extends Controller
                         'course_shift_required' => [
                             'current_program' => $currentProgram->program_name ?? 'Unknown',
                             'current_program_code' => $currentProgram->program_code ?? null,
+                            'current_curriculum' => $archivedStudent->curriculum?->curriculum_name ?? null,
                             'new_program' => $newProgram->program_name ?? 'Unknown',
                             'new_program_code' => $newProgram->program_code ?? null,
                             'student_name' => $archivedStudent->first_name.' '.$archivedStudent->last_name,
+                            'student_id' => $archivedStudent->original_student_id,
                         ],
                         'old' => $request->all(), // Preserve form input
                     ]);
@@ -821,14 +843,12 @@ class RegistrarController extends Controller
             // this is a new transferee entering above 1st year and no guide exists yet.
             if (! $isUpdatingExisting && ! $isReturningStudent && $numericYearLevel > 1 && ($request->boolean('create_year_level_guide'))) {
                 $existingGuide = \App\Models\YearLevelCurriculumGuide::where('program_id', $validated['program_id'])
-                    ->where('academic_year', $currentAcademicYear)
                     ->where('year_level', $numericYearLevel)
                     ->first();
 
                 if (! $existingGuide && $curriculumId) {
                     \App\Models\YearLevelCurriculumGuide::create([
                         'program_id' => $validated['program_id'],
-                        'academic_year' => $currentAcademicYear,
                         'year_level' => $numericYearLevel,
                         'curriculum_id' => $curriculumId,
                     ]);
@@ -861,6 +881,30 @@ class RegistrarController extends Controller
                 'status' => 'active',
                 'enrolled_date' => $isUpdatingExisting ? $existingStudent->enrolled_date : now(),
             ];
+
+            // SHS Voucher System: All SHS students automatically get voucher
+            if ($validated['education_level'] === 'senior_high') {
+                $studentData['has_voucher'] = true;
+                $studentData['voucher_id'] = 'shsvoucher('.$studentData['student_number'].')';
+                $studentData['voucher_status'] = 'active';
+                $studentData['voucher_invalidated_at'] = null;
+                $studentData['voucher_invalidation_reason'] = null;
+            }
+
+            // Track course shift data if shifting
+            if ($isShiftingCourses && $currentProgram) {
+                $studentData['previous_program_id'] = $currentProgram->id;
+                $studentData['previous_curriculum_id'] = $isUpdatingExisting ? $existingStudent->curriculum_id : ($archivedStudent->curriculum_id ?? null);
+                $studentData['course_shifted_at'] = now();
+                $studentData['shift_reason'] = 'Course shift from '.$currentProgram->program_name.' to '.$newProgram->program_name;
+
+                // Calculate and store credited subjects
+                $creditedSubjects = $this->calculateCreditedSubjects(
+                    $isUpdatingExisting ? $existingStudent->id : ($archivedStudent->original_student_id ?? null),
+                    $curriculumId
+                );
+                $studentData['credited_subjects'] = $creditedSubjects;
+            }
 
             // Create or update student record
             if ($isUpdatingExisting) {
@@ -913,11 +957,44 @@ class RegistrarController extends Controller
                     'student' => "Student is already enrolled in the current semester ({$academicYear} - {$semester}). Cannot enroll again.",
                 ])->withInput();
             }
-            $enrollmentFee = (float) $validated['enrollment_fee'];
+            // Calculate enrollment fee for irregular students
+            if ($validated['student_type'] === 'irregular' && $curriculumId) {
+                // Get base enrollment fee from settings or program
+                $baseEnrollmentFee = $program->enrollment_fee ?? 5000; // Default base fee
+
+                // Get required subjects for current year/semester
+                $requiredSubjects = \App\Models\CurriculumSubject::where('curriculum_id', $curriculumId)
+                    ->where('year_level', $numericYearLevel)
+                    ->where('semester', $semester)
+                    ->count();
+
+                // Calculate total fee (base + 300 per subject)
+                $enrollmentFee = $baseEnrollmentFee + (300 * $requiredSubjects);
+
+                // Subtract 300 for each credited subject that's required this semester
+                $creditedThisSemester = $this->countCreditedSubjectsForSemester(
+                    $curriculumId,
+                    $numericYearLevel,
+                    $semester,
+                    $studentData['credited_subjects'] ?? []
+                );
+
+                $enrollmentFee -= (300 * $creditedThisSemester);
+            } else {
+                $enrollmentFee = (float) $validated['enrollment_fee'];
+            }
+
+            // SHS Voucher System: Override fee to 0 if student has active voucher
+            if ($validated['education_level'] === 'senior_high' &&
+                ($studentData['has_voucher'] ?? false) &&
+                ($studentData['voucher_status'] ?? null) === 'active') {
+                $enrollmentFee = 0;
+            }
+
             $paymentAmount = (float) $validated['payment_amount'];
 
             // Ensure values are numeric and non-negative
-            if (! is_numeric($validated['enrollment_fee']) || $enrollmentFee < 0) {
+            if (! is_numeric($enrollmentFee) || $enrollmentFee < 0) {
                 return back()->withErrors([
                     'enrollment_fee' => 'Enrollment fee must be a valid positive number.',
                 ])->withInput();
@@ -929,7 +1006,8 @@ class RegistrarController extends Controller
                 ])->withInput();
             }
 
-            if ($enrollmentFee == 0) {
+            // SHS students with active vouchers can have zero enrollment fee
+            if ($enrollmentFee == 0 && ! ($validated['education_level'] === 'senior_high' && ($studentData['has_voucher'] ?? false))) {
                 return back()->withErrors([
                     'enrollment_fee' => 'Enrollment fee cannot be zero.',
                 ])->withInput();
@@ -1000,6 +1078,78 @@ class RegistrarController extends Controller
                     'academic_year' => $academicYear,
                     'semester' => $semester,
                     'enrolled_by' => Auth::id(),
+                ]);
+            }
+
+            // Handle credit transfers for shiftees and transferees
+            if (! empty($validated['transfer_type']) && ($validated['transfer_type'] === 'shiftee' || $validated['transfer_type'] === 'transferee')) {
+                // Get program and curriculum information
+                $newProgram = Program::find($validated['program_id']);
+                $newCurriculum = $newProgram->curriculums()->where('is_current', true)->first();
+
+                $previousProgram = ! empty($validated['previous_program_id'])
+                    ? Program::find($validated['previous_program_id'])
+                    : null;
+                $previousCurriculum = $previousProgram
+                    ? $previousProgram->curriculums()->where('is_current', true)->first()
+                    : null;
+
+                // Save credited subjects
+                if (! empty($validated['credited_subjects'])) {
+                    foreach ($validated['credited_subjects'] as $creditedSubject) {
+                        \App\Models\StudentCreditTransfer::create([
+                            'student_id' => $student->id,
+                            'previous_program_id' => $previousProgram?->id,
+                            'new_program_id' => $newProgram->id,
+                            'previous_curriculum_id' => $previousCurriculum?->id,
+                            'new_curriculum_id' => $newCurriculum->id,
+                            'subject_id' => $creditedSubject['subject_id'] ?? null,
+                            'subject_code' => $creditedSubject['subject_code'] ?? null,
+                            'subject_name' => $creditedSubject['subject_name'] ?? null,
+                            'original_subject_code' => $creditedSubject['original_subject_code'] ?? null,
+                            'original_subject_name' => $creditedSubject['original_subject_name'] ?? null,
+                            'units' => $creditedSubject['units'] ?? 0,
+                            'year_level' => $creditedSubject['year_level'] ?? 1,
+                            'semester' => $creditedSubject['semester'] ?? '1st',
+                            'transfer_type' => $validated['transfer_type'],
+                            'credit_status' => 'credited',
+                            'fee_adjustment' => $creditedSubject['fee_adjustment'] ?? -300,
+                            'previous_school' => $validated['previous_school'] ?? null,
+                            'approved_by' => Auth::id(),
+                            'approved_at' => now(),
+                        ]);
+                    }
+                }
+
+                // Save catch-up subjects
+                if (! empty($validated['subjects_to_catch_up'])) {
+                    foreach ($validated['subjects_to_catch_up'] as $catchupSubject) {
+                        \App\Models\StudentCreditTransfer::create([
+                            'student_id' => $student->id,
+                            'previous_program_id' => $previousProgram?->id,
+                            'new_program_id' => $newProgram->id,
+                            'previous_curriculum_id' => $previousCurriculum?->id,
+                            'new_curriculum_id' => $newCurriculum->id,
+                            'subject_id' => $catchupSubject['subject_id'] ?? null,
+                            'subject_code' => $catchupSubject['subject_code'] ?? null,
+                            'subject_name' => $catchupSubject['subject_name'] ?? null,
+                            'units' => $catchupSubject['units'] ?? 0,
+                            'year_level' => $catchupSubject['year_level'] ?? 1,
+                            'semester' => $catchupSubject['semester'] ?? '1st',
+                            'transfer_type' => $validated['transfer_type'],
+                            'credit_status' => 'for_catchup',
+                            'fee_adjustment' => $catchupSubject['fee_adjustment'] ?? 300,
+                            'approved_by' => Auth::id(),
+                            'approved_at' => now(),
+                        ]);
+                    }
+                }
+
+                // Update student record with transfer information
+                $student->update([
+                    'previous_program_id' => $previousProgram?->id,
+                    'previous_curriculum_id' => $previousCurriculum?->id,
+                    'course_shifted_at' => now(),
                 ]);
             }
 
@@ -1150,5 +1300,183 @@ class RegistrarController extends Controller
         }
 
         return sprintf('%s-%s-%04d', $year, $prefix, $newNumber);
+    }
+
+    /**
+     * Calculate credited subjects when a student shifts courses.
+     * Compares completed subjects with new curriculum and auto-matches.
+     * A subject is considered "completed" ONLY if:
+     * 1. Teacher has entered ALL grading period grades (no blank terms)
+     * 2. A semester/final grade has been computed
+     * 3. Student passed the subject (grade >= 75)
+     */
+    private function calculateCreditedSubjects(?int $studentId, ?int $newCurriculumId): array
+    {
+        if (! $studentId || ! $newCurriculumId) {
+            return [];
+        }
+
+        $credited = [];
+
+        // Get all subjects the student has COMPLETED with teacher-entered grades
+        // Only consider subjects where:
+        // 1. ALL grading periods have grades (no blank terms)
+        // 2. Semester grade / final grade is computed and not null
+        // 3. Student passed the subject (grade >= 75 or status = 'passed')
+        $completedSubjects = DB::table('student_subject_enrollments')
+            ->join('section_subjects', 'student_subject_enrollments.section_subject_id', '=', 'section_subjects.id')
+            ->join('subjects', 'section_subjects.subject_id', '=', 'subjects.id')
+            ->leftJoin('student_grades', function ($join) {
+                $join->on('student_subject_enrollments.student_enrollment_id', '=', 'student_grades.student_enrollment_id')
+                    ->on('section_subjects.id', '=', 'student_grades.section_subject_id');
+            })
+            ->leftJoin('shs_student_grades', function ($join) {
+                $join->on('student_subject_enrollments.student_enrollment_id', '=', 'shs_student_grades.student_enrollment_id')
+                    ->on('section_subjects.id', '=', 'shs_student_grades.section_subject_id');
+            })
+            ->where('student_subject_enrollments.student_id', $studentId)
+            // Must have semester/final grade computed
+            ->whereNotNull(DB::raw('COALESCE(student_grades.semester_grade, shs_student_grades.final_grade)'))
+            // For COLLEGE: Must have ALL 4 grading periods (prelim, midterm, prefinal, finals)
+            // For SHS: Must have ALL 4 quarters (first, second, third, fourth)
+            ->where(function ($query) {
+                $query->where(function ($q) {
+                    // College grades - ALL terms must be filled
+                    $q->whereNotNull('student_grades.prelim_grade')
+                        ->whereNotNull('student_grades.midterm_grade')
+                        ->whereNotNull('student_grades.prefinal_grade')
+                        ->whereNotNull('student_grades.final_grade');
+                })->orWhere(function ($q) {
+                    // SHS grades - ALL quarters must be filled
+                    $q->whereNotNull('shs_student_grades.first_quarter_grade')
+                        ->whereNotNull('shs_student_grades.second_quarter_grade')
+                        ->whereNotNull('shs_student_grades.third_quarter_grade')
+                        ->whereNotNull('shs_student_grades.fourth_quarter_grade');
+                });
+            })
+            // Must be a passing grade
+            ->where(function ($query) {
+                $query->where('student_grades.status', 'passed')
+                    ->orWhere('shs_student_grades.status', 'passed')
+                    ->orWhereRaw('COALESCE(student_grades.semester_grade, shs_student_grades.final_grade) >= 75');
+            })
+            ->select(
+                'subjects.id',
+                'subjects.subject_code',
+                'subjects.subject_name',
+                DB::raw('COALESCE(student_grades.semester_grade, shs_student_grades.final_grade) as grade'),
+                DB::raw('COALESCE(student_grades.status, shs_student_grades.status) as status')
+            )
+            ->distinct()
+            ->get();
+
+        // Get new curriculum subjects
+        $newCurriculumSubjects = \App\Models\CurriculumSubject::where('curriculum_id', $newCurriculumId)
+            ->with('subject')
+            ->get();
+
+        // Match subjects by code (exact match only for auto-credit)
+        // Only subjects with teacher-entered passing grades will be credited
+        foreach ($newCurriculumSubjects as $newCurriculum) {
+            $newSubject = $newCurriculum->subject;
+
+            foreach ($completedSubjects as $completedSubject) {
+                if (strtoupper($completedSubject->subject_code) === strtoupper($newSubject->subject_code)) {
+                    $credited[] = [
+                        'old_subject_id' => $completedSubject->id,
+                        'old_subject_code' => $completedSubject->subject_code,
+                        'old_subject_name' => $completedSubject->subject_name,
+                        'new_subject_id' => $newSubject->id,
+                        'new_subject_code' => $newSubject->subject_code,
+                        'new_subject_name' => $newSubject->subject_name,
+                        'grade' => $completedSubject->grade,
+                        'status' => $completedSubject->status ?? 'passed',
+                        'credited_at' => now()->toDateTimeString(),
+                        'match_reason' => 'Exact code match with passing grade',
+                    ];
+                    break;
+                }
+            }
+        }
+
+        return $credited;
+    }
+
+    /**
+     * Count how many credited subjects are required in the specified semester.
+     * Used to calculate fee discounts for course shifters and transferees.
+     */
+    private function countCreditedSubjectsForSemester(int $curriculumId, int $yearLevel, string $semester, array $creditedSubjects = []): int
+    {
+        if (empty($creditedSubjects)) {
+            return 0;
+        }
+
+        // Get credited subject IDs
+        $creditedSubjectIds = collect($creditedSubjects)->pluck('new_subject_id')->toArray();
+
+        // Get all required subjects for this year level and semester
+        $requiredSubjectIds = \App\Models\CurriculumSubject::where('curriculum_id', $curriculumId)
+            ->where('year_level', $yearLevel)
+            ->where('semester', $semester)
+            ->pluck('subject_id')
+            ->toArray();
+
+        // Count how many credited subjects are in the required list
+        $creditedInSemester = array_intersect($creditedSubjectIds, $requiredSubjectIds);
+
+        return count($creditedInSemester);
+    }
+
+    /**
+     * Invalidate SHS voucher for a student who dropped or failed
+     */
+    public function invalidateVoucher(Request $request, Student $student)
+    {
+        // Only for SHS students
+        if ($student->education_level !== 'senior_high') {
+            return back()->withErrors(['voucher' => 'Only SHS students have vouchers.']);
+        }
+
+        // Only if they have an active voucher
+        if (! $student->has_voucher || $student->voucher_status !== 'active') {
+            return back()->withErrors(['voucher' => 'Student does not have an active voucher.']);
+        }
+
+        $validated = $request->validate([
+            'reason' => ['required', 'string', 'max:500'],
+        ]);
+
+        $student->update([
+            'voucher_status' => 'invalid',
+            'voucher_invalidated_at' => now(),
+            'voucher_invalidation_reason' => $validated['reason'],
+        ]);
+
+        return back()->with('success', 'Voucher invalidated successfully. Student will need to pay fees for their track.');
+    }
+
+    /**
+     * Reactivate SHS voucher for a student
+     */
+    public function reactivateVoucher(Student $student)
+    {
+        // Only for SHS students
+        if ($student->education_level !== 'senior_high') {
+            return back()->withErrors(['voucher' => 'Only SHS students have vouchers.']);
+        }
+
+        // Only if they have an invalidated voucher
+        if (! $student->has_voucher || $student->voucher_status === 'active') {
+            return back()->withErrors(['voucher' => 'Voucher is already active.']);
+        }
+
+        $student->update([
+            'voucher_status' => 'active',
+            'voucher_invalidated_at' => null,
+            'voucher_invalidation_reason' => null,
+        ]);
+
+        return back()->with('success', 'Voucher reactivated successfully. Tuition fees are now covered.');
     }
 }

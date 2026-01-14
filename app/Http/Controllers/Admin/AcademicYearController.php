@@ -6,7 +6,6 @@ use App\Http\Controllers\Controller;
 use App\Models\ArchivedSection;
 use App\Models\ArchivedStudent;
 use App\Models\ArchivedStudentEnrollment;
-use App\Models\ClassSchedule;
 use App\Models\PaymentTransaction;
 use App\Models\SchoolSetting;
 use App\Models\Section;
@@ -14,7 +13,6 @@ use App\Models\Student;
 use App\Models\StudentEnrollment;
 use App\Models\StudentGrade;
 use App\Models\StudentSemesterPayment;
-use App\Models\StudentSubjectEnrollment;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -148,21 +146,27 @@ class AcademicYearController extends Controller
             return redirect()->back()->withErrors(['error' => "There are {$unpaidCount} students with outstanding balances. Resolve them or check 'Force' to continue."]);
         }
 
-        DB::transaction(function () use ($validated) {
-            // Archive sections/enrollments
+        // Count active sections that will be archived
+        $sectionsToArchive = Section::where('academic_year', $validated['academic_year'])
+            ->where(function ($q) use ($semesterToCheck) {
+                $q->whereIn('semester', $semesterToCheck);
+            })
+            ->where('status', '!=', 'archived')
+            ->count();
+
+        if ($sectionsToArchive === 0) {
+            return redirect()->back()->withErrors(['error' => 'No active sections found for this academic period.']);
+        }
+
+        DB::transaction(function () use ($validated, $semesterToCheck) {
+            // Archive sections/enrollments first (creates archive records)
             $this->archiveSemesterSections(
                 $validated['academic_year'],
                 $validated['semester'],
                 $validated['archive_notes'] ?? null
             );
 
-            // Mark students on hold based on outstanding balances and clear active records
-            $semesterToCheck = match ($validated['semester']) {
-                '1st' => ['1st', 'first'],
-                '2nd' => ['2nd', 'second'],
-                default => [$validated['semester']],
-            };
-
+            // Mark students on hold based on outstanding balances
             $payments = StudentSemesterPayment::where('academic_year', $validated['academic_year'])
                 ->where(function ($q) use ($semesterToCheck) {
                     $q->whereIn('semester', $semesterToCheck);
@@ -181,203 +185,168 @@ class AcademicYearController extends Controller
                 }
             }
 
-            // Keep payment records for historical tracking and debt management
-            // Do NOT delete StudentSemesterPayment records - they are needed for:
-            // 1. Historical payment tracking
-            // 2. Preventing enrollment of students with outstanding balances
-            // 3. Debt collection management
+            // IMPORTANT: We now keep the original data for historical reference
+            // Only mark sections as archived instead of deleting them
+            // This preserves the ability to query historical data without relying solely on archive tables
 
-            // StudentSemesterPayment::where('academic_year', $validated['academic_year'])
-            //     ->where(function ($q) use ($semesterToCheck) {
-            //         $q->whereIn('semester', $semesterToCheck);
-            //     })
-            //     ->delete();
-
-            StudentGrade::whereHas('studentEnrollment', function ($q) use ($validated, $semesterToCheck) {
-                $q->where('academic_year', $validated['academic_year'])->whereIn('semester', $semesterToCheck);
-            })->delete();
-
-            StudentEnrollment::where('academic_year', $validated['academic_year'])
-                ->where(function ($q) use ($semesterToCheck) {
-                    $q->whereIn('semester', $semesterToCheck);
-                })
-                ->delete();
-
-            StudentSubjectEnrollment::where('academic_year', $validated['academic_year'])
-                ->where(function ($q) use ($semesterToCheck) {
-                    $q->whereIn('semester', $semesterToCheck);
-                })
-                ->delete();
-
-            ClassSchedule::whereHas('sectionSubject.section', function ($q) use ($validated, $semesterToCheck) {
-                $q->where('academic_year', $validated['academic_year'])->whereIn('semester', $semesterToCheck);
-            })->delete();
-
+            // Mark sections as archived (non-destructive)
             Section::where('academic_year', $validated['academic_year'])
                 ->where(function ($q) use ($semesterToCheck) {
                     $q->whereIn('semester', $semesterToCheck);
                 })
-                ->delete();
+                ->update(['status' => 'archived']);
+
+            // Mark enrollments as completed (non-destructive)
+            StudentEnrollment::where('academic_year', $validated['academic_year'])
+                ->where(function ($q) use ($semesterToCheck) {
+                    $q->whereIn('semester', $semesterToCheck);
+                })
+                ->where('status', 'active')
+                ->update([
+                    'status' => 'completed',
+                    'completion_date' => now(),
+                ]);
         });
 
         // Advance to next semester/academic year
         $this->advanceAcademicPeriod($validated['academic_year'], $validated['semester']);
 
-        return redirect()->back()->with('success', 'Semester archived successfully. Sections have been moved to history.');
+        return redirect()->back()->with('success', 'Semester archived successfully. '.$sectionsToArchive.' sections have been archived.');
     }
 
     protected function archiveSemesterSections(string $academicYear, string $semester, ?string $notes): void
     {
-        // Clean up old archived data - only keep the most recent archived academic year/semester
-        // since we now have carry forward functionality
-        $mostRecentArchived = ArchivedSection::selectRaw('academic_year, semester')
-            ->orderBy('academic_year', 'desc')
-            ->orderByRaw("CASE WHEN semester = 'first' THEN 1 WHEN semester = 'second' THEN 2 WHEN semester = 'summer' THEN 3 END DESC")
-            ->first();
+        // Convert semester format for querying
+        $semesterVariants = match ($semester) {
+            '1st' => ['1st', 'first'],
+            '2nd' => ['2nd', 'second'],
+            'summer' => ['summer'],
+            default => [$semester],
+        };
 
-        if ($mostRecentArchived) {
-            // Get IDs of archived sections that are older than the most recent
-            $sectionsToDelete = ArchivedSection::where(function ($query) use ($mostRecentArchived) {
-                $query->where('academic_year', '<', $mostRecentArchived->academic_year)
-                    ->orWhere(function ($subQuery) use ($mostRecentArchived) {
-                        $subQuery->where('academic_year', $mostRecentArchived->academic_year)
-                            ->whereRaw("CASE WHEN semester = 'first' THEN 1 WHEN semester = 'second' THEN 2 WHEN semester = 'summer' THEN 3 END < CASE WHEN ? = 'first' THEN 1 WHEN ? = 'second' THEN 2 WHEN ? = 'summer' THEN 3 END", [
-                                $mostRecentArchived->semester,
-                                $mostRecentArchived->semester,
-                                $mostRecentArchived->semester,
-                            ]);
-                    });
-            })->pluck('id');
-
-            // Delete archived student enrollments for these sections first
-            ArchivedStudentEnrollment::whereIn('archived_section_id', $sectionsToDelete)->delete();
-
-            // Then delete the archived sections
-            ArchivedSection::whereIn('id', $sectionsToDelete)->delete();
-
-            // Also clean up any other orphaned archived student enrollments
-            ArchivedStudentEnrollment::whereDoesntHave('archivedSection')->delete();
-        }
-
-        // Get all sections
-        $sections = Section::with(['subjects', 'studentEnrollments.student.user'])
+        // Get all active sections for this academic period
+        $sections = Section::with(['subjects', 'studentEnrollments.student.user', 'program', 'curriculum'])
+            ->where('academic_year', $academicYear)
+            ->where(function ($q) use ($semesterVariants) {
+                $q->whereIn('semester', $semesterVariants);
+            })
+            ->where('status', '!=', 'archived')
             ->get();
 
+        if ($sections->isEmpty()) {
+            return;
+        }
+
         $archivedStudentIds = [];
+        $archivedCount = 0;
 
         foreach ($sections as $section) {
-            // Check if section is for the specified period
-            if ($section->academic_year === $academicYear && $section->semester === $semester) {
-                // Collect student IDs for archiving from all sections in this period
-                foreach ($section->studentEnrollments as $enrollment) {
-                    $archivedStudentIds[] = $enrollment->student_id;
+            $enrollments = $section->studentEnrollments;
+
+            // Skip sections with no enrollments
+            if ($enrollments->isEmpty()) {
+                continue;
+            }
+
+            // Collect student IDs for tracking
+            foreach ($enrollments as $enrollment) {
+                $archivedStudentIds[] = $enrollment->student_id;
+            }
+
+            // Calculate section statistics
+            $completedCount = $enrollments->where('status', 'active')->count();
+            $droppedCount = $enrollments->where('status', 'dropped')->count();
+
+            // Calculate average grade
+            $averageGrade = null;
+            $gradeSum = 0;
+            $gradeCount = 0;
+
+            foreach ($enrollments as $enrollment) {
+                $grade = StudentGrade::where('student_enrollment_id', $enrollment->id)->first();
+                if ($grade && $grade->final_grade) {
+                    $gradeSum += $grade->final_grade;
+                    $gradeCount++;
                 }
+            }
 
-                // Archive the section if it belongs to the period and has enrollments/subjects
-                $enrollments = $section->studentEnrollments;
+            if ($gradeCount > 0) {
+                $averageGrade = round($gradeSum / $gradeCount, 2);
+            }
 
-                // Calculate section statistics
-                $completedCount = $enrollments->where('status', 'active')->count();
-                $droppedCount = $enrollments->where('status', 'dropped')->count();
+            // Create archived section record
+            $archivedSection = ArchivedSection::create([
+                'original_section_id' => $section->id,
+                'program_id' => $section->program_id,
+                'curriculum_id' => $section->curriculum_id,
+                'year_level' => $section->year_level,
+                'section_name' => $section->section_name,
+                'academic_year' => $academicYear,
+                'semester' => match ($semester) {
+                    '1st' => 'first',
+                    '2nd' => 'second',
+                    'summer' => 'summer',
+                },
+                'room' => ($section->subjects->first()?->pivot->room) ?? null,
+                'status' => 'completed',
+                'course_data' => $section->subjects->map(function ($subject) {
+                    return [
+                        'id' => $subject->id,
+                        'course_code' => $subject->subject_code,
+                        'subject_name' => $subject->subject_name,
+                        'credits' => $subject->units,
+                    ];
+                })->toArray(),
+                'total_enrolled_students' => $enrollments->count(),
+                'completed_students' => $completedCount,
+                'dropped_students' => $droppedCount,
+                'section_average_grade' => $averageGrade,
+                'archived_at' => now(),
+                'archived_by' => Auth::id(),
+                'archive_notes' => $notes,
+            ]);
 
-                // Calculate average grade if any
-                $averageGrade = null;
-                $gradeSum = 0;
-                $gradeCount = 0;
+            // Archive each student enrollment
+            foreach ($enrollments as $enrollment) {
+                $finalGrade = StudentGrade::where('student_enrollment_id', $enrollment->id)->first();
 
-                foreach ($enrollments as $enrollment) {
-                    $grade = StudentGrade::where('student_enrollment_id', $enrollment->id)->first();
-                    if ($grade && $grade->final_grade) {
-                        $gradeSum += $grade->final_grade;
-                        $gradeCount++;
-                    }
-                }
-
-                if ($gradeCount > 0) {
-                    $averageGrade = round($gradeSum / $gradeCount, 2);
-                }
-
-                // Create archived section record
-                $archivedSection = ArchivedSection::create([
-                    'original_section_id' => $section->id,
-                    'program_id' => $section->program_id,
-                    'curriculum_id' => $section->curriculum_id,
-                    'year_level' => $section->year_level,
-                    'section_name' => $section->section_name,
+                ArchivedStudentEnrollment::create([
+                    'archived_section_id' => $archivedSection->id,
+                    'student_id' => $enrollment->student_id,
+                    'original_enrollment_id' => $enrollment->id,
                     'academic_year' => $academicYear,
                     'semester' => match ($semester) {
                         '1st' => 'first',
                         '2nd' => 'second',
                         'summer' => 'summer',
                     },
-                    'room' => ($section->subjects->first()?->pivot->room) ?? null,
-                    'status' => 'completed',
-                    'course_data' => $section->subjects->map(function ($subject) {
-                        return [
-                            'id' => $subject->id,
-                            'course_code' => $subject->subject_code,
-                            'subject_name' => $subject->subject_name,
-                            'credits' => $subject->units,
-                        ];
-                    })->toArray(),
-                    'total_enrolled_students' => $enrollments->count(),
-                    'completed_students' => $completedCount,
-                    'dropped_students' => $droppedCount,
-                    'section_average_grade' => $averageGrade,
-                    'archived_at' => now(),
-                    'archived_by' => Auth::id(),
-                    'archive_notes' => $notes,
+                    'enrolled_date' => $enrollment->enrollment_date,
+                    'completion_date' => now()->toDateString(),
+                    'final_status' => $enrollment->status === 'active' ? 'completed' : $enrollment->status,
+                    'final_grades' => $finalGrade ? [
+                        'midterm' => $finalGrade->midterm_grade,
+                        'final' => $finalGrade->final_grade,
+                        'overall' => $finalGrade->final_grade,
+                    ] : null,
+                    'final_semester_grade' => $finalGrade?->final_grade,
+                    'letter_grade' => $this->calculateLetterGrade($finalGrade?->final_grade),
+                    'student_data' => [
+                        'name' => $enrollment->student->user->name,
+                        'student_number' => $enrollment->student->student_number,
+                        'email' => $enrollment->student->user->email,
+                        'year_level_at_completion' => $enrollment->student->year_level,
+                    ],
                 ]);
+            }
 
-                // Archive each student enrollment into ArchivedStudentEnrollment
-                foreach ($enrollments as $enrollment) {
-                    $finalGrade = StudentGrade::where('student_enrollment_id', $enrollment->id)->first();
-
-                    ArchivedStudentEnrollment::create([
-                        'archived_section_id' => $archivedSection->id,
-                        'student_id' => $enrollment->student_id,
-                        'original_enrollment_id' => $enrollment->id,
-                        'academic_year' => $academicYear,
-                        'semester' => match ($semester) {
-                            '1st' => 'first',
-                            '2nd' => 'second',
-                            'summer' => 'summer',
-                        },
-                        'enrolled_date' => $enrollment->enrollment_date,
-                        'completion_date' => now()->toDateString(),
-                        'final_status' => $enrollment->status === 'active' ? 'completed' : $enrollment->status,
-                        'final_grades' => $finalGrade ? [
-                            'midterm' => $finalGrade->midterm_grade,
-                            'final' => $finalGrade->final_grade,
-                            'overall' => $finalGrade->final_grade,
-                        ] : null,
-                        'final_semester_grade' => $finalGrade?->final_grade,
-                        'letter_grade' => $this->calculateLetterGrade($finalGrade?->final_grade),
-                        'student_data' => [
-                            'name' => $enrollment->student->user->name,
-                            'student_number' => $enrollment->student->student_number,
-                            'email' => $enrollment->student->user->email,
-                            'year_level_at_completion' => $enrollment->student->year_level,
-                        ],
-                    ]);
-                }
-
-                // Mark original enrollments and section as archived/completed (non-destructive)
-                foreach ($enrollments as $enrollment) {
-                    if ($enrollment->status === 'active') {
-                        $enrollment->status = 'completed';
-                        $enrollment->completion_date = $enrollment->completion_date ?? now();
-                    }
-                    $enrollment->save();
-                }
-
-                $section->status = 'archived';
-                $section->save();
-            } // End period check
-
-            // Archive students who were enrolled in archived sections
-            // $this->archiveSemesterStudents(array_unique($archivedStudentIds), $academicYear, $semester, $notes);
+            $archivedCount++;
         }
+
+        // Log the archiving summary
+        \Log::info("Archived {$archivedCount} sections for {$academicYear} {$semester}", [
+            'student_count' => count(array_unique($archivedStudentIds)),
+            'archived_by' => Auth::id(),
+        ]);
     }
 
     // protected function archiveSemesterStudents(array $studentIds, string $academicYear, string $semester, ?string $notes): void

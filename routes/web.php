@@ -51,6 +51,10 @@ Route::middleware(['auth', 'verified', 'role:registrar', 'throttle.api'])->prefi
     Route::put('/students/{student}', [RegistrarController::class, 'update'])->name('students.update');
     Route::get('/enrollments', [RegistrarController::class, 'students'])->name('enrollments.index');
 
+    // SHS Voucher Management
+    Route::post('/students/{student}/invalidate-voucher', [RegistrarController::class, 'invalidateVoucher'])->name('students.invalidate-voucher');
+    Route::post('/students/{student}/reactivate-voucher', [RegistrarController::class, 'reactivateVoucher'])->name('students.reactivate-voucher');
+
     // College Payment Routes
     Route::prefix('payments/college')->name('payments.college.')->group(function () {
         Route::get('/', [CollegePaymentController::class, 'index'])->name('index');
@@ -90,6 +94,17 @@ Route::middleware(['auth', 'verified', 'role:registrar', 'throttle.api'])->prefi
         Route::post('/finalize-semester', [\App\Http\Controllers\Registrar\StudentProgressionController::class, 'finalizeSemester'])->name('finalize.semester');
         Route::get('/student/{student}/history', [\App\Http\Controllers\Registrar\StudentProgressionController::class, 'studentHistory'])->name('student.history');
     });
+
+    // Credit Transfer Routes (for Shiftees & Transferees)
+    Route::prefix('credit-transfers')->name('credit-transfers.')->group(function () {
+        Route::get('/pending-page', fn () => inertia('Registrar/CreditTransfers/Pending'))->name('pending.page');
+        Route::post('/compare', [\App\Http\Controllers\Registrar\CreditTransferController::class, 'compareCurricula'])->name('compare');
+        Route::post('/', [\App\Http\Controllers\Registrar\CreditTransferController::class, 'storeCreditTransfers'])->name('store');
+        Route::get('/student/{student}', [\App\Http\Controllers\Registrar\CreditTransferController::class, 'getStudentCreditTransfers'])->name('show');
+        Route::get('/pending', [\App\Http\Controllers\Registrar\CreditTransferController::class, 'getPendingCredits'])->name('pending');
+        Route::post('/check-grades', [\App\Http\Controllers\Registrar\CreditTransferController::class, 'checkGradeCompletion'])->name('check-grades');
+        Route::patch('/{creditTransfer}/status', [\App\Http\Controllers\Registrar\CreditTransferController::class, 'updateCreditStatus'])->name('update-status');
+    });
 });
 
 // Teacher Routes
@@ -101,16 +116,16 @@ Route::middleware(['auth', 'verified', 'role:teacher'])->prefix('teacher')->name
     Route::get('/sections/shs', [TeacherSectionController::class, 'shsSections'])->name('sections.shs');
 
     // Grade Management
-    Route::get('/sections/{section}/grades', [GradeController::class, 'show'])->name('grades.show');
-    Route::post('/sections/{section}/grades', [GradeController::class, 'updateGrades'])->name('grades.update');
+    Route::get('/sections/{sectionSubject}/grades', [GradeController::class, 'show'])->name('grades.show');
+    Route::post('/sections/{sectionSubject}/grades', [GradeController::class, 'updateGrades'])->name('grades.update');
     Route::post('/sections/{section}/grades/import', [GradeController::class, 'importGrades'])->name('grades.import');
     Route::get('/sections/{section}/grades/template', [GradeController::class, 'downloadTemplate'])->name('grades.template');
 
     // Course Materials Management
-    Route::get('/sections/{section}/materials', [CourseMaterialController::class, 'index'])->name('materials.index');
-    Route::post('/sections/{section}/materials', [CourseMaterialController::class, 'store'])->name('materials.store');
-    Route::delete('/sections/{section}/materials/{material}', [CourseMaterialController::class, 'destroy'])->name('materials.destroy');
-    Route::get('/sections/{section}/materials/{material}/download', [CourseMaterialController::class, 'download'])->name('materials.download');
+    Route::get('/sections/{sectionSubject}/materials', [CourseMaterialController::class, 'index'])->name('materials.index');
+    Route::post('/sections/{sectionSubject}/materials', [CourseMaterialController::class, 'store'])->name('materials.store');
+    Route::delete('/sections/{sectionSubject}/materials/{material}', [CourseMaterialController::class, 'destroy'])->name('materials.destroy');
+    Route::get('/sections/{sectionSubject}/materials/{material}/download', [CourseMaterialController::class, 'download'])->name('materials.download');
 
     // Archived Grades
     Route::get('/archived-sections', [\App\Http\Controllers\Teacher\ArchivedSectionsController::class, 'index'])->name('archived-sections');

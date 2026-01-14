@@ -71,9 +71,7 @@ class Program extends Model
         $targetStart = (string) $batchYear;
 
         // Check for a year-level guide first (explicit mapping provided by admin)
-        $currentAcademicYear = SchoolSetting::getCurrentAcademicYear();
         $guide = YearLevelCurriculumGuide::where('program_id', $this->id)
-            ->where('academic_year', $currentAcademicYear)
             ->where('year_level', $numericYearLevel)
             ->with('curriculum')
             ->first();

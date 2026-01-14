@@ -50,7 +50,7 @@ export default function Show({ section, sectionSubject, enrollments, isCollegeLe
         if (!studentGrade) return;
 
         try {
-            await router.post(route('teacher.grades.update', section.id), {
+            await router.post(route('teacher.grades.update', sectionSubject.id), {
                 grades: [studentGrade]
             }, {
                 preserveScroll: true,
@@ -247,8 +247,9 @@ export default function Show({ section, sectionSubject, enrollments, isCollegeLe
             grades: [studentGrade]
         };
 
-        post(route('teacher.grades.update', section.id), {
+        post(route('teacher.grades.update', sectionSubject.id), {
             data: individualPayload,
+            preserveScroll: true,
             onSuccess: () => {
                 // Update original grades to current values
                 setOriginalGrades(prev => ({
@@ -274,19 +275,42 @@ export default function Show({ section, sectionSubject, enrollments, isCollegeLe
                     }
                 });
                 setEditingGrades(newEditingGrades);
-            },
-            onError: () => {
             }
         });
     };
 
     // Save grades
     const handleSaveGrades = () => {
-        post(route('teacher.grades.update', section.id), {
-            onSuccess: () => {
+        post(route('teacher.grades.update', sectionSubject.id), {
+            data: data,
+            preserveScroll: true,
+            onSuccess: (response) => {
                 setEditingGrades({});
+                // Update original grades to current values for all students
+                const newOriginalGrades = {};
+                data.grades.forEach(grade => {
+                    newOriginalGrades[grade.enrollment_id] = {
+                        prelim_grade: grade.prelim_grade,
+                        midterm_grade: grade.midterm_grade,
+                        prefinal_grade: grade.prefinal_grade,
+                        final_grade: grade.final_grade,
+                        first_quarter_grade: grade.first_quarter_grade,
+                        second_quarter_grade: grade.second_quarter_grade,
+                        third_quarter_grade: grade.third_quarter_grade,
+                        fourth_quarter_grade: grade.fourth_quarter_grade,
+                        teacher_remarks: grade.teacher_remarks
+                    };
+                });
+                setOriginalGrades(newOriginalGrades);
+                
+                // Show success message if available
+                if (response?.props?.flash?.success) {
+                    // You can add a toast notification here if needed
+                    console.log('Grades saved successfully');
+                }
             },
             onError: () => {
+                console.error('Error saving grades');
             }
         });
     };
@@ -319,7 +343,11 @@ export default function Show({ section, sectionSubject, enrollments, isCollegeLe
                 <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
                         <button
-                            onClick={() => router.visit(route('teacher.sections.college'))}
+                            onClick={() => router.visit(route('teacher.sections.college'), { 
+                                method: 'get',
+                                preserveState: false,
+                                preserveScroll: false 
+                            })}
                             className="flex items-center justify-center w-10 h-10 rounded-md text-gray-600 hover:text-gray-900 hover:bg-gray-100 transition-colors"
                         >
                             <ArrowLeft className="w-4 h-4" />

@@ -41,8 +41,9 @@ export default function MaterialsIndex({ section, materials, sectionSubject }) {
 
     const handleSubmit = (e) => {
         e.preventDefault();
-        post(route('teacher.materials.store', section.id), {
-            onSuccess: () => {
+        post(route('teacher.materials.store', sectionSubject.id), {
+            onSuccess: (response) => {
+                toast.success(response.props.flash?.success || 'Learning material uploaded successfully!');
                 reset();
                 setShowUploadDialog(false);
             },
@@ -85,7 +86,11 @@ export default function MaterialsIndex({ section, materials, sectionSubject }) {
 
     const handleDelete = (materialId) => {
         if (confirm('Are you sure you want to delete this material?')) {
-            router.delete(route('teacher.materials.destroy', [section.id, materialId]));
+            router.delete(route('teacher.materials.destroy', [sectionSubject.id, materialId]), {
+                onSuccess: (response) => {
+                    toast.success(response.props.flash?.success || 'Learning material deleted successfully!');
+                }
+            });
         }
     };
 
@@ -394,7 +399,7 @@ export default function MaterialsIndex({ section, materials, sectionSubject }) {
                                                 asChild
                                                 className="flex-1 text-sm font-medium"
                                             >
-                                                <Link href={route('teacher.materials.download', [section.id, material.id])}>
+                                                <Link href={route('teacher.materials.download', [sectionSubject.id, material.id])}>
                                                     <Download className="w-4 h-4 mr-2" />
                                                     Download
                                                 </Link>

@@ -16,13 +16,10 @@ class YearLevelCurriculumGuideController extends Controller
      */
     public function index(Request $request)
     {
-        $currentAcademicYear = SchoolSetting::getCurrentAcademicYear();
-
         $query = YearLevelCurriculumGuide::with(['program', 'curriculum' => function ($query) {
-                // Force fresh curriculum data with is_current flag
-                $query->select('id', 'program_id', 'curriculum_code', 'curriculum_name', 'description', 'status', 'is_current');
-            }])
-            ->where('academic_year', $currentAcademicYear);
+            // Force fresh curriculum data with is_current flag
+            $query->select('id', 'program_id', 'curriculum_code', 'curriculum_name', 'description', 'status', 'is_current');
+        }]);
 
         // Apply filters
         if ($request->filled('program_id') && $request->program_id !== 'all') {
@@ -45,7 +42,6 @@ class YearLevelCurriculumGuideController extends Controller
         return Inertia::render('Admin/YearLevelCurriculumGuides/Index', [
             'guides' => $guides,
             'programs' => $programs,
-            'currentAcademicYear' => $currentAcademicYear,
             'filters' => $request->only(['program_id', 'education_level']),
         ]);
     }
@@ -56,11 +52,9 @@ class YearLevelCurriculumGuideController extends Controller
     public function create()
     {
         $programs = Program::active()->with('curriculums')->get();
-        $currentAcademicYear = SchoolSetting::getCurrentAcademicYear();
 
         return Inertia::render('Admin/YearLevelCurriculumGuides/Create', [
             'programs' => $programs,
-            'currentAcademicYear' => $currentAcademicYear,
         ]);
     }
 
@@ -73,13 +67,11 @@ class YearLevelCurriculumGuideController extends Controller
             'program_id' => 'required|exists:programs,id',
             'year_level' => 'required|integer|min:1|max:12',
             'curriculum_id' => 'required|exists:curriculums,id',
-            'academic_year' => 'required|string',
         ]);
 
         YearLevelCurriculumGuide::updateOrCreate([
             'program_id' => $request->program_id,
             'year_level' => $request->year_level,
-            'academic_year' => $request->academic_year,
         ], [
             'curriculum_id' => $request->curriculum_id,
         ]);
@@ -93,11 +85,8 @@ class YearLevelCurriculumGuideController extends Controller
      */
     public function edit($programId, $yearLevel)
     {
-        $currentAcademicYear = SchoolSetting::getCurrentAcademicYear();
-
         $guide = YearLevelCurriculumGuide::where('program_id', $programId)
             ->where('year_level', $yearLevel)
-            ->where('academic_year', $currentAcademicYear)
             ->with(['program', 'curriculum'])
             ->firstOrFail();
 
@@ -106,7 +95,6 @@ class YearLevelCurriculumGuideController extends Controller
         return Inertia::render('Admin/YearLevelCurriculumGuides/Edit', [
             'guide' => $guide,
             'programs' => $programs,
-            'currentAcademicYear' => $currentAcademicYear,
         ]);
     }
 
@@ -119,11 +107,8 @@ class YearLevelCurriculumGuideController extends Controller
             'curriculum_id' => 'required|exists:curriculums,id',
         ]);
 
-        $currentAcademicYear = SchoolSetting::getCurrentAcademicYear();
-
         YearLevelCurriculumGuide::where('program_id', $programId)
             ->where('year_level', $yearLevel)
-            ->where('academic_year', $currentAcademicYear)
             ->update([
                 'curriculum_id' => $request->curriculum_id,
             ]);
@@ -137,11 +122,8 @@ class YearLevelCurriculumGuideController extends Controller
      */
     public function destroy($programId, $yearLevel)
     {
-        $currentAcademicYear = SchoolSetting::getCurrentAcademicYear();
-
         YearLevelCurriculumGuide::where('program_id', $programId)
             ->where('year_level', $yearLevel)
-            ->where('academic_year', $currentAcademicYear)
             ->delete();
 
         return redirect()->route('admin.year-level-curriculum-guides.index')

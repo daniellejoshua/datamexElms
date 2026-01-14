@@ -17,6 +17,8 @@ class Student extends Model
         'user_id',
         'program_id',
         'curriculum_id',
+        'previous_program_id',
+        'previous_curriculum_id',
         'batch_year',
         'current_year_level',
         'current_academic_year',
@@ -38,7 +40,15 @@ class Student extends Model
         'strand',
         'status',
         'enrolled_date',
+        'course_shifted_at',
+        'credited_subjects',
+        'shift_reason',
         'gender',
+        'has_voucher',
+        'voucher_id',
+        'voucher_status',
+        'voucher_invalidated_at',
+        'voucher_invalidation_reason',
     ];
 
     protected function casts(): array
@@ -46,6 +56,10 @@ class Student extends Model
         return [
             'birth_date' => 'date',
             'enrolled_date' => 'date',
+            'course_shifted_at' => 'datetime',
+            'credited_subjects' => 'array',
+            'has_voucher' => 'boolean',
+            'voucher_invalidated_at' => 'datetime',
         ];
     }
 
@@ -62,6 +76,16 @@ class Student extends Model
     public function curriculum(): BelongsTo
     {
         return $this->belongsTo(Curriculum::class);
+    }
+
+    public function previousProgram(): BelongsTo
+    {
+        return $this->belongsTo(Program::class, 'previous_program_id', 'id');
+    }
+
+    public function previousCurriculum(): BelongsTo
+    {
+        return $this->belongsTo(Curriculum::class, 'previous_curriculum_id');
     }
 
     public function enrollments(): HasMany
@@ -117,6 +141,11 @@ class Student extends Model
     public function studentSubjectEnrollments(): HasMany
     {
         return $this->hasMany(StudentSubjectEnrollment::class);
+    }
+
+    public function creditTransfers(): HasMany
+    {
+        return $this->hasMany(StudentCreditTransfer::class);
     }
 
     /**
@@ -232,5 +261,97 @@ class Student extends Model
             $this->curriculum_id = $programCurriculum->curriculum_id;
             $this->save();
         }
+    }
+
+    /**
+     * Get all subject credits for this student
+     */
+    public function subjectCredits(): HasMany
+    {
+        return $this->hasMany(StudentSubjectCredit::class);
+    }
+
+    /**
+     * Get completed (credited) subjects
+     */
+    public function completedSubjects(): HasMany
+    {
+        return $this->hasMany(StudentSubjectCredit::class)->where('credit_status', 'credited');
+    }
+
+    /**
+     * Check if student has completed all curriculum requirements
+     */
+    public function hasCompletedCurriculum(): bool
+    {
+        if (! $this->curriculum_id) {
+            return false;
+        }
+
+        // Get total required subjects in curriculum
+        $requiredSubjects = CurriculumSubject::where('curriculum_id', $this->curriculum_id)->count();
+
+        // Get total credited subjects for this student
+        $creditedSubjects = $this->completedSubjects()->count();
+
+        return $requiredSubjects > 0 && $creditedSubjects >= $requiredSubjects;
+    }
+
+    /**
+     * Get curriculum completion percentage
+     */
+    public function getCurriculumCompletionPercentage(): float
+    {
+        if (! $this->curriculum_id) {
+            return 0;
+        }
+
+        $requiredSubjects = CurriculumSubject::where('curriculum_id', $this->curriculum_id)->count();
+
+        if ($requiredSubjects === 0) {
+            return 0;
+        }
+
+        $creditedSubjects = $this->completedSubjects()->count();
+
+        return round(($creditedSubjects / $requiredSubjects) * 100, 2);
+    }
+
+    /**
+     * Get remaining subjects needed for graduation
+     */
+    public function getRemainingSubjects()
+    {
+        if (! $this->curriculum_id) {
+            return collect();
+        }
+
+        // Get all curriculum subjects
+        $curriculumSubjects = CurriculumSubject::where('curriculum_id', $this->curriculum_id)->get();
+
+        // Get credited curriculum subject IDs
+        $creditedIds = $this->completedSubjects()->pluck('curriculum_subject_id')->toArray();
+
+        // Return subjects not yet credited
+        return $curriculumSubjects->whereNotIn('id', $creditedIds);
+    }
+
+    /**
+     * Check if student is eligible for graduation
+     */
+    public function isEligibleForGraduation(): bool
+    {
+        // Must have completed all curriculum requirements
+        if (! $this->hasCompletedCurriculum()) {
+            return false;
+        }
+
+        // Additional checks can be added here:
+        // - No outstanding balance
+        // - No disciplinary holds
+        // - Clearance completed
+        // etc.
+
+        return true;
     }
 }

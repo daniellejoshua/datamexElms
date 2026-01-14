@@ -170,7 +170,7 @@ export default function CollegeSubjects({ subjects, filters }) {
                                     {/* Action Buttons */}
                                     <div className="flex gap-2">
                                         <Link
-                                            href={route('teacher.grades.show', subject.section.id)}
+                                            href={route('teacher.grades.show', subject.id)}
                                             className="flex-1"
                                         >
                                             <Button className="w-full bg-blue-600 hover:bg-blue-700 text-white">

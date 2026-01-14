@@ -133,14 +133,14 @@ class CurriculumController extends Controller
         // If setting this curriculum as current, check if academic year is complete
         if (isset($validated['is_current']) && $validated['is_current']) {
             $currentSemester = \App\Models\SchoolSetting::getCurrentSemester();
-            
+
             // Prevent setting as current during 2nd semester
             if ($currentSemester === '2nd') {
                 return redirect()->back()
                     ->withErrors(['is_current' => 'Cannot set curriculum as current during 2nd semester. Please wait until after the 2nd semester is complete.'])
                     ->withInput();
             }
-            
+
             Curriculum::where('program_id', $validated['program_id'])
                 ->update(['is_current' => false]);
         }
@@ -249,30 +249,30 @@ class CurriculumController extends Controller
 
         // Check if trying to change the current status
         $isCurrentChanging = isset($validated['is_current']) && $validated['is_current'] !== $curriculum->is_current;
-        
+
         if ($isCurrentChanging) {
             $currentSemester = \App\Models\SchoolSetting::getCurrentSemester();
-            
+
             // During 2nd semester, prevent any changes to current status
             if ($currentSemester === '2nd') {
                 return redirect()->back()
                     ->withErrors(['is_current' => 'Cannot change curriculum current status during 2nd semester. Please wait until after the 2nd semester is complete.'])
                     ->withInput();
             }
-            
+
             // During 1st semester, only allow setting as current (not unsetting)
-            if ($currentSemester === '1st' && !$validated['is_current']) {
+            if ($currentSemester === '1st' && ! $validated['is_current']) {
                 return redirect()->back()
                     ->withErrors(['is_current' => 'Cannot unset curriculum as current during 1st semester. Please wait until after the 2nd semester is complete.'])
                     ->withInput();
             }
-            
+
             // If setting this curriculum as current, ensure no other curriculum in the same program is current
             if ($validated['is_current']) {
                 Curriculum::where('program_id', $curriculum->program_id)
                     ->where('id', '!=', $curriculum->id)
                     ->update(['is_current' => false]);
-                
+
                 // Update only year level 1 guides to use the new current curriculum
                 // Other year levels continue with their existing curriculum
                 $currentAcademicYear = \App\Models\SchoolSetting::getCurrentAcademicYear();

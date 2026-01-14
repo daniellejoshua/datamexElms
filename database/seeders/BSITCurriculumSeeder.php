@@ -15,8 +15,9 @@ class BSITCurriculumSeeder extends Seeder
     {
         // Get the BSIT program ID dynamically
         $bsitProgram = \App\Models\Program::where('program_code', 'BSIT')->first();
-        if (!$bsitProgram) {
+        if (! $bsitProgram) {
             $this->command->error('BSIT program not found. Please run ProgramSeeder first.');
+
             return;
         }
         $bsitProgramId = $bsitProgram->id;

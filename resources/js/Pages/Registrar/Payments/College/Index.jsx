@@ -70,6 +70,14 @@ export default function CollegePaymentsIndex({ payments, stats, filters, current
     }
 
     const handleRecordPayment = (payment) => {
+        // Prevent opening modal if balance is 0
+        if (payment.balance <= 0) {
+            toast.error('Payment Not Allowed', {
+                description: 'This student has already fully paid. No additional payment can be recorded.',
+            })
+            return
+        }
+        
         setSelectedPayment(payment)
         setShowPaymentModal(true)
         setPaymentForm({
@@ -508,14 +516,13 @@ export default function CollegePaymentsIndex({ payments, stats, filters, current
                                             <span className="text-gray-500 sm:text-sm">₱</span>
                                         </div>
                                         <Input
-                                            type="number"
-                                            step="0.01"
-                                            value={paymentForm.amount_paid}
-                                            onChange={(e) => setPaymentForm({...paymentForm, amount_paid: e.target.value})}
-                                            onKeyDown={(e) => {
-                                                // Prevent 'e', '+', and '-' characters
-                                                if (e.key === 'e' || e.key === 'E' || e.key === '+' || e.key === '-') {
-                                                    e.preventDefault();
+                                            type="text"
+                                            value={paymentForm.amount_paid ? Number(paymentForm.amount_paid).toLocaleString('en-US', {minimumFractionDigits: 0, maximumFractionDigits: 2}) : ''}
+                                            onChange={(e) => {
+                                                // Remove commas and parse as number
+                                                const value = e.target.value.replace(/,/g, '')
+                                                if (value === '' || !isNaN(value)) {
+                                                    setPaymentForm({...paymentForm, amount_paid: value})
                                                 }
                                             }}
                                             placeholder="0.00"

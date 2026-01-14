@@ -170,7 +170,7 @@ export default function ShsSubjects({ subjects, filters }) {
                                     {/* Action Buttons */}
                                     <div className="flex gap-2">
                                         <Link
-                                            href={route('teacher.grades.show', subject.section.id)}
+                                            href={route('teacher.grades.show', subject.id)}
                                             className="flex-1"
                                         >
                                             <Button className="w-full bg-green-600 hover:bg-green-700 text-white">

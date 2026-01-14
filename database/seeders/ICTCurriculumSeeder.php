@@ -2,11 +2,11 @@
 
 namespace Database\Seeders;
 
-use Illuminate\Database\Seeder;
-use App\Models\Program;
-use App\Models\Subject;
 use App\Models\Curriculum;
 use App\Models\CurriculumSubject;
+use App\Models\Program;
+use App\Models\Subject;
+use Illuminate\Database\Seeder;
 
 class ICTCurriculumSeeder extends Seeder
 {
@@ -20,8 +20,9 @@ class ICTCurriculumSeeder extends Seeder
             ->where('education_level', 'senior_high')
             ->first();
 
-        if (!$program) {
+        if (! $program) {
             $this->command->error('ICT program not found! Please create it first.');
+
             return;
         }
 
@@ -133,6 +134,6 @@ class ICTCurriculumSeeder extends Seeder
             $this->command->info("✓ {$subjectData['code']} - {$subjectData['name']}");
         }
 
-        $this->command->info("\n✅ ICT 2025 Curriculum seeded successfully with " . count($subjects) . " subjects!");
+        $this->command->info("\n✅ ICT 2025 Curriculum seeded successfully with ".count($subjects).' subjects!');
     }
 }

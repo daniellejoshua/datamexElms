@@ -405,7 +405,7 @@ class CollegeSectionController extends Controller
                 ->where('semester', $request->semester)
                 ->first();
 
-            if (!$existingEnrollment) {
+            if (! $existingEnrollment) {
                 continue; // Skip students who are not enrolled in the current semester
             }
 

@@ -24,13 +24,12 @@ it('returns guide when present for suggested curriculum', function () {
 
     YearLevelCurriculumGuide::create([
         'program_id' => $program->id,
-        'academic_year' => '2025-2026',
         'year_level' => 2,
         'curriculum_id' => $current->id,
     ]);
 
     $this->actingAs($user)
-        ->getJson("/api/programs/{$program->id}/suggested-curriculum?year_level=2nd%20Year&academic_year=2025-2026&education_level=college")
+        ->getJson("/api/programs/{$program->id}/suggested-curriculum?year_level=2nd%20Year&education_level=college")
         ->assertJsonStructure(['curriculum' => ['id', 'curriculum_code', 'curriculum_name'], 'source'])
         ->assertJson(['source' => 'guide', 'curriculum' => ['id' => $current->id]]);
 });

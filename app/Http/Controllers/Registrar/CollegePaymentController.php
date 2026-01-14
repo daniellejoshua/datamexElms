@@ -79,9 +79,9 @@ class CollegePaymentController extends Controller
                 })
                 ->whereDoesntHave('enrollments', function ($query) use ($filterAcademicYear, $filterSemester) {
                     $query->where('academic_year', $filterAcademicYear)
-                          ->where('semester', $filterSemester)
-                          ->where('status', 'active')
-                          ->whereNotNull('section_id');
+                        ->where('semester', $filterSemester)
+                        ->where('status', 'active')
+                        ->whereNotNull('section_id');
                 })
                 ->count(),
             'students_with_balance' => StudentSemesterPayment::whereHas('student', function ($query) use ($filterStudentType) {
@@ -226,6 +226,11 @@ class CollegePaymentController extends Controller
             'notes' => 'nullable|string',
         ]);
 
+        // Check if payment is already fully paid (0 balance)
+        if ($payment->balance <= 0) {
+            return back()->withErrors(['amount_paid' => 'This student has already fully paid. No additional payment can be recorded.']);
+        }
+
         if ($validated['amount_paid'] > $payment->balance) {
             return back()->withErrors(['amount_paid' => 'Payment amount cannot exceed remaining balance.']);
         }
@@ -234,18 +239,6 @@ class CollegePaymentController extends Controller
         $termPaidField = $validated['term'].'_paid';
         if ($payment->{$termPaidField}) {
             return back()->withErrors(['term' => 'This term has already been fully paid.']);
-        }
-
-        // Enforce sequential payment order
-        $termSequence = ['enrollment', 'prelim', 'midterm', 'prefinal', 'final'];
-        $currentTermIndex = array_search($validated['term'], $termSequence);
-
-        // Check if all previous terms are paid
-        for ($i = 0; $i < $currentTermIndex; $i++) {
-            $previousTermPaidField = $termSequence[$i].'_paid';
-            if (! $payment->{$previousTermPaidField}) {
-                return back()->withErrors(['term' => 'You must pay for '.ucfirst($termSequence[$i]).' before paying for '.ucfirst($validated['term']).'.']);
-            }
         }
 
         // Map term to payment_type enum value
