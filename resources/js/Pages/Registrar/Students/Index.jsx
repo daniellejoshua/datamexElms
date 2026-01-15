@@ -8,7 +8,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { toast } from 'sonner'
-import { Users, Search, Eye, Edit, Filter, UserPlus, Mail, Phone, MapPin, Calendar, GraduationCap, User, CreditCard } from 'lucide-react'
+import { Users, Search, Eye, Edit, Filter, UserPlus, Mail, Phone, MapPin, Calendar, GraduationCap, User, CreditCard, BookOpen } from 'lucide-react'
 import { useState, useEffect } from 'react'
 import { ChevronDown, ChevronUp } from 'lucide-react'
 
@@ -1153,100 +1153,32 @@ export default function StudentsIndex({ students, programs, filters, auth, on_ho
                                                 {selectedStudent.archived_enrollments.length} Semester{selectedStudent.archived_enrollments.length !== 1 ? 's' : ''}
                                             </Badge>
                                         </CardTitle>
-                                        <p className="text-sm text-gray-600">Previous semester enrollments and grades</p>
+                                        <p className="text-sm text-gray-600">View complete academic history with curriculum progress</p>
                                     </CardHeader>
                                     <CardContent>
-                                        <div className="space-y-4">
-                                            {selectedStudent.archived_enrollments.map((enrollment, index) => (
-                                                <div key={index} className="relative">
-                                                    {/* Timeline connector */}
-                                                    {index < selectedStudent.archived_enrollments.length - 1 && (
-                                                        <div className="absolute left-6 top-16 w-0.5 h-8 bg-purple-200"></div>
-                                                    )}
-
-                                                    <div className="bg-gradient-to-r from-purple-50 to-indigo-50 rounded-lg p-5 border border-purple-200">
-                                                        {/* Semester Header */}
-                                                        <div className="flex items-center gap-3 mb-4">
-                                                            <div className="w-12 h-12 bg-purple-100 rounded-full flex items-center justify-center">
-                                                                <span className="text-sm font-bold text-purple-700">
-                                                                    {enrollment.semester === '1st' ? '1' : enrollment.semester === '2nd' ? '2' : 'S'}
-                                                                </span>
-                                                            </div>
-                                                            <div className="flex-1">
-                                                                <div className="flex items-center gap-2 mb-1">
-                                                                    <h4 className="font-semibold text-purple-900">
-                                                                        {enrollment.academic_year} - {enrollment.semester} Semester
-                                                                    </h4>
-                                                                    <Badge
-                                                                        variant="secondary"
-                                                                        className={enrollment.final_status === 'completed'
-                                                                            ? 'bg-green-100 text-green-800'
-                                                                            : enrollment.final_status === 'dropped'
-                                                                            ? 'bg-yellow-100 text-yellow-800'
-                                                                            : 'bg-red-100 text-red-800'
-                                                                        }
-                                                                    >
-                                                                        {enrollment.final_status}
-                                                                    </Badge>
-                                                                </div>
-                                                                <p className="text-sm text-purple-700">
-                                                                    Section: {enrollment.archived_section?.section_name || 'N/A'}
-                                                                </p>
-                                                            </div>
-                                                        </div>
-
-                                                        {/* Grades Summary */}
-                                                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
-                                                            <div className="bg-white p-3 rounded-lg border border-purple-200">
-                                                                <div className="text-xs font-medium text-purple-700 uppercase tracking-wide">Final Grade</div>
-                                                                <div className="text-lg font-bold text-purple-900">
-                                                                    {enrollment.final_semester_grade || 'N/A'}
-                                                                </div>
-                                                            </div>
-                                                            <div className="bg-white p-3 rounded-lg border border-purple-200">
-                                                                <div className="text-xs font-medium text-purple-700 uppercase tracking-wide">Letter Grade</div>
-                                                                <div className="text-lg font-bold text-purple-900">
-                                                                    {enrollment.letter_grade || 'N/A'}
-                                                                </div>
-                                                            </div>
-                                                            <div className="bg-white p-3 rounded-lg border border-purple-200">
-                                                                <div className="text-xs font-medium text-purple-700 uppercase tracking-wide">GWA</div>
-                                                                <div className="text-lg font-bold text-purple-900">
-                                                                    {enrollment.gwa || 'N/A'}
-                                                                </div>
-                                                            </div>
-                                                            <div className="bg-white p-3 rounded-lg border border-purple-200">
-                                                                <div className="text-xs font-medium text-purple-700 uppercase tracking-wide">Units</div>
-                                                                <div className="text-lg font-bold text-purple-900">
-                                                                    {enrollment.total_units || 'N/A'}
-                                                                </div>
-                                                            </div>
-                                                        </div>
-
-                                                        {/* Subject Grades */}
-                                                        {enrollment.final_grades && Object.keys(enrollment.final_grades).length > 0 && (
-                                                            <div>
-                                                                <h5 className="text-sm font-medium text-purple-700 mb-3 flex items-center gap-2">
-                                                                    <BookOpen className="w-4 h-4" />
-                                                                    Subject Grades
-                                                                </h5>
-                                                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                                                                    {Object.entries(enrollment.final_grades).map(([subject, grade]) => (
-                                                                        <div key={subject} className="bg-white p-3 rounded-lg border border-purple-200 hover:border-purple-300 transition-colors">
-                                                                            <div className="text-xs font-medium text-gray-600 truncate" title={subject}>
-                                                                                {subject}
-                                                                            </div>
-                                                                            <div className="text-lg font-bold text-purple-900 mt-1">
-                                                                                {grade}
-                                                                            </div>
-                                                                        </div>
-                                                                    ))}
-                                                                </div>
-                                                            </div>
-                                                        )}
-                                                    </div>
+                                        <div className="flex items-center justify-between p-6 bg-gradient-to-r from-purple-50 to-indigo-50 rounded-lg border border-purple-200">
+                                            <div className="flex items-center gap-4">
+                                                <div className="w-12 h-12 bg-purple-100 rounded-full flex items-center justify-center">
+                                                    <BookOpen className="w-6 h-6 text-purple-600" />
                                                 </div>
-                                            ))}
+                                                <div>
+                                                    <h4 className="font-semibold text-purple-900 mb-1">
+                                                        Complete Academic History
+                                                    </h4>
+                                                    <p className="text-sm text-purple-700">
+                                                        View curriculum progress, completed subjects, and enrollment timeline
+                                                    </p>
+                                                </div>
+                                            </div>
+                                            <Link 
+                                                href={route('registrar.students.academic-history', selectedStudent.id)}
+                                                className="inline-block"
+                                            >
+                                                <Button className="bg-purple-600 hover:bg-purple-700">
+                                                    View Full History
+                                                    <GraduationCap className="w-4 h-4 ml-2" />
+                                                </Button>
+                                            </Link>
                                         </div>
                                     </CardContent>
                                 </Card>

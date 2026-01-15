@@ -1,12 +1,23 @@
 import React, { useState } from 'react';
 import { Head, useForm, router, Link } from '@inertiajs/react';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
+import TeacherScheduleModal from '@/Components/TeacherScheduleModal';
+import Modal from '@/Components/Modal';
 import { ArrowLeft } from 'lucide-react';
+import { toast } from 'sonner';
 
 const Subjects = ({ section, subjects, teachers }) => {
     const [showAssignForm, setShowAssignForm] = useState(false);
     const [editingSubject, setEditingSubject] = useState(null);
     const [openDropdown, setOpenDropdown] = useState(null);
+    const [showScheduleModal, setShowScheduleModal] = useState(false);
+    const [teacherSchedule, setTeacherSchedule] = useState([]);
+    const [proposedSchedule, setProposedSchedule] = useState(null);
+    const [selectedTeacherName, setSelectedTeacherName] = useState('');
+    const [checkingSchedule, setCheckingSchedule] = useState(false);
+    const [showTimeErrorModal, setShowTimeErrorModal] = useState(false);
+    const [showUnitsErrorModal, setShowUnitsErrorModal] = useState(false);
+    const [unitsErrorMessage, setUnitsErrorMessage] = useState('');
 
     // Check if section is read-only (past academic year or past semester in current year)
     const isReadOnly = (() => {
@@ -41,6 +52,39 @@ const Subjects = ({ section, subjects, teachers }) => {
         end_time: '',
     });
 
+    const fetchTeacherSchedule = async (teacherId, scheduleData) => {
+        if (!teacherId || !scheduleData.schedule_days?.length || !scheduleData.start_time || !scheduleData.end_time) {
+            return;
+        }
+
+        setCheckingSchedule(true);
+        try {
+            const params = new URLSearchParams();
+            params.append('teacher_id', teacherId);
+            params.append('schedule_days', JSON.stringify(scheduleData.schedule_days));
+            params.append('start_time', scheduleData.start_time);
+            params.append('end_time', scheduleData.end_time);
+
+            const response = await fetch(
+                route('admin.shs.sections.teacher-schedule', section.id) + '?' + params.toString()
+            );
+            const responseData = await response.json();
+            
+            setTeacherSchedule(responseData.schedule);
+            setProposedSchedule(responseData.proposed);
+            const teacher = teachers.find(t => t.id === parseInt(teacherId));
+            const teacherName = teacher ? 
+                `${teacher.user?.first_name || teacher.first_name || 'Unknown'} ${teacher.user?.last_name || teacher.last_name || 'Teacher'}`.trim() : 
+                'Unknown Teacher';
+            setSelectedTeacherName(teacherName);
+            setShowScheduleModal(true);
+        } catch (error) {
+            console.error('Error fetching teacher schedule:', error);
+        } finally {
+            setCheckingSchedule(false);
+        }
+    };
+
     const handleAssignSubject = (e) => {
         e.preventDefault();
         post(route('admin.shs.sections.attach-subject', section.id), {
@@ -53,12 +97,33 @@ const Subjects = ({ section, subjects, teachers }) => {
 
     const handleEditSubject = (sectionSubject) => {
         setEditingSubject(sectionSubject);
+        
+        // Extract time portion in HH:mm format for time input
+        const extractTime = (timeValue) => {
+            if (!timeValue) return '';
+            
+            const timeString = String(timeValue);
+            
+            // Handle datetime format: "2024-01-15 14:00:00"
+            if (timeString.includes(' ')) {
+                const timePart = timeString.split(' ')[1];
+                return timePart ? timePart.substring(0, 5) : ''; // Get HH:mm
+            }
+            
+            // Handle time format: "14:00:00" or "14:00"
+            if (timeString.includes(':')) {
+                return timeString.substring(0, 5); // Get HH:mm
+            }
+            
+            return '';
+        };
+        
         setEditData({
             teacher_id: sectionSubject.teacher_id || '',
             room: sectionSubject.room || '',
             schedule_days: sectionSubject.schedule_days || [],
-            start_time: sectionSubject.start_time || '',
-            end_time: sectionSubject.end_time || '',
+            start_time: extractTime(sectionSubject.start_time),
+            end_time: extractTime(sectionSubject.end_time),
         });
     };
 
@@ -68,6 +133,22 @@ const Subjects = ({ section, subjects, teachers }) => {
             onSuccess: () => {
                 resetEdit();
                 setEditingSubject(null);
+            },
+            onError: (errors) => {
+                if (errors.teacher_id && errors.teacher_id.includes('conflict')) {
+                    // Clear the error and show modal instead
+                    delete errors.teacher_id;
+                    fetchTeacherSchedule(editData.teacher_id, {
+                        schedule_days: editData.schedule_days,
+                        start_time: editData.start_time,
+                        end_time: editData.end_time
+                    });
+                } else if (errors.teacher_id && errors.teacher_id.includes('requires') && errors.teacher_id.includes('hours per week')) {
+                    // Handle units validation error with modal
+                    setUnitsErrorMessage(errors.teacher_id);
+                    setShowUnitsErrorModal(true);
+                    delete errors.teacher_id;
+                }
             }
         });
     };
@@ -138,13 +219,30 @@ const Subjects = ({ section, subjects, teachers }) => {
 
     const formatTime = (time) => {
         if (!time) return 'Not set';
-
-        const [hours, minutes] = time.split(':');
-        const hour24 = parseInt(hours);
-        const hour12 = hour24 === 0 ? 12 : hour24 > 12 ? hour24 - 12 : hour24;
-        const ampm = hour24 >= 12 ? 'PM' : 'AM';
-
-        return `${hour12}:${minutes} ${ampm}`;
+        
+        // Convert to string to handle different input types
+        const timeString = String(time);
+        
+        // Handle different time formats: "14:00", "14:00:00", "2024-01-15 14:00:00"
+        let timeStr = timeString;
+        if (timeString.includes(' ')) {
+            timeStr = timeString.split(' ')[1]; // Extract time part from datetime
+        }
+        
+        if (timeStr && timeStr.includes(':')) {
+            const parts = timeStr.split(':');
+            const hours = parseInt(parts[0], 10);
+            const minutes = parts[1] ? parts[1].substring(0, 2) : '00';
+            
+            if (isNaN(hours)) return 'Not set';
+            
+            const hour12 = hours === 0 ? 12 : hours > 12 ? hours - 12 : hours;
+            const ampm = hours >= 12 ? 'PM' : 'AM';
+            
+            return `${hour12}:${minutes} ${ampm}`;
+        }
+        
+        return 'Not set';
     };
 
     const toggleDropdown = (id) => {
@@ -706,6 +804,75 @@ const Subjects = ({ section, subjects, teachers }) => {
                     onClick={() => setOpenDropdown(null)}
                 ></div>
             )}
+
+            {/* Teacher Schedule Modal */}
+            <TeacherScheduleModal
+                show={showScheduleModal}
+                onClose={() => setShowScheduleModal(false)}
+                schedule={teacherSchedule}
+                proposedSchedule={proposedSchedule}
+                teacherName={selectedTeacherName}
+            />
+
+            {/* Time Error Modal */}
+            <Modal show={showTimeErrorModal} onClose={() => setShowTimeErrorModal(false)} maxWidth="md">
+                <div className="p-8">
+                    <div className="flex items-start space-x-4">
+                        <div className="flex-shrink-0">
+                            <svg className="h-8 w-8 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                            </svg>
+                        </div>
+                        <div className="flex-1">
+                            <h3 className="text-xl font-semibold text-gray-900 dark:text-gray-100 mb-3">
+                                Incomplete Schedule Time
+                            </h3>
+                            <p className="text-base text-gray-700 dark:text-gray-300 leading-relaxed">
+                                Both start time and end time must be filled, or leave both empty.
+                            </p>
+                        </div>
+                    </div>
+                    <div className="mt-8 flex justify-end space-x-3">
+                        <button
+                            type="button"
+                            onClick={() => setShowTimeErrorModal(false)}
+                            className="px-6 py-3 bg-gray-600 hover:bg-gray-700 text-white rounded-lg text-sm font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2"
+                        >
+                            Close
+                        </button>
+                    </div>
+                </div>
+            </Modal>
+
+            {/* Units Error Modal */}
+            <Modal show={showUnitsErrorModal} onClose={() => setShowUnitsErrorModal(false)} maxWidth="md">
+                <div className="p-8">
+                    <div className="flex items-start space-x-4">
+                        <div className="flex-shrink-0">
+                            <svg className="h-8 w-8 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                            </svg>
+                        </div>
+                        <div className="flex-1">
+                            <h3 className="text-xl font-semibold text-gray-900 dark:text-gray-100 mb-3">
+                                Schedule Hours Mismatch
+                            </h3>
+                            <p className="text-base text-gray-700 dark:text-gray-300 leading-relaxed">
+                                {unitsErrorMessage.replace(/\s*\([^)]*\)\./, '.')}
+                            </p>
+                        </div>
+                    </div>
+                    <div className="mt-8 flex justify-end space-x-3">
+                        <button
+                            type="button"
+                            onClick={() => setShowUnitsErrorModal(false)}
+                            className="px-6 py-3 bg-gray-600 hover:bg-gray-700 text-white rounded-lg text-sm font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2"
+                        >
+                            Close
+                        </button>
+                    </div>
+                </div>
+            </Modal>
         </AuthenticatedLayout>
     );
 };

@@ -41,7 +41,7 @@ class ArchiveSemesterData extends Command
                 default => $semesterOption,
             };
 
-            $sections = Section::with(['studentEnrollments', 'studentEnrollments.studentGrades', 'studentEnrollments.shsStudentGrades', 'subjects'])->get();
+            $sections = Section::with(['studentEnrollments', 'studentEnrollments.studentGrades', 'studentEnrollments.shsStudentGrades', 'sectionSubjects', 'sectionSubjects.subject', 'sectionSubjects.teacher.user'])->get();
             $archivedStudentIds = [];
             foreach ($sections as $section) {
                 $archivedSection = ArchivedSection::create([
@@ -54,12 +54,18 @@ class ArchiveSemesterData extends Command
                     'semester' => $semester,
                     'room' => $section->room,
                     'status' => 'completed',
-                    'course_data' => $section->subjects->map(function ($subject) {
+                    'course_data' => $section->sectionSubjects->map(function ($sectionSubject) {
                         return [
-                            'id' => $subject->id,
-                            'subject_code' => $subject->subject_code ?? null,
-                            'subject_name' => $subject->subject_name ?? null,
-                            'units' => $subject->units ?? null,
+                            'id' => $sectionSubject->subject->id,
+                            'subject_code' => $sectionSubject->subject->subject_code ?? null,
+                            'subject_name' => $sectionSubject->subject->subject_name ?? null,
+                            'units' => $sectionSubject->subject->units ?? null,
+                            'teacher_id' => $sectionSubject->teacher_id,
+                            'teacher_name' => $sectionSubject->teacher ? $sectionSubject->teacher->user->name : 'N/A',
+                            'room' => $sectionSubject->room,
+                            'schedule_days' => $sectionSubject->schedule_days,
+                            'start_time' => $sectionSubject->start_time ? substr($sectionSubject->start_time, 0, 5) : null,
+                            'end_time' => $sectionSubject->end_time ? substr($sectionSubject->end_time, 0, 5) : null,
                         ];
                     })->toArray(),
                     'total_enrolled_students' => $section->studentEnrollments->count(),
@@ -104,6 +110,10 @@ class ArchiveSemesterData extends Command
                 // Mark section as archived (non-destructive) instead of deleting it
                 $section->status = 'archived';
                 $section->save();
+
+                // Mark all section subjects as inactive so they don't show in active views
+                \App\Models\SectionSubject::where('section_id', $section->id)
+                    ->update(['status' => 'inactive']);
             }
             // Create ArchivedStudent records for the students we just archived
             $archivedStudentIds = array_values(array_unique($archivedStudentIds));

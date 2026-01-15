@@ -116,6 +116,11 @@ Route::middleware(['web', 'auth:web', 'throttle.api'])->group(function () {
         return response()->json(['exists' => false, 'archived' => false]);
     })->middleware(['role:registrar', 'throttle.searches'])->name('api.students.check');
 
+    // Duplicate student check route (email + name + birthdate)
+    Route::post('/students/check-duplicate', [\App\Http\Controllers\RegistrarController::class, 'checkDuplicate'])
+        ->middleware(['role:registrar', 'throttle.searches'])
+        ->name('api.students.check-duplicate');
+
     // Archived student check route
     Route::get('/archived-students/check', function (\Illuminate\Http\Request $request) {
         $email = $request->query('email');

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Teacher;
 
 use App\Http\Controllers\Controller;
+use App\Models\SchoolSetting;
 use App\Models\SectionSubject;
 use App\Models\StudentSubjectEnrollment;
 use Illuminate\Http\Request;
@@ -20,7 +21,11 @@ class SectionController extends Controller
         // Clear any cached data to ensure fresh results
         Cache::forget('teacher_sections_college_'.$teacher->id);
 
-        // Get subjects that this teacher teaches for college programs
+        // Get current academic period
+        $currentAcademicYear = SchoolSetting::getCurrentAcademicYear();
+        $currentSemester = SchoolSetting::getCurrentSemester();
+
+        // Get subjects that this teacher teaches for college programs (current period only)
         $query = SectionSubject::with([
             'subject',
             'section.program',
@@ -28,6 +33,10 @@ class SectionController extends Controller
         ])
             ->where('teacher_id', $teacher->id)
             ->where('section_subjects.status', 'active')
+            ->whereHas('section', function ($q) use ($currentAcademicYear, $currentSemester) {
+                $q->where('academic_year', $currentAcademicYear)
+                    ->where('semester', $currentSemester);
+            })
             ->whereHas('section.program', function ($q) {
                 $q->where('education_level', 'college');
             });
@@ -252,8 +261,8 @@ class SectionController extends Controller
                         'id' => $subject->id,
                         'subject' => $subject->subject,
                         'schedule_days' => $subject->schedule_days,
-                        'start_time' => $subject->start_time ? $subject->start_time->format('H:i') : null,
-                        'end_time' => $subject->end_time ? $subject->end_time->format('H:i') : null,
+                        'start_time' => $subject->start_time ? substr($subject->start_time, 0, 5) : null,
+                        'end_time' => $subject->end_time ? substr($subject->end_time, 0, 5) : null,
                         'room' => $subject->room,
                     ];
                 });
@@ -298,13 +307,21 @@ class SectionController extends Controller
     {
         $teacher = Auth::user()->teacher;
 
-        // Get sections that this teacher teaches for SHS programs
+        // Get current academic period
+        $currentAcademicYear = SchoolSetting::getCurrentAcademicYear();
+        $currentSemester = SchoolSetting::getCurrentSemester();
+
+        // Get sections that this teacher teaches for SHS programs (current period only)
         $query = SectionSubject::with([
             'subject',
             'section.program',
         ])
             ->where('teacher_id', $teacher->id)
             ->where('section_subjects.status', 'active')
+            ->whereHas('section', function ($q) use ($currentAcademicYear, $currentSemester) {
+                $q->where('academic_year', $currentAcademicYear)
+                    ->where('semester', $currentSemester);
+            })
             ->whereHas('section.program', function ($q) {
                 $q->where('education_level', 'senior_high');
             });
@@ -348,8 +365,8 @@ class SectionController extends Controller
                         'id' => $subject->id,
                         'subject' => $subject->subject,
                         'schedule_days' => $subject->schedule_days,
-                        'start_time' => $subject->start_time ? $subject->start_time->format('H:i') : null,
-                        'end_time' => $subject->end_time ? $subject->end_time->format('H:i') : null,
+                        'start_time' => $subject->start_time ? substr($subject->start_time, 0, 5) : null,
+                        'end_time' => $subject->end_time ? substr($subject->end_time, 0, 5) : null,
                         'room' => $subject->room,
                     ];
                 });

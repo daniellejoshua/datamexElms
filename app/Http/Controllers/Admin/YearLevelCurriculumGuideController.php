@@ -4,7 +4,6 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\Program;
-use App\Models\SchoolSetting;
 use App\Models\YearLevelCurriculumGuide;
 use Illuminate\Http\Request;
 use Inertia\Inertia;

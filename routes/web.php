@@ -49,6 +49,7 @@ Route::middleware(['auth', 'verified', 'role:registrar', 'throttle.api'])->prefi
     Route::get('/students/create', [RegistrarController::class, 'create'])->name('students.create');
     Route::post('/students', [RegistrarController::class, 'store'])->name('students.store');
     Route::put('/students/{student}', [RegistrarController::class, 'update'])->name('students.update');
+    Route::get('/students/{student}/academic-history', [RegistrarController::class, 'academicHistory'])->name('students.academic-history');
     Route::get('/enrollments', [RegistrarController::class, 'students'])->name('enrollments.index');
 
     // SHS Voucher Management
@@ -130,6 +131,7 @@ Route::middleware(['auth', 'verified', 'role:teacher'])->prefix('teacher')->name
     // Archived Grades
     Route::get('/archived-sections', [\App\Http\Controllers\Teacher\ArchivedSectionsController::class, 'index'])->name('archived-sections');
     Route::get('/archived-sections/{archivedSection}', [\App\Http\Controllers\Teacher\ArchivedSectionsController::class, 'show'])->name('archived-sections.show');
+    Route::post('/archived-sections/{archivedSection}/grades', [\App\Http\Controllers\Teacher\ArchivedSectionsController::class, 'updateGrades'])->name('archived-sections.update-grades');
 });
 
 // Admin Routes

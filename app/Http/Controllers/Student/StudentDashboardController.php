@@ -49,8 +49,8 @@ class StudentDashboardController extends Controller
                             'subject_name' => $sectionSubject->subject->subject_name ?? 'Unknown Subject',
                             'subject_code' => $sectionSubject->subject->subject_code ?? '',
                             'teacher_name' => $sectionSubject->teacher?->user?->name ?? 'TBA',
-                            'start_time' => $sectionSubject->start_time?->format('H:i'),
-                            'end_time' => $sectionSubject->end_time?->format('H:i'),
+                            'start_time' => $sectionSubject->start_time ? substr($sectionSubject->start_time, 0, 5) : null,
+                            'end_time' => $sectionSubject->end_time ? substr($sectionSubject->end_time, 0, 5) : null,
                             'room' => $sectionSubject->room ?? 'TBA',
                             'section_name' => $enrollment->section->section_name,
                         ]);
@@ -74,8 +74,8 @@ class StudentDashboardController extends Controller
                         'teacher_name' => $sectionSubject->teacher?->user?->name ?? 'TBA',
                         'room' => $sectionSubject->room ?? 'TBA',
                         'schedule_days' => $sectionSubject->schedule_days ?? [],
-                        'start_time' => $sectionSubject->start_time?->format('H:i'),
-                        'end_time' => $sectionSubject->end_time?->format('H:i'),
+                        'start_time' => $sectionSubject->start_time ? substr($sectionSubject->start_time, 0, 5) : null,
+                        'end_time' => $sectionSubject->end_time ? substr($sectionSubject->end_time, 0, 5) : null,
                         'section_name' => $enrollment->section->section_name,
                         'program_name' => $enrollment->section->program->program_name ?? 'Unknown Program',
                     ]);

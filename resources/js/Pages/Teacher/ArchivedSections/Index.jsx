@@ -1,105 +1,160 @@
 import React from 'react';
 import { Head, Link } from '@inertiajs/react';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Archive, Calendar, Users, BookOpen, Eye } from 'lucide-react';
 
 const Index = ({ archivedSections }) => {
     const getSemesterDisplay = (semester) => {
         const semesters = {
-            'first': 'First Semester',
-            'second': 'Second Semester',
+            'first': '1st Semester',
+            'second': '2nd Semester',
             'summer': 'Summer'
         };
         return semesters[semester] || semester;
     };
 
+    const getEducationLevelBadge = (program) => {
+        if (!program) return null;
+        
+        const isCollege = program.education_level === 'college';
+        return (
+            <Badge variant={isCollege ? "default" : "secondary"} className="ml-2">
+                {isCollege ? 'College' : 'SHS'}
+            </Badge>
+        );
+    };
+
     return (
         <AuthenticatedLayout
             header={
-                <h2 className="text-xl font-semibold leading-tight text-gray-800 dark:text-gray-200">
-                    Archived Sections & Grades
-                </h2>
+                <div className="flex items-center justify-between">
+                    <div>
+                        <h2 className="text-2xl font-bold leading-tight text-gray-900 dark:text-gray-100">
+                            Archived Sections
+                        </h2>
+                        <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
+                            View past semester grades and student performance
+                        </p>
+                    </div>
+                </div>
             }
         >
             <Head title="Archived Sections" />
-            <div className="py-12">
-                <div className="max-w-7xl mx-auto sm:px-6 lg:px-8">
-                    <div className="bg-white dark:bg-gray-800 overflow-hidden shadow-sm sm:rounded-lg">
-                        <div className="p-6 text-gray-900 dark:text-gray-100">
-                            <div className="overflow-x-auto">
-                                <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-                                    <thead className="bg-gray-50 dark:bg-gray-700">
-                                        <tr>
-                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                                                Academic Year
-                                            </th>
-                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                                                Semester
-                                            </th>
-                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                                                Section
-                                            </th>
-                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                                                Students
-                                            </th>
-                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                                                Completed
-                                            </th>
-                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                                                Actions
-                                            </th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-                                        {archivedSections.data.map((section) => (
-                                            <tr key={section.id}>
-                                                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-gray-100">
-                                                    {section.academic_year}
-                                                </td>
-                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">
-                                                    {getSemesterDisplay(section.semester)}
-                                                </td>
-                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">
-                                                    {section.section_name}
-                                                </td>
-                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">
+            
+            <div className="py-6">
+                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                    {archivedSections.data.length === 0 ? (
+                        <Card>
+                            <CardContent className="flex flex-col items-center justify-center py-12">
+                                <Archive className="h-16 w-16 text-gray-400 mb-4" />
+                                <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100">
+                                    No Archived Sections
+                                </h3>
+                                <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
+                                    Archived sections will appear here when semesters are completed.
+                                </p>
+                            </CardContent>
+                        </Card>
+                    ) : (
+                        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+                            {archivedSections.data.map((section) => (
+                                <Card key={section.id} className="hover:shadow-lg transition-shadow duration-200">
+                                    <CardHeader className="pb-4">
+                                        <div className="flex items-start justify-between">
+                                            <div className="flex-1">
+                                                <CardTitle className="text-xl flex items-center gap-2">
+                                                    {section.program?.program_code || 'N/A'} - {section.section_name}
+                                                    {getEducationLevelBadge(section.program)}
+                                                </CardTitle>
+                                                <CardDescription className="mt-2 flex items-center gap-2">
+                                                    <Calendar className="h-4 w-4" />
+                                                    {section.academic_year} • {getSemesterDisplay(section.semester)}
+                                                </CardDescription>
+                                            </div>
+                                        </div>
+                                    </CardHeader>
+                                    <CardContent>
+                                        <div className="space-y-3">
+                                            <div className="flex items-center justify-between text-sm">
+                                                <span className="text-gray-600 dark:text-gray-400 flex items-center gap-2">
+                                                    <Users className="h-4 w-4" />
+                                                    Total Students
+                                                </span>
+                                                <span className="font-semibold text-gray-900 dark:text-gray-100">
                                                     {section.total_enrolled_students}
-                                                </td>
-                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">
+                                                </span>
+                                            </div>
+                                            
+                                            <div className="flex items-center justify-between text-sm">
+                                                <span className="text-gray-600 dark:text-gray-400">
+                                                    Completed
+                                                </span>
+                                                <span className="font-semibold text-green-600 dark:text-green-400">
                                                     {section.completed_students}
-                                                </td>
-                                                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                                                    <Link
-                                                        href={`/teacher/archived-sections/${section.id}`}
-                                                        className="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300"
-                                                    >
-                                                        View Grades
-                                                    </Link>
-                                                </td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                            </div>
-
-                            {/* Pagination */}
-                            {archivedSections.links && (
-                                <div className="mt-4">
-                                    {archivedSections.links.map((link, index) => (
-                                        <a
-                                            key={index}
-                                            href={link.url}
-                                            className={`px-3 py-2 mx-1 text-sm border rounded ${
-                                                link.active
-                                                    ? 'bg-blue-500 text-white border-blue-500'
-                                                    : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
-                                            }`}
-                                            dangerouslySetInnerHTML={{ __html: link.label }}
-                                        />
-                                    ))}
-                                </div>
-                            )}
+                                                </span>
+                                            </div>
+                                            
+                                            <div className="flex items-center justify-between text-sm">
+                                                <span className="text-gray-600 dark:text-gray-400">
+                                                    Dropped
+                                                </span>
+                                                <span className="font-semibold text-yellow-600 dark:text-yellow-400">
+                                                    {section.dropped_students || 0}
+                                                </span>
+                                            </div>
+                                            
+                                            {section.section_average_grade && (
+                                                <div className="flex items-center justify-between text-sm pt-2 border-t border-gray-200 dark:border-gray-700">
+                                                    <span className="text-gray-600 dark:text-gray-400">
+                                                        Average Grade
+                                                    </span>
+                                                    <span className="font-semibold text-blue-600 dark:text-blue-400">
+                                                        {section.section_average_grade}
+                                                    </span>
+                                                </div>
+                                            )}
+                                        </div>
+                                        
+                                        <Link
+                                            href={`/teacher/archived-sections/${section.id}`}
+                                            className="mt-4 w-full inline-flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors"
+                                        >
+                                            <Eye className="h-4 w-4" />
+                                            View Student Grades
+                                        </Link>
+                                    </CardContent>
+                                </Card>
+                            ))}
                         </div>
-                    </div>
+                    )}
+
+                    {/* Pagination */}
+                    {archivedSections.links && archivedSections.links.length > 3 && (
+                        <div className="mt-6 flex items-center justify-center gap-2">
+                            {archivedSections.links.map((link, index) => (
+                                link.url ? (
+                                    <Link
+                                        key={index}
+                                        href={link.url}
+                                        className={`px-4 py-2 text-sm font-medium rounded-lg border transition-colors ${
+                                            link.active
+                                                ? 'bg-blue-600 text-white border-blue-600'
+                                                : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700'
+                                        }`}
+                                        dangerouslySetInnerHTML={{ __html: link.label }}
+                                    />
+                                ) : (
+                                    <span
+                                        key={index}
+                                        className="px-4 py-2 text-sm font-medium text-gray-400 cursor-not-allowed"
+                                        dangerouslySetInnerHTML={{ __html: link.label }}
+                                    />
+                                )
+                            ))}
+                        </div>
+                    )}
                 </div>
             </div>
         </AuthenticatedLayout>

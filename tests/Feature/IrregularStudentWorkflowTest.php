@@ -156,7 +156,7 @@ test('irregular student workflow: curriculum comparison identifies credits and c
     echo '   - Credited subjects: '.count($data['credited_subjects'])."\n";
     echo '   - Catch-up subjects: '.count($data['subjects_to_catch_up'])."\n";
     echo '   - Net fee adjustment: ₱'.number_format($data['fee_adjustments']['total'])."\n";
-})->uses(\Illuminate\Foundation\Testing\RefreshDatabase::class);
+}); // Commented out RefreshDatabase to prevent data deletion
 
 test('irregular student workflow: credit auto-approved when student passes all grading periods', function () {
     $this->actingAs($this->registrar);
@@ -292,7 +292,7 @@ test('irregular student workflow: credit auto-approved when student passes all g
     expect($creditTransfer->grade_verified_at)->not->toBeNull();
     expect((float) $creditTransfer->verified_semester_grade)->toEqual(86.25);
     expect($creditTransfer->rejection_reason)->toBeNull();
-})->uses(\Illuminate\Foundation\Testing\RefreshDatabase::class);
+}); // Commented out RefreshDatabase to prevent data deletion
 
 test('irregular student workflow: credit auto-rejected when student fails', function () {
     $this->actingAs($this->registrar);
@@ -372,4 +372,4 @@ test('irregular student workflow: credit auto-rejected when student fails', func
     expect($creditTransfer->credit_status)->toBe('rejected');
     expect((float) $creditTransfer->verified_semester_grade)->toEqual(51.25);
     expect($creditTransfer->rejection_reason)->toContain('Failed subject with grade: 51.25');
-})->uses(\Illuminate\Foundation\Testing\RefreshDatabase::class);
+}); // Commented out RefreshDatabase to prevent data deletion

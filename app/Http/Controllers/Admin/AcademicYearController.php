@@ -9,6 +9,7 @@ use App\Models\ArchivedStudentEnrollment;
 use App\Models\PaymentTransaction;
 use App\Models\SchoolSetting;
 use App\Models\Section;
+use App\Models\SectionSubject;
 use App\Models\Student;
 use App\Models\StudentEnrollment;
 use App\Models\StudentGrade;
@@ -154,104 +155,92 @@ class AcademicYearController extends Controller
             $averageGrade = 0;
             $gradeSum = 0;
             $gradeCount = 0;
+            $sectionIncompleteDetails = [];
 
-            foreach ($sections as $section) {
-                $enrollments = $section->studentEnrollments;
-                $sectionStudentCount = $enrollments->count();
-                $totalStudents += $sectionStudentCount;
+            foreach ($enrollments as $enrollment) {
+                // Check grades for each subject in this section
+                $enrollmentIncompleteSubjects = [];
 
-                $incompleteGradesCount = 0;
-                $completedGradesCount = 0;
-                $averageGrade = 0;
-                $gradeSum = 0;
-                $gradeCount = 0;
-                $sectionIncompleteDetails = [];
+                foreach ($section->sectionSubjects as $sectionSubject) {
+                    $grade = StudentGrade::where('student_enrollment_id', $enrollment->id)
+                        ->where('section_subject_id', $sectionSubject->id)
+                        ->first();
 
-                foreach ($enrollments as $enrollment) {
-                    // Check grades for each subject in this section
-                    $enrollmentIncompleteSubjects = [];
+                    $incompleteTerms = [];
 
-                    foreach ($section->sectionSubjects as $sectionSubject) {
-                        $grade = StudentGrade::where('student_enrollment_id', $enrollment->id)
-                            ->where('section_subject_id', $sectionSubject->id)
-                            ->first();
-
-                        $incompleteTerms = [];
-
-                        if (! $grade) {
-                            $incompleteTerms = ['prelim', 'midterm', 'prefinal', 'final'];
-                        } else {
-                            if ($grade->prelim_grade === null) {
-                                $incompleteTerms[] = 'prelim';
-                            }
-                            if ($grade->midterm_grade === null) {
-                                $incompleteTerms[] = 'midterm';
-                            }
-                            if ($grade->prefinal_grade === null) {
-                                $incompleteTerms[] = 'prefinal';
-                            }
-                            if ($grade->final_grade === null) {
-                                $incompleteTerms[] = 'final';
-                            }
+                    if (! $grade) {
+                        $incompleteTerms = ['prelim', 'midterm', 'prefinal', 'final'];
+                    } else {
+                        if ($grade->prelim_grade === null) {
+                            $incompleteTerms[] = 'prelim';
                         }
-
-                        if (! empty($incompleteTerms)) {
-                            $incompleteGradesCount++;
-                            $enrollmentIncompleteSubjects[] = [
-                                'subject_code' => $sectionSubject->subject->subject_code ?? 'Unknown',
-                                'subject_name' => $sectionSubject->subject->subject_name ?? 'Unknown Subject',
-                                'teacher_name' => $sectionSubject->teacher?->user?->name ?? 'Unassigned',
-                                'teacher_id' => $sectionSubject->teacher_id,
-                                'incomplete_terms' => $incompleteTerms,
-                            ];
-                        } else {
-                            $completedGradesCount++;
-                            $gradeSum += $grade->final_grade ?? 0;
-                            $gradeCount++;
+                        if ($grade->midterm_grade === null) {
+                            $incompleteTerms[] = 'midterm';
+                        }
+                        if ($grade->prefinal_grade === null) {
+                            $incompleteTerms[] = 'prefinal';
+                        }
+                        if ($grade->final_grade === null) {
+                            $incompleteTerms[] = 'final';
                         }
                     }
 
-                    // If this student has incomplete subjects, add to the lists
-                    if (! empty($enrollmentIncompleteSubjects)) {
-                        $studentsWithIncompleteGrades[] = [
-                            'id' => $enrollment->student->id,
-                            'name' => $enrollment->student->user->name,
-                            'student_number' => $enrollment->student->student_number,
-                            'section' => $section->formatted_name,
-                            'year_level' => $section->year_level,
-                            'incomplete_subjects' => $enrollmentIncompleteSubjects,
+                    if (! empty($incompleteTerms)) {
+                        $incompleteGradesCount++;
+                        $enrollmentIncompleteSubjects[] = [
+                            'subject_code' => $sectionSubject->subject->subject_code ?? 'Unknown',
+                            'subject_name' => $sectionSubject->subject->subject_name ?? 'Unknown Subject',
+                            'teacher_name' => $sectionSubject->teacher?->user?->name ?? 'Unassigned',
+                            'teacher_id' => $sectionSubject->teacher_id,
+                            'incomplete_terms' => $incompleteTerms,
                         ];
-
-                        $sectionIncompleteDetails[] = [
-                            'student_id' => $enrollment->student->id,
-                            'student_name' => $enrollment->student->user->name,
-                            'student_number' => $enrollment->student->student_number,
-                            'incomplete_subjects' => $enrollmentIncompleteSubjects,
-                        ];
+                    } else {
+                        $completedGradesCount++;
+                        $gradeSum += $grade->final_grade ?? 0;
+                        $gradeCount++;
                     }
                 }
 
-                if ($incompleteGradesCount > 0) {
-                    $sectionsWithIncompleteGrades[] = [
-                        'id' => $section->id,
-                        'name' => $section->formatted_name,
+                // If this student has incomplete subjects, add to the lists
+                if (! empty($enrollmentIncompleteSubjects)) {
+                    $studentsWithIncompleteGrades[] = [
+                        'id' => $enrollment->student->id,
+                        'name' => $enrollment->student->user->name,
+                        'student_number' => $enrollment->student->student_number,
+                        'section' => $section->formatted_name,
                         'year_level' => $section->year_level,
-                        'incomplete_count' => $incompleteGradesCount,
-                        'total_students' => $sectionStudentCount,
-                        'incomplete_details' => $sectionIncompleteDetails,
+                        'incomplete_subjects' => $enrollmentIncompleteSubjects,
+                    ];
+
+                    $sectionIncompleteDetails[] = [
+                        'student_id' => $enrollment->student->id,
+                        'student_name' => $enrollment->student->user->name,
+                        'student_number' => $enrollment->student->student_number,
+                        'incomplete_subjects' => $enrollmentIncompleteSubjects,
                     ];
                 }
+            }
 
-                $sectionStats[] = [
+            if ($incompleteGradesCount > 0) {
+                $sectionsWithIncompleteGrades[] = [
                     'id' => $section->id,
                     'name' => $section->formatted_name,
                     'year_level' => $section->year_level,
+                    'incomplete_count' => $incompleteGradesCount,
                     'total_students' => $sectionStudentCount,
-                    'completed_grades' => $completedGradesCount,
-                    'incomplete_grades' => $incompleteGradesCount,
-                    'average_grade' => $gradeCount > 0 ? round($gradeSum / $gradeCount, 2) : 0,
+                    'incomplete_details' => $sectionIncompleteDetails,
                 ];
             }
+
+            $sectionStats[] = [
+                'id' => $section->id,
+                'name' => $section->formatted_name,
+                'year_level' => $section->year_level,
+                'total_students' => $sectionStudentCount,
+                'completed_grades' => $completedGradesCount,
+                'incomplete_grades' => $incompleteGradesCount,
+                'average_grade' => $gradeCount > 0 ? round($gradeSum / $gradeCount, 2) : 0,
+            ];
         }
 
         // Get payment issues
@@ -602,12 +591,18 @@ class AcademicYearController extends Controller
                 },
                 'room' => ($section->subjects->first()?->pivot->room) ?? null,
                 'status' => 'completed',
-                'course_data' => $section->subjects->map(function ($subject) {
+                'course_data' => $section->sectionSubjects->map(function ($sectionSubject) {
                     return [
-                        'id' => $subject->id,
-                        'course_code' => $subject->subject_code,
-                        'subject_name' => $subject->subject_name,
-                        'credits' => $subject->units,
+                        'id' => $sectionSubject->subject->id,
+                        'course_code' => $sectionSubject->subject->subject_code,
+                        'subject_name' => $sectionSubject->subject->subject_name,
+                        'credits' => $sectionSubject->subject->units,
+                        'teacher_id' => $sectionSubject->teacher_id,
+                        'teacher_name' => $sectionSubject->teacher ? $sectionSubject->teacher->user->name : 'N/A',
+                        'room' => $sectionSubject->room,
+                        'schedule_days' => $sectionSubject->schedule_days,
+                        'start_time' => $sectionSubject->start_time ? substr($sectionSubject->start_time, 0, 5) : null,
+                        'end_time' => $sectionSubject->end_time ? substr($sectionSubject->end_time, 0, 5) : null,
                     ];
                 })->toArray(),
                 'total_enrolled_students' => $enrollments->count(),
@@ -651,6 +646,10 @@ class AcademicYearController extends Controller
                     ],
                 ]);
             }
+
+            // Mark all section subjects as inactive so they don't show in active views
+            SectionSubject::where('section_id', $section->id)
+                ->update(['status' => 'inactive']);
 
             $archivedCount++;
         }

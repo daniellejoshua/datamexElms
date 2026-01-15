@@ -116,7 +116,7 @@ test('all students get subject credits tracked automatically', function () {
 
     echo "✅ Credit automatically created: {$credit->credit_status}\n";
     echo "📊 Completion: {$student->getCurriculumCompletionPercentage()}%\n";
-})->uses(\Illuminate\Foundation\Testing\RefreshDatabase::class);
+}); // Commented out RefreshDatabase to prevent data deletion
 
 test('student eligible for graduation after completing all subjects', function () {
     $studentUser = User::factory()->create(['role' => 'student']);
@@ -160,4 +160,4 @@ test('student eligible for graduation after completing all subjects', function (
     echo "\n🎉 Completion: {$student->getCurriculumCompletionPercentage()}%\n";
     expect($student->isEligibleForGraduation())->toBeTrue();
     echo "✅ ELIGIBLE FOR GRADUATION!\n";
-})->uses(\Illuminate\Foundation\Testing\RefreshDatabase::class);
+}); // Commented out RefreshDatabase to prevent data deletion

@@ -33,10 +33,29 @@ window.axios.interceptors.request.use(
     (error) => Promise.reject(error)
 );
 
-// Add response interceptor to handle rate limiting
+// Add response interceptor to handle rate limiting and CSRF token expiration
 window.axios.interceptors.response.use(
     (response) => response,
     (error) => {
+        if (error.response?.status === 419) {
+            // CSRF token expired - page expired
+            import('sonner').then(({ toast }) => {
+                toast.error('Your session has expired. Please refresh the page.', {
+                    duration: 5000,
+                    style: {
+                        background: '#fef3c7',
+                        color: '#92400e',
+                        border: '1px solid #f59e0b',
+                    },
+                });
+            });
+            
+            // Optionally auto-refresh after a delay
+            setTimeout(() => {
+                window.location.reload();
+            }, 3000);
+        }
+        
         if (error.response?.status === 429) {
             // Rate limited
             const retryAfter = error.response.headers['retry-after'];

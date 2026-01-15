@@ -404,6 +404,12 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
     const [createGuideChecked, setCreateGuideChecked] = useState(false)
     const lastErrorRef = useRef('')
     
+    // Duplicate detection states
+    const [duplicateWarning, setDuplicateWarning] = useState(null)
+    const [duplicateOverride, setDuplicateOverride] = useState(false)
+    const [showDuplicateModal, setShowDuplicateModal] = useState(false)
+    const [checkingDuplicate, setCheckingDuplicate] = useState(false)
+    
     // Course shift comparison states
     const [showSubjectComparisonModal, setShowSubjectComparisonModal] = useState(false)
     const [subjectComparison, setSubjectComparison] = useState(null)
@@ -856,6 +862,49 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
         }
     }
 
+    // Duplicate detection with debounce
+    const checkForDuplicates = async () => {
+        // Only check if we have all required fields
+        if (!data.email || !data.first_name || !data.last_name || !data.birth_date) {
+            return
+        }
+
+        // Skip if already detected as existing or returning student via student_number
+        if (isExistingStudent || isReturningStudent) {
+            return
+        }
+
+        setCheckingDuplicate(true)
+        try {
+            const response = await axios.post('/api/students/check-duplicate', {
+                email: data.email,
+                first_name: data.first_name,
+                last_name: data.last_name,
+                birth_date: data.birth_date,
+            })
+
+            if (response.data.has_duplicates) {
+                setDuplicateWarning(response.data.matches)
+                setShowDuplicateModal(true)
+            } else {
+                setDuplicateWarning(null)
+            }
+        } catch (error) {
+            console.error('Error checking for duplicates:', error)
+        } finally {
+            setCheckingDuplicate(false)
+        }
+    }
+
+    // Debounced duplicate check
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            checkForDuplicates()
+        }, 800) // 800ms debounce
+
+        return () => clearTimeout(timer)
+    }, [data.email, data.first_name, data.last_name, data.birth_date])
+
     const loadSubjectComparison = async (studentId, newProgramId, newCurriculumId) => {
         if (!studentId) {
             toast.error('Student ID is required for subject comparison')
@@ -986,7 +1035,16 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
             }
             const missingFieldNames = missingFields.map(field => fieldNames[field]).join(', ')
             toast.error(`Please fill in the required fields: ${missingFieldNames}`, {
-                style: { border: '1px solid #ef4444', color: '#ef4444' }
+                duration: 5000,
+            })
+            return
+        }
+
+        // Check for duplicates before proceeding
+        if (duplicateWarning && !duplicateOverride && !isExistingStudent && !isReturningStudent) {
+            setShowDuplicateModal(true)
+            toast.warning('Please review the duplicate warning before proceeding', {
+                duration: 5000,
             })
             return
         }
@@ -1014,6 +1072,7 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
             ...data,
             address: addressParts || null,
             create_year_level_guide: createGuideChecked,
+            duplicate_override: duplicateOverride,
         }
 
         // Add credit transfer data if student is shiftee or transferee
@@ -1390,18 +1449,51 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
 
                             <div>
                                 <Label htmlFor="email">Email Address *</Label>
-                                <Input 
-                                    id="email"
-                                    type="email"
-                                    value={data.email}
-                                    onChange={e => setData('email', e.target.value)}
-                                    required
-                                    placeholder="student@example.com"
-                                    className={isExistingStudent ? 'bg-gray-100 cursor-not-allowed' : ''}
-                                    disabled={isExistingStudent}
-                                />
+                                <div className="relative">
+                                    <Input 
+                                        id="email"
+                                        type="email"
+                                        value={data.email}
+                                        onChange={e => setData('email', e.target.value)}
+                                        required
+                                        placeholder="student@example.com"
+                                        className={isExistingStudent ? 'bg-gray-100 cursor-not-allowed' : ''}
+                                        disabled={isExistingStudent}
+                                    />
+                                    {checkingDuplicate && (
+                                        <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
+                                        </div>
+                                    )}
+                                </div>
                                 {isExistingStudent && (
                                     <p className="text-xs text-blue-600 mt-1">Locked for existing students</p>
+                                )}
+                                {checkingDuplicate && (
+                                    <p className="text-blue-500 text-sm mt-1 flex items-center gap-1">
+                                        <Info className="w-3 h-3" />
+                                        Checking for duplicate records...
+                                    </p>
+                                )}
+                                {duplicateWarning && !checkingDuplicate && !duplicateOverride && (
+                                    <div className="mt-2 p-3 bg-amber-50 border border-amber-200 rounded-md">
+                                        <p className="text-amber-800 text-sm font-medium flex items-center gap-2">
+                                            <AlertTriangle className="w-4 h-4" />
+                                            Potential duplicate detected!
+                                        </p>
+                                        <p className="text-amber-700 text-xs mt-1">
+                                            Found {duplicateWarning.length} matching record(s). Please review before continuing.
+                                        </p>
+                                        <Button
+                                            type="button"
+                                            size="sm"
+                                            variant="outline"
+                                            className="mt-2 text-xs"
+                                            onClick={() => setShowDuplicateModal(true)}
+                                        >
+                                            Review Matches
+                                        </Button>
+                                    </div>
                                 )}
                                 {errors.email && (
                                     <p className="text-red-500 text-sm mt-1">{errors.email}</p>
@@ -1840,23 +1932,61 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                             </div>
                         )}
 
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="flex items-center gap-3 p-3 border rounded-lg bg-gray-50">
+                                <Label className="text-sm font-medium w-24 flex-shrink-0">
+                                    Enrollment Fee:
+                                </Label>
+                                <div className="relative flex-1 max-w-32">
+                                    <span className="absolute left-2 top-1/2 transform -translate-y-1/2 text-gray-500 text-xs z-10">
+                                        ₱
+                                    </span>
+                                    <Input
+                                        id="enrollment_fee"
+                                        type="number"
+                                        step="0.01"
+                                        min="0"
+                                        value={data.enrollment_fee}
+                                        onChange={e => setData('enrollment_fee', e.target.value)}
+                                        required
+                                        placeholder="0.00"
+                                        readOnly={data.student_type === 'regular' || data.education_level === 'senior_high'}
+                                        className={`pl-6 h-8 text-sm ${(data.student_type === 'regular' || data.education_level === 'senior_high') ? 'bg-gray-50' : ''}`}
+                                    />
+                                </div>
+                                <span className="text-xs text-gray-500">total fee</span>
+                            </div>
+
+                            <div className="flex items-center gap-3 p-3 border rounded-lg bg-gray-50">
+                                <Label className="text-sm font-medium w-24 flex-shrink-0">
+                                    Initial Payment:
+                                </Label>
+                                <div className="relative flex-1 max-w-32">
+                                    <span className="absolute left-2 top-1/2 transform -translate-y-1/2 text-gray-500 text-xs z-10">
+                                        ₱
+                                    </span>
+                                    <Input
+                                        id="payment_amount"
+                                        type="number"
+                                        step="0.01"
+                                        min="0"
+                                        value={data.payment_amount}
+                                        onChange={e => setData('payment_amount', e.target.value)}
+                                        required={data.education_level !== 'senior_high'}
+                                        placeholder="0.00"
+                                        readOnly={data.education_level === 'senior_high'}
+                                        className={`pl-6 h-8 text-sm ${data.education_level === 'senior_high' ? 'bg-gray-50' : ''}`}
+                                    />
+                                </div>
+                                <span className="text-xs text-gray-500">paid today</span>
+                            </div>
+                        </div>
+
+                        {/* Error Messages */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div>
-                                <Label htmlFor="enrollment_fee">Enrollment Fee *</Label>
-                                <Input
-                                    id="enrollment_fee"
-                                    type="number"
-                                    step="0.01"
-                                    min="0"
-                                    value={data.enrollment_fee}
-                                    onChange={e => setData('enrollment_fee', e.target.value)}
-                                    required
-                                    placeholder="0.00"
-                                    readOnly={data.student_type === 'regular' || data.education_level === 'senior_high'}
-                                    className={(data.student_type === 'regular' || data.education_level === 'senior_high') ? 'bg-gray-50' : ''}
-                                />
                                 {errors.enrollment_fee && (
-                                    <p className="text-red-500 text-sm mt-1">{errors.enrollment_fee}</p>
+                                    <p className="text-red-500 text-sm">{errors.enrollment_fee}</p>
                                 )}
                                 <p className="text-xs text-gray-500 mt-1">
                                     {data.education_level === 'senior_high'
@@ -1869,23 +1999,8 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                             </div>
 
                             <div>
-                                <Label htmlFor="payment_amount">
-                                    Initial Payment Amount {data.education_level !== 'senior_high' && '*'}
-                                </Label>
-                                <Input 
-                                    id="payment_amount"
-                                    type="number"
-                                    step="0.01"
-                                    min="0"
-                                    value={data.payment_amount}
-                                    onChange={e => setData('payment_amount', e.target.value)}
-                                    required={data.education_level !== 'senior_high'}
-                                    placeholder="0.00"
-                                    readOnly={data.education_level === 'senior_high'}
-                                    className={data.education_level === 'senior_high' ? 'bg-gray-50' : ''}
-                                />
                                 {errors.payment_amount && (
-                                    <p className="text-red-500 text-sm mt-1">{errors.payment_amount}</p>
+                                    <p className="text-red-500 text-sm">{errors.payment_amount}</p>
                                 )}
                                 <p className="text-xs text-gray-500 mt-1">
                                     {data.education_level === 'senior_high'
@@ -2037,6 +2152,171 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                         <Button onClick={() => setShowErrorModal(false)}>
                             Close
                         </Button>
+                    </div>
+                </DialogContent>
+            </Dialog>
+
+            {/* Duplicate Student Warning Modal */}
+            <Dialog open={showDuplicateModal} onOpenChange={setShowDuplicateModal}>
+                <DialogContent className="max-w-3xl">
+                    <DialogHeader>
+                        <DialogTitle className="flex items-center gap-2 text-amber-600">
+                            <AlertTriangle className="w-6 h-6" />
+                            Potential Duplicate Student Detected
+                        </DialogTitle>
+                        <DialogDescription>
+                            We found existing records that match the information you entered. Please review carefully.
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    <div className="space-y-4 max-h-[60vh] overflow-y-auto">
+                        {duplicateWarning?.map((match, index) => (
+                            <div key={index} className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+                                <div className="flex items-start gap-3 mb-3">
+                                    <div className={`px-3 py-1 rounded-full text-xs font-medium ${
+                                        match.type === 'active' 
+                                            ? 'bg-green-100 text-green-700' 
+                                            : 'bg-blue-100 text-blue-700'
+                                    }`}>
+                                        {match.type === 'active' ? 'Currently Enrolled' : 'Archived/Returning'}
+                                    </div>
+                                    <div className={`px-3 py-1 rounded-full text-xs font-medium ${
+                                        match.confidence === 'high' 
+                                            ? 'bg-red-100 text-red-700' 
+                                            : 'bg-yellow-100 text-yellow-700'
+                                    }`}>
+                                        {match.confidence === 'high' ? 'High Match' : 'Possible Match'}
+                                    </div>
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-4">
+                                    {/* Existing Record */}
+                                    <div>
+                                        <h4 className="font-medium text-gray-900 mb-2">Existing Record</h4>
+                                        <div className="space-y-1.5 text-sm">
+                                            <div>
+                                                <span className="text-gray-500">Student Number:</span>
+                                                <span className="ml-2 font-medium">{match.student.student_number}</span>
+                                            </div>
+                                            <div>
+                                                <span className="text-gray-500">Name:</span>
+                                                <span className="ml-2 font-medium">
+                                                    {match.student.first_name} {match.student.middle_name} {match.student.last_name}
+                                                </span>
+                                            </div>
+                                            <div>
+                                                <span className="text-gray-500">Email:</span>
+                                                <span className="ml-2 font-medium">{match.student.email}</span>
+                                            </div>
+                                            <div>
+                                                <span className="text-gray-500">Birthdate:</span>
+                                                <span className="ml-2 font-medium">{match.student.birth_date}</span>
+                                            </div>
+                                            <div>
+                                                <span className="text-gray-500">Program:</span>
+                                                <span className="ml-2 font-medium">{match.student.program || 'N/A'}</span>
+                                            </div>
+                                            <div>
+                                                <span className="text-gray-500">Year Level:</span>
+                                                <span className="ml-2 font-medium">{match.student.year_level || 'N/A'}</span>
+                                            </div>
+                                            {match.student.archived_at && (
+                                                <div>
+                                                    <span className="text-gray-500">Archived:</span>
+                                                    <span className="ml-2 font-medium text-blue-600">{match.student.archived_at}</span>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+
+                                    {/* Current Input */}
+                                    <div>
+                                        <h4 className="font-medium text-gray-900 mb-2">Your Input</h4>
+                                        <div className="space-y-1.5 text-sm">
+                                            <div>
+                                                <span className="text-gray-500">Student Number:</span>
+                                                <span className="ml-2 font-medium">{data.student_number || 'New'}</span>
+                                            </div>
+                                            <div>
+                                                <span className="text-gray-500">Name:</span>
+                                                <span className="ml-2 font-medium">
+                                                    {data.first_name} {data.middle_name} {data.last_name}
+                                                </span>
+                                            </div>
+                                            <div>
+                                                <span className="text-gray-500">Email:</span>
+                                                <span className="ml-2 font-medium">{data.email}</span>
+                                            </div>
+                                            <div>
+                                                <span className="text-gray-500">Birthdate:</span>
+                                                <span className="ml-2 font-medium">{data.birth_date}</span>
+                                            </div>
+                                            <div>
+                                                <span className="text-gray-500">Program:</span>
+                                                <span className="ml-2 font-medium">
+                                                    {programs.find(p => p.id === parseInt(data.program_id))?.program_name || 'Not selected'}
+                                                </span>
+                                            </div>
+                                            <div>
+                                                <span className="text-gray-500">Year Level:</span>
+                                                <span className="ml-2 font-medium">{data.year_level || 'Not selected'}</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {match.reason && (
+                                    <div className="mt-3 text-sm text-amber-700 bg-amber-100 p-2 rounded">
+                                        <strong>Note:</strong> {match.reason}
+                                    </div>
+                                )}
+                            </div>
+                        ))}
+                    </div>
+
+                    <div className="flex flex-col gap-3 pt-4 border-t">
+                        <div className="text-sm text-gray-600">
+                            Is this the same person you're trying to register?
+                        </div>
+                        <div className="flex gap-3">
+                            <Button
+                                onClick={() => {
+                                    // User confirms it's the same person - auto-fill from existing record
+                                    const match = duplicateWarning[0]
+                                    if (match.student.student_number) {
+                                        setData('student_number', match.student.student_number)
+                                        checkStudent()
+                                    }
+                                    setShowDuplicateModal(false)
+                                }}
+                                className="flex-1 bg-green-600 hover:bg-green-700"
+                            >
+                                <UserPlus className="w-4 h-4 mr-2" />
+                                Yes, Same Person - Auto-fill Data
+                            </Button>
+                            <Button
+                                onClick={() => {
+                                    // User confirms it's a different person - allow override
+                                    setDuplicateOverride(true)
+                                    setShowDuplicateModal(false)
+                                    toast.info('Override confirmed. You can proceed with registration.', {
+                                        duration: 4000,
+                                    })
+                                }}
+                                variant="outline"
+                                className="flex-1"
+                            >
+                                No, Different Person - Continue
+                            </Button>
+                            <Button
+                                onClick={() => {
+                                    setShowDuplicateModal(false)
+                                }}
+                                variant="outline"
+                            >
+                                Cancel
+                            </Button>
+                        </div>
                     </div>
                 </DialogContent>
             </Dialog>

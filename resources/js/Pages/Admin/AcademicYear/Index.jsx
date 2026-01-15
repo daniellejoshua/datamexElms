@@ -152,9 +152,12 @@ const Index = ({ currentAcademicYear, currentSemester, unpaid_count = 0, unpaid_
     return (
         <AuthenticatedLayout
             header={
-                <h2 className="font-semibold text-2xl text-gray-800 dark:text-gray-200 leading-tight">
-                    Academic Year Management
-                </h2>
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                        <h2 className="text-2xl font-bold text-gray-900">Academic Year Archive</h2>
+                        <p className="text-sm text-blue-600 font-medium mt-1">Manage semester archiving and academic transitions</p>
+                    </div>
+                </div>
             }
         >
             <Head title="Academic Year Management" />

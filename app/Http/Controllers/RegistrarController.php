@@ -586,7 +586,28 @@ class RegistrarController extends Controller
             'fee_adjustments.credits' => ['nullable', 'numeric'],
             'fee_adjustments.catchup' => ['nullable', 'numeric'],
             'fee_adjustments.total' => ['nullable', 'numeric'],
+
+            // Duplicate override flag
+            'duplicate_override' => ['nullable', 'boolean'],
         ]);
+
+        // Check for duplicates if not overridden
+        if (empty($validated['duplicate_override']) && empty($validated['student_number'])) {
+            // Check for potential duplicates by email + name + birthdate
+            $duplicateExists = Student::whereHas('user', function ($query) use ($validated) {
+                $query->where('email', $validated['email']);
+            })
+                ->where('first_name', 'LIKE', $validated['first_name'])
+                ->where('last_name', 'LIKE', $validated['last_name'])
+                ->where('birth_date', $validated['birth_date'])
+                ->exists();
+
+            if ($duplicateExists) {
+                return back()->withErrors([
+                    'email' => 'A student with the same email, name, and birthdate already exists. If this is a different person, please confirm the duplicate override.',
+                ])->withInput();
+            }
+        }
 
         // Check if this is an existing student being updated
         $existingStudent = null;
@@ -1484,5 +1505,249 @@ class RegistrarController extends Controller
         ]);
 
         return back()->with('success', 'Voucher reactivated successfully. Tuition fees are now covered.');
+    }
+
+    /**
+     * Check for duplicate students based on email, name, and birthdate
+     */
+    public function checkDuplicate(Request $request)
+    {
+        $validated = $request->validate([
+            'email' => ['required', 'email'],
+            'first_name' => ['required', 'string'],
+            'last_name' => ['required', 'string'],
+            'birth_date' => ['required', 'date'],
+        ]);
+
+        $matches = [];
+
+        // Check active students
+        $activeStudent = Student::with(['user', 'program'])
+            ->whereHas('user', function ($query) use ($validated) {
+                $query->where('email', $validated['email']);
+            })
+            ->where('first_name', 'LIKE', $validated['first_name'])
+            ->where('last_name', 'LIKE', $validated['last_name'])
+            ->where('birth_date', $validated['birth_date'])
+            ->first();
+
+        if ($activeStudent) {
+            $matches[] = [
+                'type' => 'active',
+                'confidence' => 'high',
+                'student' => [
+                    'id' => $activeStudent->id,
+                    'student_number' => $activeStudent->student_number,
+                    'first_name' => $activeStudent->first_name,
+                    'last_name' => $activeStudent->last_name,
+                    'middle_name' => $activeStudent->middle_name,
+                    'email' => $activeStudent->user->email,
+                    'birth_date' => $activeStudent->birth_date,
+                    'program' => $activeStudent->program?->program_name,
+                    'year_level' => $activeStudent->year_level,
+                    'education_level' => $activeStudent->education_level,
+                    'student_type' => $activeStudent->student_type,
+                    'phone' => $activeStudent->phone,
+                    'address' => $activeStudent->address,
+                ],
+            ];
+        }
+
+        // Check archived students
+        $archivedStudent = ArchivedStudent::with(['user', 'program'])
+            ->whereHas('user', function ($query) use ($validated) {
+                $query->where('email', $validated['email']);
+            })
+            ->where('first_name', 'LIKE', $validated['first_name'])
+            ->where('last_name', 'LIKE', $validated['last_name'])
+            ->where('birth_date', $validated['birth_date'])
+            ->first();
+
+        if ($archivedStudent) {
+            $matches[] = [
+                'type' => 'archived',
+                'confidence' => 'high',
+                'student' => [
+                    'id' => $archivedStudent->id,
+                    'student_number' => $archivedStudent->student_number,
+                    'first_name' => $archivedStudent->first_name,
+                    'last_name' => $archivedStudent->last_name,
+                    'middle_name' => $archivedStudent->middle_name,
+                    'email' => $archivedStudent->user?->email,
+                    'birth_date' => $archivedStudent->birth_date,
+                    'program' => $archivedStudent->program?->program_name,
+                    'year_level' => $archivedStudent->year_level,
+                    'education_level' => $archivedStudent->education_level,
+                    'archived_at' => $archivedStudent->archived_at?->format('M d, Y'),
+                    'phone' => $archivedStudent->phone,
+                    'address' => $archivedStudent->address,
+                ],
+            ];
+        }
+
+        // Check for potential matches (same email but different name/birthdate)
+        if (empty($matches)) {
+            $emailMatch = Student::with(['user', 'program'])
+                ->whereHas('user', function ($query) use ($validated) {
+                    $query->where('email', $validated['email']);
+                })
+                ->first();
+
+            if ($emailMatch) {
+                $matches[] = [
+                    'type' => 'active',
+                    'confidence' => 'medium',
+                    'reason' => 'Same email, different name or birthdate',
+                    'student' => [
+                        'id' => $emailMatch->id,
+                        'student_number' => $emailMatch->student_number,
+                        'first_name' => $emailMatch->first_name,
+                        'last_name' => $emailMatch->last_name,
+                        'middle_name' => $emailMatch->middle_name,
+                        'email' => $emailMatch->user->email,
+                        'birth_date' => $emailMatch->birth_date,
+                        'program' => $emailMatch->program?->program_name,
+                        'year_level' => $emailMatch->year_level,
+                        'education_level' => $emailMatch->education_level,
+                    ],
+                ];
+            }
+        }
+
+        return response()->json([
+            'has_duplicates' => ! empty($matches),
+            'matches' => $matches,
+            'checked_at' => now()->toISOString(),
+        ]);
+    }
+
+    /**
+     * Show academic history page for a student
+     */
+    public function academicHistory(Student $student)
+    {
+        // Load student with necessary relationships
+        $student->load(['user', 'program', 'curriculum']);
+
+        // Get curriculum subjects
+        $curriculumSubjects = [];
+        if ($student->curriculum_id) {
+            $curriculumSubjects = \App\Models\CurriculumSubject::where('curriculum_id', $student->curriculum_id)
+                ->whereIn('semester', ['1st', '2nd'])
+                ->orderBy('year_level')
+                ->orderByRaw("FIELD(semester, '1st', '2nd')")
+                ->get();
+        }
+
+        // Get all subject grades with details (completed and incomplete)
+        // Use associative array to prevent duplicates
+        $subjectGradesMap = [];
+        $completedSubjects = [];
+
+        // Get subjects with grades (including incomplete ones)
+        $gradesQuery = \App\Models\StudentGrade::whereHas('studentEnrollment', function ($query) use ($student) {
+            $query->where('student_id', $student->id);
+        })
+            ->with(['sectionSubject.subject', 'sectionSubject.teacher.user'])
+            ->get();
+
+        foreach ($gradesQuery as $grade) {
+            if ($grade->sectionSubject && $grade->sectionSubject->subject) {
+                $subject = $grade->sectionSubject->subject;
+                $teacher = $grade->sectionSubject->teacher;
+                
+                // Skip if we already have this subject (keep the first/latest entry)
+                if (isset($subjectGradesMap[$subject->subject_code])) {
+                    continue;
+                }
+                
+                // Determine missing grades
+                $missingGrades = [];
+                if (is_null($grade->prelim_grade)) $missingGrades[] = 'Prelim';
+                if (is_null($grade->midterm_grade)) $missingGrades[] = 'Midterm';
+                if (is_null($grade->prefinal_grade)) $missingGrades[] = 'Prefinal';
+                if (is_null($grade->final_grade)) $missingGrades[] = 'Final';
+                
+                $gradeInfo = [
+                    'subject_id' => $subject->id,
+                    'subject_code' => $subject->subject_code,
+                    'subject_name' => $subject->subject_name,
+                    'type' => 'graded',
+                    'teacher_name' => $teacher ? $teacher->user->name : null,
+                    'prelim_grade' => $grade->prelim_grade,
+                    'midterm_grade' => $grade->midterm_grade,
+                    'prefinal_grade' => $grade->prefinal_grade,
+                    'final_grade' => $grade->final_grade,
+                    'semester_grade' => $grade->semester_grade,
+                    'missing_grades' => $missingGrades,
+                    'is_complete' => !empty($grade->final_grade),
+                ];
+                
+                $subjectGradesMap[$subject->subject_code] = $gradeInfo;
+                
+                // Add to completed if final grade exists
+                if ($grade->final_grade) {
+                    $completedSubjects[] = [
+                        'subject_id' => $subject->id,
+                        'subject_code' => $subject->subject_code,
+                        'subject_name' => $subject->subject_name,
+                        'type' => 'graded',
+                    ];
+                }
+            }
+        }
+
+        // Get credited subjects (for transferees/shiftees)
+        $creditedSubjects = \App\Models\StudentSubjectCredit::where('student_id', $student->id)
+            ->with(['subject', 'studentCreditTransfer'])
+            ->get();
+
+        foreach ($creditedSubjects as $credited) {
+            if ($credited->subject) {
+                // Skip if we already have this subject
+                if (isset($subjectGradesMap[$credited->subject->subject_code])) {
+                    continue;
+                }
+                
+                $creditInfo = [
+                    'subject_id' => $credited->subject->id,
+                    'subject_code' => $credited->subject->subject_code,
+                    'subject_name' => $credited->subject->subject_name,
+                    'type' => 'credited',
+                    'credit_type' => $credited->credit_type,
+                    'final_grade' => $credited->final_grade,
+                    'credited_from' => $credited->studentCreditTransfer ? $credited->studentCreditTransfer->previous_school : null,
+                    'credited_at' => $credited->credited_at,
+                    'is_complete' => true,
+                ];
+                
+                $subjectGradesMap[$credited->subject->subject_code] = $creditInfo;
+                
+                $completedSubjects[] = [
+                    'subject_id' => $credited->subject->id,
+                    'subject_code' => $credited->subject->subject_code,
+                    'subject_name' => $credited->subject->subject_name,
+                    'type' => 'credited',
+                ];
+            }
+        }
+        
+        // Convert map to array
+        $subjectGrades = array_values($subjectGradesMap);
+
+        // Get archived enrollments
+        $archivedEnrollments = \App\Models\ArchivedStudentEnrollment::where('student_id', $student->id)
+            ->with('archivedSection.program')
+            ->orderBy('academic_year', 'desc')
+            ->orderByRaw("FIELD(semester, 'second', 'first', 'summer')")
+            ->get();
+
+        return Inertia::render('Registrar/Students/AcademicHistory', [
+            'student' => $student,
+            'curriculumSubjects' => $curriculumSubjects,
+            'completedSubjects' => $completedSubjects,
+            'subjectGrades' => $subjectGrades,
+            'archivedEnrollments' => $archivedEnrollments,
+        ]);
     }
 }

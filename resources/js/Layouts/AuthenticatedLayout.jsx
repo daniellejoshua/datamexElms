@@ -1,5 +1,5 @@
 import ApplicationLogo from '@/Components/ApplicationLogo';
-import { Link, usePage } from '@inertiajs/react';
+import { Link, usePage, router } from '@inertiajs/react';
 import { useState, useEffect } from 'react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import {
@@ -28,34 +28,20 @@ export default function AuthenticatedLayout({ header, children }) {
     useEffect(() => {
         if (flash?.success) {
             toast.success(flash.success, {
-                style: {
-                    border: '1px solid #10b981',
-                    backgroundColor: '#f0fdf4',
-                    color: '#166534'
-                },
-                duration: 10000,
+                duration: 5000,
             })
         }
         if (flash?.error) {
             // Show rate limit messages as special styled toasts
             if (flash.error.toLowerCase().includes('rate limit') ||
                 flash.error.toLowerCase().includes('too many')) {
-                toast.error(flash.error, {
+                toast.warning(flash.error, {
                     duration: 5000,
-                    style: {
-                        background: '#fef3c7',
-                        color: '#92400e',
-                        border: '1px solid #f59e0b',
-                    },
                 });
             } else {
                 // Show other error messages normally
                 toast.error(flash.error, {
-                    style: {
-                        border: '1px solid #ef4444',
-                        backgroundColor: '#fef2f2',
-                        color: '#dc2626'
-                    }
+                    duration: 5000,
                 });
             }
         }
@@ -113,6 +99,16 @@ export default function AuthenticatedLayout({ header, children }) {
                         icon: (
                             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                            </svg>
+                        )
+                    },
+                    { 
+                        name: 'Archived Sections', 
+                        href: route('teacher.archived-sections'), 
+                        current: route().current('teacher.archived-sections*'),
+                        icon: (
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
                             </svg>
                         )
                     },

@@ -9,9 +9,10 @@ use App\Models\StudentGrade;
 use App\Models\Subject;
 use App\Models\User;
 use App\Services\StudentRegularityCheckService;
-use Illuminate\Foundation\Testing\RefreshDatabase;
 
-uses(RefreshDatabase::class);
+// use Illuminate\Foundation\Testing\RefreshDatabase; // Commented out to prevent data deletion
+
+// uses(RefreshDatabase::class); // Commented out to prevent data deletion
 
 beforeEach(function () {
     $this->service = app(StudentRegularityCheckService::class);

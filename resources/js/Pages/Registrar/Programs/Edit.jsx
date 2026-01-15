@@ -194,7 +194,7 @@ export default function ProgramsEdit({ program, auth }) {
                                                 {data.education_level === 'senior_high' ? `Grade ${year + 10}` : `${year}${year === 1 ? 'st' : year === 2 ? 'nd' : year === 3 ? 'rd' : 'th'} Year`}:
                                             </Label>
                                             <div className="relative flex-1 max-w-32">
-                                                <span className="absolute left-2 top-1/2 transform -translate-y-1/2 text-gray-500 text-xs">
+                                                <span className="absolute left-2 top-1/2 transform -translate-y-1/2 text-gray-500 text-xs z-10">
                                                     ₱
                                                 </span>
                                                 <Input
