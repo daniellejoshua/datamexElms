@@ -14,6 +14,7 @@ use App\Models\Student;
 use App\Models\StudentEnrollment;
 use App\Models\Subject;
 use App\Models\Teacher;
+use App\Rules\TeacherScheduleConflict;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -147,9 +148,8 @@ class CollegeSectionController extends Controller
         // Automatically determine curriculum based on year level guide
         $curriculumId = $request->curriculum_id;
         if (! $curriculumId) {
-            $currentAcademicYear = SchoolSetting::getCurrentAcademicYear();
+            // Try to find a year level guide for this program and year level (not filtered by academic year)
             $guide = \App\Models\YearLevelCurriculumGuide::where('program_id', $request->program_id)
-                ->where('academic_year', $currentAcademicYear)
                 ->where('year_level', $request->year_level)
                 ->with('curriculum')
                 ->first();
@@ -294,6 +294,29 @@ class CollegeSectionController extends Controller
             return back()->withErrors(['subject_id' => 'Selected subject is not a college subject.']);
         }
 
+        // Additional teacher schedule conflict validation if teacher and schedule are provided
+        if ($request->teacher_id && $request->schedule_days && $request->start_time && $request->end_time) {
+            $teacherConflictRule = new TeacherScheduleConflict(
+                $request->teacher_id,
+                $request->subject_id,
+                $section->id,
+                $request->schedule_days,
+                $request->start_time,
+                $request->end_time,
+                null,
+                $section->academic_year,
+                $section->semester
+            );
+
+            $validator = validator($request->all(), [
+                'teacher_id' => [$teacherConflictRule],
+            ]);
+
+            if ($validator->fails()) {
+                return back()->withErrors($validator)->withInput();
+            }
+        }
+
         $section->sectionSubjects()->create([
             'subject_id' => $request->subject_id,
             'teacher_id' => $request->teacher_id,
@@ -307,7 +330,59 @@ class CollegeSectionController extends Controller
         return back()->with('success', 'Subject assigned to section successfully.');
     }
 
-    public function carryForwardForm(Request $request): Response
+    public function updateSubject(Request $request, Section $section, Subject $subject): RedirectResponse
+    {
+        if ($section->program->education_level !== 'college') {
+            abort(404);
+        }
+
+        $validated = $request->validate([
+            'teacher_id' => 'nullable|exists:teachers,id',
+            'room' => 'nullable|string|max:50',
+            'schedule_days' => 'nullable|array',
+            'schedule_days.*' => 'in:monday,tuesday,wednesday,thursday,friday,saturday,sunday',
+            'start_time' => 'nullable|date_format:H:i',
+            'end_time' => 'nullable|date_format:H:i|after:start_time',
+        ]);
+
+        // Get the current section subject for exclusion in conflict check
+        $sectionSubject = $section->subjects()->where('subject_id', $subject->id)->firstOrFail();
+
+        // Additional teacher schedule conflict validation if teacher and schedule are provided
+        if ($validated['teacher_id'] && $validated['schedule_days'] && $validated['start_time'] && $validated['end_time']) {
+            $teacherConflictRule = new TeacherScheduleConflict(
+                $validated['teacher_id'],
+                $subject->id,
+                $section->id,
+                $validated['schedule_days'],
+                $validated['start_time'],
+                $validated['end_time'],
+                $sectionSubject->id, // Exclude current assignment from conflict check
+                $section->academic_year,
+                $section->semester
+            );
+
+            $validator = validator($validated, [
+                'teacher_id' => [$teacherConflictRule],
+            ]);
+
+            if ($validator->fails()) {
+                return back()->withErrors($validator)->withInput();
+            }
+        }
+
+        $section->subjects()->updateExistingPivot($subject->id, [
+            'teacher_id' => $validated['teacher_id'],
+            'room' => $validated['room'],
+            'schedule_days' => $validated['schedule_days'] ? json_encode($validated['schedule_days']) : null,
+            'start_time' => $validated['start_time'],
+            'end_time' => $validated['end_time'],
+        ]);
+
+        return back()->with('success', 'Subject schedule updated successfully.');
+    }
+
+    public function detachSubject(Section $section, Subject $subject): RedirectResponse
     {
         $currentAcademicYear = SchoolSetting::getCurrentAcademicYear();
         $currentSemester = SchoolSetting::getCurrentSemester();
@@ -418,5 +493,76 @@ class CollegeSectionController extends Controller
 
         return redirect()->route('admin.college.sections.show', $newSection->id)
             ->with('success', 'Section carried forward successfully with '.count($studentIds).' students enrolled.');
+    }
+
+    public function getTeacherSchedule(Request $request, Section $section)
+    {
+        $teacherId = $request->input('teacher_id');
+        $scheduleDays = $request->input('schedule_days');
+        if (is_string($scheduleDays)) {
+            $scheduleDays = json_decode($scheduleDays, true) ?? [];
+        }
+
+        $proposedSchedule = [
+            'days' => $scheduleDays,
+            'start_time' => $request->input('start_time'),
+            'end_time' => $request->input('end_time'),
+        ];
+
+        if (! $teacherId) {
+            return response()->json(['schedule' => []]);
+        }
+
+        $schedule = \App\Models\SectionSubject::with(['section.program', 'subject'])
+            ->where('teacher_id', $teacherId)
+            ->whereHas('section', function ($query) use ($section) {
+                $query->where('academic_year', $section->academic_year)
+                    ->where('semester', $section->semester);
+            })
+            ->whereNotNull('schedule_days')
+            ->whereNotNull('start_time')
+            ->whereNotNull('end_time')
+            ->get()
+            ->map(function ($assignment) use ($proposedSchedule) {
+                $hasConflict = false;
+
+                if (! empty($proposedSchedule['days']) && $proposedSchedule['start_time'] && $proposedSchedule['end_time']) {
+                    // Check day overlap
+                    $existingDays = is_array($assignment->schedule_days)
+                        ? $assignment->schedule_days
+                        : json_decode($assignment->schedule_days, true) ?? [];
+
+                    $dayOverlap = count(array_intersect($proposedSchedule['days'], $existingDays)) > 0;
+
+                    if ($dayOverlap) {
+                        // Check time overlap
+                        $proposedStart = \Carbon\Carbon::parse($proposedSchedule['start_time']);
+                        $proposedEnd = \Carbon\Carbon::parse($proposedSchedule['end_time']);
+                        $existingStart = \Carbon\Carbon::parse($assignment->start_time);
+                        $existingEnd = \Carbon\Carbon::parse($assignment->end_time);
+
+                        $hasConflict = $proposedStart->lt($existingEnd) && $proposedEnd->gt($existingStart);
+                    }
+                }
+
+                return [
+                    'id' => $assignment->id,
+                    'subject_code' => $assignment->subject->subject_code,
+                    'subject_name' => $assignment->subject->subject_name,
+                    'section' => $assignment->section->program->program_code.'-'.$assignment->section->year_level.$assignment->section->section_name,
+                    'room' => $assignment->room,
+                    'schedule_days' => is_array($assignment->schedule_days)
+                        ? $assignment->schedule_days
+                        : json_decode($assignment->schedule_days, true) ?? [],
+                    'start_time' => $assignment->start_time,
+                    'end_time' => $assignment->end_time,
+                    'has_conflict' => $hasConflict,
+                ];
+            });
+
+        return response()->json([
+            'schedule' => $schedule,
+            'proposed' => $proposedSchedule,
+        ]);
     }
 }

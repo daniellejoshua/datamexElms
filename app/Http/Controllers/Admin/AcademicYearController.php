@@ -17,6 +17,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Log;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -99,6 +100,243 @@ class AcademicYearController extends Controller
         return SchoolSetting::getCurrentSemester();
     }
 
+    public function validateArchive(Request $request)
+    {
+        $validated = $request->validate([
+            'academic_year' => 'required|string',
+            'semester' => 'required|in:1st,2nd',
+        ]);
+
+        $semesterToCheck = match ($validated['semester']) {
+            '1st' => ['1st', 'first'],
+            '2nd' => ['2nd', 'second'],
+            default => [$validated['semester']],
+        };
+
+        // Check if already archived
+        $alreadyArchived = ArchivedSection::where('academic_year', $validated['academic_year'])
+            ->where('semester', match ($validated['semester']) {
+                '1st' => 'first',
+                '2nd' => 'second',
+                'summer' => 'summer',
+            })
+            ->exists();
+
+        // Get sections to be archived
+        $sections = Section::with([
+            'subjects',
+            'studentEnrollments.student.user',
+            'sectionSubjects.subject',
+            'sectionSubjects.teacher.user',
+            'program',
+        ])
+            ->where('academic_year', $validated['academic_year'])
+            ->where(function ($q) use ($semesterToCheck) {
+                $q->whereIn('semester', $semesterToCheck);
+            })
+            ->where('status', '!=', 'archived')
+            ->get();
+
+        $totalSections = $sections->count();
+        $totalStudents = 0;
+        $studentsWithIncompleteGrades = [];
+        $sectionsWithIncompleteGrades = [];
+        $studentsWithPaymentIssues = [];
+        $sectionStats = [];
+
+        foreach ($sections as $section) {
+            $enrollments = $section->studentEnrollments;
+            $sectionStudentCount = $enrollments->count();
+            $totalStudents += $sectionStudentCount;
+
+            $incompleteGradesCount = 0;
+            $completedGradesCount = 0;
+            $averageGrade = 0;
+            $gradeSum = 0;
+            $gradeCount = 0;
+
+            foreach ($sections as $section) {
+                $enrollments = $section->studentEnrollments;
+                $sectionStudentCount = $enrollments->count();
+                $totalStudents += $sectionStudentCount;
+
+                $incompleteGradesCount = 0;
+                $completedGradesCount = 0;
+                $averageGrade = 0;
+                $gradeSum = 0;
+                $gradeCount = 0;
+                $sectionIncompleteDetails = [];
+
+                foreach ($enrollments as $enrollment) {
+                    // Check grades for each subject in this section
+                    $enrollmentIncompleteSubjects = [];
+
+                    foreach ($section->sectionSubjects as $sectionSubject) {
+                        $grade = StudentGrade::where('student_enrollment_id', $enrollment->id)
+                            ->where('section_subject_id', $sectionSubject->id)
+                            ->first();
+
+                        $incompleteTerms = [];
+
+                        if (! $grade) {
+                            $incompleteTerms = ['prelim', 'midterm', 'prefinal', 'final'];
+                        } else {
+                            if ($grade->prelim_grade === null) {
+                                $incompleteTerms[] = 'prelim';
+                            }
+                            if ($grade->midterm_grade === null) {
+                                $incompleteTerms[] = 'midterm';
+                            }
+                            if ($grade->prefinal_grade === null) {
+                                $incompleteTerms[] = 'prefinal';
+                            }
+                            if ($grade->final_grade === null) {
+                                $incompleteTerms[] = 'final';
+                            }
+                        }
+
+                        if (! empty($incompleteTerms)) {
+                            $incompleteGradesCount++;
+                            $enrollmentIncompleteSubjects[] = [
+                                'subject_code' => $sectionSubject->subject->subject_code ?? 'Unknown',
+                                'subject_name' => $sectionSubject->subject->subject_name ?? 'Unknown Subject',
+                                'teacher_name' => $sectionSubject->teacher?->user?->name ?? 'Unassigned',
+                                'teacher_id' => $sectionSubject->teacher_id,
+                                'incomplete_terms' => $incompleteTerms,
+                            ];
+                        } else {
+                            $completedGradesCount++;
+                            $gradeSum += $grade->final_grade ?? 0;
+                            $gradeCount++;
+                        }
+                    }
+
+                    // If this student has incomplete subjects, add to the lists
+                    if (! empty($enrollmentIncompleteSubjects)) {
+                        $studentsWithIncompleteGrades[] = [
+                            'id' => $enrollment->student->id,
+                            'name' => $enrollment->student->user->name,
+                            'student_number' => $enrollment->student->student_number,
+                            'section' => $section->formatted_name,
+                            'year_level' => $section->year_level,
+                            'incomplete_subjects' => $enrollmentIncompleteSubjects,
+                        ];
+
+                        $sectionIncompleteDetails[] = [
+                            'student_id' => $enrollment->student->id,
+                            'student_name' => $enrollment->student->user->name,
+                            'student_number' => $enrollment->student->student_number,
+                            'incomplete_subjects' => $enrollmentIncompleteSubjects,
+                        ];
+                    }
+                }
+
+                if ($incompleteGradesCount > 0) {
+                    $sectionsWithIncompleteGrades[] = [
+                        'id' => $section->id,
+                        'name' => $section->formatted_name,
+                        'year_level' => $section->year_level,
+                        'incomplete_count' => $incompleteGradesCount,
+                        'total_students' => $sectionStudentCount,
+                        'incomplete_details' => $sectionIncompleteDetails,
+                    ];
+                }
+
+                $sectionStats[] = [
+                    'id' => $section->id,
+                    'name' => $section->formatted_name,
+                    'year_level' => $section->year_level,
+                    'total_students' => $sectionStudentCount,
+                    'completed_grades' => $completedGradesCount,
+                    'incomplete_grades' => $incompleteGradesCount,
+                    'average_grade' => $gradeCount > 0 ? round($gradeSum / $gradeCount, 2) : 0,
+                ];
+            }
+        }
+
+        // Get payment issues
+        $unpaidPayments = StudentSemesterPayment::with('student.user')
+            ->where('academic_year', $validated['academic_year'])
+            ->where(function ($q) use ($semesterToCheck) {
+                $q->whereIn('semester', $semesterToCheck);
+            })
+            ->where('balance', '>', 0)
+            ->get();
+
+        foreach ($unpaidPayments as $payment) {
+            $studentsWithPaymentIssues[] = [
+                'id' => $payment->student->id,
+                'name' => $payment->student->user->name,
+                'student_number' => $payment->student->student_number,
+                'balance' => $payment->balance,
+                'total_fee' => $payment->total_fee,
+                'amount_paid' => $payment->amount_paid,
+            ];
+        }
+
+        // Get irregular students who might be promoted
+        $irregularStudents = Student::with('user')
+            ->where('student_type', 'irregular')
+            ->get();
+
+        $eligibleForRegular = [];
+        $regularityCheckService = new \App\Services\StudentRegularityCheckService;
+
+        foreach ($irregularStudents as $student) {
+            $details = $regularityCheckService->getIrregularityDetails($student);
+            if ($details['can_become_regular']) {
+                $eligibleForRegular[] = [
+                    'id' => $student->id,
+                    'name' => $student->user->name,
+                    'student_number' => $student->student_number,
+                    'year_level' => $student->year_level,
+                    'reason' => $details['message'],
+                ];
+            }
+        }
+
+        // Compile validation summary
+        $validation = [
+            'is_valid' => ! $alreadyArchived && $totalSections > 0,
+            'already_archived' => $alreadyArchived,
+            'total_sections' => $totalSections,
+            'total_students' => $totalStudents,
+            'incomplete_grades_count' => count($studentsWithIncompleteGrades),
+            'students_with_incomplete_grades' => array_slice($studentsWithIncompleteGrades, 0, 20), // Limit to 20 for UI
+            'sections_with_incomplete_grades' => $sectionsWithIncompleteGrades,
+            'payment_issues_count' => count($studentsWithPaymentIssues),
+            'students_with_payment_issues' => $studentsWithPaymentIssues,
+            'eligible_for_regular_count' => count($eligibleForRegular),
+            'eligible_for_regular' => $eligibleForRegular,
+            'section_statistics' => $sectionStats,
+            'warnings' => [],
+            'errors' => [],
+        ];
+
+        // Add warnings
+        if ($alreadyArchived) {
+            $validation['errors'][] = 'This semester has already been archived.';
+        }
+
+        if ($totalSections === 0) {
+            $validation['errors'][] = 'No active sections found for this academic period.';
+        }
+
+        if (count($studentsWithIncompleteGrades) > 0) {
+            $validation['warnings'][] = count($studentsWithIncompleteGrades).' students have incomplete grades. Their grades will be recorded as incomplete.';
+        }
+
+        if (count($studentsWithPaymentIssues) > 0) {
+            $validation['warnings'][] = count($studentsWithPaymentIssues).' students have outstanding balances. They will be placed on hold.';
+        }
+
+        if (count($eligibleForRegular) > 0) {
+            $validation['warnings'][] = count($eligibleForRegular).' irregular students will be automatically promoted to regular status.';
+        }
+
+        return response()->json($validation);
+    }
+
     public function archiveSemester(Request $request)
     {
         $validated = $request->validate([
@@ -158,16 +396,39 @@ class AcademicYearController extends Controller
             return redirect()->back()->withErrors(['error' => 'No active sections found for this academic period.']);
         }
 
-        DB::transaction(function () use ($validated, $semesterToCheck) {
+        $archiveResults = [
+            'sections_archived' => 0,
+            'students_affected' => 0,
+            'students_completed' => 0,
+            'students_dropped' => 0,
+            'incomplete_grades' => 0,
+            'payment_holds_applied' => 0,
+            'regularity_promotions' => 0,
+            'average_section_grade' => 0,
+            'archived_sections' => [],
+            'promoted_students' => [],
+            'held_students' => [],
+        ];
+
+        DB::transaction(function () use ($validated, $semesterToCheck, &$archiveResults) {
             // Archive sections/enrollments first (creates archive records)
-            $this->archiveSemesterSections(
+            $archiveStats = $this->archiveSemesterSections(
                 $validated['academic_year'],
                 $validated['semester'],
                 $validated['archive_notes'] ?? null
             );
 
+            $archiveResults['sections_archived'] = $archiveStats['sections_count'];
+            $archiveResults['students_affected'] = $archiveStats['students_count'];
+            $archiveResults['students_completed'] = $archiveStats['completed_count'];
+            $archiveResults['students_dropped'] = $archiveStats['dropped_count'];
+            $archiveResults['incomplete_grades'] = $archiveStats['incomplete_grades'];
+            $archiveResults['average_section_grade'] = $archiveStats['average_grade'];
+            $archiveResults['archived_sections'] = $archiveStats['section_details'];
+
             // Mark students on hold based on outstanding balances
-            $payments = StudentSemesterPayment::where('academic_year', $validated['academic_year'])
+            $payments = StudentSemesterPayment::with('student.user')
+                ->where('academic_year', $validated['academic_year'])
                 ->where(function ($q) use ($semesterToCheck) {
                     $q->whereIn('semester', $semesterToCheck);
                 })
@@ -182,8 +443,17 @@ class AcademicYearController extends Controller
                         'hold_balance' => $payment->balance,
                         'hold_reason' => 'Outstanding balance for '.$validated['academic_year'].' '.$validated['semester'],
                     ]);
+
+                    $archiveResults['held_students'][] = [
+                        'id' => $student->id,
+                        'name' => $student->user->name,
+                        'student_number' => $student->student_number,
+                        'balance' => $payment->balance,
+                    ];
                 }
             }
+
+            $archiveResults['payment_holds_applied'] = count($archiveResults['held_students']);
 
             // IMPORTANT: We now keep the original data for historical reference
             // Only mark sections as archived instead of deleting them
@@ -208,13 +478,23 @@ class AcademicYearController extends Controller
                 ]);
         });
 
+        // Check all irregular students to see if they can become regular
+        $regularityCheckService = new \App\Services\StudentRegularityCheckService;
+        $regularityResults = $regularityCheckService->checkAllIrregularStudents();
+
+        $archiveResults['regularity_promotions'] = $regularityResults['promoted_count'];
+        $archiveResults['promoted_students'] = $regularityResults['promoted_students'] ?? [];
+
         // Advance to next semester/academic year
         $this->advanceAcademicPeriod($validated['academic_year'], $validated['semester']);
 
-        return redirect()->back()->with('success', 'Semester archived successfully. '.$sectionsToArchive.' sections have been archived.');
+        return redirect()->route('admin.academic-years.index')->with([
+            'success' => 'Semester archived successfully!',
+            'archive_results' => $archiveResults,
+        ]);
     }
 
-    protected function archiveSemesterSections(string $academicYear, string $semester, ?string $notes): void
+    protected function archiveSemesterSections(string $academicYear, string $semester, ?string $notes): array
     {
         // Convert semester format for querying
         $semesterVariants = match ($semester) {
@@ -234,11 +514,25 @@ class AcademicYearController extends Controller
             ->get();
 
         if ($sections->isEmpty()) {
-            return;
+            return [
+                'sections_count' => 0,
+                'students_count' => 0,
+                'completed_count' => 0,
+                'dropped_count' => 0,
+                'incomplete_grades' => 0,
+                'average_grade' => 0,
+                'section_details' => [],
+            ];
         }
 
         $archivedStudentIds = [];
         $archivedCount = 0;
+        $totalCompletedStudents = 0;
+        $totalDroppedStudents = 0;
+        $totalIncompleteGrades = 0;
+        $totalGradeSum = 0;
+        $totalGradeCount = 0;
+        $sectionDetails = [];
 
         foreach ($sections as $section) {
             $enrollments = $section->studentEnrollments;
@@ -257,22 +551,41 @@ class AcademicYearController extends Controller
             $completedCount = $enrollments->where('status', 'active')->count();
             $droppedCount = $enrollments->where('status', 'dropped')->count();
 
+            $totalCompletedStudents += $completedCount;
+            $totalDroppedStudents += $droppedCount;
+
             // Calculate average grade
             $averageGrade = null;
             $gradeSum = 0;
             $gradeCount = 0;
+            $incompleteGradeCount = 0;
 
             foreach ($enrollments as $enrollment) {
                 $grade = StudentGrade::where('student_enrollment_id', $enrollment->id)->first();
                 if ($grade && $grade->final_grade) {
                     $gradeSum += $grade->final_grade;
                     $gradeCount++;
+                    $totalGradeSum += $grade->final_grade;
+                    $totalGradeCount++;
+                } else {
+                    $incompleteGradeCount++;
+                    $totalIncompleteGrades++;
                 }
             }
 
             if ($gradeCount > 0) {
                 $averageGrade = round($gradeSum / $gradeCount, 2);
             }
+
+            $sectionDetails[] = [
+                'section_name' => $section->section_name,
+                'year_level' => $section->year_level,
+                'total_students' => $enrollments->count(),
+                'completed' => $completedCount,
+                'dropped' => $droppedCount,
+                'average_grade' => $averageGrade,
+                'incomplete_grades' => $incompleteGradeCount,
+            ];
 
             // Create archived section record
             $archivedSection = ArchivedSection::create([
@@ -343,10 +656,20 @@ class AcademicYearController extends Controller
         }
 
         // Log the archiving summary
-        \Log::info("Archived {$archivedCount} sections for {$academicYear} {$semester}", [
+        Log::info("Archived {$archivedCount} sections for {$academicYear} {$semester}", [
             'student_count' => count(array_unique($archivedStudentIds)),
             'archived_by' => Auth::id(),
         ]);
+
+        return [
+            'sections_count' => $archivedCount,
+            'students_count' => count(array_unique($archivedStudentIds)),
+            'completed_count' => $totalCompletedStudents,
+            'dropped_count' => $totalDroppedStudents,
+            'incomplete_grades' => $totalIncompleteGrades,
+            'average_grade' => $totalGradeCount > 0 ? round($totalGradeSum / $totalGradeCount, 2) : 0,
+            'section_details' => $sectionDetails,
+        ];
     }
 
     // protected function archiveSemesterStudents(array $studentIds, string $academicYear, string $semester, ?string $notes): void

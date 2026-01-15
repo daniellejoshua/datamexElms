@@ -1,12 +1,19 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Head, useForm, router, Link } from '@inertiajs/react';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
+import TeacherScheduleModal from '@/Components/TeacherScheduleModal';
 import { ArrowLeft } from 'lucide-react';
+import { toast } from 'sonner';
 
 const Subjects = ({ section, subjects, teachers }) => {
-    const [showAssignForm, setShowAssignForm] = useState(false);
     const [editingSubject, setEditingSubject] = useState(null);
     const [openDropdown, setOpenDropdown] = useState(null);
+    const [showScheduleModal, setShowScheduleModal] = useState(false);
+    const [teacherSchedule, setTeacherSchedule] = useState([]);
+    const [proposedSchedule, setProposedSchedule] = useState(null);
+    const [selectedTeacherName, setSelectedTeacherName] = useState('');
+    const [checkingSchedule, setCheckingSchedule] = useState(false);
+    const [fieldErrors, setFieldErrors] = useState({});
     
     // Check if section is read-only (past academic year or past semester in current year)
     const isReadOnly = (() => {
@@ -23,15 +30,6 @@ const Subjects = ({ section, subjects, teachers }) => {
         
         return sectionSemesterOrder < currentSemesterOrder;
     })();
-    
-    const { data, setData, post, processing, errors, reset } = useForm({
-        subject_id: '',
-        teacher_id: '',
-        room: '',
-        schedule_days: [],
-        start_time: '',
-        end_time: '',
-    });
 
     const { data: editData, setData: setEditData, patch, processing: editProcessing, errors: editErrors, reset: resetEdit } = useForm({
         teacher_id: '',
@@ -41,33 +39,101 @@ const Subjects = ({ section, subjects, teachers }) => {
         end_time: '',
     });
 
-    const handleAssignSubject = (e) => {
-        e.preventDefault();
-        post(route('admin.sections.attach-subject', section.id), {
-            onSuccess: () => {
-                reset();
-                setShowAssignForm(false);
-            }
-        });
+    const fetchTeacherSchedule = async (teacherId, scheduleData) => {
+        if (!teacherId || !scheduleData.schedule_days?.length || !scheduleData.start_time || !scheduleData.end_time) {
+            return;
+        }
+
+        setCheckingSchedule(true);
+        try {
+            const params = new URLSearchParams();
+            params.append('teacher_id', teacherId);
+            params.append('schedule_days', JSON.stringify(scheduleData.schedule_days));
+            params.append('start_time', scheduleData.start_time);
+            params.append('end_time', scheduleData.end_time);
+
+            const response = await fetch(
+                route('admin.college.sections.teacher-schedule', section.id) + '?' + params.toString()
+            );
+            const responseData = await response.json();
+            
+            setTeacherSchedule(responseData.schedule);
+            setProposedSchedule(responseData.proposed);
+            const teacher = teachers.find(t => t.id === parseInt(teacherId));
+            const teacherName = teacher ? 
+                `${teacher.user?.first_name || teacher.first_name || 'Unknown'} ${teacher.user?.last_name || teacher.last_name || 'Teacher'}`.trim() : 
+                'Unknown Teacher';
+            setSelectedTeacherName(teacherName);
+            setShowScheduleModal(true);
+        } catch (error) {
+            console.error('Error fetching teacher schedule:', error);
+        } finally {
+            setCheckingSchedule(false);
+        }
     };
 
     const handleEditSubject = (sectionSubject) => {
         setEditingSubject(sectionSubject);
+        
+        // Extract time portion if datetime format is present
+        const extractTime = (timeValue) => {
+            if (!timeValue) return '';
+            const timeStr = String(timeValue);
+            if (timeStr.includes(' ')) {
+                return timeStr.split(' ')[1].substring(0, 5); // Get HH:mm
+            }
+            if (timeStr.includes(':')) {
+                return timeStr.substring(0, 5); // Get HH:mm
+            }
+            return timeStr;
+        };
+        
         setEditData({
             teacher_id: sectionSubject.teacher_id || '',
             room: sectionSubject.room || '',
             schedule_days: sectionSubject.schedule_days || [],
-            start_time: sectionSubject.start_time || '',
-            end_time: sectionSubject.end_time || '',
+            start_time: extractTime(sectionSubject.start_time),
+            end_time: extractTime(sectionSubject.end_time),
         });
+        
+        // Clear any field errors when starting to edit
+        setFieldErrors({});
     };
 
     const handleUpdateSubject = (e) => {
         e.preventDefault();
-        patch(route('admin.sections.update-subject', [section.id, editingSubject.subject.id]), {
+        
+        // Validate time fields - both must be filled or both must be empty
+        if ((editData.start_time && !editData.end_time) || (!editData.start_time && editData.end_time)) {
+            toast.error('Incomplete Schedule Time', {
+                description: 'Both start time and end time must be filled, or leave both empty.',
+            });
+            setFieldErrors({
+                start_time: !editData.start_time && editData.end_time,
+                end_time: editData.start_time && !editData.end_time
+            });
+            return;
+        }
+        
+        // Clear any previous field errors
+        setFieldErrors({});
+        
+        patch(route('admin.college.sections.update-subject', [section.id, editingSubject.subject.id]), {
             onSuccess: () => {
                 resetEdit();
                 setEditingSubject(null);
+                setFieldErrors({});
+            },
+            onError: (errors) => {
+                if (errors.teacher_id && errors.teacher_id.includes('conflict')) {
+                    // Clear the error and show modal instead
+                    delete errors.teacher_id;
+                    fetchTeacherSchedule(editData.teacher_id, {
+                        schedule_days: editData.schedule_days,
+                        start_time: editData.start_time,
+                        end_time: editData.end_time
+                    });
+                }
             }
         });
     };
@@ -75,6 +141,7 @@ const Subjects = ({ section, subjects, teachers }) => {
     const handleCancelEdit = () => {
         setEditingSubject(null);
         resetEdit();
+        setFieldErrors({});
     };
 
     const handleDetachSubject = (subjectId) => {
@@ -82,11 +149,6 @@ const Subjects = ({ section, subjects, teachers }) => {
             router.delete(route('admin.sections.detach-subject', [section.id, subjectId]));
         }
     };
-
-    const assignedSubjectIds = section.section_subjects?.map(ss => ss.subject.id) || [];
-    const availableSubjects = subjects.filter(subject => 
-        !assignedSubjectIds.includes(subject.id)
-    );
 
     const dayOptions = [
         { value: 'monday', label: 'Monday', abbr: 'M' },
@@ -139,12 +201,23 @@ const Subjects = ({ section, subjects, teachers }) => {
     const formatTime = (time) => {
         if (!time) return 'Not set';
         
-        const [hours, minutes] = time.split(':');
-        const hour24 = parseInt(hours);
-        const hour12 = hour24 === 0 ? 12 : hour24 > 12 ? hour24 - 12 : hour24;
-        const ampm = hour24 >= 12 ? 'PM' : 'AM';
+        // Handle different time formats: "14:00", "14:00:00", "2024-01-15 14:00:00"
+        let timeStr = time;
+        if (time.includes(' ')) {
+            timeStr = time.split(' ')[1]; // Extract time part from datetime
+        }
+        if (timeStr.includes(':')) {
+            const parts = timeStr.split(':');
+            const hours = parseInt(parts[0]);
+            const minutes = parts[1] || '00';
+            
+            const hour12 = hours === 0 ? 12 : hours > 12 ? hours - 12 : hours;
+            const ampm = hours >= 12 ? 'PM' : 'AM';
+            
+            return `${hour12}:${minutes} ${ampm}`;
+        }
         
-        return `${hour12}:${minutes} ${ampm}`;
+        return timeStr;
     };
 
     const toggleDropdown = (id) => {
@@ -179,7 +252,7 @@ const Subjects = ({ section, subjects, teachers }) => {
             <div className="py-6 sm:py-12">
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-4 sm:space-y-6">
 
-                    {/* Header Actions */}
+                    {/* Header Info */}
                     <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
                         <div className="text-sm text-gray-600 dark:text-gray-400">
                             {section.section_subjects?.length || 0} subject{section.section_subjects?.length !== 1 ? 's' : ''} assigned
@@ -189,188 +262,7 @@ const Subjects = ({ section, subjects, teachers }) => {
                                 Read-only: Past academic year ({section.academic_year})
                             </div>
                         )}
-                        <button
-                            onClick={() => setShowAssignForm(!showAssignForm)}
-                            disabled={isReadOnly}
-                            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors duration-200 w-full sm:w-auto ${
-                                isReadOnly 
-                                    ? 'bg-gray-400 cursor-not-allowed text-gray-600' 
-                                    : 'bg-red-600 hover:bg-red-700 text-white'
-                            }`}
-                        >
-                            {showAssignForm ? 'Cancel Assignment' : '+ Assign Subject'}
-                        </button>
                     </div>
-                    
-                    {/* Assignment Form */}
-                    {showAssignForm && (
-                        <div className="bg-white dark:bg-gray-800 overflow-hidden shadow-sm sm:rounded-lg">
-                            <div className="p-6">
-                                <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100 mb-4">
-                                    Assign Subject to Section
-                                </h3>
-                                
-                                <form onSubmit={handleAssignSubject} className="space-y-6">
-                                    {/* Basic Information */}
-                                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                                        {/* Subject Selection */}
-                                        <div className="sm:col-span-2 lg:col-span-1">
-                                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                                                Subject *
-                                            </label>
-                                            <select
-                                                value={data.subject_id}
-                                                onChange={(e) => setData('subject_id', e.target.value)}
-                                                className="w-full rounded-md border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-                                                required
-                                            >
-                                                <option value="">Select a subject</option>
-                                                {availableSubjects.map((subject) => (
-                                                    <option key={subject.id} value={subject.id}>
-                                                        {subject.subject_code} - {subject.subject_name} ({subject.units}h/week)
-                                                    </option>
-                                                ))}
-                                            </select>
-                                            {errors.subject_id && (
-                                                <p className="mt-1 text-sm text-red-600 dark:text-red-400">{errors.subject_id}</p>
-                                            )}
-                                        </div>
-
-                                        {/* Teacher Selection */}
-                                        <div className="sm:col-span-2 lg:col-span-1">
-                                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                                                Teacher
-                                            </label>
-                                            <select
-                                                value={data.teacher_id}
-                                                onChange={(e) => setData('teacher_id', e.target.value)}
-                                                className="w-full rounded-md border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-                                            >
-                                                <option value="">Select a teacher</option>
-                                                {teachers.map((teacher) => (
-                                                    <option key={teacher.id} value={teacher.id}>
-                                                        {teacher.user.name}
-                                                    </option>
-                                                ))}
-                                            </select>
-                                            {errors.teacher_id && (
-                                                <p className="mt-1 text-sm text-red-600 dark:text-red-400">{errors.teacher_id}</p>
-                                            )}
-                                        </div>
-
-                                        {/* Room */}
-                                        <div className="sm:col-span-2 lg:col-span-1">
-                                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                                                Room
-                                            </label>
-                                            <input
-                                                type="text"
-                                                value={data.room}
-                                                onChange={(e) => setData('room', e.target.value)}
-                                                className="w-full rounded-md border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-                                                placeholder="e.g., Room 101, Lab-A"
-                                            />
-                                            {errors.room && (
-                                                <p className="mt-1 text-sm text-red-600 dark:text-red-400">{errors.room}</p>
-                                            )}
-                                        </div>
-                                    </div>
-
-                                    {/* Schedule Information */}
-                                    <div className="border-t pt-4">
-                                        <h4 className="text-md font-medium text-gray-900 dark:text-gray-100 mb-4">
-                                            Schedule Information
-                                        </h4>
-                                        
-                                        {/* Days of Week */}
-                                        <div className="mb-4">
-                                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
-                                                Days of Week
-                                            </label>
-                                            <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-2 sm:gap-4">
-                                                {dayOptions.map((day) => (
-                                                    <div key={day.value} 
-                                                         onClick={() => {
-                                                             const isSelected = data.schedule_days.includes(day.value);
-                                                             if (isSelected) {
-                                                                 setData('schedule_days', data.schedule_days.filter(d => d !== day.value));
-                                                             } else {
-                                                                 setData('schedule_days', [...data.schedule_days, day.value]);
-                                                             }
-                                                         }}
-                                                         className={`flex flex-col items-center space-y-1 sm:space-y-2 cursor-pointer p-2 sm:p-4 rounded-lg sm:rounded-xl border-2 transition-all duration-200 ${
-                                                        data.schedule_days.includes(day.value)
-                                                            ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-900/20'
-                                                            : 'border-gray-200 dark:border-gray-600 hover:border-indigo-300 dark:hover:border-indigo-500 hover:bg-gray-50 dark:hover:bg-gray-700'
-                                                    }`}>
-                                                        <span className={`text-lg sm:text-2xl font-bold transition-colors ${
-                                                            data.schedule_days.includes(day.value)
-                                                                ? 'text-indigo-700 dark:text-indigo-300'
-                                                                : 'text-gray-900 dark:text-gray-100'
-                                                        }`}>{day.abbr}</span>
-                                                        <span className={`text-xs sm:text-sm transition-colors ${
-                                                            data.schedule_days.includes(day.value)
-                                                                ? 'text-indigo-600 dark:text-indigo-400'
-                                                                : 'text-gray-500 dark:text-gray-400'
-                                                        }`}>{day.label}</span>
-                                                    </div>
-                                                ))}                               </div>
-                                            {errors.schedule_days && (
-                                                <p className="mt-1 text-sm text-red-600 dark:text-red-400">{errors.schedule_days}</p>
-                                            )}
-                                        </div>
-
-                                        {/* Time Range */}
-                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                            <div>
-                                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                                                    Start Time
-                                                </label>
-                                                <input
-                                                    type="time"
-                                                    value={data.start_time}
-                                                    onChange={(e) => setData('start_time', e.target.value)}
-                                                    className="w-full rounded-md border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-                                                />
-                                                {errors.start_time && (
-                                                    <p className="mt-1 text-sm text-red-600 dark:text-red-400">{errors.start_time}</p>
-                                                )}
-                                            </div>
-                                            
-                                            <div>
-                                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                                                    End Time
-                                                </label>
-                                                <input
-                                                    type="time"
-                                                    value={data.end_time}
-                                                    onChange={(e) => setData('end_time', e.target.value)}
-                                                    className="w-full rounded-md border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-                                                />
-                                                {errors.end_time && (
-                                                    <p className="mt-1 text-sm text-red-600 dark:text-red-400">{errors.end_time}</p>
-                                                )}
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    <div className="flex justify-end">
-                                        <button
-                                            type="submit"
-                                            disabled={processing || isReadOnly}
-                                            className={`px-4 py-2 rounded-md text-sm font-medium transition-colors duration-200 ${
-                                                isReadOnly 
-                                                    ? 'bg-gray-400 cursor-not-allowed text-gray-600' 
-                                                    : 'bg-indigo-600 hover:bg-indigo-700 text-white disabled:opacity-50'
-                                            }`}
-                                        >
-                                            {processing ? 'Assigning...' : 'Assign Subject'}
-                                        </button>
-                                    </div>
-                                </form>
-                            </div>
-                        </div>
-                    )}
 
                     {/* Edit Subject Form */}
                     {editingSubject && (
@@ -477,8 +369,18 @@ const Subjects = ({ section, subjects, teachers }) => {
                                                 <input
                                                     type="time"
                                                     value={editData.start_time}
-                                                    onChange={(e) => setEditData('start_time', e.target.value)}
-                                                    className="w-full rounded-md border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                                                    onChange={(e) => {
+                                                        setEditData('start_time', e.target.value);
+                                                        // Clear field error when user starts typing
+                                                        if (fieldErrors.start_time) {
+                                                            setFieldErrors(prev => ({ ...prev, start_time: false }));
+                                                        }
+                                                    }}
+                                                    className={`w-full rounded-md shadow-sm focus:ring-indigo-500 ${
+                                                        fieldErrors.start_time
+                                                            ? 'border-red-500 focus:border-red-500 bg-red-50 dark:bg-red-900/20'
+                                                            : 'border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 focus:border-indigo-500'
+                                                    }`}
                                                 />
                                                 {editErrors.start_time && (
                                                     <p className="mt-1 text-sm text-red-600 dark:text-red-400">{editErrors.start_time}</p>
@@ -492,8 +394,18 @@ const Subjects = ({ section, subjects, teachers }) => {
                                                 <input
                                                     type="time"
                                                     value={editData.end_time}
-                                                    onChange={(e) => setEditData('end_time', e.target.value)}
-                                                    className="w-full rounded-md border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                                                    onChange={(e) => {
+                                                        setEditData('end_time', e.target.value);
+                                                        // Clear field error when user starts typing
+                                                        if (fieldErrors.end_time) {
+                                                            setFieldErrors(prev => ({ ...prev, end_time: false }));
+                                                        }
+                                                    }}
+                                                    className={`w-full rounded-md shadow-sm focus:ring-indigo-500 ${
+                                                        fieldErrors.end_time
+                                                            ? 'border-red-500 focus:border-red-500 bg-red-50 dark:bg-red-900/20'
+                                                            : 'border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 focus:border-indigo-500'
+                                                    }`}
                                                 />
                                                 {editErrors.end_time && (
                                                     <p className="mt-1 text-sm text-red-600 dark:text-red-400">{editErrors.end_time}</p>
@@ -711,6 +623,15 @@ const Subjects = ({ section, subjects, teachers }) => {
                     onClick={() => setOpenDropdown(null)}
                 ></div>
             )}
+
+            {/* Teacher Schedule Modal */}
+            <TeacherScheduleModal
+                show={showScheduleModal}
+                onClose={() => setShowScheduleModal(false)}
+                schedule={teacherSchedule}
+                proposedSchedule={proposedSchedule}
+                teacherName={selectedTeacherName}
+            />
         </AuthenticatedLayout>
     );
 };

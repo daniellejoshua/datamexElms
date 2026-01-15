@@ -34,7 +34,9 @@ class StoreSectionRequest extends FormRequest
                 'max:50',
                 Rule::unique('sections')->where(function ($query) {
                     return $query->where('program_id', $this->program_id)
-                        ->where('year_level', $this->year_level);
+                        ->where('year_level', $this->year_level)
+                        ->where('academic_year', $this->academic_year)
+                        ->where('semester', $this->semester);
                 }),
             ],
             'academic_year' => ['required', 'string', 'max:20'],

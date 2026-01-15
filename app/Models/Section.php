@@ -81,4 +81,13 @@ class Section extends Model
     {
         return $this->hasManyThrough(ClassSchedule::class, SectionSubject::class);
     }
+
+    public function getFormattedNameAttribute(): string
+    {
+        $programCode = $this->program?->program_code ?? '';
+        $yearLevel = $this->year_level ?? '';
+        $sectionName = $this->section_name ?? '';
+
+        return $programCode ? "{$programCode}-{$yearLevel}{$sectionName}" : $sectionName;
+    }
 }

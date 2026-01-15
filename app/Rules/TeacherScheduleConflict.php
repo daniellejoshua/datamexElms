@@ -17,7 +17,9 @@ class TeacherScheduleConflict implements ValidationRule
         private ?array $scheduleDays = null,
         private ?string $startTime = null,
         private ?string $endTime = null,
-        private ?int $excludeSectionSubjectId = null
+        private ?int $excludeSectionSubjectId = null,
+        private ?string $academicYear = null,
+        private ?string $semester = null
     ) {}
 
     /**
@@ -40,8 +42,10 @@ class TeacherScheduleConflict implements ValidationRule
                 $section = $conflict->section;
                 $subject = $conflict->subject;
                 $days = is_array($conflict->schedule_days) ? implode(', ', $conflict->schedule_days) : $conflict->schedule_days;
+                $startTime = Carbon::parse($conflict->start_time)->format('g:i A');
+                $endTime = Carbon::parse($conflict->end_time)->format('g:i A');
 
-                return "{$subject->subject_code} ({$section->program->program_code}-{$section->year_level}{$section->section_name}) on {$days} from {$conflict->start_time} to {$conflict->end_time}";
+                return "{$subject->subject_code} ({$section->program->program_code}-{$section->year_level}{$section->section_name}) on {$days} from {$startTime} to {$endTime}";
             })->join('; ');
 
             $fail("Teacher has a scheduling conflict with: {$conflictDetails}");
@@ -68,6 +72,12 @@ class TeacherScheduleConflict implements ValidationRule
             ->where('teacher_id', $this->teacherId)
             ->when($this->excludeSectionSubjectId, function ($query) {
                 $query->where('id', '!=', $this->excludeSectionSubjectId);
+            })
+            ->when($this->academicYear && $this->semester, function ($query) {
+                $query->whereHas('section', function ($sectionQuery) {
+                    $sectionQuery->where('academic_year', $this->academicYear)
+                        ->where('semester', $this->semester);
+                });
             })
             ->whereNotNull('schedule_days')
             ->whereNotNull('start_time')

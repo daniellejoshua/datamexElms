@@ -28,8 +28,8 @@ class SectionSubject extends Model
         return [
             'status' => 'string',
             'schedule_days' => 'array',
-            'start_time' => 'datetime:H:i',
-            'end_time' => 'datetime:H:i',
+            'start_time' => 'string',
+            'end_time' => 'string',
         ];
     }
 

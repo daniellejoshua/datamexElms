@@ -13,21 +13,14 @@ const Edit = ({ registrar }) => {
     const fileInputRef = useRef(null);
     const [imagePreview, setImagePreview] = useState(null);
 
-    const { data, setData, put, processing, errors } = useForm({
+    const { data, setData, put, processing, errors, reset } = useForm({
         first_name: registrar.name.split(' ')[0] || '',
         last_name: registrar.name.split(' ').slice(-1)[0] || '',
         middle_name: registrar.name.split(' ').slice(1, -1).join(' ') || '',
         email: registrar.email || '',
         is_active: registrar.is_active || false,
-        profile_picture: null,    }, {
-        onSuccess: () => {
-            reset();
-            toast.success('Registrar updated successfully!');
-            router.visit(route('admin.registrars.show', registrar.id));
-        },
-        onError: () => {
-            toast.error('Failed to update registrar. Please check the errors.');
-        }    });
+        profile_picture: null,
+    });
 
     const handleProfilePictureClick = () => {
         fileInputRef.current?.click();
@@ -59,19 +52,26 @@ const Edit = ({ registrar }) => {
     const handleSubmit = (e) => {
         e.preventDefault();
 
-        console.log('Form data before submission:', data);
-
         // Prepare data for submission, excluding null profile_picture
         const submitData = { ...data };
         if (submitData.profile_picture === null) {
             delete submitData.profile_picture;
         }
 
-        console.log('Submitting registrar update with data:', submitData);
-
         put(route('admin.registrars.update', registrar.id), {
-            data: submitData,
             forceFormData: true, // This ensures file uploads work properly
+            preserveScroll: true,
+            onSuccess: () => {
+                toast.success('Registrar updated successfully!');
+            },
+            onError: (errors) => {
+                console.error('Update failed:', errors);
+                if (errors.message) {
+                    toast.error(errors.message);
+                } else {
+                    toast.error('Failed to update registrar. Please check the form and try again.');
+                }
+            }
         });
     };
 

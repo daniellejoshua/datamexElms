@@ -12,6 +12,7 @@ use App\Models\StudentEnrollment;
 use App\Models\StudentGrade;
 use App\Models\StudentSubjectEnrollment;
 use App\Models\Teacher;
+use App\Services\StudentRegularityCheckService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Inertia\Inertia;
@@ -274,6 +275,12 @@ class GradeController extends Controller
                 }
 
                 $grade->save();
+
+                // Check if student can become regular after grade submission
+                if ($grade->completion_status === 'passed') {
+                    $regularityCheckService = app(StudentRegularityCheckService::class);
+                    $regularityCheckService->checkAndUpdateRegularity($grade->student);
+                }
             }
         }
 

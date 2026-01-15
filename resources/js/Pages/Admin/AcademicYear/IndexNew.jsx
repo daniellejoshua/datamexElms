@@ -6,7 +6,6 @@ import { Button } from '@/Components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
@@ -48,9 +47,6 @@ const Index = ({ currentAcademicYear, currentSemester, unpaid_count = 0, unpaid_
         password: '',
         force: false,
     });
-    // Modal states
-    const [selectedSection, setSelectedSection] = useState(null);
-    const [showIncompleteGradesModal, setShowIncompleteGradesModal] = useState(false);
     const [processingArchive, setProcessingArchive] = useState(false);
     const [errors, setErrors] = useState({});
 
@@ -118,13 +114,6 @@ const Index = ({ currentAcademicYear, currentSemester, unpaid_count = 0, unpaid_
         setErrors({});
 
         router.post(route('admin.academic-years.archive'), archiveFormData, {
-            onSuccess: (page) => {
-                // Archive successful - redirect to index to prevent double archiving
-                router.visit(route('admin.academic-years.index'), {
-                    preserveScroll: false,
-                    preserveState: false,
-                });
-            },
             onError: (errors) => {
                 setErrors(errors);
                 setProcessingArchive(false);
@@ -172,11 +161,11 @@ const Index = ({ currentAcademicYear, currentSemester, unpaid_count = 0, unpaid_
                     )}
 
                     {/* Error Messages */}
-                    {errors.validation && (
+                    {errors.error && (
                         <Alert className="border-red-200 bg-red-50 dark:border-red-800 dark:bg-red-950/20">
                             <XCircle className="h-5 w-5 text-red-600" />
                             <AlertDescription className="text-red-800 dark:text-red-200">
-                                {errors.validation}
+                                {errors.error}
                             </AlertDescription>
                         </Alert>
                     )}
@@ -318,10 +307,6 @@ const Index = ({ currentAcademicYear, currentSemester, unpaid_count = 0, unpaid_
                             getSemesterDisplay={getSemesterDisplay}
                             onProceed={handleProceedToConfirm}
                             onCancel={handleResetFlow}
-                            onShowIncompleteGrades={(section) => {
-                                setSelectedSection(section);
-                                setShowIncompleteGradesModal(true);
-                            }}
                         />
                     )}
 
@@ -353,22 +338,12 @@ const Index = ({ currentAcademicYear, currentSemester, unpaid_count = 0, unpaid_
                     )}
                 </div>
             </div>
-
-            {/* Incomplete Grades Modal */}
-            <IncompleteGradesModal
-                isOpen={showIncompleteGradesModal}
-                onClose={() => {
-                    setShowIncompleteGradesModal(false);
-                    setSelectedSection(null);
-                }}
-                section={selectedSection}
-            />
         </AuthenticatedLayout>
     );
 };
 
 // Validation Summary Component
-const ValidationSummary = ({ data, currentAcademicYear, currentSemester, getSemesterDisplay, onProceed, onCancel, onShowIncompleteGrades }) => {
+const ValidationSummary = ({ data, currentAcademicYear, currentSemester, getSemesterDisplay, onProceed, onCancel }) => {
     return (
         <div className="space-y-6">
             <Card className="border-0 shadow-lg">
@@ -466,46 +441,29 @@ const ValidationSummary = ({ data, currentAcademicYear, currentSemester, getSeme
                                 <BarChart3 className="h-5 w-5" />
                                 <span>Section Statistics</span>
                             </h4>
-                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 max-h-96 overflow-y-auto">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-96 overflow-y-auto">
                                 {data.section_statistics.map((section, index) => (
-                                    <Card
-                                        key={index}
-                                        className="border border-gray-200 dark:border-gray-700 cursor-pointer hover:shadow-md transition-shadow duration-200"
-                                        onClick={() => {
-                                            // Find the detailed section data with incomplete grades
-                                            const detailedSection = data.sections_with_incomplete_grades?.find(s => s.id === section.id);
-                                            if (detailedSection) {
-                                                onShowIncompleteGrades(detailedSection);
-                                            }
-                                        }}
-                                    >
+                                    <Card key={index} className="border border-gray-200 dark:border-gray-700">
                                         <CardContent className="p-4">
                                             <div className="flex justify-between items-start mb-2">
-                                                <div className="min-w-0 flex-1">
-                                                    <h5 className="font-semibold text-gray-900 dark:text-white truncate">{section.name}</h5>
+                                                <div>
+                                                    <h5 className="font-semibold text-gray-900 dark:text-white">{section.name}</h5>
                                                     <p className="text-sm text-gray-600 dark:text-gray-400">Year {section.year_level}</p>
                                                 </div>
                                                 {section.average_grade > 0 && (
-                                                    <Badge variant="outline" className="font-mono text-xs ml-2 flex-shrink-0">
-                                                        {section.average_grade}
+                                                    <Badge variant="outline" className="font-mono">
+                                                        Avg: {section.average_grade}
                                                     </Badge>
                                                 )}
                                             </div>
-                                            <div className="flex items-center justify-between text-sm mb-2">
+                                            <div className="flex items-center justify-between text-sm">
                                                 <span className="text-gray-600 dark:text-gray-400">Students:</span>
                                                 <span className="font-medium text-gray-900 dark:text-white">{section.total_students}</span>
                                             </div>
-                                            <div className="flex items-center justify-between text-sm">
-                                                <span className="text-gray-600 dark:text-gray-400">Completed:</span>
-                                                <span className="font-medium text-green-600 dark:text-green-400">{section.completed_grades}</span>
-                                            </div>
                                             {section.incomplete_grades > 0 && (
-                                                <div className="mt-2 text-xs text-amber-600 dark:text-amber-400 flex items-center justify-between">
-                                                    <div className="flex items-center space-x-1">
-                                                        <AlertCircle className="h-3 w-3" />
-                                                        <span>{section.incomplete_grades} incomplete</span>
-                                                    </div>
-                                                    <ChevronRight className="h-3 w-3" />
+                                                <div className="mt-2 text-xs text-amber-600 dark:text-amber-400 flex items-center space-x-1">
+                                                    <AlertCircle className="h-3 w-3" />
+                                                    <span>{section.incomplete_grades} incomplete grades</span>
                                                 </div>
                                             )}
                                         </CardContent>
@@ -826,108 +784,6 @@ const ResultsDashboard = ({ results, currentAcademicYear, currentSemester, getSe
                 </Button>
             </div>
         </div>
-    );
-};
-
-// Incomplete Grades Modal Component
-const IncompleteGradesModal = ({ isOpen, onClose, section }) => {
-    if (!section) return null;
-
-    return (
-        <Dialog open={isOpen} onOpenChange={onClose}>
-            <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-                <DialogHeader>
-                    <DialogTitle className="flex items-center gap-3">
-                        <AlertTriangle className="h-5 w-5 text-amber-500" />
-                        Incomplete Grades - {section.name}
-                    </DialogTitle>
-                </DialogHeader>
-
-                <div className="space-y-4">
-                    <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-4">
-                        <div className="flex items-center gap-2 text-amber-800 dark:text-amber-200">
-                            <AlertCircle className="h-4 w-4" />
-                            <span className="font-medium">
-                                {section.incomplete_count} incomplete grade{section.incomplete_count !== 1 ? 's' : ''} found
-                            </span>
-                        </div>
-                        <p className="text-sm text-amber-700 dark:text-amber-300 mt-1">
-                            These grades will be recorded as incomplete during archiving.
-                        </p>
-                    </div>
-
-                    <div className="space-y-2">
-                        <Accordion type="single" collapsible className="w-full">
-                            {section.incomplete_details?.map((student, index) => (
-                                <AccordionItem key={index} value={`student-${index}`} className="border border-gray-200 dark:border-gray-700 rounded-lg mb-2">
-                                    <AccordionTrigger className="px-4 py-3 hover:no-underline">
-                                        <div className="flex items-center justify-between w-full mr-4">
-                                            <div className="text-left">
-                                                <div className="font-semibold text-gray-900 dark:text-white">{student.student_name}</div>
-                                                <div className="text-sm text-gray-600 dark:text-gray-400">
-                                                    Student Number: {student.student_number}
-                                                </div>
-                                            </div>
-                                            <Badge variant="outline" className="text-amber-600 border-amber-600 ml-4">
-                                                {student.incomplete_subjects.length} subject{student.incomplete_subjects.length !== 1 ? 's' : ''}
-                                            </Badge>
-                                        </div>
-                                    </AccordionTrigger>
-                                    <AccordionContent className="px-4 pb-4">
-                                        <div className="space-y-3">
-                                            <h4 className="font-medium text-gray-900 dark:text-white">Incomplete Subjects:</h4>
-                                            <div className="grid gap-3">
-                                                {student.incomplete_subjects.map((subject, subjIndex) => (
-                                                    <div
-                                                        key={subjIndex}
-                                                        className="p-4 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-600"
-                                                    >
-                                                        <div className="flex items-start justify-between mb-2">
-                                                            <div className="flex items-center gap-2">
-                                                                <FileText className="h-4 w-4 text-gray-500" />
-                                                                <div>
-                                                                    <span className="font-medium text-gray-900 dark:text-white">
-                                                                        {subject.subject_code}
-                                                                    </span>
-                                                                    <span className="text-gray-600 dark:text-gray-400 ml-2">
-                                                                        {subject.subject_name}
-                                                                    </span>
-                                                                </div>
-                                                            </div>
-                                                            <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
-                                                                <Users className="h-4 w-4" />
-                                                                <span>{subject.teacher_name}</span>
-                                                            </div>
-                                                        </div>
-                                                        <div className="flex flex-wrap gap-1">
-                                                            {subject.incomplete_terms?.map((term, termIndex) => (
-                                                                <Badge
-                                                                    key={termIndex}
-                                                                    variant="secondary"
-                                                                    className="text-xs bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200"
-                                                                >
-                                                                    {term.charAt(0).toUpperCase() + term.slice(1)} Missing
-                                                                </Badge>
-                                                            ))}
-                                                        </div>
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        </div>
-                                    </AccordionContent>
-                                </AccordionItem>
-                            ))}
-                        </Accordion>
-                    </div>
-                </div>
-
-                <DialogFooter>
-                    <Button onClick={onClose} variant="outline">
-                        Close
-                    </Button>
-                </DialogFooter>
-            </DialogContent>
-        </Dialog>
     );
 };
 

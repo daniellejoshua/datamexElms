@@ -12,6 +12,7 @@ class YearLevelCurriculumGuide extends Model
 
     protected $fillable = [
         'program_id',
+        'academic_year',
         'year_level',
         'curriculum_id',
     ];

@@ -7,6 +7,32 @@ window.route = (name, params, absolute) => route(name, params, absolute, Ziggy);
 
 window.axios.defaults.headers.common['X-Requested-With'] = 'XMLHttpRequest';
 
+// Function to get current CSRF token
+const getCsrfToken = () => {
+    const token = document.head.querySelector('meta[name="csrf-token"]');
+    return token ? token.content : null;
+};
+
+// Configure CSRF token for Laravel
+const token = getCsrfToken();
+if (token) {
+    window.axios.defaults.headers.common['X-CSRF-TOKEN'] = token;
+} else {
+    console.error('CSRF token not found');
+}
+
+// Add request interceptor to always use the latest CSRF token
+window.axios.interceptors.request.use(
+    (config) => {
+        const token = getCsrfToken();
+        if (token) {
+            config.headers['X-CSRF-TOKEN'] = token;
+        }
+        return config;
+    },
+    (error) => Promise.reject(error)
+);
+
 // Add response interceptor to handle rate limiting
 window.axios.interceptors.response.use(
     (response) => response,

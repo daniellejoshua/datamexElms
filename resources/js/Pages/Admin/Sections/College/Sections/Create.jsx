@@ -10,10 +10,9 @@ import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { ArrowLeft, GraduationCap, Users, Calendar, BookOpen, AlertCircle } from 'lucide-react';
 
-const Create = ({ programs, curricula, archivedSections, currentAcademicPeriod, academicYearOptions, semesterOptions }) => {
+const Create = ({ programs, archivedSections, currentAcademicPeriod, academicYearOptions, semesterOptions }) => {
     const { data, setData, post, processing, errors } = useForm({
         program_id: '',
-        curriculum_id: '',
         section_name: '',
         year_level: 1,
         academic_year: currentAcademicPeriod?.academic_year || '',
@@ -22,10 +21,8 @@ const Create = ({ programs, curricula, archivedSections, currentAcademicPeriod, 
     });
 
     const [selectedProgram, setSelectedProgram] = useState(null);
-    const [selectedCurriculum, setSelectedCurriculum] = useState(null);
     const [generatedSectionName, setGeneratedSectionName] = useState('');
     const [autoSelectedCurriculum, setAutoSelectedCurriculum] = useState(null);
-    const [manualCurriculumOverride, setManualCurriculumOverride] = useState(false);
 
     // Filter archived sections based on selected program and year level
     const filteredArchivedSections = archivedSections?.filter(section => {
@@ -48,19 +45,15 @@ const Create = ({ programs, curricula, archivedSections, currentAcademicPeriod, 
         if (programs) {
             const program = programs.find(p => p.id.toString() === data.program_id.toString());
             setSelectedProgram(program || null);
-            // Reset manual override when program changes
-            setManualCurriculumOverride(false);
             setAutoSelectedCurriculum(null);
-            setSelectedCurriculum(null);
-            setData('curriculum_id', '');
         }
     }, [data.program_id, programs]);
 
     // Auto-select curriculum based on year level guide when program and year level change
     useEffect(() => {
         const autoSelectCurriculum = async () => {
-            if (!selectedProgram || !data.year_level || manualCurriculumOverride) {
-                // Don't auto-select if user has manually overridden
+            if (!selectedProgram || !data.year_level) {
+                setAutoSelectedCurriculum(null);
                 return;
             }
 
@@ -69,39 +62,23 @@ const Create = ({ programs, curricula, archivedSections, currentAcademicPeriod, 
                 const guide = selectedProgram.yearLevelGuides?.find(g => g.year_level === parseInt(data.year_level));
                 if (guide && guide.curriculum) {
                     setAutoSelectedCurriculum(guide.curriculum);
-                    setSelectedCurriculum(guide.curriculum);
-                    setData('curriculum_id', guide.curriculum.id.toString());
                 } else {
                     // Fallback to program's current curriculum
                     const current = selectedProgram.current_curriculum;
                     if (current) {
                         setAutoSelectedCurriculum(current);
-                        setSelectedCurriculum(current);
-                        setData('curriculum_id', current.id.toString());
                     } else {
                         setAutoSelectedCurriculum(null);
-                        setSelectedCurriculum(null);
-                        setData('curriculum_id', '');
                     }
                 }
             } catch (error) {
                 console.error('Error auto-selecting curriculum:', error);
                 setAutoSelectedCurriculum(null);
-                setSelectedCurriculum(null);
-                setData('curriculum_id', '');
             }
         };
 
         autoSelectCurriculum();
-    }, [selectedProgram, data.year_level, manualCurriculumOverride]);
-
-    // Update selected curriculum when curriculum_id changes (for manual selection)
-    useEffect(() => {
-        if (curricula && data.curriculum_id && manualCurriculumOverride) {
-            const curriculum = curricula.find(c => c.id.toString() === data.curriculum_id.toString());
-            setSelectedCurriculum(curriculum || null);
-        }
-    }, [data.curriculum_id, curricula, manualCurriculumOverride]);
+    }, [selectedProgram, data.year_level]);
 
     // Generate section name when program and other fields change
     useEffect(() => {
@@ -127,7 +104,6 @@ const Create = ({ programs, curricula, archivedSections, currentAcademicPeriod, 
         setData({
             ...data,
             program_id: archivedSection.program_id?.toString() || data.program_id,
-            curriculum_id: archivedSection.curriculum_id?.toString() || data.curriculum_id,
             year_level: archivedSection.year_level || data.year_level,
             section_name: sectionLetter,
         });
@@ -136,13 +112,6 @@ const Create = ({ programs, curricula, archivedSections, currentAcademicPeriod, 
         if (archivedSection.program_id && archivedSection.program_id !== parseInt(data.program_id)) {
             const program = programs.find(p => p.id === archivedSection.program_id);
             setSelectedProgram(program || null);
-        }
-        
-        // Update selected curriculum if it changed
-        if (archivedSection.curriculum_id && archivedSection.curriculum_id !== parseInt(data.curriculum_id)) {
-            const curriculum = curricula.find(c => c.id === archivedSection.curriculum_id);
-            setSelectedCurriculum(curriculum || null);
-            setAutoSelectedCurriculum(curriculum || null);
         }
     };
 
@@ -206,8 +175,8 @@ const Create = ({ programs, curricula, archivedSections, currentAcademicPeriod, 
                                     </p>
                                 </div>
 
-                                {/* Program, Curriculum and Year Level Row */}
-                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                {/* Program and Year Level Row */}
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     {/* Program Selection */}
                                     <div className="space-y-2">
                                         <Label htmlFor="program" className="font-medium">
@@ -244,92 +213,6 @@ const Create = ({ programs, curricula, archivedSections, currentAcademicPeriod, 
                                         )}
                                     </div>
 
-                                    {/* Curriculum Selection */}
-                                    <div className="space-y-2">
-                                        <Label htmlFor="curriculum" className="font-medium">
-                                            Curriculum {autoSelectedCurriculum && <span className="text-green-600 text-sm">(Auto-selected)</span>}
-                                        </Label>
-                                        {autoSelectedCurriculum ? (
-                                            <div className="space-y-2">
-                                                <div className="p-3 bg-green-50 border border-green-200 rounded-md">
-                                                    <div className="flex items-center gap-2">
-                                                        <Badge variant="secondary" className="font-mono text-xs">
-                                                            {autoSelectedCurriculum.curriculum_code}
-                                                        </Badge>
-                                                        <Badge variant={autoSelectedCurriculum.is_current ? "default" : "outline"} className="text-xs">
-                                                            {autoSelectedCurriculum.is_current ? "Current" : "Old"}
-                                                        </Badge>
-                                                        <span className="text-sm font-medium text-green-800">
-                                                            {autoSelectedCurriculum.curriculum_name}
-                                                        </span>
-                                                    </div>
-                                                    <p className="text-xs text-green-600 mt-1">
-                                                        Automatically selected based on year level guide
-                                                    </p>
-                                                </div>
-                                                <Button
-                                                    type="button"
-                                                    variant="outline"
-                                                    size="sm"
-                                                    onClick={() => {
-                                                        setAutoSelectedCurriculum(null);
-                                                        setSelectedCurriculum(null);
-                                                        setData('curriculum_id', '');
-                                                        setManualCurriculumOverride(true);
-                                                    }}
-                                                    className="w-full"
-                                                >
-                                                    Select Different Curriculum
-                                                </Button>
-                                            </div>
-                                        ) : (
-                                            <Select value={data.curriculum_id} onValueChange={(value) => setData('curriculum_id', value)}>
-                                                <SelectTrigger className={`h-10 ${errors.curriculum_id ? 'border-red-500' : 'border-gray-300 focus:border-blue-500'}`}>
-                                                    <SelectValue placeholder="Select curriculum">
-                                                        {data.curriculum_id && curricula?.find(c => c.id.toString() === data.curriculum_id) && (
-                                                            <div className="flex items-center gap-2">
-                                                                <Badge variant="secondary" className="font-mono text-xs">
-                                                                    {curricula.find(c => c.id.toString() === data.curriculum_id).curriculum_code}
-                                                                </Badge>
-                                                                <Badge variant={curricula.find(c => c.id.toString() === data.curriculum_id).is_current ? "default" : "outline"} className="text-xs">
-                                                                    {curricula.find(c => c.id.toString() === data.curriculum_id).is_current ? "Current" : "Old"}
-                                                                </Badge>
-                                                            </div>
-                                                        )}
-                                                    </SelectValue>
-                                                </SelectTrigger>
-                                                <SelectContent>
-                                                    {curricula?.filter(curriculum => !data.program_id || curriculum.program_id.toString() === data.program_id.toString()).map((curriculum) => (
-                                                        <SelectItem key={curriculum.id} value={curriculum.id.toString()}>
-                                                            <div className="flex items-center gap-2">
-                                                                <Badge variant="secondary" className="font-mono text-xs">
-                                                                    {curriculum.curriculum_code}
-                                                                </Badge>
-                                                                {curriculum.is_current && (
-                                                                    <Badge variant="default" className="text-xs bg-green-600 hover:bg-green-700">
-                                                                        Current
-                                                                    </Badge>
-                                                                )}
-                                                                {!curriculum.is_current && (
-                                                                    <Badge variant="outline" className="text-xs">
-                                                                        Old
-                                                                    </Badge>
-                                                                )}
-                                                                <span className="text-sm">{curriculum.curriculum_name}</span>
-                                                            </div>
-                                                        </SelectItem>
-                                                    ))}
-                                                </SelectContent>
-                                            </Select>
-                                        )}
-                                        {errors.curriculum_id && (
-                                            <Alert variant="destructive" className="py-2">
-                                                <AlertCircle className="h-4 w-4" />
-                                                <AlertDescription className="text-sm">{errors.curriculum_id}</AlertDescription>
-                                            </Alert>
-                                        )}
-                                    </div>
-
                                     {/* Year Level */}
                                     <div className="space-y-2">
                                         <Label htmlFor="year_level" className="font-medium">
@@ -354,6 +237,29 @@ const Create = ({ programs, curricula, archivedSections, currentAcademicPeriod, 
                                         )}
                                     </div>
                                 </div>
+
+                                {/* Auto-selected Curriculum Display */}
+                                {autoSelectedCurriculum && (
+                                    <div className="space-y-2">
+                                        <Label className="font-medium">Curriculum</Label>
+                                        <div className="p-3 bg-green-50 border border-green-200 rounded-md">
+                                            <div className="flex items-center gap-2">
+                                                <Badge variant="secondary" className="font-mono text-xs">
+                                                    {autoSelectedCurriculum.curriculum_code}
+                                                </Badge>
+                                                <Badge variant={autoSelectedCurriculum.is_current ? "default" : "outline"} className="text-xs">
+                                                    {autoSelectedCurriculum.is_current ? "Current" : "Old"}
+                                                </Badge>
+                                                <span className="text-sm font-medium text-green-800">
+                                                    {autoSelectedCurriculum.curriculum_name}
+                                                </span>
+                                            </div>
+                                            <p className="text-xs text-green-600 mt-1">
+                                                Automatically selected based on year level guide
+                                            </p>
+                                        </div>
+                                    </div>
+                                )}
 
                                 {/* Section Identifier */}
                                 <div className="space-y-2">

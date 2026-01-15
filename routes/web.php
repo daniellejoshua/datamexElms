@@ -133,7 +133,7 @@ Route::middleware(['auth', 'verified', 'role:teacher'])->prefix('teacher')->name
 });
 
 // Admin Routes
-Route::middleware(['auth', 'verified'])->prefix('admin')->name('admin.')->group(function () {
+Route::middleware(['web', 'auth', 'verified'])->prefix('admin')->name('admin.')->group(function () {
     Route::middleware('role:head_teacher,super_admin')->group(function () {
         // Dashboard
         Route::get('/dashboard', [AdminDashboardController::class, 'index'])->name('dashboard');
@@ -164,6 +164,7 @@ Route::middleware(['auth', 'verified'])->prefix('admin')->name('admin.')->group(
         // Academic Year Management
         Route::get('academic-years', [AcademicYearController::class, 'index'])->name('academic-years.index');
         Route::get('academic-years/{archivedSection}', [AcademicYearController::class, 'show'])->name('academic-years.show');
+        Route::post('academic-years/validate-archive', [AcademicYearController::class, 'validateArchive'])->name('academic-years.validate-archive');
         Route::post('academic-years/archive', [AcademicYearController::class, 'archiveSemester'])->name('academic-years.archive');
 
         // College Management Routes
@@ -172,6 +173,9 @@ Route::middleware(['auth', 'verified'])->prefix('admin')->name('admin.')->group(
             Route::resource('sections', CollegeSectionController::class);
             Route::get('sections/{section}/subjects', [CollegeSectionController::class, 'subjects'])->name('sections.subjects');
             Route::post('sections/{section}/subjects', [CollegeSectionController::class, 'attachSubject'])->name('sections.attach-subject');
+            Route::patch('sections/{section}/subjects/{subject}', [CollegeSectionController::class, 'updateSubject'])->name('sections.update-subject');
+            Route::delete('sections/{section}/subjects/{subject}', [CollegeSectionController::class, 'detachSubject'])->name('sections.detach-subject');
+            Route::get('sections/{section}/teacher-schedule', [CollegeSectionController::class, 'getTeacherSchedule'])->name('sections.teacher-schedule');
 
             // College Subjects
             Route::resource('subjects', CollegeSubjectController::class);

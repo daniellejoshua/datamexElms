@@ -16,6 +16,11 @@ Route::middleware(['web', 'auth:web', 'throttle.api'])->group(function () {
         return $request->user();
     });
 
+    // Simple ping route for CSRF token refresh
+    Route::get('/ping', function () {
+        return response()->json(['status' => 'ok']);
+    });
+
     // Student check route for registrars (searches)
     Route::get('/students/check/{student_number}', function ($studentNumber) {
         $student = \App\Models\Student::with(['user', 'program'])

@@ -46,6 +46,9 @@ class ArchiveSemesterData extends Command
             foreach ($sections as $section) {
                 $archivedSection = ArchivedSection::create([
                     'original_section_id' => $section->id,
+                    'program_id' => $section->program_id,
+                    'curriculum_id' => $section->curriculum_id,
+                    'year_level' => $section->year_level,
                     'section_name' => $section->section_name,
                     'academic_year' => $academicYear,
                     'semester' => $semester,

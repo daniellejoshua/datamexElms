@@ -1153,6 +1153,12 @@ class RegistrarController extends Controller
                 ]);
             }
 
+            // Check if irregular student can become regular after enrollment
+            if ($student->student_type === 'irregular') {
+                $regularityCheckService = app(\App\Services\StudentRegularityCheckService::class);
+                $regularityCheckService->checkAndUpdateRegularity($student);
+            }
+
             DB::commit();
 
             // Clear dashboard stats cache since student data changed

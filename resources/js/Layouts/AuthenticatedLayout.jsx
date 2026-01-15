@@ -518,15 +518,26 @@ export default function AuthenticatedLayout({ header, children }) {
                                 </DropdownMenuItem>
                                 <DropdownMenuSeparator />
                                 <DropdownMenuItem asChild>
-                                    <Link 
-                                        href={route('logout')}
-                                        method="post"
-                                        as="button"
-                                        className="cursor-pointer text-red-600 focus:text-red-600 w-full"
+                                    <button
+                                        onClick={(e) => {
+                                            e.preventDefault();
+                                            // Clear cached state
+                                            sessionStorage.clear();
+                                            localStorage.clear();
+                                            // Force full page reload to login
+                                            router.post(route('logout'), {}, {
+                                                preserveState: false,
+                                                preserveScroll: false,
+                                                onSuccess: () => {
+                                                    window.location.href = route('login');
+                                                },
+                                            });
+                                        }}
+                                        className="cursor-pointer text-red-600 focus:text-red-600 w-full flex items-center"
                                     >
                                         <LogOut className="w-4 h-4 mr-2" />
                                         Sign Out
-                                    </Link>
+                                    </button>
                                 </DropdownMenuItem>
                             </DropdownMenuContent>
                         </DropdownMenu>
@@ -589,15 +600,26 @@ export default function AuthenticatedLayout({ header, children }) {
                                     </DropdownMenuItem>
                                     <DropdownMenuSeparator />
                                     <DropdownMenuItem asChild>
-                                        <Link 
-                                            href={route('logout')}
-                                            method="post"
-                                            as="button"
-                                            className="cursor-pointer text-red-600 focus:text-red-600 w-full"
+                                        <button
+                                            onClick={(e) => {
+                                                e.preventDefault();
+                                                // Clear cached state
+                                                sessionStorage.clear();
+                                                localStorage.clear();
+                                                // Force full page reload to login
+                                                router.post(route('logout'), {}, {
+                                                    preserveState: false,
+                                                    preserveScroll: false,
+                                                    onSuccess: () => {
+                                                        window.location.href = route('login');
+                                                    },
+                                                });
+                                            }}
+                                            className="cursor-pointer text-red-600 focus:text-red-600 w-full flex items-center"
                                         >
                                             <LogOut className="w-4 h-4 mr-2" />
                                             Sign Out
-                                        </Link>
+                                        </button>
                                     </DropdownMenuItem>
                                 </DropdownMenuContent>
                             </DropdownMenu>

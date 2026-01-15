@@ -20,11 +20,12 @@ class YearLevelCurriculumGuideSeeder extends Seeder
         foreach ($programs as $program) {
             if (! $program->currentCurriculum) {
                 $this->command->warn("Program {$program->program_name} has no current curriculum. Skipping.");
+
                 continue;
             }
 
             $curriculum = $program->currentCurriculum;
-            
+
             // Determine year levels based on education level
             if ($program->education_level === 'college') {
                 // College: Years 1-4
@@ -40,6 +41,7 @@ class YearLevelCurriculumGuideSeeder extends Seeder
             foreach ($yearLevels as $yearLevel) {
                 YearLevelCurriculumGuide::updateOrCreate([
                     'program_id' => $program->id,
+                    'academic_year' => SchoolSetting::getCurrentAcademicYear(),
                     'year_level' => $yearLevel,
                 ], [
                     'curriculum_id' => $curriculum->id,

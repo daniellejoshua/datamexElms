@@ -50,14 +50,13 @@ class AuthenticatedSessionController extends Controller
         // Regenerate the CSRF token
         $request->session()->regenerateToken();
 
-        // Clear all cookies by setting them to expire
-        $response = redirect('/');
+        // Force full page reload by setting external redirect header for Inertia
+        if ($request->header('X-Inertia')) {
+            return redirect()->route('login')
+                ->header('X-Inertia-Location', route('login'));
+        }
 
-        // Clear common Laravel session cookies
-        $response->withCookie(cookie()->forget('laravel_session'));
-        $response->withCookie(cookie()->forget('remember_web'));
-        $response->withCookie(cookie()->forget('XSRF-TOKEN'));
-
-        return $response;
+        // Regular redirect for non-Inertia requests
+        return redirect()->route('login');
     }
 }

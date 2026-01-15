@@ -140,7 +140,6 @@ class SectionController extends Controller
         $currentSemester = SchoolSetting::getCurrentSemester();
 
         $programs = Program::where('status', 'active')->orderBy('program_code')->get();
-        $curricula = \App\Models\Curriculum::where('status', 'active')->with('program')->orderBy('curriculum_code')->get();
 
         // Get archived sections for reference when creating new sections
         $archivedSections = \App\Models\ArchivedSection::with(['archivedEnrollments'])
@@ -154,7 +153,6 @@ class SectionController extends Controller
 
         return $this->inertia->render('Admin/Sections/Create', [
             'programs' => $programs,
-            'curricula' => $curricula,
             'archivedSections' => $archivedSections,
             'currentAcademicPeriod' => [
                 'academic_year' => $currentAcademicYear,
@@ -167,22 +165,35 @@ class SectionController extends Controller
 
     public function store(StoreSectionRequest $request): RedirectResponse
     {
-        $section = Section::create($request->validated());
+        // Get the curriculum automatically from YearLevelCurriculumGuide
+        $curriculumGuide = \App\Models\YearLevelCurriculumGuide::where('program_id', $request->program_id)
+            ->where('academic_year', $request->academic_year)
+            ->where('year_level', $request->year_level)
+            ->first();
+
+        if (! $curriculumGuide) {
+            return redirect()->back()
+                ->withErrors(['curriculum' => 'No curriculum guide found for this program, academic year, and year level combination.'])
+                ->withInput();
+        }
+
+        $sectionData = $request->validated();
+        $sectionData['curriculum_id'] = $curriculumGuide->curriculum_id;
+
+        $section = Section::create($sectionData);
 
         // Automatically attach subjects from the curriculum that match the section's year level and semester
-        if ($request->curriculum_id) {
-            $curriculumSubjects = \App\Models\CurriculumSubject::where('curriculum_id', $request->curriculum_id)
-                ->where('year_level', $request->year_level)
-                ->where('semester', $request->semester)
-                ->where('status', 'active')
-                ->get();
+        $curriculumSubjects = \App\Models\CurriculumSubject::where('curriculum_id', $curriculumGuide->curriculum_id)
+            ->where('year_level', $request->year_level)
+            ->where('semester', $request->semester)
+            ->where('status', 'active')
+            ->get();
 
-            foreach ($curriculumSubjects as $curriculumSubject) {
-                $section->sectionSubjects()->create([
-                    'subject_id' => $curriculumSubject->subject_id,
-                    'status' => 'active',
-                ]);
-            }
+        foreach ($curriculumSubjects as $curriculumSubject) {
+            $section->sectionSubjects()->create([
+                'subject_id' => $curriculumSubject->subject_id,
+                'status' => 'active',
+            ]);
         }
 
         return redirect()->route('admin.sections.index')
@@ -332,7 +343,10 @@ class SectionController extends Controller
                 $section->id,
                 $validated['schedule_days'],
                 $validated['start_time'],
-                $validated['end_time']
+                $validated['end_time'],
+                null,
+                $section->academic_year,
+                $section->semester
             );
 
             $validator = validator($validated, [
@@ -417,7 +431,9 @@ class SectionController extends Controller
                 $validated['schedule_days'],
                 $validated['start_time'],
                 $validated['end_time'],
-                $sectionSubject->id // Exclude current assignment from conflict check
+                $sectionSubject->id, // Exclude current assignment from conflict check
+                $section->academic_year,
+                $section->semester
             );
 
             $validator = validator($validated, [

@@ -264,6 +264,29 @@ class ShsSectionController extends Controller
             return back()->withErrors(['subject_id' => 'Selected subject is not an SHS subject.']);
         }
 
+        // Additional teacher schedule conflict validation if teacher and schedule are provided
+        if ($request->teacher_id && $request->schedule_days && $request->start_time && $request->end_time) {
+            $teacherConflictRule = new TeacherScheduleConflict(
+                $request->teacher_id,
+                $request->subject_id,
+                $section->id,
+                $request->schedule_days,
+                $request->start_time,
+                $request->end_time,
+                null,
+                $section->academic_year,
+                $section->semester
+            );
+
+            $validator = validator($request->all(), [
+                'teacher_id' => [$teacherConflictRule],
+            ]);
+
+            if ($validator->fails()) {
+                return back()->withErrors($validator)->withInput();
+            }
+        }
+
         $section->sectionSubjects()->create([
             'subject_id' => $request->subject_id,
             'teacher_id' => $request->teacher_id,
@@ -426,7 +449,9 @@ class ShsSectionController extends Controller
                 $validated['schedule_days'],
                 $validated['start_time'],
                 $validated['end_time'],
-                $sectionSubject->id // Exclude current assignment from conflict check
+                $sectionSubject->id, // Exclude current assignment from conflict check
+                $section->academic_year,
+                $section->semester
             );
 
             $validator = validator($validated, [
