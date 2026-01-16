@@ -5,6 +5,8 @@ namespace App\Http\Controllers\Teacher;
 use App\Http\Controllers\Controller;
 use App\Models\ArchivedSection;
 use App\Models\ArchivedStudentEnrollment;
+use App\Models\StudentGrade;
+use App\Models\StudentSubjectCredit;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use Inertia\Inertia;
@@ -176,6 +178,56 @@ class ArchivedSectionsController extends Controller
 
         $enrollment->final_grades = $finalGrades;
         $enrollment->save();
+
+        // Update the original student_grades table if the record exists
+        if ($enrollment->original_enrollment_id) {
+            $studentGrade = StudentGrade::where('student_enrollment_id', $enrollment->original_enrollment_id)
+                ->first();
+
+            if ($studentGrade) {
+                // Map archived grades to student_grades columns
+                if (isset($finalGrades['prelim'])) {
+                    $studentGrade->prelim_grade = $finalGrades['prelim'];
+                }
+                if (isset($finalGrades['midterm'])) {
+                    $studentGrade->midterm_grade = $finalGrades['midterm'];
+                }
+                if (isset($finalGrades['prefinals'])) {
+                    $studentGrade->prefinal_grade = $finalGrades['prefinals'];
+                }
+                if (isset($finalGrades['finals'])) {
+                    $studentGrade->final_grade = $finalGrades['finals'];
+                }
+
+                // Update semester_grade if all grades are present
+                if (isset($finalGrades['prelim'], $finalGrades['midterm'], $finalGrades['prefinals'], $finalGrades['finals'])) {
+                    $studentGrade->semester_grade = $enrollment->final_semester_grade;
+                }
+
+                $studentGrade->save();
+
+                // Update student_subject_credits if this grade has a credit record
+                if ($studentGrade->id) {
+                    $subjectCredit = StudentSubjectCredit::where('student_grade_id', $studentGrade->id)
+                        ->where('student_id', $enrollment->student_id)
+                        ->first();
+
+                    if ($subjectCredit && $studentGrade->semester_grade !== null) {
+                        // Update the final_grade in student_subject_credits
+                        $subjectCredit->final_grade = $studentGrade->semester_grade;
+
+                        // Update credit_status based on the grade
+                        if ($studentGrade->semester_grade >= 75) {
+                            $subjectCredit->credit_status = 'credited';
+                        } else {
+                            $subjectCredit->credit_status = 'failed';
+                        }
+
+                        $subjectCredit->save();
+                    }
+                }
+            }
+        }
 
         return back();
     }

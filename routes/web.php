@@ -147,7 +147,6 @@ Route::middleware(['web', 'auth', 'verified'])->prefix('admin')->name('admin.')-
         Route::post('sections/{section}/students', [SectionController::class, 'enrollStudent'])->name('sections.enroll');
         Route::post('sections/{section}/students/carry-forward', [SectionController::class, 'carryForwardStudents'])->name('sections.carry-forward-students');
         Route::delete('sections/{section}/students', [SectionController::class, 'removeStudent'])->name('sections.remove-student');
-
         // Enrollment Management
         Route::patch('enrollments/{enrollment}/unenroll', [SectionController::class, 'unenrollStudent'])->name('enrollments.unenroll');
 

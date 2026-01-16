@@ -20,34 +20,51 @@ class CreditTransferController extends Controller
     public function compareCurricula(Request $request)
     {
         $request->validate([
-            'previous_program_id' => 'required|exists:programs,id',
+            'previous_program_id' => 'nullable|exists:programs,id', // Optional for transferees
             'new_program_id' => 'required|exists:programs,id',
             'student_year_level' => 'required|integer',
             'credited_subjects' => 'nullable|array', // For transferees
+            'previous_school' => 'nullable|string', // For transferees
         ]);
 
         try {
-            $previousProgram = Program::with('curriculums')->findOrFail($request->previous_program_id);
             $newProgram = Program::with('curriculums')->findOrFail($request->new_program_id);
 
-            // Get current curricula for both programs
-            $previousCurriculum = $previousProgram->curriculums()->where('is_current', true)->first();
+            // Get current curriculum for new program
             $newCurriculum = $newProgram->curriculums()->where('is_current', true)->first();
 
-            if (! $previousCurriculum || ! $newCurriculum) {
+            if (! $newCurriculum) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'One or both programs do not have an active curriculum assigned.',
+                    'message' => 'The new program does not have an active curriculum assigned.',
                 ], 404);
             }
 
-            // Get all subjects from both curricula
-            $previousSubjects = CurriculumSubject::where('curriculum_id', $previousCurriculum->id)
-                ->with('subject')
-                ->orderBy('year_level')
-                ->orderBy('semester')
-                ->get();
+            // Initialize variables
+            $previousSubjects = collect();
+            $previousCurriculum = null;
 
+            // Only load previous program data for shiftees
+            if ($request->previous_program_id) {
+                $previousProgram = Program::with('curriculums')->findOrFail($request->previous_program_id);
+                $previousCurriculum = $previousProgram->curriculums()->where('is_current', true)->first();
+
+                if (! $previousCurriculum) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'The previous program does not have an active curriculum assigned.',
+                    ], 404);
+                }
+
+                // Get all subjects from previous curriculum
+                $previousSubjects = CurriculumSubject::where('curriculum_id', $previousCurriculum->id)
+                    ->with('subject')
+                    ->orderBy('year_level')
+                    ->orderBy('semester')
+                    ->get();
+            }
+
+            // Get all subjects from new curriculum
             $newSubjects = CurriculumSubject::where('curriculum_id', $newCurriculum->id)
                 ->with('subject')
                 ->orderBy('year_level')
@@ -65,52 +82,54 @@ class CreditTransferController extends Controller
 
             $studentYearLevel = $request->student_year_level;
 
-            // For shiftees: Check which subjects they've already taken
-            foreach ($newSubjects as $newSubject) {
-                // Check if this subject exists in the previous curriculum
-                $matchingPreviousSubject = $previousSubjects->first(function ($prevSubject) use ($newSubject) {
-                    // Match by subject code or subject name
-                    return $prevSubject->subject_code === $newSubject->subject_code ||
-                           strtolower($prevSubject->subject_name) === strtolower($newSubject->subject_name);
-                });
+            // For shiftees: Check which subjects they've already taken (only if previous_program_id exists)
+            if ($request->previous_program_id && $previousSubjects->isNotEmpty()) {
+                foreach ($newSubjects as $newSubject) {
+                    // Check if this subject exists in the previous curriculum
+                    $matchingPreviousSubject = $previousSubjects->first(function ($prevSubject) use ($newSubject) {
+                        // Match by subject code or subject name
+                        return $prevSubject->subject_code === $newSubject->subject_code ||
+                               strtolower($prevSubject->subject_name) === strtolower($newSubject->subject_name);
+                    });
 
-                if ($matchingPreviousSubject) {
-                    // Subject exists in both curricula
-                    // Check if student has already taken it based on their current year level
-                    $subjectYearLevel = $matchingPreviousSubject->year_level;
+                    if ($matchingPreviousSubject) {
+                        // Subject exists in both curricula
+                        // Check if student has already taken it based on their current year level
+                        $subjectYearLevel = $matchingPreviousSubject->year_level;
 
-                    if ($subjectYearLevel < $studentYearLevel ||
-                        ($subjectYearLevel == $studentYearLevel && $matchingPreviousSubject->semester == '1st')) {
-                        // Student should have taken this subject already
-                        $creditedSubjects[] = [
-                            'subject_id' => $newSubject->subject_id,
-                            'subject_code' => $newSubject->subject_code,
-                            'subject_name' => $newSubject->subject_name,
-                            'units' => $newSubject->units,
-                            'year_level' => $newSubject->year_level,
-                            'semester' => $newSubject->semester,
-                            'original_year_level' => $matchingPreviousSubject->year_level,
-                            'original_semester' => $matchingPreviousSubject->semester,
-                            'fee_adjustment' => -300, // -300 for credited subjects
-                        ];
-                        $feeAdjustments['credits'] -= 300;
-                    }
-                } else {
-                    // Subject doesn't exist in previous curriculum
-                    // Check if it should have been taken by now
-                    if ($newSubject->year_level < $studentYearLevel ||
-                        ($newSubject->year_level == $studentYearLevel && $newSubject->semester == '1st')) {
-                        // Student needs to catch up this subject
-                        $subjectsToCatchUp[] = [
-                            'subject_id' => $newSubject->subject_id,
-                            'subject_code' => $newSubject->subject_code,
-                            'subject_name' => $newSubject->subject_name,
-                            'units' => $newSubject->units,
-                            'year_level' => $newSubject->year_level,
-                            'semester' => $newSubject->semester,
-                            'fee_adjustment' => 300, // +300 for catch-up subjects
-                        ];
-                        $feeAdjustments['catchup'] += 300;
+                        if ($subjectYearLevel < $studentYearLevel ||
+                            ($subjectYearLevel == $studentYearLevel && $matchingPreviousSubject->semester == '1st')) {
+                            // Student should have taken this subject already
+                            $creditedSubjects[] = [
+                                'subject_id' => $newSubject->subject_id,
+                                'subject_code' => $newSubject->subject_code,
+                                'subject_name' => $newSubject->subject_name,
+                                'units' => $newSubject->units,
+                                'year_level' => $newSubject->year_level,
+                                'semester' => $newSubject->semester,
+                                'original_year_level' => $matchingPreviousSubject->year_level,
+                                'original_semester' => $matchingPreviousSubject->semester,
+                                'fee_adjustment' => -300, // -300 for credited subjects
+                            ];
+                            $feeAdjustments['credits'] -= 300;
+                        }
+                    } else {
+                        // Subject doesn't exist in previous curriculum
+                        // Check if it should have been taken by now
+                        if ($newSubject->year_level < $studentYearLevel ||
+                            ($newSubject->year_level == $studentYearLevel && $newSubject->semester == '1st')) {
+                            // Student needs to catch up this subject
+                            $subjectsToCatchUp[] = [
+                                'subject_id' => $newSubject->subject_id,
+                                'subject_code' => $newSubject->subject_code,
+                                'subject_name' => $newSubject->subject_name,
+                                'units' => $newSubject->units,
+                                'year_level' => $newSubject->year_level,
+                                'semester' => $newSubject->semester,
+                                'fee_adjustment' => 300, // +300 for catch-up subjects
+                            ];
+                            $feeAdjustments['catchup'] += 300;
+                        }
                     }
                 }
             }
@@ -170,19 +189,21 @@ class CreditTransferController extends Controller
 
             $feeAdjustments['total'] = $feeAdjustments['credits'] + $feeAdjustments['catchup'];
 
-            return response()->json([
+            // Prepare all new curriculum subjects for display
+            $allNewSubjects = $newSubjects->map(function ($subject) {
+                return [
+                    'subject_id' => $subject->subject_id,
+                    'subject_code' => $subject->subject_code,
+                    'subject_name' => $subject->subject_name,
+                    'units' => $subject->units,
+                    'year_level' => $subject->year_level,
+                    'semester' => $subject->semester,
+                ];
+            })->toArray();
+
+            $response = [
                 'success' => true,
                 'data' => [
-                    'previous_program' => [
-                        'id' => $previousProgram->id,
-                        'name' => $previousProgram->program_name,
-                        'code' => $previousProgram->program_code,
-                        'curriculum' => [
-                            'id' => $previousCurriculum->id,
-                            'name' => $previousCurriculum->curriculum_name,
-                            'code' => $previousCurriculum->curriculum_code,
-                        ],
-                    ],
                     'new_program' => [
                         'id' => $newProgram->id,
                         'name' => $newProgram->program_name,
@@ -191,13 +212,30 @@ class CreditTransferController extends Controller
                             'id' => $newCurriculum->id,
                             'name' => $newCurriculum->curriculum_name,
                             'code' => $newCurriculum->curriculum_code,
+                            'subjects' => $allNewSubjects, // All subjects for transferee to check
                         ],
                     ],
                     'credited_subjects' => $creditedSubjects,
                     'subjects_to_catch_up' => $subjectsToCatchUp,
                     'fee_adjustments' => $feeAdjustments,
                 ],
-            ]);
+            ];
+
+            // Only include previous_program data for shiftees
+            if ($request->previous_program_id && isset($previousProgram) && isset($previousCurriculum)) {
+                $response['data']['previous_program'] = [
+                    'id' => $previousProgram->id,
+                    'name' => $previousProgram->program_name,
+                    'code' => $previousProgram->program_code,
+                    'curriculum' => [
+                        'id' => $previousCurriculum->id,
+                        'name' => $previousCurriculum->curriculum_name,
+                        'code' => $previousCurriculum->curriculum_code,
+                    ],
+                ];
+            }
+
+            return response()->json($response);
 
         } catch (\Exception $e) {
             Log::error('Curriculum comparison error: '.$e->getMessage());

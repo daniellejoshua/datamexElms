@@ -53,6 +53,9 @@ class HandleInertiaRequests extends Middleware
                 'warning' => $request->session()->get('warning'),
                 'info' => $request->session()->get('info'),
                 'course_shift_required' => $request->session()->get('course_shift_required'),
+                'show_confirmation' => $request->session()->get('show_confirmation'),
+                'incomplete_grades' => $request->session()->get('incomplete_grades'),
+                'incomplete_count' => $request->session()->get('incomplete_count'),
             ],
             'unreadAnnouncementsCount' => $unreadAnnouncementsCount,
         ];

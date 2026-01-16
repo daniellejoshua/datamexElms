@@ -103,7 +103,7 @@ export default function AcademicHistory({ student, curriculumSubjects, completed
                                 <div className="flex justify-center mb-2">
                                     <GraduationCap className="w-8 h-8 text-blue-600" />
                                 </div>
-                                <div className="text-2xl font-bold text-blue-900">{student.program?.program_name || 'N/A'}</div>
+                                <div className="text-2xl font-bold text-blue-900">{student.program?.program_code || 'N/A'}</div>
                                 <div className="text-sm text-blue-600">Program</div>
                             </div>
                             <div className="text-center p-4 bg-green-50 rounded-lg">
@@ -124,7 +124,7 @@ export default function AcademicHistory({ student, curriculumSubjects, completed
                                 <div className="flex justify-center mb-2">
                                     <Award className="w-8 h-8 text-orange-600" />
                                 </div>
-                                <div className="text-2xl font-bold text-orange-900">Year {student.year_level || 'N/A'}</div>
+                                <div className="text-2xl font-bold text-orange-900">{student.year_level || 'N/A'}</div>
                                 <div className="text-sm text-orange-600">Current Year Level</div>
                             </div>
                         </div>
@@ -146,7 +146,7 @@ export default function AcademicHistory({ student, curriculumSubjects, completed
                                 <div key={year} className="relative">
                                     {/* Year Header */}
                                     <div className="flex items-center gap-4 mb-6">
-                                        <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-purple-500 rounded-full flex items-center justify-center text-white font-bold shadow-lg">
+                                        <div className="w-12 h-12 bg-gradient-to-br bg-red-500 rounded-full flex items-center justify-center text-white font-bold shadow-lg">
                                             {yearIndex + 1}
                                         </div>
                                         <div>
@@ -159,7 +159,7 @@ export default function AcademicHistory({ student, curriculumSubjects, completed
 
                                     {/* Timeline connector to next year */}
                                     {yearIndex < Object.keys(groupedSubjects).length - 1 && (
-                                        <div className="absolute left-6 top-20 w-0.5 h-full bg-gradient-to-b from-purple-300 to-blue-300"></div>
+                                        <div className="absolute left-6 top-20 w-0.5 h-full bg-gradient-to-b bg-red-500"></div>
                                     )}
 
                                     {/* Semesters */}

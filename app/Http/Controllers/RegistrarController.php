@@ -1655,19 +1655,27 @@ class RegistrarController extends Controller
             if ($grade->sectionSubject && $grade->sectionSubject->subject) {
                 $subject = $grade->sectionSubject->subject;
                 $teacher = $grade->sectionSubject->teacher;
-                
+
                 // Skip if we already have this subject (keep the first/latest entry)
                 if (isset($subjectGradesMap[$subject->subject_code])) {
                     continue;
                 }
-                
+
                 // Determine missing grades
                 $missingGrades = [];
-                if (is_null($grade->prelim_grade)) $missingGrades[] = 'Prelim';
-                if (is_null($grade->midterm_grade)) $missingGrades[] = 'Midterm';
-                if (is_null($grade->prefinal_grade)) $missingGrades[] = 'Prefinal';
-                if (is_null($grade->final_grade)) $missingGrades[] = 'Final';
-                
+                if (is_null($grade->prelim_grade)) {
+                    $missingGrades[] = 'Prelim';
+                }
+                if (is_null($grade->midterm_grade)) {
+                    $missingGrades[] = 'Midterm';
+                }
+                if (is_null($grade->prefinal_grade)) {
+                    $missingGrades[] = 'Prefinal';
+                }
+                if (is_null($grade->final_grade)) {
+                    $missingGrades[] = 'Final';
+                }
+
                 $gradeInfo = [
                     'subject_id' => $subject->id,
                     'subject_code' => $subject->subject_code,
@@ -1680,11 +1688,11 @@ class RegistrarController extends Controller
                     'final_grade' => $grade->final_grade,
                     'semester_grade' => $grade->semester_grade,
                     'missing_grades' => $missingGrades,
-                    'is_complete' => !empty($grade->final_grade),
+                    'is_complete' => ! empty($grade->final_grade),
                 ];
-                
+
                 $subjectGradesMap[$subject->subject_code] = $gradeInfo;
-                
+
                 // Add to completed if final grade exists
                 if ($grade->final_grade) {
                     $completedSubjects[] = [
@@ -1708,7 +1716,7 @@ class RegistrarController extends Controller
                 if (isset($subjectGradesMap[$credited->subject->subject_code])) {
                     continue;
                 }
-                
+
                 $creditInfo = [
                     'subject_id' => $credited->subject->id,
                     'subject_code' => $credited->subject->subject_code,
@@ -1720,9 +1728,9 @@ class RegistrarController extends Controller
                     'credited_at' => $credited->credited_at,
                     'is_complete' => true,
                 ];
-                
+
                 $subjectGradesMap[$credited->subject->subject_code] = $creditInfo;
-                
+
                 $completedSubjects[] = [
                     'subject_id' => $credited->subject->id,
                     'subject_code' => $credited->subject->subject_code,
@@ -1731,7 +1739,7 @@ class RegistrarController extends Controller
                 ];
             }
         }
-        
+
         // Convert map to array
         $subjectGrades = array_values($subjectGradesMap);
 

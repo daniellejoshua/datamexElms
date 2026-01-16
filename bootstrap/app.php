@@ -14,6 +14,7 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->web(append: [
             \App\Http\Middleware\HandleInertiaRequests::class,
+            \App\Http\Middleware\RequestLogger::class,
             \Illuminate\Http\Middleware\AddLinkHeadersForPreloadedAssets::class,
         ]);
 
@@ -33,6 +34,17 @@ return Application::configure(basePath: dirname(__DIR__))
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
+        // Handle token mismatch exceptions (Page Expired)
+        $exceptions->render(function (\Illuminate\Session\TokenMismatchException $e, $request) {
+            if ($request->header('X-Inertia')) {
+                // Force full page reload for Inertia requests to get fresh CSRF token
+                return redirect()->back()
+                    ->header('X-Inertia-Location', $request->url());
+            }
+
+            return redirect()->back()->with('error', 'Page expired. Please try again.');
+        });
+
         $exceptions->render(function (\Illuminate\Http\Exceptions\ThrottleRequestsException $e, $request) {
             // For API requests, return custom JSON response
             if ($request->is('api/*') || $request->expectsJson()) {

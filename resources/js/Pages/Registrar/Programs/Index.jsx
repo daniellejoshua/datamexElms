@@ -15,6 +15,13 @@ import { Plus, Eye, Edit, BookOpen, Users, DollarSign, Filter, Search, Graduatio
 import { useState, useEffect } from 'react'
 
 export default function ProgramsIndex({ programs, auth, filters = {} }) {
+    // Safely get programs array - handle both paginated and non-paginated data
+    const programsData = Array.isArray(programs?.data) 
+        ? programs.data 
+        : Array.isArray(programs) 
+        ? programs 
+        : [];
+
     const [editModalOpen, setEditModalOpen] = useState(false);
     const [selectedProgram, setSelectedProgram] = useState(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -336,7 +343,7 @@ export default function ProgramsIndex({ programs, auth, filters = {} }) {
                 </Card>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {programs.data.map((program) => (
+                    {programsData.map((program) => (
                         <Card key={program.id} className="group hover:shadow-xl transition-all duration-300 border-2 hover:border-blue-300 relative overflow-hidden">
                             {/* Status Badge */}
                             <div className="absolute top-4 right-4">
@@ -460,7 +467,7 @@ export default function ProgramsIndex({ programs, auth, filters = {} }) {
                     ))}
                 </div>
 
-                {programs.data.length === 0 && (
+                {programsData.length === 0 && (
                     <div className="col-span-full">
                         <Card className="p-16 text-center border-2 border-dashed border-gray-300 hover:border-blue-400 transition-colors bg-gradient-to-br from-gray-50 to-blue-50">
                             <div className="space-y-6">

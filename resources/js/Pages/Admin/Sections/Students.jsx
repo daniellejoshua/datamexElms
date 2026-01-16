@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Check, X, Users, UserPlus, GraduationCap, ArrowLeft, Mail, Phone, MapPin, Calendar, BookOpen, User, Trash2, Settings, AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
 
-export default function Students({ section, enrolledStudents, availableStudents, canCarryForward }) {
+export default function Students({ section, enrolledStudents, availableStudents, canCarryForward, programs }) {
     const { flash } = usePage().props;
     const [selectedStudents, setSelectedStudents] = useState([]);
     const [isEnrolling, setIsEnrolling] = useState(false);
@@ -123,6 +123,8 @@ export default function Students({ section, enrolledStudents, availableStudents,
                 : [...prev, studentId]
         );
     };
+
+
 
     const openStudentModal = (student) => {
         setSelectedStudent(student);
