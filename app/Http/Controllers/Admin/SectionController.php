@@ -1059,31 +1059,35 @@ class SectionController extends Controller
                     'status' => 'active',
                 ]);
 
-                // Automatically enroll student in all section subjects (for regular enrollment)
-                $sectionSubjects = SectionSubject::where('section_id', $section->id)
-                    ->where('status', 'active')
-                    ->get();
+                // For irregular students, don't auto-enroll in subjects
+                // Head teacher will manually select subjects based on their needs
+                if ($student->student_type !== 'irregular') {
+                    // Automatically enroll regular students in all section subjects
+                    $sectionSubjects = SectionSubject::where('section_id', $section->id)
+                        ->where('status', 'active')
+                        ->get();
 
-                foreach ($sectionSubjects as $sectionSubject) {
-                    // Check if student is already enrolled in this subject
-                    $existingSubjectEnrollment = StudentSubjectEnrollment::where([
-                        'student_id' => $studentId,
-                        'section_subject_id' => $sectionSubject->id,
-                        'academic_year' => $section->academic_year,
-                        'semester' => $section->semester,
-                    ])->first();
-
-                    if (! $existingSubjectEnrollment) {
-                        StudentSubjectEnrollment::create([
+                    foreach ($sectionSubjects as $sectionSubject) {
+                        // Check if student is already enrolled in this subject
+                        $existingSubjectEnrollment = StudentSubjectEnrollment::where([
                             'student_id' => $studentId,
                             'section_subject_id' => $sectionSubject->id,
-                            'enrollment_type' => 'regular',
                             'academic_year' => $section->academic_year,
                             'semester' => $section->semester,
-                            'status' => 'active',
-                            'enrollment_date' => now(),
-                            'enrolled_by' => Auth::id(),
-                        ]);
+                        ])->first();
+
+                        if (! $existingSubjectEnrollment) {
+                            StudentSubjectEnrollment::create([
+                                'student_id' => $studentId,
+                                'section_subject_id' => $sectionSubject->id,
+                                'enrollment_type' => 'regular',
+                                'academic_year' => $section->academic_year,
+                                'semester' => $section->semester,
+                                'status' => 'active',
+                                'enrollment_date' => now(),
+                                'enrolled_by' => Auth::id(),
+                            ]);
+                        }
                     }
                 }
 
@@ -1193,10 +1197,25 @@ class SectionController extends Controller
             ->pluck('section_subject_id')
             ->toArray();
 
+        // Get subject IDs the student already has credits for from credit transfers table
+        $creditedSubjectIds = \App\Models\StudentCreditTransfer::where('student_id', $student->id)
+            ->where('credit_status', 'credited')
+            ->pluck('subject_id')
+            ->toArray();
+
         $availableSubjects = $section->sectionSubjects()
             ->with(['subject', 'teacher.user'])
             ->whereNotIn('id', $enrolledSubjectIds)
             ->where('status', 'active')
+            ->whereNotIn('subject_id', $creditedSubjectIds) // Exclude subjects already credited
+            ->get();
+
+        // Add a flag to indicate which subjects are excluded due to credits
+        $creditedSubjects = $section->sectionSubjects()
+            ->with(['subject', 'teacher.user'])
+            ->whereNotIn('id', $enrolledSubjectIds)
+            ->where('status', 'active')
+            ->whereIn('subject_id', $creditedSubjectIds)
             ->get();
 
         $currentEnrollments = StudentSubjectEnrollment::where('student_id', $student->id)
@@ -1214,6 +1233,7 @@ class SectionController extends Controller
             'student' => $student->load('user'),
             'availableSubjects' => $availableSubjects,
             'currentEnrollments' => $currentEnrollments,
+            'creditedSubjects' => $creditedSubjects, // Subjects already credited
         ]);
     }
 

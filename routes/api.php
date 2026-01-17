@@ -23,7 +23,7 @@ Route::middleware(['web', 'auth:web', 'throttle.api'])->group(function () {
 
     // Student check route for registrars (searches)
     Route::get('/students/check/{student_number}', function ($studentNumber) {
-        $student = \App\Models\Student::with(['user', 'program'])
+        $student = \App\Models\Student::with(['user', 'program', 'curriculum'])
             ->where('student_number', $studentNumber)
             ->first();
 
@@ -58,6 +58,8 @@ Route::middleware(['web', 'auth:web', 'throttle.api'])->group(function () {
                     'student_number' => $student->student_number,
                     'year_level' => $student->year_level,
                     'program' => $student->program,
+                    'curriculum' => $student->curriculum,
+                    'curriculum_id' => $student->curriculum_id,
                     'education_level' => $student->education_level,
                     'student_type' => $student->student_type,
                     'birth_date' => $student->birth_date,

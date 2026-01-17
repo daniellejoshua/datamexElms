@@ -42,7 +42,8 @@ Route::middleware(['auth', 'verified', 'role:student'])->prefix('student')->grou
 });
 
 // Registrar Routes
-Route::middleware(['auth', 'verified', 'role:registrar', 'throttle.api'])->prefix('registrar')->name('registrar.')->group(function () {
+Route::middleware([])->prefix('registrar')->name('registrar.')->group(function () {
+    \Log::info('Registrar route group accessed', ['url' => request()->fullUrl(), 'method' => request()->method()]);
     Route::get('/dashboard', [RegistrarController::class, 'dashboard'])->name('dashboard');
     Route::match(['get', 'post'], '/dashboard/refresh', [RegistrarController::class, 'refreshDashboard'])->name('dashboard.refresh');
     Route::get('/students', [RegistrarController::class, 'students'])->name('students');
@@ -152,6 +153,8 @@ Route::middleware(['web', 'auth', 'verified'])->prefix('admin')->name('admin.')-
 
         // Subject-level Enrollment for Irregular Students
         Route::get('sections/{section}/students/{student}/subjects', [SectionController::class, 'subjectEnrollment'])->name('sections.subject-enrollment');
+        Route::post('sections/{section}/students/{student}/subjects', [SectionController::class, 'enrollStudentInSubjects'])->name('sections.enroll-subjects');
+        Route::delete('sections/{section}/students/{student}/subjects', [SectionController::class, 'removeStudentFromSubject'])->name('sections.remove-from-subject');
 
         // Subject Scheduling
         Route::get('sections/{section}/subjects', [SectionController::class, 'subjects'])->name('sections.subjects');

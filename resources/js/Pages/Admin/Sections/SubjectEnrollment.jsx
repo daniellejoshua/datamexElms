@@ -6,7 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Check, X, Users, UserPlus, GraduationCap, ArrowLeft, Mail, Phone, MapPin, Calendar, BookOpen, User, Trash2, Settings, Clock, UserCheck } from 'lucide-react';
 
-export default function SubjectEnrollment({ section, student, availableSubjects, currentEnrollments }) {
+export default function SubjectEnrollment({ section, student, availableSubjects, currentEnrollments, creditedSubjects = [] }) {
     const { flash } = usePage().props;
     const [selectedSubjects, setSelectedSubjects] = useState([]);
     const [isEnrolling, setIsEnrolling] = useState(false);
@@ -353,6 +353,53 @@ export default function SubjectEnrollment({ section, student, availableSubjects,
                             </div>
                         </div>
                     </div>
+
+                    {/* Subjects Already Credited */}
+                    {creditedSubjects && creditedSubjects.length > 0 && (
+                        <div className="bg-white rounded-lg shadow-sm border overflow-hidden mt-6">
+                            <div className="bg-blue-50 px-4 py-3 border-b border-blue-100">
+                                <div className="flex items-center gap-2">
+                                    <Check className="h-4 w-4 text-blue-600" />
+                                    <h2 className="font-medium text-gray-900">
+                                        Subjects Already Credited ({creditedSubjects.length})
+                                    </h2>
+                                </div>
+                                <p className="text-sm text-gray-600 mt-1">
+                                    These subjects have already been credited to the student and are excluded from enrollment.
+                                </p>
+                            </div>
+                            <div className="p-4">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                    {creditedSubjects.map((sectionSubject) => (
+                                        <div 
+                                            key={sectionSubject.id} 
+                                            className="flex items-start p-3 bg-blue-50 border border-blue-200 rounded"
+                                        >
+                                            <div className="flex-shrink-0 mr-3 mt-0.5">
+                                                <Check className="h-4 w-4 text-blue-600" />
+                                            </div>
+                                            <div className="flex-1 min-w-0">
+                                                <p className="font-medium text-gray-900">
+                                                    {sectionSubject.subject.subject_code}
+                                                </p>
+                                                <p className="text-sm text-gray-600 mt-0.5">
+                                                    {sectionSubject.subject.subject_name}
+                                                </p>
+                                                {sectionSubject.teacher && (
+                                                    <p className="text-xs text-gray-500 mt-1">
+                                                        Teacher: {sectionSubject.teacher.user.name}
+                                                    </p>
+                                                )}
+                                                <Badge variant="outline" className="text-xs bg-blue-100 text-blue-700 border-blue-200 mt-2">
+                                                    Already Credited
+                                                </Badge>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
+                    )}
                 </div>
             </div>
 

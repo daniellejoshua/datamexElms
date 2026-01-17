@@ -40,10 +40,12 @@ const Edit = ({ teacher }) => {
 
     // Show modal when confirmation is needed
     useEffect(() => {
-        if (show_confirmation) {
+        if (show_confirmation && incomplete_count > 0) {
             setShowGradesModal(true);
+            // Reset status back to original value since we're blocking the change
+            setData('status', teacher.status);
         }
-    }, [show_confirmation]);
+    }, [show_confirmation, incomplete_count]);
 
     const handleProfilePictureClick = () => {
         fileInputRef.current?.click();

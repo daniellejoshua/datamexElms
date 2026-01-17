@@ -147,7 +147,7 @@ class StudentRegularityCheckService
 
         // Get credited subjects (for shifters/transferees)
         $creditedSubjects = StudentSubjectCredit::where('student_id', $student->id)
-            ->where('status', 'approved')
+            ->where('credit_status', 'approved')
             ->pluck('subject_id')
             ->toArray();
 

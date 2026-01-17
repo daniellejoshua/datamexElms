@@ -19,6 +19,7 @@ class Student extends Model
         'curriculum_id',
         'previous_program_id',
         'previous_curriculum_id',
+        'previous_school',
         'batch_year',
         'current_year_level',
         'current_academic_year',
@@ -41,7 +42,6 @@ class Student extends Model
         'status',
         'enrolled_date',
         'course_shifted_at',
-        'credited_subjects',
         'shift_reason',
         'gender',
         'has_voucher',
@@ -57,7 +57,6 @@ class Student extends Model
             'birth_date' => 'date',
             'enrolled_date' => 'date',
             'course_shifted_at' => 'datetime',
-            'credited_subjects' => 'array',
             'has_voucher' => 'boolean',
             'voucher_invalidated_at' => 'datetime',
         ];

@@ -526,6 +526,21 @@ class RegistrarController extends Controller
      */
     public function store(Request $request)
     {
+        \Log::info('STORE METHOD CALLED - REQUEST RECEIVED', [
+            'method' => $request->method(),
+            'url' => $request->fullUrl(),
+            'user_id' => auth()->id(),
+            'user_roles' => auth()->user()?->roles?->pluck('name')?->toArray() ?? [],
+        ]);
+
+        \Log::info('Store method called with data', [
+            'transfer_type' => $request->input('transfer_type'),
+            'credited_subjects_count' => count($request->input('credited_subjects', [])),
+            'credited_subjects' => $request->input('credited_subjects'),
+            'has_credited_subjects' => $request->has('credited_subjects'),
+            'all_input' => $request->all(),
+        ]);
+
         $validated = $request->validate([
             // Student number for checking existing students
             'student_number' => ['nullable', 'string'],
@@ -671,11 +686,11 @@ class RegistrarController extends Controller
                 ]);
             }
 
-            // Generate student number for new students only
+            // Generate student number for new students only (after user is created)
             if (! $isUpdatingExisting) {
                 $studentNumber = $isReturningStudent && $archivedStudent->student_number
                     ? $archivedStudent->student_number
-                    : $this->generateStudentNumber($validated['education_level']);
+                    : $this->generateStudentNumber($user->id);
             }
 
             // Extract numeric year level from string (e.g., "1st Year" -> 1, "Grade 11" -> 11)
@@ -758,7 +773,8 @@ class RegistrarController extends Controller
                 // Check if course shift is confirmed
                 if (! $validated['confirm_course_shift']) {
                     return Inertia::render('Registrar/Students/Create', [
-                        'programs' => Program::orderBy('education_level')
+                        'programs' => Program::with(['yearLevelGuides.curriculum'])
+                            ->orderBy('education_level')
                             ->orderBy('program_name')
                             ->get(),
                         'currentAcademicYear' => SchoolSetting::getCurrentAcademicYear(),
@@ -789,7 +805,8 @@ class RegistrarController extends Controller
                 // Check if course shift is confirmed
                 if (! $validated['confirm_course_shift']) {
                     return Inertia::render('Registrar/Students/Create', [
-                        'programs' => Program::orderBy('education_level')
+                        'programs' => Program::with(['yearLevelGuides.curriculum'])
+                            ->orderBy('education_level')
                             ->orderBy('program_name')
                             ->get(),
                         'currentAcademicYear' => SchoolSetting::getCurrentAcademicYear(),
@@ -919,12 +936,8 @@ class RegistrarController extends Controller
                 $studentData['course_shifted_at'] = now();
                 $studentData['shift_reason'] = 'Course shift from '.$currentProgram->program_name.' to '.$newProgram->program_name;
 
-                // Calculate and store credited subjects
-                $creditedSubjects = $this->calculateCreditedSubjects(
-                    $isUpdatingExisting ? $existingStudent->id : ($archivedStudent->original_student_id ?? null),
-                    $curriculumId
-                );
-                $studentData['credited_subjects'] = $creditedSubjects;
+                // Note: Credited subjects are now stored in student_credit_transfers table,
+                // not in the students.credited_subjects JSON column
             }
 
             // Create or update student record
@@ -1028,7 +1041,14 @@ class RegistrarController extends Controller
             }
 
             // SHS students with active vouchers can have zero enrollment fee
-            if ($enrollmentFee == 0 && ! ($validated['education_level'] === 'senior_high' && ($studentData['has_voucher'] ?? false))) {
+            // Also allow zero for irregular transferee/shiftee (will be calculated after first term)
+            $isIrregularTransfereeOrShiftee = $validated['student_type'] === 'irregular' &&
+                                               isset($validated['transfer_type']) &&
+                                               in_array($validated['transfer_type'], ['transferee', 'shiftee']);
+
+            if ($enrollmentFee == 0 &&
+                ! ($validated['education_level'] === 'senior_high' && ($studentData['has_voucher'] ?? false)) &&
+                ! $isIrregularTransfereeOrShiftee) {
                 return back()->withErrors([
                     'enrollment_fee' => 'Enrollment fee cannot be zero.',
                 ])->withInput();
@@ -1104,6 +1124,13 @@ class RegistrarController extends Controller
 
             // Handle credit transfers for shiftees and transferees
             if (! empty($validated['transfer_type']) && ($validated['transfer_type'] === 'shiftee' || $validated['transfer_type'] === 'transferee')) {
+                \Log::info('Processing credit transfers', [
+                    'transfer_type' => $validated['transfer_type'],
+                    'credited_subjects_count' => count($validated['credited_subjects'] ?? []),
+                    'credited_subjects' => $validated['credited_subjects'] ?? [],
+                    'subjects_to_catch_up_count' => count($validated['subjects_to_catch_up'] ?? []),
+                ]);
+
                 // Get program and curriculum information
                 $newProgram = Program::find($validated['program_id']);
                 $newCurriculum = $newProgram->curriculums()->where('is_current', true)->first();
@@ -1117,6 +1144,7 @@ class RegistrarController extends Controller
 
                 // Save credited subjects
                 if (! empty($validated['credited_subjects'])) {
+                    \Log::info('Saving credited subjects', ['count' => count($validated['credited_subjects'])]);
                     foreach ($validated['credited_subjects'] as $creditedSubject) {
                         \App\Models\StudentCreditTransfer::create([
                             'student_id' => $student->id,
@@ -1308,25 +1336,13 @@ class RegistrarController extends Controller
     /**
      * Generate a unique student number.
      */
-    private function generateStudentNumber(string $educationLevel): string
+    private function generateStudentNumber(int $userId): string
     {
-        $year = date('Y');
-        $prefix = $educationLevel === 'college' ? 'COL' : 'SHS';
+        // Format: USERID + day + month + year (DDMMYYYY)
+        // Example: User ID 123 enrolling on 17/01/2026 = 123117012026
+        $enrollmentDate = now();
 
-        // Get the last student number for this year and education level
-        $lastStudent = Student::where('student_number', 'like', "{$year}-{$prefix}-%")
-            ->orderBy('student_number', 'desc')
-            ->first();
-
-        if ($lastStudent) {
-            // Extract the sequence number and increment it
-            $lastNumber = (int) substr($lastStudent->student_number, -4);
-            $newNumber = $lastNumber + 1;
-        } else {
-            $newNumber = 1;
-        }
-
-        return sprintf('%s-%s-%04d', $year, $prefix, $newNumber);
+        return $userId.$enrollmentDate->format('dmY');
     }
 
     /**
@@ -1381,18 +1397,13 @@ class RegistrarController extends Controller
                         ->whereNotNull('shs_student_grades.fourth_quarter_grade');
                 });
             })
-            // Must be a passing grade
-            ->where(function ($query) {
-                $query->where('student_grades.status', 'passed')
-                    ->orWhere('shs_student_grades.status', 'passed')
-                    ->orWhereRaw('COALESCE(student_grades.semester_grade, shs_student_grades.final_grade) >= 75');
-            })
+            // Must be a passing grade (>= 75)
+            ->whereRaw('COALESCE(student_grades.semester_grade, shs_student_grades.final_grade) >= 75')
             ->select(
                 'subjects.id',
                 'subjects.subject_code',
                 'subjects.subject_name',
-                DB::raw('COALESCE(student_grades.semester_grade, shs_student_grades.final_grade) as grade'),
-                DB::raw('COALESCE(student_grades.status, shs_student_grades.status) as status')
+                DB::raw('COALESCE(student_grades.semester_grade, shs_student_grades.final_grade) as grade')
             )
             ->distinct()
             ->get();
