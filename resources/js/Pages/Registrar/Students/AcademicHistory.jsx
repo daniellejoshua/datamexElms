@@ -27,10 +27,23 @@ export default function AcademicHistory({ student, curriculumSubjects, completed
     }
 
     const isSubjectCompleted = (subjectCode) => {
-        return completedSubjects?.some(completed => 
-            completed.subject_code === subjectCode || 
+        const isInCompletedList = completedSubjects?.some(completed =>
+            completed.subject_code === subjectCode ||
             completed.subject_id === subjectCode
         )
+
+        if (!isInCompletedList) return false
+
+        // Check if this is a credited subject - if so, only count as completed if grade >= 75
+        const gradeInfo = getSubjectGradeInfo(subjectCode)
+        if (gradeInfo?.type === 'credited') {
+            const grade = parseFloat(gradeInfo.final_grade)
+            // Only count as completed if grade is >= 75 or no grade (CR)
+            return isNaN(grade) || grade >= 75
+        }
+
+        // For regular subjects, just check if it's in completed list
+        return true
     }
 
     const getSubjectGradeInfo = (subjectCode) => {
@@ -64,11 +77,19 @@ export default function AcademicHistory({ student, curriculumSubjects, completed
         return acc
     }, {}) || {}
 
-    // Calculate completion statistics
+    // Calculate completion statistics (excluding credited subjects)
     const totalSubjects = curriculumSubjects?.length || 0
-    const completedCount = curriculumSubjects?.filter(subject => 
-        isSubjectCompleted(subject.subject_code)
-    ).length || 0
+    const completedCount = curriculumSubjects?.filter(subject => {
+        const gradeInfo = getSubjectGradeInfo(subject.subject_code)
+        return isSubjectCompleted(subject.subject_code) && (!gradeInfo || gradeInfo.type !== 'credited')
+    }).length || 0
+    // Only count credited subjects with passing grades (>= 75)
+    const creditedCount = subjectGrades?.filter(grade => {
+        if (grade.type !== 'credited') return false;
+        const gradeValue = parseFloat(grade.final_grade);
+        // Include subjects with no grade (CR) or grades >= 75
+        return isNaN(gradeValue) || gradeValue >= 75;
+    }).length || 0
     const completionPercentage = totalSubjects > 0 ? Math.round((completedCount / totalSubjects) * 100) : 0
 
     return (
@@ -110,8 +131,15 @@ export default function AcademicHistory({ student, curriculumSubjects, completed
                                 <div className="flex justify-center mb-2">
                                     <CheckCircle2 className="w-8 h-8 text-green-600" />
                                 </div>
-                                <div className="text-2xl font-bold text-green-900">{completedCount} / {totalSubjects}</div>
-                                <div className="text-sm text-green-600">Subjects Completed</div>
+                                <div className="text-2xl font-bold text-green-900">{completedCount + creditedCount} / {totalSubjects}</div>
+                                <div className="text-sm text-green-600">
+                                    Subjects Completed
+                                    {(creditedCount > 0) && (
+                                        <div className="text-xs mt-1 text-green-700">
+                                            {completedCount} graded + {creditedCount} Previous School Credited Subject
+                                        </div>
+                                    )}
+                                </div>
                             </div>
                             <div className="text-center p-4 bg-purple-50 rounded-lg">
                                 <div className="flex justify-center mb-2">
@@ -218,11 +246,6 @@ export default function AcademicHistory({ student, curriculumSubjects, completed
                                                                                         {subject.units} units
                                                                                     </span>
                                                                                 )}
-                                                                                {gradeInfo?.type === 'credited' && (
-                                                                                    <Badge className="text-xs bg-blue-500">
-                                                                                        Credited
-                                                                                    </Badge>
-                                                                                )}
                                                                             </div>
                                                                             <h5 className={`font-medium text-sm break-words ${
                                                                                 completed 
@@ -242,8 +265,11 @@ export default function AcademicHistory({ student, curriculumSubjects, completed
                                                                             
                                                                             {/* Credit Info */}
                                                                             {gradeInfo?.type === 'credited' && gradeInfo.credited_from && (
-                                                                                <div className="mt-2 text-xs text-blue-700 bg-blue-100 px-2 py-1 rounded">
-                                                                                    From: {gradeInfo.credited_from}
+                                                                                <div className="mt-2 text-xs text-gray-600 flex items-center gap-1">
+                                                                                    <div className="w-3 h-3 bg-gray-200 rounded-full flex items-center justify-center">
+                                                                                        <div className="w-1.5 h-1.5 bg-gray-500 rounded-full"></div>
+                                                                                    </div>
+                                                                                    <span>{gradeInfo.credited_from}</span>
                                                                                 </div>
                                                                             )}
                                                                             
@@ -292,6 +318,86 @@ export default function AcademicHistory({ student, curriculumSubjects, completed
                         )}
                     </CardContent>
                 </Card>
+
+                {/* Credited Subjects */}
+                {(() => {
+                    // Filter credited subjects to only include passing grades (>= 75)
+                    const allCreditedSubjects = subjectGrades?.filter(grade => grade.type === 'credited') || [];
+                    const passingCreditedSubjects = allCreditedSubjects.filter(subject => {
+                        const grade = parseFloat(subject.final_grade);
+                        // Include subjects with no grade (CR) or grades >= 75
+                        return isNaN(grade) || grade >= 75;
+                    });
+
+                    return passingCreditedSubjects.length > 0 && (
+                        <Card>
+                            <CardHeader>
+                                <CardTitle className="flex items-center gap-2">
+                                    <Award className="w-5 h-5" />
+                                    Credited Subjects ({passingCreditedSubjects.length})
+                                </CardTitle>
+                                <p className="text-sm text-gray-600">Subjects credited through transfers, course shifts, or equivalency (passing grades only)</p>
+                            </CardHeader>
+                            <CardContent>
+                                <div className="overflow-x-auto">
+                                    <table className="w-full border-collapse">
+                                        <thead>
+                                            <tr className="border-b">
+                                                <th className="text-left py-3 px-4 font-medium text-gray-700">Subject Code</th>
+                                                <th className="text-left py-3 px-4 font-medium text-gray-700">Subject Name</th>
+                                                <th className="text-left py-3 px-4 font-medium text-gray-700">Units</th>
+                                                <th className="text-left py-3 px-4 font-medium text-gray-700">Grade</th>
+                                                <th className="text-left py-3 px-4 font-medium text-gray-700">Credit Type</th>
+                                                <th className="text-left py-3 px-4 font-medium text-gray-700">Source</th>
+                                                <th className="text-left py-3 px-4 font-medium text-gray-700">Date Credited</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {passingCreditedSubjects.map((subject, index) => (
+                                                <tr key={index} className="border-b hover:bg-gray-50">
+                                                    <td className="py-3 px-4">
+                                                        <Badge variant="outline" className="font-mono text-xs">
+                                                            {subject.subject_code}
+                                                        </Badge>
+                                                    </td>
+                                                    <td className="py-3 px-4">
+                                                        <div className="font-medium text-gray-900">{subject.subject_name}</div>
+                                                    </td>
+                                                    <td className="py-3 px-4 text-sm text-gray-600">
+                                                        {curriculumSubjects?.find(curr => curr.subject_code === subject.subject_code)?.units || 'N/A'} units
+                                                    </td>
+                                                    <td className="py-3 px-4">
+                                                        <Badge className="bg-blue-500 text-white">
+                                                            {subject.final_grade || 'CR'}
+                                                        </Badge>
+                                                    </td>
+                                                    <td className="py-3 px-4">
+                                                        <Badge variant="outline" className="capitalize">
+                                                            {subject.credit_type || 'Transfer'}
+                                                        </Badge>
+                                                    </td>
+                                                    <td className="py-3 px-4">
+                                                        {subject.credited_from ? (
+                                                            <div className="flex items-center gap-2">
+                                                                <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                                                                <span className="text-sm text-gray-700">{subject.credited_from}</span>
+                                                            </div>
+                                                        ) : (
+                                                            <span className="text-sm text-gray-500">Internal</span>
+                                                        )}
+                                                    </td>
+                                                    <td className="py-3 px-4 text-sm text-gray-600">
+                                                        {subject.credited_at ? new Date(subject.credited_at).toLocaleDateString() : 'N/A'}
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </CardContent>
+                        </Card>
+                    );
+                })()}
 
                 {/* Enrollment History Timeline */}
                 {archivedEnrollments && archivedEnrollments.length > 0 && (

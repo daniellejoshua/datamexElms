@@ -526,6 +526,13 @@ class RegistrarController extends Controller
      */
     public function store(Request $request)
     {
+        // Direct file write to bypass logging
+        file_put_contents(storage_path('logs/debug-store.log'), date('Y-m-d H:i:s') . " - STORE CALLED\n" . json_encode([
+            'transfer_type' => $request->input('transfer_type'),
+            'credited_subjects_count' => count($request->input('credited_subjects', [])),
+            'has_credited_subjects' => $request->has('credited_subjects'),
+        ], JSON_PRETTY_PRINT) . "\n\n", FILE_APPEND);
+        
         \Log::info('STORE METHOD CALLED - REQUEST RECEIVED', [
             'method' => $request->method(),
             'url' => $request->fullUrl(),
@@ -588,6 +595,7 @@ class RegistrarController extends Controller
             'credited_subjects.*.units' => ['nullable', 'numeric'],
             'credited_subjects.*.year_level' => ['nullable', 'integer'],
             'credited_subjects.*.semester' => ['nullable', 'string'],
+            'credited_subjects.*.grade' => ['nullable', 'string'],
             'credited_subjects.*.fee_adjustment' => ['nullable', 'numeric'],
             'subjects_to_catch_up' => ['nullable', 'array'],
             'subjects_to_catch_up.*.subject_id' => ['nullable', 'exists:subjects,id'],
@@ -772,11 +780,19 @@ class RegistrarController extends Controller
 
                 // Check if course shift is confirmed
                 if (! $validated['confirm_course_shift']) {
+                    $programs = Program::with([
+                        'programFees',
+                        'curriculums',
+                        'currentCurriculum',
+                        'programCurricula.curriculum',
+                        'yearLevelGuides.curriculum',
+                    ])
+                        ->orderBy('education_level')
+                        ->orderBy('program_name')
+                        ->get();
+
                     return Inertia::render('Registrar/Students/Create', [
-                        'programs' => Program::with(['yearLevelGuides.curriculum'])
-                            ->orderBy('education_level')
-                            ->orderBy('program_name')
-                            ->get(),
+                        'programs' => $programs,
                         'currentAcademicYear' => SchoolSetting::getCurrentAcademicYear(),
                         'currentSemester' => SchoolSetting::getCurrentSemester(),
                         'course_shift_required' => [
@@ -785,6 +801,7 @@ class RegistrarController extends Controller
                             'current_curriculum' => $existingStudent->curriculum?->curriculum_name ?? null,
                             'new_program' => $newProgram->program_name ?? 'Unknown',
                             'new_program_code' => $newProgram->program_code ?? null,
+                            'new_program_id' => $newProgram->id ?? null,
                             'student_name' => $existingStudent->first_name.' '.$existingStudent->last_name,
                             'student_id' => $existingStudent->id,
                         ],
@@ -805,7 +822,13 @@ class RegistrarController extends Controller
                 // Check if course shift is confirmed
                 if (! $validated['confirm_course_shift']) {
                     return Inertia::render('Registrar/Students/Create', [
-                        'programs' => Program::with(['yearLevelGuides.curriculum'])
+                        'programs' => Program::with([
+                            'programFees',
+                            'curriculums',
+                            'currentCurriculum',
+                            'programCurricula.curriculum',
+                            'yearLevelGuides.curriculum',
+                        ])
                             ->orderBy('education_level')
                             ->orderBy('program_name')
                             ->get(),
@@ -817,6 +840,7 @@ class RegistrarController extends Controller
                             'current_curriculum' => $archivedStudent->curriculum?->curriculum_name ?? null,
                             'new_program' => $newProgram->program_name ?? 'Unknown',
                             'new_program_code' => $newProgram->program_code ?? null,
+                            'new_program_id' => $newProgram->id ?? null,
                             'student_name' => $archivedStudent->first_name.' '.$archivedStudent->last_name,
                             'student_id' => $archivedStudent->original_student_id,
                         ],
@@ -940,6 +964,12 @@ class RegistrarController extends Controller
                 // not in the students.credited_subjects JSON column
             }
 
+            // Track transferee data
+            if (! empty($validated['transfer_type']) && $validated['transfer_type'] === 'transferee') {
+                $studentData['previous_school'] = $validated['previous_school'] ?? null;
+                $studentData['previous_program_id'] = $validated['previous_program_id'] ?? null;
+            }
+
             // Create or update student record
             if ($isUpdatingExisting) {
                 $existingStudent->update($studentData);
@@ -980,13 +1010,15 @@ class RegistrarController extends Controller
             }
 
             // Check if student is already enrolled in the current semester
+            // Allow course shift even if already enrolled
+            $isCourseShift = $isUpdatingExisting && $existingStudent->program_id != $validated['program_id'];
             $existingEnrollment = StudentEnrollment::where([
                 'student_id' => $student->id,
                 'academic_year' => $academicYear,
                 'semester' => $semester,
             ])->first();
 
-            if ($existingEnrollment) {
+            if ($existingEnrollment && ! $isCourseShift) {
                 return back()->withErrors([
                     'student' => "Student is already enrolled in the current semester ({$academicYear} - {$semester}). Cannot enroll again.",
                 ])->withInput();
@@ -1142,11 +1174,50 @@ class RegistrarController extends Controller
                     ? $previousProgram->curriculums()->where('is_current', true)->first()
                     : null;
 
-                // Save credited subjects
-                if (! empty($validated['credited_subjects'])) {
-                    \Log::info('Saving credited subjects', ['count' => count($validated['credited_subjects'])]);
+                // Save credited subjects (TRANSFEREES ONLY - not shiftees)
+                $shouldProcessCredits = ! empty($validated['credited_subjects']) && 
+                                       is_array($validated['credited_subjects']) &&
+                                       isset($validated['transfer_type']) &&
+                                       $validated['transfer_type'] === 'transferee';
+                
+                if ($shouldProcessCredits) {
+                    \Log::info('💾 SAVING CREDITED SUBJECTS FOR TRANSFEREE', [
+                        'count' => count($validated['credited_subjects']),
+                        'student_id' => $student->id,
+                        'transfer_type' => $validated['transfer_type'],
+                        'credited_subjects' => $validated['credited_subjects'],
+                    ]);
+
                     foreach ($validated['credited_subjects'] as $creditedSubject) {
-                        \App\Models\StudentCreditTransfer::create([
+                        $grade = $creditedSubject['grade'] ?? null;
+                        
+                        // Double-check grade validation on backend (should already be filtered on frontend)
+                        if ($grade !== null && (float) $grade < 75) {
+                            \Log::warning('⚠️ Skipping subject with failing grade', [
+                                'subject_code' => $creditedSubject['subject_code'],
+                                'grade' => $grade,
+                            ]);
+                            continue;
+                        }
+                        
+                        \Log::info('Processing credited subject', [
+                            'subject_id' => $creditedSubject['subject_id'] ?? null,
+                            'subject_code' => $creditedSubject['subject_code'] ?? null,
+                            'grade' => $grade,
+                        ]);
+
+                        // Find the corresponding curriculum subject in the new curriculum
+                        $curriculumSubject = \App\Models\CurriculumSubject::where('curriculum_id', $newCurriculum->id)
+                            ->where('subject_id', $creditedSubject['subject_id'])
+                            ->first();
+
+                        \Log::info('Curriculum subject lookup', [
+                            'curriculum_id' => $newCurriculum->id,
+                            'subject_id' => $creditedSubject['subject_id'],
+                            'found' => $curriculumSubject ? 'YES' : 'NO',
+                        ]);
+
+                        $creditTransfer = \App\Models\StudentCreditTransfer::create([
                             'student_id' => $student->id,
                             'previous_program_id' => $previousProgram?->id,
                             'new_program_id' => $newProgram->id,
@@ -1162,10 +1233,52 @@ class RegistrarController extends Controller
                             'semester' => $creditedSubject['semester'] ?? '1st',
                             'transfer_type' => $validated['transfer_type'],
                             'credit_status' => 'credited',
+                            'verified_semester_grade' => $creditedSubject['grade'] ?? null,
                             'fee_adjustment' => $creditedSubject['fee_adjustment'] ?? -300,
                             'previous_school' => $validated['previous_school'] ?? null,
                             'approved_by' => Auth::id(),
                             'approved_at' => now(),
+                        ]);
+
+                        \Log::info('✅ Created StudentCreditTransfer', ['id' => $creditTransfer->id]);
+
+                        // Also create StudentSubjectCredit record for Academic History display
+                        // Create the record even if curriculum_subject_id is null (for transferees)
+                        $subjectCredit = \App\Models\StudentSubjectCredit::create([
+                            'student_id' => $student->id,
+                            'curriculum_subject_id' => $curriculumSubject?->id,
+                            'subject_id' => $creditedSubject['subject_id'],
+                            'subject_code' => $creditedSubject['subject_code'],
+                            'subject_name' => $creditedSubject['subject_name'],
+                            'units' => $creditedSubject['units'],
+                            'year_level' => $creditedSubject['year_level'],
+                            'semester' => $creditedSubject['semester'],
+                            'credit_type' => 'transfer',
+                            'credit_status' => 'credited',
+                            'final_grade' => $creditedSubject['grade'] ?? null,
+                            'credited_at' => now(),
+                            'student_credit_transfer_id' => $creditTransfer->id,
+                            'approved_by' => Auth::id(),
+                            'approved_at' => now(),
+                        ]);
+
+                        \Log::info('✅ Created StudentSubjectCredit', [
+                            'id' => $subjectCredit->id,
+                            'has_curriculum_subject' => $curriculumSubject ? 'YES' : 'NO',
+                            'curriculum_subject_id' => $curriculumSubject?->id,
+                        ]);
+                    }
+                } else {
+                    if (isset($validated['transfer_type']) && $validated['transfer_type'] === 'shiftee') {
+                        \Log::info('✋ SHIFTEE - Credited subjects NOT processed (per requirements)', [
+                            'student_id' => $student->id,
+                            'transfer_type' => $validated['transfer_type'],
+                        ]);
+                    } else {
+                        \Log::info('❌ No credited subjects to save', [
+                            'transfer_type' => $validated['transfer_type'] ?? 'none',
+                            'has_credited_subjects_key' => isset($validated['credited_subjects']),
+                            'credited_subjects_value' => $validated['credited_subjects'] ?? null,
                         ]);
                     }
                 }
@@ -1716,9 +1829,16 @@ class RegistrarController extends Controller
             }
         }
 
-        // Get credited subjects (for transferees/shiftees)
+        // Get credited subjects (for transferees/shiftees) - from StudentSubjectCredit
         $creditedSubjects = \App\Models\StudentSubjectCredit::where('student_id', $student->id)
+            ->where('credit_status', 'credited')
             ->with(['subject', 'studentCreditTransfer'])
+            ->get();
+
+        // Also get credited subjects from StudentCreditTransfer (for credit transfers)
+        $creditTransfers = \App\Models\StudentCreditTransfer::where('student_id', $student->id)
+            ->where('credit_status', 'credited')
+            ->with(['subject'])
             ->get();
 
         foreach ($creditedSubjects as $credited) {
@@ -1746,6 +1866,37 @@ class RegistrarController extends Controller
                     'subject_id' => $credited->subject->id,
                     'subject_code' => $credited->subject->subject_code,
                     'subject_name' => $credited->subject->subject_name,
+                    'type' => 'credited',
+                ];
+            }
+        }
+
+        // Process credit transfers
+        foreach ($creditTransfers as $transfer) {
+            if ($transfer->subject) {
+                // Skip if we already have this subject
+                if (isset($subjectGradesMap[$transfer->subject->subject_code])) {
+                    continue;
+                }
+
+                $creditInfo = [
+                    'subject_id' => $transfer->subject->id,
+                    'subject_code' => $transfer->subject->subject_code,
+                    'subject_name' => $transfer->subject->subject_name,
+                    'type' => 'credited',
+                    'credit_type' => $transfer->transfer_type,
+                    'final_grade' => $transfer->verified_semester_grade,
+                    'credited_from' => $transfer->previous_school,
+                    'credited_at' => $transfer->approved_at,
+                    'is_complete' => true,
+                ];
+
+                $subjectGradesMap[$transfer->subject->subject_code] = $creditInfo;
+
+                $completedSubjects[] = [
+                    'subject_id' => $transfer->subject->id,
+                    'subject_code' => $transfer->subject->subject_code,
+                    'subject_name' => $transfer->subject->subject_name,
                     'type' => 'credited',
                 ];
             }

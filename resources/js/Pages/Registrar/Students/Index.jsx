@@ -601,26 +601,40 @@ export default function StudentsIndex({ students, programs, filters, auth, on_ho
                                     Showing {students.from} to {students.to} of {students.total} results
                                 </p>
                                 <div className="flex gap-1">
-                                    {students.links.map((link, index) => (
-                                        link.url ? (
+                                    {students.links.map((link, index) => {
+                                        if (!link.url) {
+                                            return (
+                                                <span
+                                                    key={index}
+                                                    className="px-3 py-1 text-sm text-gray-400 border border-gray-300 rounded"
+                                                    dangerouslySetInnerHTML={{ __html: link.label }}
+                                                />
+                                            )
+                                        }
+                                        
+                                        // Parse URL and add filter parameters
+                                        const url = new URL(link.url, window.location.origin)
+                                        url.searchParams.set('education_level', educationLevel)
+                                        url.searchParams.set('status', status)
+                                        url.searchParams.set('year_level', yearLevel)
+                                        url.searchParams.set('student_type', studentType)
+                                        url.searchParams.set('enrollment_status', enrollmentStatus)
+                                        
+                                        return (
                                             <Link
                                                 key={index}
-                                                href={link.url}
+                                                href={url.pathname + url.search}
                                                 className={`px-3 py-1 text-sm border rounded ${
                                                     link.active 
                                                         ? 'bg-blue-500 text-white border-blue-500' 
                                                         : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
                                                 }`}
                                                 dangerouslySetInnerHTML={{ __html: link.label }}
-                                            />
-                                        ) : (
-                                            <span
-                                                key={index}
-                                                className="px-3 py-1 text-sm text-gray-400 border border-gray-300 rounded"
-                                                dangerouslySetInnerHTML={{ __html: link.label }}
+                                                preserveState
+                                                preserveScroll
                                             />
                                         )
-                                    ))}
+                                    })}
                                 </div>
                             </div>
                         )}
@@ -1142,47 +1156,58 @@ export default function StudentsIndex({ students, programs, filters, auth, on_ho
                                 </Card>
                             </div>
 
-                            {/* Archived Grades - Only show for students with archived enrollments */}
-                            {selectedStudent.archived_enrollments?.length > 0 && (
-                                <Card className="border-l-4 border-l-purple-500">
-                                    <CardHeader className="pb-3">
-                                        <CardTitle className="text-lg flex items-center gap-2 text-purple-700">
-                                            <GraduationCap className="w-5 h-5" />
-                                            Academic History
+                            {/* Academic History - Show for all students */}
+                            <Card className="border-l-4 border-l-purple-500">
+                                <CardHeader className="pb-3">
+                                    <CardTitle className="text-lg flex items-center gap-2 text-purple-700">
+                                        <GraduationCap className="w-5 h-5" />
+                                        Academic History
+                                        {selectedStudent.archived_enrollments?.length > 0 && (
                                             <Badge variant="secondary" className="ml-2">
                                                 {selectedStudent.archived_enrollments.length} Semester{selectedStudent.archived_enrollments.length !== 1 ? 's' : ''}
                                             </Badge>
-                                        </CardTitle>
-                                        <p className="text-sm text-gray-600">View complete academic history with curriculum progress</p>
-                                    </CardHeader>
-                                    <CardContent>
-                                        <div className="flex items-center justify-between p-6 bg-gradient-to-r from-purple-50 to-indigo-50 rounded-lg border border-purple-200">
-                                            <div className="flex items-center gap-4">
-                                                <div className="w-12 h-12 bg-purple-100 rounded-full flex items-center justify-center">
-                                                    <BookOpen className="w-6 h-6 text-purple-600" />
-                                                </div>
-                                                <div>
-                                                    <h4 className="font-semibold text-purple-900 mb-1">
-                                                        Complete Academic History
-                                                    </h4>
-                                                    <p className="text-sm text-purple-700">
-                                                        View curriculum progress, completed subjects, and enrollment timeline
-                                                    </p>
-                                                </div>
+                                        )}
+                                    </CardTitle>
+                                    <p className="text-sm text-gray-600">
+                                        {selectedStudent.archived_enrollments?.length > 0
+                                            ? 'View complete academic history with curriculum progress'
+                                            : 'View academic history and enrollment timeline'
+                                        }
+                                    </p>
+                                </CardHeader>
+                                <CardContent>
+                                    <div className="flex items-center justify-between p-6 bg-gradient-to-r from-purple-50 to-indigo-50 rounded-lg border border-purple-200">
+                                        <div className="flex items-center gap-4">
+                                            <div className="w-12 h-12 bg-purple-100 rounded-full flex items-center justify-center">
+                                                <BookOpen className="w-6 h-6 text-purple-600" />
                                             </div>
-                                            <Link 
-                                                href={route('registrar.students.academic-history', selectedStudent.id)}
-                                                className="inline-block"
-                                            >
-                                                <Button className="bg-purple-600 hover:bg-purple-700">
-                                                    View Full History
-                                                    <GraduationCap className="w-4 h-4 ml-2" />
-                                                </Button>
-                                            </Link>
+                                            <div>
+                                                <h4 className="font-semibold text-purple-900 mb-1">
+                                                    {selectedStudent.archived_enrollments?.length > 0
+                                                        ? 'Complete Academic History'
+                                                        : 'Academic History'
+                                                    }
+                                                </h4>
+                                                <p className="text-sm text-purple-700">
+                                                    {selectedStudent.archived_enrollments?.length > 0
+                                                        ? 'View curriculum progress, completed subjects, and enrollment timeline'
+                                                        : 'View enrollment timeline and academic information'
+                                                    }
+                                                </p>
+                                            </div>
                                         </div>
-                                    </CardContent>
-                                </Card>
-                            )}
+                                        <Link
+                                            href={route('registrar.students.academic-history', selectedStudent.id)}
+                                            className="inline-block"
+                                        >
+                                            <Button className="bg-purple-600 hover:bg-purple-700">
+                                                View History
+                                                <GraduationCap className="w-4 h-4 ml-2" />
+                                            </Button>
+                                        </Link>
+                                    </div>
+                                </CardContent>
+                            </Card>
 
                             {/* Current Enrollment Information */}
                             <Card className="border-l-4 border-l-emerald-500">

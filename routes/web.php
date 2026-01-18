@@ -106,6 +106,7 @@ Route::middleware([])->prefix('registrar')->name('registrar.')->group(function (
         Route::get('/pending', [\App\Http\Controllers\Registrar\CreditTransferController::class, 'getPendingCredits'])->name('pending');
         Route::post('/check-grades', [\App\Http\Controllers\Registrar\CreditTransferController::class, 'checkGradeCompletion'])->name('check-grades');
         Route::patch('/{creditTransfer}/status', [\App\Http\Controllers\Registrar\CreditTransferController::class, 'updateCreditStatus'])->name('update-status');
+        Route::patch('/{creditTransfer}/grade', [\App\Http\Controllers\Registrar\CreditTransferController::class, 'updateCreditGrade'])->name('update-grade');
     });
 });
 

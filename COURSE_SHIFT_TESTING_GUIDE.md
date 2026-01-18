@@ -112,7 +112,7 @@ After confirming a course shift, verify:
 
 3. **Regularity Check Triggered:**
    - If student has all required subjects → becomes regular
-   - Otherwise stays irregular
+   - Oterwise stays irregular
    - Check logs for regularity check execution
 
 ## 🐛 Common Issues to Check

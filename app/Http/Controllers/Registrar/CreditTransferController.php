@@ -274,7 +274,12 @@ class CreditTransferController extends Controller
 
             // Store credited subjects
             foreach ($request->credited_subjects as $subject) {
-                StudentCreditTransfer::create([
+                // Find the corresponding curriculum subject in the new curriculum
+                $curriculumSubject = \App\Models\CurriculumSubject::where('curriculum_id', $newCurriculum->id)
+                    ->where('subject_id', $subject['subject_id'])
+                    ->first();
+
+                $creditTransfer = StudentCreditTransfer::create([
                     'student_id' => $student->id,
                     'previous_program_id' => $previousProgram?->id,
                     'new_program_id' => $newProgram->id,
@@ -290,11 +295,33 @@ class CreditTransferController extends Controller
                     'semester' => $subject['semester'],
                     'transfer_type' => $request->transfer_type,
                     'credit_status' => 'credited',
+                    'verified_semester_grade' => $subject['grade'] ?? null,
                     'fee_adjustment' => -300,
                     'previous_school' => $subject['previous_school'] ?? $request->previous_school,
                     'approved_by' => auth()->id(),
                     'approved_at' => now(),
                 ]);
+
+                // Also create StudentSubjectCredit record for Academic History display
+                if ($curriculumSubject) {
+                    \App\Models\StudentSubjectCredit::create([
+                        'student_id' => $student->id,
+                        'curriculum_subject_id' => $curriculumSubject->id,
+                        'subject_id' => $subject['subject_id'],
+                        'subject_code' => $subject['subject_code'],
+                        'subject_name' => $subject['subject_name'],
+                        'units' => $subject['units'],
+                        'year_level' => $subject['year_level'],
+                        'semester' => $subject['semester'],
+                        'credit_type' => 'transfer',
+                        'credit_status' => 'credited',
+                        'final_grade' => $subject['grade'] ?? null,
+                        'credited_at' => now(),
+                        'student_credit_transfer_id' => $creditTransfer->id,
+                        'approved_by' => auth()->id(),
+                        'approved_at' => now(),
+                    ]);
+                }
             }
 
             // Store catch-up subjects
@@ -519,12 +546,43 @@ class CreditTransferController extends Controller
         try {
             $credit = StudentCreditTransfer::findOrFail($creditTransferId);
 
+            $oldStatus = $credit->credit_status;
+            $newStatus = $request->credit_status;
+
             $credit->update([
-                'credit_status' => $request->credit_status,
+                'credit_status' => $newStatus,
                 'rejection_reason' => $request->rejection_reason ?? null,
                 'approved_by' => auth()->id(),
                 'approved_at' => now(),
             ]);
+
+            // If status changed to 'credited', create StudentSubjectCredit record for Academic History
+            if ($oldStatus !== 'credited' && $newStatus === 'credited') {
+                // Find the corresponding curriculum subject
+                $curriculumSubject = \App\Models\CurriculumSubject::where('curriculum_id', $credit->new_curriculum_id)
+                    ->where('subject_id', $credit->subject_id)
+                    ->first();
+
+                if ($curriculumSubject) {
+                    \App\Models\StudentSubjectCredit::create([
+                        'student_id' => $credit->student_id,
+                        'curriculum_subject_id' => $curriculumSubject->id,
+                        'subject_id' => $credit->subject_id,
+                        'subject_code' => $credit->subject_code,
+                        'subject_name' => $credit->subject_name,
+                        'units' => $credit->units,
+                        'year_level' => $credit->year_level,
+                        'semester' => $credit->semester,
+                        'credit_type' => 'transfer',
+                        'credit_status' => 'credited',
+                        'final_grade' => $credit->verified_semester_grade,
+                        'credited_at' => now(),
+                        'student_credit_transfer_id' => $credit->id,
+                        'approved_by' => auth()->id(),
+                        'approved_at' => now(),
+                    ]);
+                }
+            }
 
             return response()->json([
                 'success' => true,
@@ -538,6 +596,39 @@ class CreditTransferController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'Failed to update credit status',
+            ], 500);
+        }
+    }
+
+    /**
+     * Update the verified semester grade for a credit transfer
+     */
+    public function updateCreditGrade(Request $request, $creditTransferId)
+    {
+        $request->validate([
+            'verified_semester_grade' => 'required|string|max:10',
+        ]);
+
+        try {
+            $credit = StudentCreditTransfer::findOrFail($creditTransferId);
+
+            $credit->update([
+                'verified_semester_grade' => $request->verified_semester_grade,
+                'updated_by' => auth()->id(),
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Credit grade updated successfully',
+                'data' => $credit,
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Update credit grade error: '.$e->getMessage());
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to update credit grade',
             ], 500);
         }
     }

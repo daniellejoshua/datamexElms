@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
-import { UserPlus, ArrowLeft, GraduationCap, BookOpen, AlertTriangle, DollarSign, Info } from 'lucide-react'
+import { UserPlus, ArrowLeft, GraduationCap, BookOpen, AlertTriangle, DollarSign, Info, Plus, X } from 'lucide-react'
 import { useState, useEffect, useRef } from 'react'
 import { toast } from 'sonner'
 
@@ -462,6 +462,11 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
     const [subjectsToCatchUp, setSubjectsToCatchUp] = useState([])
     const [loadingCurriculumComparison, setLoadingCurriculumComparison] = useState(false)
     const [subjectSearchQuery, setSubjectSearchQuery] = useState('')
+    
+
+
+
+
 
     // Address dropdown states
     const [provinces, setProvinces] = useState(PHILIPPINE_ADDRESSES.provinces)
@@ -475,12 +480,6 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
     useEffect(() => {
         if (data.program_id) {
             const program = programs.find(p => p.id === parseInt(data.program_id))
-            console.log('Setting selectedProgram:', {
-                program_id: data.program_id,
-                program_name: program?.program_name,
-                has_yearLevelGuides: !!program?.yearLevelGuides,
-                yearLevelGuides_count: program?.yearLevelGuides?.length || 0
-            })
             setSelectedProgram(program)
         } else {
             setSelectedProgram(null)
@@ -499,35 +498,21 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                 // For course shifts, we ALWAYS want to update the curriculum, even for existing students
                 const isInCourseShift = !!courseShiftData
                 
-                console.log('Curriculum selection debug:', {
-                    programName: selectedProgram.program_name,
-                    yearLevel: data.year_level,
-                    numericYear,
-                    isExistingStudent,
-                    isReturningStudent,
-                    isInCourseShift,
-                    guidesCount: selectedProgram.yearLevelGuides?.length || 0,
-                    guides: selectedProgram.yearLevelGuides
-                })
-                
                 if (!isExistingStudent && !isReturningStudent) {
-                    const guides = selectedProgram.yearLevelGuides || []
+                    const guides = selectedProgram.year_level_guides || selectedProgram.yearLevelGuides || []
                     const guide = guides.find(g => g.year_level === numericYear && g.curriculum)
-                    console.log('Guide search result (new student):', guide)
                     if (guide && guide.curriculum) {
                         curriculum = guide.curriculum
                     }
                 } else if (isInCourseShift && (isExistingStudent || isReturningStudent)) {
                     // During course shift, also update curriculum for existing/returning students
-                    const guides = selectedProgram.yearLevelGuides || []
+                    const guides = selectedProgram.year_level_guides || selectedProgram.yearLevelGuides || []
                     const guide = guides.find(g => g.year_level === numericYear && g.curriculum)
-                    console.log('Guide search result (course shift):', guide)
                     if (guide && guide.curriculum) {
                         curriculum = guide.curriculum
                     }
                 }
                 
-                console.log('Selected curriculum:', curriculum)
             } catch (e) {
                 // If anything goes wrong, curriculum will remain null and be fetched from API
                 console.error('Error determining curriculum from guide:', e)
@@ -728,11 +713,31 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
         if (course_shift_required) {
             setCourseShiftData(course_shift_required)
             setShowCourseShiftModal(true)
+            
+            // Set selected program to the new program for curriculum selection
+            if (course_shift_required.new_program_id) {
+                const newProgram = programs.find(p => p.id === parseInt(course_shift_required.new_program_id))
+                if (newProgram) {
+                    setSelectedProgram(newProgram)
+                    
+                    // Auto-select curriculum based on year level guide for course shift
+                    if (data.year_level) {
+                        const numericYear = getNumericYearLevel(data.year_level, newProgram.education_level)
+                        const guides = newProgram.year_level_guides || []
+                        const guide = guides.find(g => g.year_level === numericYear && g.curriculum)
+                        
+                        if (guide && guide.curriculum) {
+                            setSelectedCurriculum(guide.curriculum)
+                            setData('curriculum_id', guide.curriculum.id)
+                        }
+                    }
+                }
+            }
         } else {
             setCourseShiftData(null)
             setShowCourseShiftModal(false)
         }
-    }, [course_shift_required])
+    }, [course_shift_required, programs, data.year_level])
 
     // Handle suffix changes
     useEffect(() => {
@@ -1047,7 +1052,7 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
             const newProgram = programs.find(p => p.id === parseInt(newProgramId))
             if (newProgram) {
                 const numericYear = getNumericYearLevel(data.year_level || '', newProgram.education_level)
-                const guides = newProgram.yearLevelGuides || []
+                const guides = newProgram.year_level_guides || []
                 const guide = guides.find(g => g.year_level === numericYear && g.curriculum)
                 
                 if (guide && guide.curriculum) {
@@ -1092,7 +1097,7 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
         // Auto-select curriculum based on year level guide if not already selected
         if (!selectedCurriculum && selectedProgram) {
             const numericYear = getNumericYearLevel(data.year_level || '', selectedProgram.education_level)
-            const guides = selectedProgram.yearLevelGuides || []
+            const guides = selectedProgram.year_level_guides || selectedProgram.yearLevelGuides || []
             const guide = guides.find(g => g.year_level === numericYear && g.curriculum)
             
             if (guide && guide.curriculum) {
@@ -1112,14 +1117,28 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
         }))
         
         // Set course shift data
-        setData(prev => ({
-            ...prev,
-            confirm_course_shift: true,
-            student_type: 'irregular', // Mark as irregular
-            transfer_type: 'shiftee',
-            previous_program_id: courseShiftData?.current_program_id,
-            credited_subjects: creditedSubjects,
-        }))
+        setData(prev => {
+            // Get the enrollment fee for the new program
+            const isShsStudent = selectedProgram?.education_level === 'senior_high'
+            const programFee = selectedProgram?.program_fees?.find(fee =>
+                fee.year_level === getNumericYearLevel(data.year_level || '', selectedProgram.education_level) &&
+                fee.fee_type === 'regular'
+            )
+            
+            return {
+                ...prev,
+                confirm_course_shift: true,
+                student_type: 'irregular', // Mark as irregular
+                transfer_type: 'shiftee',
+                previous_program_id: courseShiftData?.current_program_id,
+                credited_subjects: creditedSubjects,
+                enrollment_fee: isShsStudent ? '0' : (programFee?.semester_fee || prev.enrollment_fee || ''),
+            }
+        })
+        
+        // Set isShiftee to true so the credit transfer logic works
+        setIsShiftee(true)
+        setIsTransferee(false)
         
         setShowCourseShiftModal(false)
         setShowSubjectComparisonModal(false)
@@ -1136,17 +1155,13 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
         setCourseShiftData(null)
     }
 
-    const compareCurricula = async (previousProgramId, newProgramId, yearLevel, externalCredits = null) => {
+    const compareCurricula = async (previousProgramId, newProgramId, yearLevel) => {
         setLoadingCurriculumComparison(true)
         try {
             const payload = {
                 previous_program_id: previousProgramId,
                 new_program_id: newProgramId,
                 student_year_level: yearLevel,
-            }
-
-            if (externalCredits && externalCredits.length > 0) {
-                payload.credited_subjects = externalCredits
             }
 
             const response = await axios.post('/registrar/credit-transfers/compare', payload)
@@ -1208,6 +1223,16 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
         setShowSummaryModal(false)
         setShowErrorModal(false)
         
+        // Debug state variables
+        console.log('🔍 DEBUG - State at submission:')
+        console.log('  enrollment_type:', data.enrollment_type)
+        console.log('  isShiftee:', isShiftee)
+        console.log('  isTransferee:', isTransferee)
+        console.log('  previousProgram:', previousProgram)
+        console.log('  previousSchool:', previousSchool)
+        console.log('  creditedSubjects:', creditedSubjects)
+        console.log('  creditedSubjects length:', creditedSubjects?.length)
+        
         // Concatenate address parts
         const addressParts = [
             data.street,
@@ -1225,33 +1250,51 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
             duplicate_override: duplicateOverride,
         }
 
-        // Add credit transfer data if student is shiftee or transferee
-        if (isShiftee || isTransferee) {
-            submitData.transfer_type = isShiftee ? 'shiftee' : 'transferee'
+        // Add credit transfer data ONLY for transferees (not shiftees)
+        if (isTransferee && data.enrollment_type === 'transferee') {
+            console.log('📚 TRANSFEREE detected - Adding credit transfer data')
+            
+            // Filter credited subjects: only include grades >= 75 (passing)
+            const passingSubjects = (creditedSubjects || []).filter(subject => {
+                const grade = parseFloat(subject.grade)
+                const isPassing = !isNaN(grade) && grade >= 75
+                if (!isPassing && subject.grade) {
+                    console.log(`❌ Excluding subject ${subject.subject_code} - Grade ${subject.grade} is below 75`)
+                }
+                return isPassing
+            })
+            
+            submitData.transfer_type = 'transferee'
             submitData.previous_program_id = previousProgram?.id || null
             submitData.previous_school = previousSchool || null
-            submitData.credited_subjects = creditedSubjects || []
+            submitData.credited_subjects = passingSubjects
             submitData.subjects_to_catch_up = subjectsToCatchUp || []
             submitData.fee_adjustments = feeAdjustments
+            
+            console.log('📤 Sending for TRANSFEREE:')
+            console.log('  transfer_type:', submitData.transfer_type)
+            console.log('  previous_school:', submitData.previous_school)
+            console.log('  total checked subjects:', creditedSubjects?.length || 0)
+            console.log('  passing subjects (>=75):', passingSubjects.length)
+            console.log('  credited_subjects:', passingSubjects)
+        } else if (isShiftee) {
+            console.log('🔄 SHIFTEE detected - NOT sending credited subjects (per requirements)')
+            // Shiftees do NOT get credited subjects saved
+            // Only track that they are shifting courses
+            submitData.transfer_type = 'shiftee'
+            submitData.previous_program_id = previousProgram?.id || null
+        } else {
+            console.log('👤 Regular student - No credit transfer data')
         }
         
         console.log('Form submitting with data:', submitData)
-        console.log('Credit transfer details:', {
-            isShiftee,
-            isTransferee,
-            creditedSubjectsCount: creditedSubjects?.length,
-            creditedSubjects,
-            subjectsToCatchUp: subjectsToCatchUp?.length,
-            feeAdjustments
-        })
         
         console.log('About to call post with route:', route('registrar.students.store'))
         console.log('Submit data:', submitData)
         
-        // Submit using Inertia's post with the form data directly
-        post(route('registrar.students.store'), {
+        // Submit using router.post to send custom data object
+        router.post(route('registrar.students.store'), submitData, {
             preserveScroll: true,
-            data: submitData,
             onSuccess: (page) => {
                 console.log('Success response:', page)
 
@@ -1966,7 +2009,7 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                                         {/* Year-level curriculum guide suggestion (for transferees) */}
                                         {selectedProgram && data.year_level && (() => {
                                             const numericYear = getNumericYearLevel(data.year_level || '', selectedProgram.education_level)
-                                            const guides = selectedProgram.yearLevelGuides || []
+                                            const guides = selectedProgram.year_level_guides || []
                                             const guide = guides.find(g => g.year_level === numericYear)
                                             if (guide && guide.curriculum) {
                                                 return (
@@ -2087,7 +2130,7 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                             )}
                             {data.enrollment_type === 'transferee' && (
                                 <p className="text-xs text-blue-600 mt-1">
-                                    Status will be determined after credit evaluation (Regular = all credits aligned, Irregular = has catch-up subjects)
+                                    📚 After registration, use "Transferee - Subject Credit Evaluation" to add credited subjects from previous school
                                 </p>
                             )}
                             {data.enrollment_type === 'shiftee' && (
@@ -2713,12 +2756,45 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
 
                         {/* Two Column Comparison Tables */}
                         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                            {/* Left Column: Credited/Transferred Subjects */}
+                            {/* Left Column: All Completed Subjects from Previous Program */}
                             <div className="space-y-4">
+                                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                                    <h3 className="font-semibold text-blue-800 mb-3 flex items-center gap-2">
+                                        <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
+                                        All Completed Subjects from {subjectComparison?.old_program}
+                                    </h3>
+
+                                    <div className="space-y-2 max-h-96 overflow-y-auto">
+                                        {subjectComparison?.completed_subjects?.length > 0 ? (
+                                            subjectComparison.completed_subjects.map((subject, idx) => (
+                                                <div key={idx} className="p-3 bg-white border border-blue-300 rounded shadow-sm">
+                                                    <div className="flex items-start justify-between mb-2">
+                                                        <div className="flex-1">
+                                                            <div className="font-semibold text-sm text-blue-700">{subject.subject_code}</div>
+                                                            <div className="text-xs text-gray-600">{subject.subject_name}</div>
+                                                        </div>
+                                                        <Badge variant="outline" className="text-xs bg-blue-100">
+                                                            Grade: {subject.grade}
+                                                        </Badge>
+                                                    </div>
+                                                    <div className="text-xs text-blue-600 mt-2">
+                                                        Source: {subject.source || 'Grade'}
+                                                    </div>
+                                                </div>
+                                            ))
+                                        ) : (
+                                            <div className="text-center py-8 text-gray-500">
+                                                <div className="text-sm font-medium mb-1">No Completed Subjects</div>
+                                                <div className="text-xs">Student has no completed subjects on record</div>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+
                                 <div className="bg-green-50 border border-green-200 rounded-lg p-4">
                                     <h3 className="font-semibold text-green-800 mb-3 flex items-center gap-2">
                                         <div className="w-3 h-3 bg-green-500 rounded-full"></div>
-                                        Credited Subjects from {subjectComparison?.old_program}
+                                        Credited Subjects (Will Transfer to {subjectComparison?.new_program})
                                     </h3>
 
                                     <div className="space-y-2 max-h-96 overflow-y-auto">
@@ -3356,6 +3432,20 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                                                         
                                                         // Student is IRREGULAR if they have ANY past subjects to catch up OR failed subjects
                                                         const isIrregular = pastSubjectsToCatchUp.length > 0 || creditedFailed.length > 0
+                                                        
+                                                        // Combine failed subjects and past subjects to catch up
+                                                        const allSubjectsToCatchUp = [
+                                                            ...creditedFailed.map(subject => ({
+                                                                ...subject,
+                                                                catch_up_reason: 'failed'
+                                                            })),
+                                                            ...pastSubjectsToCatchUp.map(subject => ({
+                                                                ...subject,
+                                                                catch_up_reason: 'past_subject'
+                                                            }))
+                                                        ]
+                                                        
+                                                        setSubjectsToCatchUp(allSubjectsToCatchUp)
                                                         
                                                         setFeeAdjustments({
                                                             creditedPassed,
