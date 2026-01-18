@@ -23,6 +23,7 @@ class CreditTransferController extends Controller
             'previous_program_id' => 'nullable|exists:programs,id', // Optional for transferees
             'new_program_id' => 'required|exists:programs,id',
             'student_year_level' => 'required|integer',
+            'student_id' => 'nullable|exists:students,id', // For existing shiftees
             'credited_subjects' => 'nullable|array', // For transferees
             'previous_school' => 'nullable|string', // For transferees
         ]);
@@ -82,43 +83,131 @@ class CreditTransferController extends Controller
 
             $studentYearLevel = $request->student_year_level;
 
-            // For shiftees: Check which subjects they've already taken (only if previous_program_id exists)
-            if ($request->previous_program_id && $previousSubjects->isNotEmpty()) {
-                foreach ($newSubjects as $newSubject) {
-                    // Check if this subject exists in the previous curriculum
-                    $matchingPreviousSubject = $previousSubjects->first(function ($prevSubject) use ($newSubject) {
-                        // Match by subject code or subject name
-                        return $prevSubject->subject_code === $newSubject->subject_code ||
-                               strtolower($prevSubject->subject_name) === strtolower($newSubject->subject_name);
+            // Get student's completed subjects if student_id is provided (for existing shiftees)
+            // This should match what Academic History shows
+            $studentCompletedSubjects = collect();
+            if ($request->student_id) {
+                $student = Student::find($request->student_id);
+                if ($student) {
+                    // Get completed subjects from StudentSubjectCredit (credited subjects)
+                    $creditedSubjectsQuery = \App\Models\StudentSubjectCredit::where('student_id', $student->id)
+                        ->where('credit_status', 'credited')
+                        ->whereHas('subject')
+                        ->with('subject')
+                        ->get()
+                        ->map(function ($credit) {
+                            return [
+                                'subject_id' => $credit->subject_id,
+                                'subject_code' => $credit->subject->subject_code,
+                                'subject_name' => $credit->subject->subject_name,
+                                'final_grade' => $credit->final_grade,
+                                'units' => $credit->units,
+                            ];
+                        });
+
+                    // Get completed subjects from StudentCreditTransfer (credit transfers)
+                    $creditTransfersQuery = \App\Models\StudentCreditTransfer::where('student_id', $student->id)
+                        ->where('credit_status', 'credited')
+                        ->whereHas('subject')
+                        ->with('subject')
+                        ->get()
+                        ->map(function ($transfer) {
+                            return [
+                                'subject_id' => $transfer->subject_id,
+                                'subject_code' => $transfer->subject->subject_code,
+                                'subject_name' => $transfer->subject->subject_name,
+                                'final_grade' => $transfer->grade ?? 'PASSED',
+                                'units' => $transfer->units ?? 3,
+                            ];
+                        });
+
+                    // Get completed subjects from StudentGrade (graded subjects with final grades)
+                    $gradedSubjectsQuery = \App\Models\StudentGrade::whereHas('studentEnrollment', function ($query) use ($student) {
+                        $query->where('student_id', $student->id);
+                    })
+                        ->whereNotNull('final_grade')
+                        ->with('sectionSubject.subject')
+                        ->get()
+                        ->filter(function ($grade) {
+                            return $grade->sectionSubject && $grade->sectionSubject->subject;
+                        })
+                        ->map(function ($grade) {
+                            return [
+                                'subject_id' => $grade->sectionSubject->subject_id,
+                                'subject_code' => $grade->sectionSubject->subject->subject_code,
+                                'subject_name' => $grade->sectionSubject->subject->subject_name,
+                                'final_grade' => $grade->final_grade,
+                                'units' => $grade->sectionSubject->subject->units ?? 3,
+                            ];
+                        });
+
+                    // Combine all sources (same as Academic History)
+                    $studentCompletedSubjects = $creditedSubjectsQuery
+                        ->concat($creditTransfersQuery)
+                        ->concat($gradedSubjectsQuery)
+                        ->unique('subject_code'); // Remove duplicates by subject code
+                }
+            }
+
+            // For shiftees: Find transferred subjects and catch-up subjects
+            if ($request->previous_program_id && $previousSubjects->isNotEmpty() && $request->student_id) {
+                // Get list of subjects student has completed
+                foreach ($studentCompletedSubjects as $completed) {
+                    // Check if this completed subject exists in new curriculum
+                    // Prioritize name matching since same subjects often have different codes across programs
+                    $matchingNewSubject = $newSubjects->first(function ($newSubject) use ($completed) {
+                        $newName = strtolower(trim($newSubject->subject_name));
+                        $completedName = strtolower(trim($completed['subject_name']));
+                        // Remove spaces from codes for comparison (e.g., "PE 3" vs "PE3")
+                        $newCode = strtolower(str_replace(' ', '', trim($newSubject->subject_code)));
+                        $completedCode = strtolower(str_replace(' ', '', trim($completed['subject_code'])));
+                        
+                        // Match by name (exact match) - most reliable since codes differ across programs
+                        if ($newName === $completedName) {
+                            return true;
+                        }
+                        
+                        // Match by code (exact match, ignoring spaces) - secondary check
+                        if ($newCode === $completedCode) {
+                            return true;
+                        }
+                        
+                        return false;
                     });
 
-                    if ($matchingPreviousSubject) {
-                        // Subject exists in both curricula
-                        // Check if student has already taken it based on their current year level
-                        $subjectYearLevel = $matchingPreviousSubject->year_level;
-
-                        if ($subjectYearLevel < $studentYearLevel ||
-                            ($subjectYearLevel == $studentYearLevel && $matchingPreviousSubject->semester == '1st')) {
-                            // Student should have taken this subject already
+                    // If exists in new curriculum, it will be transferred (regardless of year/semester)
+                    if ($matchingNewSubject) {
+                        // Avoid duplicates
+                        $alreadyAdded = collect($creditedSubjects)->contains(function ($credited) use ($matchingNewSubject) {
+                            return $credited['subject_id'] === $matchingNewSubject->subject_id;
+                        });
+                        
+                        if (!$alreadyAdded) {
                             $creditedSubjects[] = [
-                                'subject_id' => $newSubject->subject_id,
-                                'subject_code' => $newSubject->subject_code,
-                                'subject_name' => $newSubject->subject_name,
-                                'units' => $newSubject->units,
-                                'year_level' => $newSubject->year_level,
-                                'semester' => $newSubject->semester,
-                                'original_year_level' => $matchingPreviousSubject->year_level,
-                                'original_semester' => $matchingPreviousSubject->semester,
-                                'fee_adjustment' => -300, // -300 for credited subjects
+                                'subject_id' => $matchingNewSubject->subject_id,
+                                'subject_code' => $matchingNewSubject->subject_code,
+                                'subject_name' => $matchingNewSubject->subject_name,
+                                'units' => $matchingNewSubject->units,
+                                'year_level' => $matchingNewSubject->year_level,
+                                'semester' => $matchingNewSubject->semester,
+                                'grade' => $completed['final_grade'],
+                                'old_subject_code' => $completed['subject_code'], // Show the old code for reference
                             ];
-                            $feeAdjustments['credits'] -= 300;
                         }
-                    } else {
-                        // Subject doesn't exist in previous curriculum
-                        // Check if it should have been taken by now
-                        if ($newSubject->year_level < $studentYearLevel ||
-                            ($newSubject->year_level == $studentYearLevel && $newSubject->semester == '1st')) {
-                            // Student needs to catch up this subject
+                    }
+                }
+
+                // Find catch-up subjects: subjects from previous year levels only (year_level < current)
+                // Example: 2nd year student needs to catch up on 1st year subjects (both 1st and 2nd sem)
+                foreach ($newSubjects as $newSubject) {
+                    // Only subjects from year levels BELOW current year level
+                    if ($newSubject->year_level < $studentYearLevel) {
+                        // Check if student already completed it
+                        $alreadyCompleted = collect($creditedSubjects)->contains(function ($credited) use ($newSubject) {
+                            return $credited['subject_id'] === $newSubject->subject_id;
+                        });
+
+                        if (!$alreadyCompleted) {
                             $subjectsToCatchUp[] = [
                                 'subject_id' => $newSubject->subject_id,
                                 'subject_code' => $newSubject->subject_code,
@@ -126,9 +215,7 @@ class CreditTransferController extends Controller
                                 'units' => $newSubject->units,
                                 'year_level' => $newSubject->year_level,
                                 'semester' => $newSubject->semester,
-                                'fee_adjustment' => 300, // +300 for catch-up subjects
                             ];
-                            $feeAdjustments['catchup'] += 300;
                         }
                     }
                 }
@@ -187,7 +274,11 @@ class CreditTransferController extends Controller
                 }
             }
 
-            $feeAdjustments['total'] = $feeAdjustments['credits'] + $feeAdjustments['catchup'];
+            // For shiftees, package the data without fee adjustments
+            // Irregular student fees are calculated based on actual enrolled subjects per semester
+            $feeAdjustments['transferredSubjects'] = $creditedSubjects;
+            $feeAdjustments['catchUpSubjects'] = $subjectsToCatchUp;
+            $feeAdjustments['total'] = 0;
 
             // Prepare all new curriculum subjects for display
             $allNewSubjects = $newSubjects->map(function ($subject) {

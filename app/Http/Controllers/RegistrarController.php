@@ -798,6 +798,7 @@ class RegistrarController extends Controller
                         'course_shift_required' => [
                             'current_program' => $currentProgram->program_name ?? 'Unknown',
                             'current_program_code' => $currentProgram->program_code ?? null,
+                            'current_program_id' => $currentProgram->id ?? null,
                             'current_curriculum' => $existingStudent->curriculum?->curriculum_name ?? null,
                             'new_program' => $newProgram->program_name ?? 'Unknown',
                             'new_program_code' => $newProgram->program_code ?? null,
@@ -837,6 +838,7 @@ class RegistrarController extends Controller
                         'course_shift_required' => [
                             'current_program' => $currentProgram->program_name ?? 'Unknown',
                             'current_program_code' => $currentProgram->program_code ?? null,
+                            'current_program_id' => $currentProgram->id ?? null,
                             'current_curriculum' => $archivedStudent->curriculum?->curriculum_name ?? null,
                             'new_program' => $newProgram->program_name ?? 'Unknown',
                             'new_program_code' => $newProgram->program_code ?? null,
@@ -1174,14 +1176,15 @@ class RegistrarController extends Controller
                     ? $previousProgram->curriculums()->where('is_current', true)->first()
                     : null;
 
-                // Save credited subjects (TRANSFEREES ONLY - not shiftees)
-                $shouldProcessCredits = ! empty($validated['credited_subjects']) && 
+                // Save credited subjects (TRANSFEREES AND SHIFTEES)
+                $shouldProcessCredits = ! empty($validated['credited_subjects']) &&
                                        is_array($validated['credited_subjects']) &&
                                        isset($validated['transfer_type']) &&
-                                       $validated['transfer_type'] === 'transferee';
-                
+                                       in_array($validated['transfer_type'], ['transferee', 'shiftee']);
+
                 if ($shouldProcessCredits) {
-                    \Log::info('💾 SAVING CREDITED SUBJECTS FOR TRANSFEREE', [
+                    $transferTypeLabel = strtoupper($validated['transfer_type']);
+                    \Log::info('💾 SAVING CREDITED SUBJECTS FOR ' . $transferTypeLabel, [
                         'count' => count($validated['credited_subjects']),
                         'student_id' => $student->id,
                         'transfer_type' => $validated['transfer_type'],
@@ -1270,7 +1273,7 @@ class RegistrarController extends Controller
                     }
                 } else {
                     if (isset($validated['transfer_type']) && $validated['transfer_type'] === 'shiftee') {
-                        \Log::info('✋ SHIFTEE - Credited subjects NOT processed (per requirements)', [
+                        \Log::info('✋ SHIFTEE - No credited subjects to process (none matched from curriculum comparison)', [
                             'student_id' => $student->id,
                             'transfer_type' => $validated['transfer_type'],
                         ]);

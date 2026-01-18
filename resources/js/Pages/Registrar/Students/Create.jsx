@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
-import { UserPlus, ArrowLeft, GraduationCap, BookOpen, AlertTriangle, DollarSign, Info, Plus, X } from 'lucide-react'
+import { UserPlus, ArrowLeft, GraduationCap, BookOpen, AlertTriangle, DollarSign, Info, Plus, X, CheckCircle2 } from 'lucide-react'
 import { useState, useEffect, useRef } from 'react'
 import { toast } from 'sonner'
 
@@ -428,6 +428,8 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
     const [showErrorModal, setShowErrorModal] = useState(false)
     const [showCourseShiftModal, setShowCourseShiftModal] = useState(false)
     const [courseShiftData, setCourseShiftData] = useState(null)
+    const [courseShiftComparison, setCourseShiftComparison] = useState(null)
+    const [loadingShiftComparison, setLoadingShiftComparison] = useState(false)
     const [showSummaryModal, setShowSummaryModal] = useState(false)
     const [showPaymentModal, setShowPaymentModal] = useState(false)
     const [paymentHistory, setPaymentHistory] = useState(null)
@@ -1093,7 +1095,19 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
         }
     }
 
-    const confirmCourseShift = () => {
+    const confirmCourseShift = async () => {
+        // If comparison is still loading, wait for it
+        if (loadingShiftComparison) {
+            toast.info('Please wait for curriculum comparison to complete')
+            return
+        }
+        
+        // Set the data needed for course shift
+        setData('confirm_course_shift', true)
+        
+        // Get the selected program details
+        const selectedProgram = programs.find(p => p.id === parseInt(data.program_id))
+        
         // Auto-select curriculum based on year level guide if not already selected
         if (!selectedCurriculum && selectedProgram) {
             const numericYear = getNumericYearLevel(data.year_level || '', selectedProgram.education_level)
@@ -1106,25 +1120,16 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
             }
         }
         
-        // Prepare credit transfer data from subject comparison
-        const creditedSubjects = (subjectComparison?.credited_subjects || []).map(match => ({
-            subject_id: match.new_subject.id,
-            subject_code: match.new_subject.subject_code,
-            subject_name: match.new_subject.subject_name,
-            units: match.new_subject.units || 3,
-            year_level: match.new_subject.year_level,
-            semester: match.new_subject.semester,
-        }))
+        // Use the course shift comparison data we automatically loaded
+        const creditedSubjectsFromComparison = courseShiftComparison?.fee_adjustments?.creditedPassed || []
         
-        // Set course shift data
+        // Backend already filters for passing grades (>= 75)
+        const creditedSubjects = creditedSubjectsFromComparison
+        
+        // Set course shift data with credits
         setData(prev => {
-            // Get the enrollment fee for the new program
-            const isShsStudent = selectedProgram?.education_level === 'senior_high'
-            const programFee = selectedProgram?.program_fees?.find(fee =>
-                fee.year_level === getNumericYearLevel(data.year_level || '', selectedProgram.education_level) &&
-                fee.fee_type === 'regular'
-            )
-            
+            // For irregular students, enrollment fee will be calculated based on enrolled subjects
+            // Set to 0 for now, will be calculated after section enrollment
             return {
                 ...prev,
                 confirm_course_shift: true,
@@ -1132,7 +1137,8 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                 transfer_type: 'shiftee',
                 previous_program_id: courseShiftData?.current_program_id,
                 credited_subjects: creditedSubjects,
-                enrollment_fee: isShsStudent ? '0' : (programFee?.semester_fee || prev.enrollment_fee || ''),
+                subjects_to_catch_up: [], // Not needed for shiftees
+                enrollment_fee: '0', // Will be calculated based on enrolled subjects
             }
         })
         
@@ -1141,7 +1147,7 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
         setIsTransferee(false)
         
         setShowCourseShiftModal(false)
-        setShowSubjectComparisonModal(false)
+        setCourseShiftComparison(null)
         
         // Submit the form with the updated data
         setTimeout(() => {
@@ -1153,15 +1159,65 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
         setData('confirm_course_shift', false)
         setShowCourseShiftModal(false)
         setCourseShiftData(null)
+        setCourseShiftComparison(null)
+    }
+    
+    const triggerCourseShiftComparison = async (shiftData) => {
+        if (!shiftData || !data.year_level) return
+        
+        setLoadingShiftComparison(true)
+        try {
+            const yearLevelMap = {
+                '1st Year': 1,
+                '2nd Year': 2,
+                '3rd Year': 3,
+                '4th Year': 4,
+                'Grade 11': 1,
+                'Grade 12': 2,
+            }
+            const numericYear = yearLevelMap[data.year_level] || 1
+            
+            // Use the program IDs from the course shift data
+            const payload = {
+                previous_program_id: shiftData.current_program_id || data.program_id,
+                new_program_id: shiftData.new_program_id,
+                student_year_level: numericYear,
+                student_id: shiftData.student_id,
+            }
+            
+            console.log('🔄 Course Shift Comparison Request:', payload)
+            
+            const response = await axios.post('/registrar/credit-transfers/compare', payload)
+            
+            console.log('✅ Full API Response:', response.data)
+            console.log('📦 Data Object:', response.data.data)
+            console.log('💰 Fee Adjustments Object:', response.data.data?.fee_adjustments)
+            console.log('📚 Transferred Subjects Array:', response.data.data?.fee_adjustments?.transferredSubjects)
+            console.log('📚 Transferred Count:', response.data.data?.fee_adjustments?.transferredSubjects?.length)
+            console.log('⚠️ Catch-up Subjects Array:', response.data.data?.fee_adjustments?.catchUpSubjects)
+            
+            if (response.data.success) {
+                setCourseShiftComparison(response.data.data)
+                const transferredCount = response.data.data?.fee_adjustments?.transferredSubjects?.length || 0
+                console.log('🎯 Setting transferred count to:', transferredCount)
+                toast.success(`Subject analysis complete: ${transferredCount} subject(s) won't need to be retaken`)
+            }
+        } catch (error) {
+            console.error('Error comparing curricula:', error)
+            toast.error('Could not load credit comparison')
+        } finally {
+            setLoadingShiftComparison(false)
+        }
     }
 
-    const compareCurricula = async (previousProgramId, newProgramId, yearLevel) => {
+    const compareCurricula = async (previousProgramId, newProgramId, yearLevel, studentId = null) => {
         setLoadingCurriculumComparison(true)
         try {
             const payload = {
                 previous_program_id: previousProgramId,
                 new_program_id: newProgramId,
                 student_year_level: yearLevel,
+                student_id: studentId,
             }
 
             const response = await axios.post('/registrar/credit-transfers/compare', payload)
@@ -1278,12 +1334,34 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
             console.log('  passing subjects (>=75):', passingSubjects.length)
             console.log('  credited_subjects:', passingSubjects)
         } else if (isShiftee) {
-            console.log('🔄 SHIFTEE detected - NOT sending credited subjects (per requirements)')
-            // Shiftees do NOT get credited subjects saved
-            // Only track that they are shifting courses
+            console.log('🔄 SHIFTEE detected - Adding credited subjects from curriculum comparison')
+
+            // For shiftees, use the curriculum comparison results to credit subjects
+            const creditedSubjectsFromComparison = feeAdjustments?.creditedPassed || []
+
+            // Filter to only include passing grades (>= 75)
+            const passingCreditedSubjects = creditedSubjectsFromComparison.filter(subject => {
+                const grade = parseFloat(subject.grade)
+                const isPassing = !isNaN(grade) && grade >= 75
+                if (!isPassing && subject.grade) {
+                    console.log(`❌ Excluding shiftee subject ${subject.subject_code} - Grade ${subject.grade} is below 75`)
+                }
+                return isPassing
+            })
+
             submitData.transfer_type = 'shiftee'
             submitData.previous_program_id = previousProgram?.id || null
-        } else {
+            submitData.previous_school = previousSchool || null
+            submitData.credited_subjects = passingCreditedSubjects
+            submitData.subjects_to_catch_up = subjectsToCatchUp || []
+            submitData.fee_adjustments = feeAdjustments
+
+            console.log('📤 Sending for SHIFTEE:')
+            console.log('  transfer_type:', submitData.transfer_type)
+            console.log('  previous_program_id:', submitData.previous_program_id)
+            console.log('  total subjects from comparison:', creditedSubjectsFromComparison.length)
+            console.log('  passing subjects (>=75):', passingCreditedSubjects.length)
+            console.log('  credited_subjects:', passingCreditedSubjects)
             console.log('👤 Regular student - No credit transfer data')
         }
         
@@ -1313,6 +1391,12 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
 
                     setCourseShiftData(page.props.course_shift_required)
                     setShowCourseShiftModal(true)
+                    
+                    // Automatically trigger curriculum comparison for course shift
+                    setTimeout(() => {
+                        triggerCourseShiftComparison(page.props.course_shift_required)
+                    }, 300)
+                    
                     return
                 }
 
@@ -2592,7 +2676,7 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
 
             {/* Course Shift Confirmation Modal */}
             <Dialog open={showCourseShiftModal} onOpenChange={setShowCourseShiftModal}>
-                <DialogContent>
+                <DialogContent className="max-w-screen-xl max-h-[90vh] overflow-y-auto">
                     <DialogHeader>
                         <DialogTitle className="flex items-center gap-2 text-orange-600">
                             <GraduationCap className="w-5 h-5" />
@@ -2653,8 +2737,118 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                                 </div>
                             </div>
                     
-                    {/* View Subject Comparison Button */}
-                    {courseShiftData?.student_id && (
+                    {/* Auto-loaded Credit Information */}
+                    {loadingShiftComparison && (
+                        <div className="border rounded-lg p-4 bg-blue-50">
+                            <div className="flex items-center gap-3">
+                                <div className="w-5 h-5 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+                                <p className="text-sm text-blue-900">Analyzing subjects for credit transfer...</p>
+                            </div>
+                        </div>
+                    )}
+
+                    {!loadingShiftComparison && courseShiftComparison && (
+                        <div className="space-y-4">
+                            {/* Summary Cards */}
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="border rounded-lg p-4 bg-green-50 border-green-200">
+                                    <div className="flex items-center gap-2 mb-1">
+                                        <CheckCircle2 className="w-5 h-5 text-green-600" />
+                                        <h4 className="font-semibold text-green-900">Won't Retake</h4>
+                                    </div>
+                                    <p className="text-2xl font-bold text-green-700">
+                                        {courseShiftComparison.fee_adjustments?.transferredSubjects?.length || 0}
+                                    </p>
+                                    <p className="text-xs text-green-600 mt-1">subjects already completed</p>
+                                </div>
+                                
+                                <div className="border rounded-lg p-4 bg-amber-50 border-amber-200">
+                                    <div className="flex items-center gap-2 mb-1">
+                                        <AlertTriangle className="w-5 h-5 text-amber-600" />
+                                        <h4 className="font-semibold text-amber-900">To Catch Up</h4>
+                                    </div>
+                                    <p className="text-2xl font-bold text-amber-700">
+                                        {courseShiftComparison.fee_adjustments?.catchUpSubjects?.length || 0}
+                                    </p>
+                                    <p className="text-xs text-amber-600 mt-1">from previous year levels</p>
+                                </div>
+                            </div>
+
+                            {/* Details in Columns */}
+                            <div className="grid grid-cols-2 gap-4">
+                                {/* Transferred Subjects */}
+                                <div className="border rounded-lg overflow-hidden">
+                                    <div className="bg-green-100 px-4 py-2 border-b border-green-200">
+                                        <h5 className="font-semibold text-green-900 text-sm">✓ Already Completed</h5>
+                                    </div>
+                                    <div className="max-h-64 overflow-y-auto bg-white">
+                                        {courseShiftComparison.fee_adjustments?.transferredSubjects?.length > 0 ? (
+                                            <div className="divide-y">
+                                                {courseShiftComparison.fee_adjustments.transferredSubjects.map((subject, idx) => (
+                                                    <div key={idx} className="p-3 hover:bg-green-50">
+                                                        <div className="flex items-center gap-2">
+                                                            <span className="font-medium text-sm text-gray-900">{subject.subject_code}</span>
+                                                            {subject.old_subject_code && subject.old_subject_code !== subject.subject_code && (
+                                                                <span className="text-xs text-gray-400">(was {subject.old_subject_code})</span>
+                                                            )}
+                                                        </div>
+                                                        <div className="text-xs text-gray-600 line-clamp-1">{subject.subject_name}</div>
+                                                        <div className="flex items-center gap-2 mt-1">
+                                                            <span className="text-xs text-gray-500">{subject.units} units</span>
+                                                            <span className="text-xs text-green-600 font-medium">Grade: {subject.grade}</span>
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        ) : (
+                                            <div className="p-6 text-center text-gray-500 text-sm">
+                                                No matching subjects
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+
+                                {/* Catch-Up Subjects */}
+                                <div className="border rounded-lg overflow-hidden">
+                                    <div className="bg-amber-100 px-4 py-2 border-b border-amber-200">
+                                        <h5 className="font-semibold text-amber-900 text-sm">⚠ Need to Complete</h5>
+                                    </div>
+                                    <div className="max-h-64 overflow-y-auto bg-white">
+                                        {courseShiftComparison.fee_adjustments?.catchUpSubjects?.length > 0 ? (
+                                            <div className="divide-y">
+                                                {courseShiftComparison.fee_adjustments.catchUpSubjects.map((subject, idx) => (
+                                                    <div key={idx} className="p-3 hover:bg-amber-50">
+                                                        <div className="font-medium text-sm text-gray-900">{subject.subject_code}</div>
+                                                        <div className="text-xs text-gray-600 line-clamp-1">{subject.subject_name}</div>
+                                                        <div className="text-xs text-gray-500 mt-1">
+                                                            Year {subject.year_level} • {subject.semester} Sem • {subject.units} units
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        ) : (
+                                            <div className="p-6 text-center text-gray-500 text-sm">
+                                                All caught up!
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Info Box */}
+                            <div className="border rounded-lg p-3 bg-blue-50">
+                                <div className="flex gap-2">
+                                    <Info className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
+                                    <div className="text-xs text-blue-900">
+                                        <p><strong>Note:</strong> Subjects for your current year level will be shown during section enrollment. Complete all catch-up subjects to become a regular student.</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                    
+                    {/* View Subject Comparison Button - Keep for backward compatibility */}
+                    {courseShiftData?.student_id && !loadingShiftComparison && !courseShiftComparison && (
                         <div className="mb-4">
                             <Button
                                 onClick={() => {
@@ -2681,10 +2875,17 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                         </Button>
                         <Button
                             onClick={confirmCourseShift}
-                            disabled={processing}
-                            className="bg-orange-600 hover:bg-orange-700"
+                            disabled={processing || loadingShiftComparison}
+                            className="bg-orange-600 hover:bg-orange-700 disabled:opacity-50"
                         >
-                            Confirm Course Shift
+                            {loadingShiftComparison ? (
+                                <>
+                                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></div>
+                                    Loading Credits...
+                                </>
+                            ) : (
+                                'Confirm & Register'
+                            )}
                         </Button>
                     </div>
                 </DialogContent>
@@ -3632,7 +3833,7 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                                             }
                                             const numericYear = yearLevelMap[data.year_level] || 1
                                             
-                                            await compareCurricula(parseInt(data.program_id), previousProgram.id, numericYear)
+                                            await compareCurricula(parseInt(data.program_id), previousProgram.id, numericYear, courseShiftData?.student_id)
                                         } else if (isTransferee && data.program_id && data.year_level) {
                                             // For transferees, we'd need to show a form to collect external subjects first
                                             // For now, just compare with empty credited subjects

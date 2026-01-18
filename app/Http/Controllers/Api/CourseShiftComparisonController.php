@@ -46,7 +46,6 @@ class CourseShiftComparisonController extends Controller
                 'newProgram' => $newProgram?->program_name,
                 'newCurriculum' => $newCurriculum?->curriculum_name,
             ]);
-
             return response()->json(['error' => 'Invalid program or curriculum'], 400);
         }
 
@@ -61,19 +60,21 @@ class CourseShiftComparisonController extends Controller
         $completedSubjects = DB::table('student_subject_enrollments')
             ->join('section_subjects', 'student_subject_enrollments.section_subject_id', '=', 'section_subjects.id')
             ->join('subjects', 'section_subjects.subject_id', '=', 'subjects.id')
-            ->leftJoin('student_grades', function ($join) {
-                $join->on('section_subjects.id', '=', 'student_grades.section_subject_id');
+            ->leftJoin('student_grades', function ($join) use ($student) {
+                $join->on('section_subjects.id', '=', 'student_grades.section_subject_id')
+                    ->where('student_grades.student_enrollment_id', 'IN', function ($query) use ($student) {
+                        $query->select('id')
+                            ->from('student_enrollments')
+                            ->where('student_id', $student->id);
+                    });
             })
-            ->leftJoin('student_enrollments as sg_enrollments', function ($join) {
-                $join->on('student_grades.student_enrollment_id', '=', 'sg_enrollments.id')
-                    ->on('sg_enrollments.student_id', '=', 'student_subject_enrollments.student_id');
-            })
-            ->leftJoin('shs_student_grades', function ($join) {
-                $join->on('section_subjects.id', '=', 'shs_student_grades.section_subject_id');
-            })
-            ->leftJoin('student_enrollments as shs_enrollments', function ($join) {
-                $join->on('shs_student_grades.student_enrollment_id', '=', 'shs_enrollments.id')
-                    ->on('shs_enrollments.student_id', '=', 'student_subject_enrollments.student_id');
+            ->leftJoin('shs_student_grades', function ($join) use ($student) {
+                $join->on('section_subjects.id', '=', 'shs_student_grades.section_subject_id')
+                    ->where('shs_student_grades.student_enrollment_id', 'IN', function ($query) use ($student) {
+                        $query->select('id')
+                            ->from('student_enrollments')
+                            ->where('student_id', $student->id);
+                    });
             })
             ->where('student_subject_enrollments.student_id', $student->id)
             ->whereNotNull(DB::raw('COALESCE(student_grades.semester_grade, shs_student_grades.final_grade)'))
@@ -90,7 +91,7 @@ class CourseShiftComparisonController extends Controller
             ->distinct()
             ->get();
 
-        \Log::info('Completed subjects for student '.$student->id.':', ['subjects' => $completedSubjects->toArray()]);
+        \Log::info('Completed subjects for student ' . $student->id . ':', ['subjects' => $completedSubjects->toArray()]);
 
         // Check for existing credited subjects from student_credit_transfers table
         $existingCredits = StudentCreditTransfer::where('student_id', $student->id)
@@ -107,37 +108,37 @@ class CourseShiftComparisonController extends Controller
 
         // Merge all credited subjects into a unified collection
         $allCreditedSubjects = collect();
-
+        
         // Add from credit transfers
         foreach ($existingCredits as $credit) {
-            $allCreditedSubjects->push((object) [
+            $allCreditedSubjects->push((object)[
                 'id' => $credit->subject_id,
                 'subject_code' => $credit->subject_code,
                 'subject_name' => $credit->subject_name,
                 'grade' => $credit->verified_semester_grade ?? 75, // Use verified grade or default
-                'source' => 'credit_transfer',
+                'source' => 'credit_transfer'
             ]);
         }
-
+        
         // Add from subject credits
         foreach ($existingSubjectCredits as $credit) {
-            $allCreditedSubjects->push((object) [
+            $allCreditedSubjects->push((object)[
                 'id' => $credit->subject_id,
                 'subject_code' => $credit->subject_code,
                 'subject_name' => $credit->subject_name,
                 'grade' => $credit->final_grade ?? 75,
-                'source' => 'subject_credit',
+                'source' => 'subject_credit'
             ]);
         }
-
+        
         // Merge with completed subjects from grades
         foreach ($completedSubjects as $completed) {
             // Check if not already in credited subjects
-            if (! $allCreditedSubjects->contains(function ($credit) use ($completed) {
+            if (!$allCreditedSubjects->contains(function($credit) use ($completed) {
                 return strtoupper($credit->subject_code) === strtoupper($completed->subject_code);
             })) {
                 // Add source property if it doesn't have one
-                if (! isset($completed->source)) {
+                if (!isset($completed->source)) {
                     $completed->source = 'grade';
                 }
                 $allCreditedSubjects->push($completed);
@@ -181,16 +182,16 @@ class CourseShiftComparisonController extends Controller
         $newSubjects = [];
         $newSubjectIds = [];
 
-        \Log::info('Starting subject matching with '.$allCreditedSubjects->count().' completed subjects');
-        \Log::info('New curriculum has '.count($newCurriculumSubjects).' subjects');
+        \Log::info('Starting subject matching with ' . $allCreditedSubjects->count() . ' completed subjects');
+        \Log::info('New curriculum has ' . count($newCurriculumSubjects) . ' subjects');
 
         \Log::info('All credited/completed subjects for matching:', [
             'count' => $allCreditedSubjects->count(),
-            'subjects' => $allCreditedSubjects->map(fn ($s) => $s->subject_code)->toArray(),
+            'subjects' => $allCreditedSubjects->map(fn($s) => $s->subject_code)->toArray()
         ]);
         \Log::info('New curriculum subjects:', [
             'count' => count($newCurriculumSubjects),
-            'subjects' => array_slice(array_map(fn ($s) => $s['subject_code'], $newCurriculumSubjects), 0, 10),
+            'subjects' => array_slice(array_map(fn($s) => $s['subject_code'], $newCurriculumSubjects), 0, 10)
         ]);
 
         foreach ($newCurriculumSubjects as $newSubject) {
@@ -199,7 +200,7 @@ class CourseShiftComparisonController extends Controller
             foreach ($allCreditedSubjects as $completedSubject) {
                 // Exact match by subject code
                 if (strtoupper($completedSubject->subject_code) === strtoupper($newSubject['subject_code'])) {
-                    \Log::info('Match found: '.$completedSubject->subject_code.' = '.$newSubject['subject_code']);
+                    \Log::info('Match found: ' . $completedSubject->subject_code . ' = ' . $newSubject['subject_code']);
                     $credited[] = [
                         'old_subject' => [
                             'id' => $completedSubject->id,
@@ -267,8 +268,8 @@ class CourseShiftComparisonController extends Controller
             }
         }
 
-        \Log::info('Final credited subjects count: '.count($credited));
-
+        \Log::info('Final credited subjects count: ' . count($credited));
+        
         return response()->json([
             'old_program' => $oldProgram->program_name,
             'old_program_code' => $oldProgram->program_code,
