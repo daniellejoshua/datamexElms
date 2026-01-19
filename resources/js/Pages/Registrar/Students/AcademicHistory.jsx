@@ -14,6 +14,7 @@ import {
     Award,
     TrendingUp,
     User,
+    School,
     AlertCircle
 } from 'lucide-react'
 
@@ -266,9 +267,9 @@ export default function AcademicHistory({ student, curriculumSubjects, completed
                                                                             {/* Credit Info */}
                                                                             {gradeInfo?.type === 'credited' && gradeInfo.credited_from && (
                                                                                 <div className="mt-2 text-xs text-gray-600 flex items-center gap-1">
-                                                                                    <div className="w-3 h-3 bg-gray-200 rounded-full flex items-center justify-center">
+                                                                                    <School className="w-3 h-3 bg-gray-200 rounded-full flex items-center justify-center">
                                                                                         <div className="w-1.5 h-1.5 bg-gray-500 rounded-full"></div>
-                                                                                    </div>
+                                                                                    </School>
                                                                                     <span>{gradeInfo.credited_from}</span>
                                                                                 </div>
                                                                             )}

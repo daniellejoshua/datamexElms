@@ -5,11 +5,23 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { NumberInput } from '@/components/ui/number-input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
-import { UserPlus, ArrowLeft, GraduationCap, BookOpen, AlertTriangle, DollarSign, Info, Plus, X, CheckCircle2 } from 'lucide-react'
+import { UserPlus, ArrowLeft, GraduationCap, BookOpen, AlertTriangle, DollarSign, Info, Plus, X, CheckCircle2, Lock } from 'lucide-react'
 import { useState, useEffect, useRef } from 'react'
 import { toast } from 'sonner'
+
+// Currency formatting utility
+const formatCurrency = (value) => {
+    const numValue = parseFloat(value) || 0
+    return new Intl.NumberFormat('en-PH', {
+        style: 'currency',
+        currency: 'PHP',
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+    }).format(numValue)
+}
 
 // Philippine Address Data
 const PHILIPPINE_ADDRESSES = {
@@ -426,20 +438,21 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
     const [isReturningStudent, setIsReturningStudent] = useState(false)
     const [checkingStudent, setCheckingStudent] = useState(false)
     const [showErrorModal, setShowErrorModal] = useState(false)
+    const [errorMessage, setErrorMessage] = useState('')
     const [showCourseShiftModal, setShowCourseShiftModal] = useState(false)
     const [courseShiftData, setCourseShiftData] = useState(null)
     const [courseShiftComparison, setCourseShiftComparison] = useState(null)
     const [loadingShiftComparison, setLoadingShiftComparison] = useState(false)
     const [showSummaryModal, setShowSummaryModal] = useState(false)
-    const [showPaymentModal, setShowPaymentModal] = useState(false)
-    const [paymentHistory, setPaymentHistory] = useState(null)
-    const [loadingPaymentHistory, setLoadingPaymentHistory] = useState(false)
     const [suffixType, setSuffixType] = useState('none') // 'none', 'selected', 'other'
     const [customSuffix, setCustomSuffix] = useState('')
     const [suggestedCurriculum, setSuggestedCurriculum] = useState(null)
     const [suggestedSource, setSuggestedSource] = useState(null)
     const [createGuideChecked, setCreateGuideChecked] = useState(false)
     const lastErrorRef = useRef('')
+    
+    // Form locking state - lock in 2nd semester mode unless student is checked/found
+    const [formUnlocked, setFormUnlocked] = useState(currentSemester !== '2nd')
     
     // Duplicate detection states
     const [duplicateWarning, setDuplicateWarning] = useState(null)
@@ -700,21 +713,46 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
         }
     }, [data.enrollment_type])
 
-    // Show error modal when student error exists
+    // Show error modal when student error exists, or redirect to payment if balance issue
     useEffect(() => {
         if (errors.student) {
+            // Check if it's a balance/outstanding payment error
+            if (errors.student.toLowerCase().includes('outstanding') ||
+                errors.student.toLowerCase().includes('balance') ||
+                errors.student.toLowerCase().includes('payment')) {
+                // Redirect to payment page instead of showing modal
+                if (studentFound) {
+                    router.visit(route('registrar.payments.index', { search: studentFound.student_id }))
+                    return
+                }
+            }
+            setErrorMessage(errors.student)
             setShowErrorModal(true)
         } else {
             setShowErrorModal(false)
-            lastErrorRef.current = ''
+            setErrorMessage('')
         }
-    }, [errors.student])
+    }, [errors.student, studentFound])
 
     // Show course shift confirmation modal when course_shift_required prop exists
     useEffect(() => {
         if (course_shift_required) {
             setCourseShiftData(course_shift_required)
             setShowCourseShiftModal(true)
+            
+            // Set the year level from course shift data if available
+            if (course_shift_required.current_year_level) {
+                const yearLevelLabels = {
+                    1: selectedProgram?.education_level === 'senior_high' ? 'Grade 11' : '1st Year',
+                    2: selectedProgram?.education_level === 'senior_high' ? 'Grade 12' : '2nd Year',
+                    3: '3rd Year',
+                    4: '4th Year',
+                }
+                const currentLabel = yearLevelLabels[course_shift_required.current_year_level]
+                if (currentLabel && (!data.year_level || data.year_level === '1st Year')) {
+                    setData('year_level', currentLabel)
+                }
+            }
             
             // Set selected program to the new program for curriculum selection
             if (course_shift_required.new_program_id) {
@@ -866,6 +904,12 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                 setStudentFound(result.student)
                 setIsExistingStudent(true)
                 setIsReturningStudent(false)
+                // Show success notification
+                toast.success(`Existing student found: ${result.student.first_name} ${result.student.last_name}`)
+                // Only unlock form in 2nd semester mode when student is found
+                if (currentSemester === '2nd' && result.student) {
+                    setFormUnlocked(true)
+                }
                 // Auto-fill existing student data (but don't lock fields)
                 const addressParts = result.student.address ? result.student.address.split(',').map(part => part.trim()) : []
                 setData(prev => ({
@@ -921,6 +965,12 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                 setStudentFound(result.archived)
                 setIsExistingStudent(false)
                 setIsReturningStudent(true)
+                // Show success notification for archived student
+                toast.success(`Returning student found: ${result.archived.first_name} ${result.archived.last_name}`)
+                // Only unlock form in 2nd semester mode when student is found
+                if (currentSemester === '2nd' && result.archived) {
+                    setFormUnlocked(true)
+                }
                 // Auto-fill archived student data
                 setData(prev => ({
                     ...prev,
@@ -967,6 +1017,10 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                 setStudentFound(null)
                 setIsExistingStudent(false)
                 setIsReturningStudent(false)
+                // Show info notification for new student
+                toast.info('No student found.')
+                // Keep form locked in 2nd semester mode for new students (no student checked)
+                // setFormUnlocked(false) - already false by default
                 // Reset form for new student
                 setData(prev => ({
                     ...prev,
@@ -1242,6 +1296,14 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
     const handleSubmit = (e) => {
         e.preventDefault()
         
+        // Check if form is unlocked
+        if (!formUnlocked) {
+            toast.error('Please check for an existing student using their student number first, or leave it blank for new student registration.', {
+                duration: 5000,
+            })
+            return
+        }
+        
         // Client-side validation for required fields
         const requiredFields = ['first_name', 'last_name', 'email', 'program_id', 'year_level']
         const missingFields = requiredFields.filter(field => !data[field] || data[field].toString().trim() === '')
@@ -1278,6 +1340,7 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
         // Reset modal state before submission
         setShowSummaryModal(false)
         setShowErrorModal(false)
+        setErrorMessage('')
         
         // Debug state variables
         console.log('🔍 DEBUG - State at submission:')
@@ -1436,8 +1499,20 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
             },
             onError: (errors) => {
                 console.error('Validation errors:', errors)
+                // Redirect to payment page if there's a student balance error
+                if (errors.student && (
+                    errors.student.toLowerCase().includes('outstanding') ||
+                    errors.student.toLowerCase().includes('balance') ||
+                    errors.student.toLowerCase().includes('payment')
+                )) {
+                    if (studentFound) {
+                        router.visit(route('registrar.payments.index', { search: studentFound.student_id }))
+                        return
+                    }
+                }
                 // Show error modal if there's a student balance error
                 if (errors.student) {
+                    setErrorMessage(errors.student)
                     setShowErrorModal(true)
                 } else {
                     // Make validation errors more user-friendly
@@ -1486,23 +1561,6 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                 }
             },
         })
-    }
-
-    const loadPaymentHistory = async (studentId) => {
-        setLoadingPaymentHistory(true);
-        try {
-            const response = await fetch(`/api/students/${studentId}/payments`);
-            const result = await response.json();
-            setPaymentHistory(result);
-            setShowPaymentModal(true);
-        } catch (error) {
-            console.error('Error loading payment history:', error);
-            toast.error('Failed to load payment history', {
-                style: { border: '1px solid #ef4444', color: '#ef4444' }
-            })
-        } finally {
-            setLoadingPaymentHistory(false);
-        }
     }
 
     const getYearLevelOptions = () => {
@@ -1555,6 +1613,24 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                             </div>
                         </div>
                     </CardHeader>
+                    
+                    {/* 2nd Semester Notice */}
+                    {currentSemester === '2nd' && (
+                        <div className="bg-amber-50 border-l-4 border-amber-400 p-4 mx-6 mb-4">
+                            <div className="flex">
+                                <div className="flex-shrink-0">
+                                    <AlertTriangle className="h-5 w-5 text-amber-400" />
+                                </div>
+                                <div className="ml-3">
+                                    <p className="text-sm text-amber-700">
+                                        <strong>2nd Semester Mode:</strong> Only existing students who were enrolled in the 1st semester can be updated. 
+                                        New enrollments, course shifting, and transferees are not allowed during the 2nd semester.
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                    
                     <CardContent className="space-y-4 pt-6">
                         {/* Student Number Check */}
                         <div className="flex gap-2">
@@ -1583,52 +1659,7 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                             </div>
                         </div>
 
-                        {studentFound && isExistingStudent && (
-                            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                                <div className="flex items-start gap-3">
-                                    <UserPlus className="w-5 h-5 text-blue-600 mt-0.5 flex-shrink-0" />
-                                    <div className="flex-1">
-                                        <h4 className="font-medium text-blue-800">Existing Student Found</h4>
-                                        <p className="text-sm text-blue-700 mt-1">
-                                            Student information has been loaded. You can update their enrollment details below.
-                                        </p>
-                                        {studentFound && (
-                                            <p className="text-xs text-blue-600 mt-2">
-                                                Student: {studentFound.first_name} {studentFound.last_name} - {studentFound.program?.program_name}
-                                            </p>
-                                        )}
-                                    </div>
-                                </div>
-                            </div>
-                        )}
-
-                        {studentFound === false && data.student_number && (
-                            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-                                <div className="flex items-start gap-3">
-                                    <AlertTriangle className="w-5 h-5 text-yellow-600 mt-0.5 flex-shrink-0" />
-                                    <div>
-                                        <h4 className="font-medium text-yellow-800">Student Not Found</h4>
-                                        <p className="text-sm text-yellow-700 mt-1">
-                                            No student found with this number. A new student record will be created with an auto-generated student number.
-                                        </p>
-                                    </div>
-                                </div>
-                            </div>
-                        )}
-
-                        {!data.student_number && (
-                            <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-                                <div className="flex items-start gap-3">
-                                    <Info className="w-5 h-5 text-green-600 mt-0.5 flex-shrink-0" />
-                                    <div>
-                                        <h4 className="font-medium text-green-800">New Student Registration</h4>
-                                        <p className="text-sm text-green-700 mt-1">
-                                            Student number will be automatically generated using format: USERID + Day + Month + Year (e.g., 123117012026)
-                                        </p>
-                                    </div>
-                                </div>
-                            </div>
-                        )}
+                      
                     </CardContent>
                 </Card>
 
@@ -1645,7 +1676,19 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                             </div>
                         </div>
                     </CardHeader>
-                    <CardContent className="space-y-6 pt-6">
+                    <CardContent className="space-y-6 pt-6 relative">
+                        {currentSemester === '2nd' && !formUnlocked && (
+                            <>
+                                {/* Blur overlay */}
+                                <div className="absolute inset-0 bg-white/50 backdrop-blur-sm z-10 rounded-lg"></div>
+                                {/* Lock icon overlay */}
+                                <div className="absolute inset-0 flex items-center justify-center z-20">
+                                    <div className="bg-white/90 backdrop-blur-sm rounded-full p-6 shadow-lg border-2 border-gray-200">
+                                        <Lock className="w-12 h-12 text-gray-600" />
+                                    </div>
+                                </div>
+                            </>
+                        )}
                         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                             <div>
                                 <Label htmlFor="first_name">First Name *</Label>
@@ -1655,8 +1698,11 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                                     onChange={e => setData('first_name', e.target.value)}
                                     required
                                     className="h-10"
-                                    disabled={isExistingStudent}
+                                    disabled={!formUnlocked || isExistingStudent}
                                 />
+                                {isExistingStudent && (
+                                    <p className="text-xs text-blue-600 mt-1">Locked for existing students</p>
+                                )}
                                 {errors.first_name && (
                                     <p className="text-red-500 text-sm mt-1">{errors.first_name}</p>
                                 )}
@@ -1668,8 +1714,11 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                                     id="middle_name"
                                     value={data.middle_name ?? ''}
                                     onChange={e => setData('middle_name', e.target.value)}
-                                    disabled={isExistingStudent}
+                                    disabled={!formUnlocked || isExistingStudent}
                                 />
+                                {isExistingStudent && (
+                                    <p className="text-xs text-blue-600 mt-1">Locked for existing students</p>
+                                )}
                                 {errors.middle_name && (
                                     <p className="text-red-500 text-sm mt-1">{errors.middle_name}</p>
                                 )}
@@ -1683,7 +1732,7 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                                     onChange={e => setData('last_name', e.target.value)}
                                     required
                                     className={isExistingStudent ? 'bg-gray-100 cursor-not-allowed' : ''}
-                                    disabled={isExistingStudent}
+                                    disabled={!formUnlocked || isExistingStudent}
                                 />
                                 {isExistingStudent && (
                                     <p className="text-xs text-blue-600 mt-1">Locked for existing students</p>
@@ -1705,6 +1754,7 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                                             setCustomSuffix('')
                                         }
                                     }}
+                                    disabled={!formUnlocked}
                                 >
                                     <SelectTrigger>
                                         <SelectValue placeholder="Select suffix (optional)" />
@@ -1744,7 +1794,7 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                                     onChange={e => setData('birth_date', e.target.value)}
                                     required
                                     className={isExistingStudent ? 'bg-gray-100 cursor-not-allowed' : ''}
-                                    disabled={isExistingStudent}
+                                    disabled={!formUnlocked || isExistingStudent}
                                 />
                                 {isExistingStudent && (
                                     <p className="text-xs text-blue-600 mt-1">Locked for existing students</p>
@@ -1765,7 +1815,7 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                                         required
                                         placeholder="student@example.com"
                                         className={isExistingStudent ? 'bg-gray-100 cursor-not-allowed' : ''}
-                                        disabled={isExistingStudent}
+                                        disabled={!formUnlocked || isExistingStudent}
                                     />
                                     {checkingDuplicate && (
                                         <div className="absolute right-3 top-1/2 -translate-y-1/2">
@@ -1868,6 +1918,7 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                                         placeholder="9123456789"
                                         maxLength="10"
                                         className="rounded-l-none"
+                                        disabled={!formUnlocked}
                                     />
                                 </div>
                                 {errors.phone && (
@@ -1894,6 +1945,7 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                                         placeholder="9123456789"
                                         maxLength="10"
                                         className="rounded-l-none"
+                                        disabled={!formUnlocked}
                                     />
                                 </div>
                                 {errors.parent_contact && (
@@ -1912,6 +1964,7 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                                         value={data.street ?? ''}
                                         onChange={e => setData('street', e.target.value)}
                                         placeholder="e.g. 123 Main St"
+                                        disabled={!formUnlocked}
                                     />
                                     {errors.street && (
                                         <p className="text-red-500 text-sm mt-1">{errors.street}</p>
@@ -1927,7 +1980,7 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                                             setData('city', '') // Reset city when province changes
                                             setData('barangay', '') // Reset barangay when province changes
                                         }}
-                                        disabled={false}
+                                        disabled={!formUnlocked}
                                     >
                                         <SelectTrigger>
                                             <SelectValue placeholder="Select Province" />
@@ -1953,7 +2006,7 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                                             setData('city', value)
                                             setData('barangay', '') // Reset barangay when city changes
                                         }}
-                                        disabled={!data.province}
+                                        disabled={!formUnlocked || !data.province}
                                     >
                                         <SelectTrigger>
                                             <SelectValue placeholder="Select City/Municipality" />
@@ -1976,7 +2029,7 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                                     <Select
                                         value={data.barangay}
                                         onValueChange={(value) => setData('barangay', value)}
-                                        disabled={!data.city}
+                                        disabled={!formUnlocked || !data.city}
                                     >
                                         <SelectTrigger>
                                             <SelectValue placeholder="Select Barangay" />
@@ -2002,6 +2055,7 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                                         onChange={e => setData('zip_code', e.target.value)}
                                         placeholder="e.g. 1200"
                                         maxLength="4"
+                                        disabled={!formUnlocked}
                                     />
                                     {errors.zip_code && (
                                         <p className="text-red-500 text-sm mt-1">{errors.zip_code}</p>
@@ -2025,12 +2079,24 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                             </div>
                         </div>
                     </CardHeader>
-                    <CardContent className="space-y-6 pt-6">
+                    <CardContent className="space-y-6 pt-6 relative">
+                        {currentSemester === '2nd' && !formUnlocked && (
+                            <>
+                                {/* Blur overlay */}
+                                <div className="absolute inset-0 bg-white/50 backdrop-blur-sm z-10 rounded-lg"></div>
+                                {/* Lock icon overlay */}
+                                <div className="absolute inset-0 flex items-center justify-center z-20">
+                                    <div className="bg-white/90 backdrop-blur-sm rounded-full p-6 shadow-lg border-2 border-gray-200">
+                                        <Lock className="w-12 h-12 text-gray-600" />
+                                    </div>
+                                </div>
+                            </>
+                        )}
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                             <div className="relative">
                                 <Label htmlFor="program_id" className="text-sm font-medium">Program *</Label>
                                 <div className="flex gap-2">
-                                    <Select value={data.program_id.toString()} onValueChange={(value) => setData('program_id', value)}>
+                                    <Select value={data.program_id.toString()} onValueChange={(value) => setData('program_id', value)} disabled={!formUnlocked}>
                                         <SelectTrigger className={`h-10 flex-1 ${errors.program_id ? 'border-red-500' : 'border-gray-300 focus:border-green-500'}`}>
                                             <SelectValue placeholder="Select program" />
                                         </SelectTrigger>
@@ -2119,7 +2185,7 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                                     <Select
                                         value={data.year_level}
                                         onValueChange={(value) => setData('year_level', value)}
-                                        disabled={!selectedProgram}
+                                        disabled={!formUnlocked || !selectedProgram}
                                     >
                                         <SelectTrigger className={`h-10 flex-1 ${errors.year_level ? 'border-red-500' : 'border-gray-300 focus:border-green-500'} ${!selectedProgram ? 'bg-gray-100 cursor-not-allowed' : ''}`}>
                                             <SelectValue placeholder={!selectedProgram ? 'Select Program First' : 'Select Year Level'} />
@@ -2158,7 +2224,7 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
 
                         <div>
                             <Label htmlFor="enrollment_type" className="text-sm font-medium">Enrollment Type *</Label>
-                            <Select value={data.enrollment_type ?? ''} onValueChange={(value) => setData('enrollment_type', value)}>
+                            <Select value={data.enrollment_type ?? ''} onValueChange={(value) => setData('enrollment_type', value)} disabled={!formUnlocked}>
                                 <SelectTrigger className={`h-10 ${errors.student_type ? 'border-red-500' : 'border-gray-300 focus:border-green-500'}`}>
                                     <SelectValue />
                                 </SelectTrigger>
@@ -2170,18 +2236,26 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                             ? (data.year_level === '1st Year' && currentSemester === '1st')
                             : isShs && ((data.year_level === 'Grade 11' || data.year_level === '1') && currentSemester === '1st')
                                         const canBeShiftee = isExistingStudent || isReturningStudent
+                                        const isSecondSemester = currentSemester === '2nd'
                                         return (
                                             <>
-                                                <SelectItem value="new" disabled={!canBeNew}>
+                                                <SelectItem value="new" disabled={!canBeNew || isSecondSemester}>
                                                     👤 New Student
-                                                    {!canBeNew && data.year_level && (
+                                                    {(!canBeNew || isSecondSemester) && (
                                                         <span className="text-xs text-gray-400 ml-2">
-                                                            (Only for 1st Year, 1st Semester)
+                                                            {!canBeNew ? '(Only for 1st Year, 1st Semester)' : '(Not available in 2nd semester)'}
                                                         </span>
                                                     )}
                                                 </SelectItem>
-                                                <SelectItem value="returning">🔄 Returning Student (Regular Re-enrollment)</SelectItem>
-                                                {data.education_level === 'college' && (
+                                                <SelectItem value="returning" disabled={isSecondSemester && !isExistingStudent}>
+                                                    🔄 Returning Student (Regular Re-enrollment)
+                                                    {isSecondSemester && !isExistingStudent && (
+                                                        <span className="text-xs text-gray-400 ml-2">
+                                                            (Only for students enrolled in 1st semester)
+                                                        </span>
+                                                    )}
+                                                </SelectItem>
+                                                {data.education_level === 'college' && !isSecondSemester && (
                                                     <>
                                                         <SelectItem value="shiftee" disabled={!canBeShiftee}>
                                                             📋 Course Shiftee (Changing Program)
@@ -2191,7 +2265,9 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                                                                 </span>
                                                             )}
                                                         </SelectItem>
-                                                        <SelectItem value="transferee">📚 Transferee (From Another School)</SelectItem>
+                                                        <SelectItem value="transferee">
+                                                            📚 Transferee (From Another School)
+                                                        </SelectItem>
                                                     </>
                                                 )}
                                             </>
@@ -2241,7 +2317,19 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                                 </div>
                             </div>
                         </CardHeader>
-                    <CardContent className="space-y-6 pt-6">
+                    <CardContent className="space-y-6 pt-6 relative">
+                        {currentSemester === '2nd' && !formUnlocked && (
+                            <>
+                                {/* Blur overlay */}
+                                <div className="absolute inset-0 bg-white/50 backdrop-blur-sm z-10 rounded-lg"></div>
+                                {/* Lock icon overlay */}
+                                <div className="absolute inset-0 flex items-center justify-center z-20">
+                                    <div className="bg-white/90 backdrop-blur-sm rounded-full p-6 shadow-lg border-2 border-gray-200">
+                                        <Lock className="w-12 h-12 text-gray-600" />
+                                    </div>
+                                </div>
+                            </>
+                        )}
                         {/* SHS Voucher Status Alert */}
                         {data.education_level === 'senior_high' && (
                             <div className="bg-green-50 border border-green-200 rounded-lg p-4">
@@ -2278,21 +2366,23 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
 
                         {/* Error Messages */}
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div>
-                                {errors.enrollment_fee && (
-                                    <p className="text-red-500 text-sm">{errors.enrollment_fee}</p>
-                                )}
-                                <p className="text-xs text-gray-500 mt-1">
-                                    {(isTransferee || isShiftee) && feeAdjustments && feeAdjustments.isIrregular !== undefined
-                                        ? 'Enrollment fee will be calculated based on subjects enrolled in first term'
-                                        : data.education_level === 'senior_high'
-                                        ? '₱0.00 - Covered by SHS voucher program'
-                                        : data.student_type === 'regular'
-                                        ? 'Automatically set based on selected program and year level'
-                                        : 'Enter enrollment fee manually for irregular students'
-                                    }
-                                </p>
-                            </div>
+                            {data.student_type !== 'irregular' && (
+                                <div>
+                                    {errors.enrollment_fee && (
+                                        <p className="text-red-500 text-sm">{errors.enrollment_fee}</p>
+                                    )}
+                                    <p className="text-xs text-gray-500 mt-1">
+                                        {(isTransferee || isShiftee) && feeAdjustments && feeAdjustments.isIrregular !== undefined
+                                            ? 'Enrollment fee will be calculated based on subjects enrolled in first term'
+                                            : data.education_level === 'senior_high'
+                                            ? '₱0.00 - Covered by SHS voucher program'
+                                            : data.student_type === 'regular'
+                                            ? 'Automatically set based on selected program and year level'
+                                            : 'Enter enrollment fee manually for irregular students'
+                                        }
+                                    </p>
+                                </div>
+                            )}
 
                             <div>
                                 {errors.payment_amount && (
@@ -2314,17 +2404,30 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                                     <DollarSign className="w-4 h-4" />
                                     Enrollment Fee
                                 </Label>
-                                <Input
-                                    id="enrollment_fee"
-                                    type="number"
-                                    placeholder="0.00"
-                                    value={data.enrollment_fee ?? ''}
-                                    onChange={(e) => setData('enrollment_fee', e.target.value)}
-                                    disabled={data.education_level === 'senior_high' || (data.student_type === 'regular' && !isTransferee && !isShiftee)}
-                                    className="text-lg font-semibold"
-                                    step="0.01"
-                                    min="0"
-                                />
+                                {data.student_type === 'irregular' ? (
+                                    <div className="p-3 bg-gray-50 border border-gray-200 rounded-md">
+                                        <p className="text-sm text-gray-600">
+                                            Irregular students' enrollment fee will be calculated after determining the catch-up subjects they need to take before prelim payment.
+                                        </p>
+                                        <NumberInput
+                                            id="enrollment_fee"
+                                            placeholder="0.00"
+                                            value={data.enrollment_fee ?? ''}
+                                            onChange={(e) => setData('enrollment_fee', e.target.value)}
+                                            disabled={true}
+                                            className="text-lg font-semibold mt-2"
+                                        />
+                                    </div>
+                                ) : (
+                                    <NumberInput
+                                        id="enrollment_fee"
+                                        placeholder="0.00"
+                                        value={data.enrollment_fee ?? ''}
+                                        onChange={(e) => setData('enrollment_fee', e.target.value)}
+                                        disabled={data.education_level === 'senior_high' || (data.student_type === 'regular' && !isTransferee && !isShiftee)}
+                                        className="text-lg font-semibold"
+                                    />
+                                )}
                             </div>
 
                             <div>
@@ -2332,16 +2435,13 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                                     <DollarSign className="w-4 h-4" />
                                     Payment Amount
                                 </Label>
-                                <Input
+                                <NumberInput
                                     id="payment_amount"
-                                    type="number"
                                     placeholder="0.00"
                                     value={data.payment_amount ?? ''}
                                     onChange={(e) => setData('payment_amount', e.target.value)}
-                                    disabled={data.education_level === 'senior_high'}
+                                    disabled={!formUnlocked || data.education_level === 'senior_high'}
                                     className="text-lg font-semibold"
-                                    step="0.01"
-                                    min="0"
                                 />
                             </div>
                         </div>
@@ -2406,7 +2506,7 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                     >
                         Cancel
                     </Button>
-                    <Button type="submit" disabled={processing}>
+                    <Button type="submit" disabled={processing || !formUnlocked}>
                         <UserPlus className="w-4 h-4 mr-2" />
                         {processing ? 'Processing...' : isExistingStudent ? 'Update Student' : 'Register Student'}
                     </Button>
@@ -2423,7 +2523,7 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                         </DialogTitle>
                         <DialogDescription className="text-sm text-gray-700">
                             {(() => {
-                                const errorMessage = errors.student || '';
+                                const message = errorMessage || '';
 
                                 // Make error messages more user-friendly
                                 if (errorMessage.includes('Outstanding balance')) {
@@ -2490,19 +2590,11 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                             })()}
                         </DialogDescription>
                     </DialogHeader>
-                    <div className="flex justify-between items-center">
-                        {studentFound && (
-                            <Button
-                                variant="outline"
-                                onClick={() => loadPaymentHistory(studentFound.id)}
-                                disabled={loadingPaymentHistory}
-                                className="flex items-center gap-2"
-                            >
-                                <DollarSign className="w-4 h-4" />
-                                {loadingPaymentHistory ? 'Loading...' : 'View Payment History'}
-                            </Button>
-                        )}
-                        <Button onClick={() => setShowErrorModal(false)}>
+                    <div className="flex justify-end">
+                        <Button onClick={() => {
+                            setShowErrorModal(false)
+                            setErrorMessage('')
+                        }}>
                             Close
                         </Button>
                     </div>
@@ -3098,97 +3190,6 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                             className="bg-orange-600 hover:bg-orange-700"
                         >
                             Proceed with Course Shift
-                        </Button>
-                    </div>
-                </DialogContent>
-            </Dialog>
-
-            {/* Payment History Modal */}
-            <Dialog open={showPaymentModal} onOpenChange={setShowPaymentModal}>
-                <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
-                    <DialogHeader>
-                        <DialogTitle className="flex items-center gap-2">
-                            <DollarSign className="w-5 h-5" />
-                            Payment History - {[paymentHistory?.student?.first_name, paymentHistory?.student?.middle_name, paymentHistory?.student?.last_name, paymentHistory?.student?.suffix].filter(Boolean).join(' ')}
-                        </DialogTitle>
-                        <DialogDescription>
-                            Student ID: {paymentHistory?.student?.student_number}
-                        </DialogDescription>
-                    </DialogHeader>
-                    <div className="space-y-4">
-                        {paymentHistory?.paymentSummary ? (
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                <Card>
-                                    <CardHeader className="pb-2">
-                                        <CardTitle className="text-sm">Total Paid</CardTitle>
-                                    </CardHeader>
-                                    <CardContent>
-                                        <div className="text-2xl font-bold text-green-600">
-                                            ₱{Number(paymentHistory.paymentSummary.totalPaid || 0).toFixed(2)}
-                                        </div>
-                                    </CardContent>
-                                </Card>
-                                <Card>
-                                    <CardHeader className="pb-2">
-                                        <CardTitle className="text-sm">Outstanding Balance</CardTitle>
-                                    </CardHeader>
-                                    <CardContent>
-                                        <div className="text-2xl font-bold text-red-600">
-                                            ₱{Number(paymentHistory.paymentSummary.balance || 0).toFixed(2)}
-                                        </div>
-                                    </CardContent>
-                                </Card>
-                                <Card>
-                                    <CardHeader className="pb-2">
-                                        <CardTitle className="text-sm">Total Fee</CardTitle>
-                                    </CardHeader>
-                                    <CardContent>
-                                        <div className="text-2xl font-bold text-blue-600">
-                                            ₱{Number(paymentHistory.paymentSummary.totalFee || 0).toFixed(2)}
-                                        </div>
-                                    </CardContent>
-                                </Card>
-                            </div>
-                        ) : null}
-
-                        {paymentHistory?.payments && paymentHistory.payments.length > 0 ? (
-                            <div>
-                                <h3 className="text-lg font-semibold mb-3">Payment Records</h3>
-                                <div className="space-y-2">
-                                    {paymentHistory.payments.map((payment, index) => (
-                                        <Card key={index}>
-                                            <CardContent className="p-4">
-                                                <div className="flex justify-between items-start">
-                                                    <div>
-                                                        <div className="font-medium">
-                                                            {payment.academic_year} - {payment.semester}
-                                                        </div>
-                                                        <div className="text-sm text-gray-600">
-                                                            Enrollment Fee: ₱{Number(payment.enrollment_fee || 0).toFixed(2)}
-                                                        </div>
-                                                        <div className="text-sm text-gray-600">
-                                                            Paid: ₱{Number(payment.total_paid || 0).toFixed(2)} | 
-                                                            Balance: ₱{Number(payment.balance || 0).toFixed(2)}
-                                                        </div>
-                                                    </div>
-                                                    <Badge variant={payment.balance > 0 ? "destructive" : "default"}>
-                                                        {payment.balance > 0 ? "Outstanding" : "Paid"}
-                                                    </Badge>
-                                                </div>
-                                            </CardContent>
-                                        </Card>
-                                    ))}
-                                </div>
-                            </div>
-                        ) : (
-                            <div className="text-center py-8 text-gray-500">
-                                No payment records found for this student.
-                            </div>
-                        )}
-                    </div>
-                    <div className="flex justify-end">
-                        <Button onClick={() => setShowPaymentModal(false)}>
-                            Close
                         </Button>
                     </div>
                 </DialogContent>

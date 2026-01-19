@@ -2,11 +2,15 @@
 
 use App\Models\Curriculum;
 use App\Models\Program;
+use App\Models\SchoolSetting;
 use App\Models\User;
 use App\Models\YearLevelCurriculumGuide;
 
 it('creates a year level curriculum guide when registrar chooses so during transferee registration', function () {
     $this->withoutExceptionHandling();
+
+    // Set current semester to 1st to allow new student enrollment
+    SchoolSetting::setCurrentAcademicPeriod('2024-2025', '1st');
 
     $user = User::factory()->create(['role' => 'registrar']);
 

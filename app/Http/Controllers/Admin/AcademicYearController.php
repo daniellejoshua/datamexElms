@@ -203,21 +203,41 @@ class AcademicYearController extends Controller
 
                 // If this student has incomplete subjects, add to the lists
                 if (! empty($enrollmentIncompleteSubjects)) {
-                    $studentsWithIncompleteGrades[] = [
-                        'id' => $enrollment->student->id,
-                        'name' => $enrollment->student->user->name,
-                        'student_number' => $enrollment->student->student_number,
-                        'section' => $section->formatted_name,
-                        'year_level' => $section->year_level,
-                        'incomplete_subjects' => $enrollmentIncompleteSubjects,
-                    ];
+                    // Use student ID as key to prevent duplicates across sections
+                    $studentId = $enrollment->student->id;
+                    if (! isset($studentsWithIncompleteGrades[$studentId])) {
+                        $studentsWithIncompleteGrades[$studentId] = [
+                            'id' => $enrollment->student->id,
+                            'name' => $enrollment->student->user->name,
+                            'student_number' => $enrollment->student->student_number,
+                            'section' => $section->formatted_name,
+                            'year_level' => $section->year_level,
+                            'incomplete_subjects' => $enrollmentIncompleteSubjects,
+                        ];
+                    } else {
+                        // If student already exists, merge incomplete subjects from this section
+                        $studentsWithIncompleteGrades[$studentId]['incomplete_subjects'] = array_merge(
+                            $studentsWithIncompleteGrades[$studentId]['incomplete_subjects'],
+                            $enrollmentIncompleteSubjects
+                        );
+                    }
 
-                    $sectionIncompleteDetails[] = [
-                        'student_id' => $enrollment->student->id,
-                        'student_name' => $enrollment->student->user->name,
-                        'student_number' => $enrollment->student->student_number,
-                        'incomplete_subjects' => $enrollmentIncompleteSubjects,
-                    ];
+                    // Use student ID as key to prevent duplicates within section
+                    $studentId = $enrollment->student->id;
+                    if (! isset($sectionIncompleteDetails[$studentId])) {
+                        $sectionIncompleteDetails[$studentId] = [
+                            'student_id' => $enrollment->student->id,
+                            'student_name' => $enrollment->student->user->name,
+                            'student_number' => $enrollment->student->student_number,
+                            'incomplete_subjects' => $enrollmentIncompleteSubjects,
+                        ];
+                    } else {
+                        // If student already exists in this section, merge incomplete subjects
+                        $sectionIncompleteDetails[$studentId]['incomplete_subjects'] = array_merge(
+                            $sectionIncompleteDetails[$studentId]['incomplete_subjects'],
+                            $enrollmentIncompleteSubjects
+                        );
+                    }
                 }
             }
 
@@ -228,7 +248,7 @@ class AcademicYearController extends Controller
                     'year_level' => $section->year_level,
                     'incomplete_count' => $incompleteGradesCount,
                     'total_students' => $sectionStudentCount,
-                    'incomplete_details' => $sectionIncompleteDetails,
+                    'incomplete_details' => array_values($sectionIncompleteDetails),
                 ];
             }
 
@@ -279,7 +299,7 @@ class AcademicYearController extends Controller
                     'name' => $student->user->name,
                     'student_number' => $student->student_number,
                     'year_level' => $student->year_level,
-                    'reason' => $details['message'],
+                    'reason' => 'Has completed all required subjects for current year level',
                 ];
             }
         }
@@ -291,7 +311,7 @@ class AcademicYearController extends Controller
             'total_sections' => $totalSections,
             'total_students' => $totalStudents,
             'incomplete_grades_count' => count($studentsWithIncompleteGrades),
-            'students_with_incomplete_grades' => array_slice($studentsWithIncompleteGrades, 0, 20), // Limit to 20 for UI
+            'students_with_incomplete_grades' => array_slice(array_values($studentsWithIncompleteGrades), 0, 20), // Limit to 20 for UI
             'sections_with_incomplete_grades' => $sectionsWithIncompleteGrades,
             'payment_issues_count' => count($studentsWithPaymentIssues),
             'students_with_payment_issues' => $studentsWithPaymentIssues,

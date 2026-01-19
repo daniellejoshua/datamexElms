@@ -527,12 +527,12 @@ class RegistrarController extends Controller
     public function store(Request $request)
     {
         // Direct file write to bypass logging
-        file_put_contents(storage_path('logs/debug-store.log'), date('Y-m-d H:i:s') . " - STORE CALLED\n" . json_encode([
+        file_put_contents(storage_path('logs/debug-store.log'), date('Y-m-d H:i:s')." - STORE CALLED\n".json_encode([
             'transfer_type' => $request->input('transfer_type'),
             'credited_subjects_count' => count($request->input('credited_subjects', [])),
             'has_credited_subjects' => $request->has('credited_subjects'),
-        ], JSON_PRETTY_PRINT) . "\n\n", FILE_APPEND);
-        
+        ], JSON_PRETTY_PRINT)."\n\n", FILE_APPEND);
+
         \Log::info('STORE METHOD CALLED - REQUEST RECEIVED', [
             'method' => $request->method(),
             'url' => $request->fullUrl(),
@@ -577,7 +577,7 @@ class RegistrarController extends Controller
             'strand' => ['nullable', 'string'],
 
             // Payment Information
-            'enrollment_fee' => ['required', 'numeric', 'min:0'],
+            'enrollment_fee' => ['nullable', 'numeric', 'min:0'],
             'payment_amount' => ['nullable', 'numeric', 'min:0'],
 
             // Course shifting confirmation
@@ -613,6 +613,60 @@ class RegistrarController extends Controller
             // Duplicate override flag
             'duplicate_override' => ['nullable', 'boolean'],
         ]);
+
+        // Check if it's 2nd semester - prevent course shifters and transferees
+        $currentSemester = \App\Models\SchoolSetting::getCurrentSemester();
+        if ($currentSemester === '2nd') {
+            if (! empty($validated['transfer_type']) && in_array($validated['transfer_type'], ['shiftee', 'transferee'])) {
+                return back()->withErrors([
+                    'transfer_type' => 'Course shifters and transferees can only be registered during the 1st semester of the academic year.',
+                ])->withInput();
+            }
+
+            // Also check if student has course_shift_required data
+            if (! empty($validated['confirm_course_shift']) || ! empty($validated['credited_subjects'])) {
+                return back()->withErrors([
+                    'general' => 'Course shifting and credit transfers can only be processed during the 1st semester of the academic year.',
+                ])->withInput();
+            }
+
+            // Check if this is a new student (not updating existing)
+            if (empty($validated['student_number'])) {
+                return back()->withErrors([
+                    'general' => 'New student enrollment is not allowed during the 2nd semester. Only existing students from the 1st semester can be updated.',
+                ])->withInput();
+            }
+
+            // For existing students, verify they were enrolled in 1st semester
+            if (! empty($validated['student_number'])) {
+                $existingStudent = \App\Models\Student::where('student_number', $validated['student_number'])->first();
+                if ($existingStudent) {
+                    $currentAcademicYear = \App\Models\SchoolSetting::getCurrentAcademicYear();
+
+                    // Check if student was enrolled in 1st semester of current academic year
+                    $firstSemesterEnrollment = \App\Models\StudentEnrollment::where('student_id', $existingStudent->id)
+                        ->where('academic_year', $currentAcademicYear)
+                        ->where(function ($query) {
+                            $query->where('semester', '1st')
+                                ->orWhere('semester', 'first');
+                        })
+                        ->exists();
+
+                    if (! $firstSemesterEnrollment) {
+                        return back()->withErrors([
+                            'student_number' => 'This student was not enrolled in the 1st semester of the current academic year. Only students who were enrolled in the 1st semester can be updated during the 2nd semester.',
+                        ])->withInput();
+                    }
+                }
+            }
+        }
+
+        // Custom validation: enrollment_fee is required for regular students, optional for irregular
+        if ($validated['student_type'] === 'regular' && (! isset($validated['enrollment_fee']) || $validated['enrollment_fee'] === null || $validated['enrollment_fee'] === '')) {
+            return back()->withErrors([
+                'enrollment_fee' => 'Enrollment fee is required for regular students.',
+            ])->withInput();
+        }
 
         // Check for duplicates if not overridden
         if (empty($validated['duplicate_override']) && empty($validated['student_number'])) {
@@ -805,6 +859,7 @@ class RegistrarController extends Controller
                             'new_program_id' => $newProgram->id ?? null,
                             'student_name' => $existingStudent->first_name.' '.$existingStudent->last_name,
                             'student_id' => $existingStudent->id,
+                            'current_year_level' => $existingStudent->year_level,
                         ],
                         'old' => $request->all(), // Preserve form input
                     ]);
@@ -845,6 +900,7 @@ class RegistrarController extends Controller
                             'new_program_id' => $newProgram->id ?? null,
                             'student_name' => $archivedStudent->first_name.' '.$archivedStudent->last_name,
                             'student_id' => $archivedStudent->original_student_id,
+                            'current_year_level' => $archivedStudent->year_level,
                         ],
                         'old' => $request->all(), // Preserve form input
                     ]);
@@ -1075,14 +1131,10 @@ class RegistrarController extends Controller
             }
 
             // SHS students with active vouchers can have zero enrollment fee
-            // Also allow zero for irregular transferee/shiftee (will be calculated after first term)
-            $isIrregularTransfereeOrShiftee = $validated['student_type'] === 'irregular' &&
-                                               isset($validated['transfer_type']) &&
-                                               in_array($validated['transfer_type'], ['transferee', 'shiftee']);
-
+            // Also allow zero for all irregular students (fees calculated based on enrolled subjects)
             if ($enrollmentFee == 0 &&
                 ! ($validated['education_level'] === 'senior_high' && ($studentData['has_voucher'] ?? false)) &&
-                ! $isIrregularTransfereeOrShiftee) {
+                $validated['student_type'] !== 'irregular') {
                 return back()->withErrors([
                     'enrollment_fee' => 'Enrollment fee cannot be zero.',
                 ])->withInput();
@@ -1184,7 +1236,7 @@ class RegistrarController extends Controller
 
                 if ($shouldProcessCredits) {
                     $transferTypeLabel = strtoupper($validated['transfer_type']);
-                    \Log::info('💾 SAVING CREDITED SUBJECTS FOR ' . $transferTypeLabel, [
+                    \Log::info('💾 SAVING CREDITED SUBJECTS FOR '.$transferTypeLabel, [
                         'count' => count($validated['credited_subjects']),
                         'student_id' => $student->id,
                         'transfer_type' => $validated['transfer_type'],
@@ -1193,16 +1245,17 @@ class RegistrarController extends Controller
 
                     foreach ($validated['credited_subjects'] as $creditedSubject) {
                         $grade = $creditedSubject['grade'] ?? null;
-                        
+
                         // Double-check grade validation on backend (should already be filtered on frontend)
                         if ($grade !== null && (float) $grade < 75) {
                             \Log::warning('⚠️ Skipping subject with failing grade', [
                                 'subject_code' => $creditedSubject['subject_code'],
                                 'grade' => $grade,
                             ]);
+
                             continue;
                         }
-                        
+
                         \Log::info('Processing credited subject', [
                             'subject_id' => $creditedSubject['subject_id'] ?? null,
                             'subject_code' => $creditedSubject['subject_code'] ?? null,

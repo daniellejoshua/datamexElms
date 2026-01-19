@@ -50,9 +50,9 @@ const NumberInput = forwardRef(({
 
     setInputValue(formattedValue)
 
-    // Call onChange with numeric value
+    // Call onChange with numeric value as string
     if (onChange) {
-      const numericValue = cleanValue === '' ? 0 : parseFloat(cleanValue) || 0
+      const numericValue = cleanValue === '' ? '' : (parseFloat(cleanValue) || 0).toString()
       const syntheticEvent = {
         ...e,
         target: {

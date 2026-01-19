@@ -49,6 +49,9 @@ it('displays student registration form', function () {
 });
 
 it('registers a new student with all required information', function () {
+    // Set current semester to 1st to allow new student enrollment
+    SchoolSetting::setCurrentAcademicPeriod('2024-2025', '1st');
+
     $this->actingAs($this->user);
 
     $studentData = [
@@ -107,6 +110,9 @@ it('registers a new student with all required information', function () {
 });
 
 it('registers an irregular student', function () {
+    // Set current semester to 1st to allow new student enrollment
+    SchoolSetting::setCurrentAcademicPeriod('2024-2025', '1st');
+
     $this->actingAs($this->user);
 
     $studentData = [
@@ -150,6 +156,9 @@ it('registers an irregular student', function () {
 });
 
 it('creates user account with password123 as default password', function () {
+    // Set current semester to 1st to allow new student enrollment
+    SchoolSetting::setCurrentAcademicPeriod('2024-2025', '1st');
+
     $this->actingAs($this->user);
 
     $studentData = [
@@ -182,6 +191,9 @@ it('creates user account with password123 as default password', function () {
 });
 
 it('generates unique student numbers', function () {
+    // Set current semester to 1st to allow new student enrollment
+    SchoolSetting::setCurrentAcademicPeriod('2024-2025', '1st');
+
     $this->actingAs($this->user);
 
     $studentData1 = [
