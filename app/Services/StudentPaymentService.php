@@ -321,8 +321,8 @@ class StudentPaymentService
         $credits = \App\Models\StudentSubjectCredit::with('subject')
             ->where('student_id', $student->id)
             ->where('year_level', $currentYearLevel)
-            ->where('semester', $semester === '1st' ? 'first' : 'second')
-            ->where('credit_status', 'approved')
+            ->where('semester', $semester)
+            ->where('credit_status', 'credited')
             ->get();
 
         foreach ($credits as $credit) {

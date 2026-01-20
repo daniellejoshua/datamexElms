@@ -6,7 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Check, X, Users, UserPlus, GraduationCap, ArrowLeft, Mail, Phone, MapPin, Calendar, BookOpen, User, Trash2, Settings, Clock, UserCheck } from 'lucide-react';
 
-export default function SubjectEnrollment({ section, student, availableSubjects, currentEnrollments, creditedSubjects = [] }) {
+export default function SubjectEnrollment({ section, student, availableSubjects, currentEnrollments, creditedSubjects = [], enrolledInOtherSections = [] }) {
     const { flash } = usePage().props;
     const [selectedSubjects, setSelectedSubjects] = useState([]);
     const [isEnrolling, setIsEnrolling] = useState(false);
@@ -392,6 +392,53 @@ export default function SubjectEnrollment({ section, student, availableSubjects,
                                                 )}
                                                 <Badge variant="outline" className="text-xs bg-blue-100 text-blue-700 border-blue-200 mt-2">
                                                     Already Credited
+                                                </Badge>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Subjects Already Enrolled in Other Sections */}
+                    {enrolledInOtherSections && enrolledInOtherSections.length > 0 && (
+                        <div className="bg-white rounded-lg shadow-sm border overflow-hidden mt-6">
+                            <div className="bg-orange-50 px-4 py-3 border-b border-orange-100">
+                                <div className="flex items-center gap-2">
+                                    <UserCheck className="h-4 w-4 text-orange-600" />
+                                    <h2 className="font-medium text-gray-900">
+                                        Subjects Already Enrolled in Other Sections ({enrolledInOtherSections.length})
+                                    </h2>
+                                </div>
+                                <p className="text-sm text-gray-600 mt-1">
+                                    These subjects are already enrolled in other sections and are excluded from this section's enrollment.
+                                </p>
+                            </div>
+                            <div className="p-4">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                    {enrolledInOtherSections.map((sectionSubject) => (
+                                        <div 
+                                            key={sectionSubject.id} 
+                                            className="flex items-start p-3 bg-orange-50 border border-orange-200 rounded"
+                                        >
+                                            <div className="flex-shrink-0 mr-3 mt-0.5">
+                                                <UserCheck className="h-4 w-4 text-orange-600" />
+                                            </div>
+                                            <div className="flex-1 min-w-0">
+                                                <p className="font-medium text-gray-900">
+                                                    {sectionSubject.subject.subject_code}
+                                                </p>
+                                                <p className="text-sm text-gray-600 mt-0.5">
+                                                    {sectionSubject.subject.subject_name}
+                                                </p>
+                                                {sectionSubject.teacher && (
+                                                    <p className="text-xs text-gray-500 mt-1">
+                                                        Teacher: {sectionSubject.teacher.user.name}
+                                                    </p>
+                                                )}
+                                                <Badge variant="outline" className="text-xs bg-orange-100 text-orange-700 border-orange-200 mt-2">
+                                                    Enrolled Elsewhere
                                                 </Badge>
                                             </div>
                                         </div>

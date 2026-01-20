@@ -1018,7 +1018,7 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                 // Keep form locked in 2nd semester mode for new students (no student checked)
                 // setFormUnlocked(false) - already false by default
                 // Reset form for new student
-                setData(prev => ({
+                setData(prev => ({ 
                     ...prev,
                     first_name: '',
                     last_name: '',

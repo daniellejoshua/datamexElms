@@ -426,7 +426,7 @@ export default function CollegePaymentShow({ student, payments, auth }) {
                                             <div className="p-1.5 bg-green-100 rounded">
                                                 <GraduationCap className="w-4 h-4 text-green-600" />
                                             </div>
-                                            <h3 className="font-semibold text-green-800">Credited Subjects</h3>
+                                            <h3 className="font-semibold text-green-800">Already Credited Subjects on This Semester</h3>
                                         </div>
                                         <div className="space-y-2">
                                             <p className="text-sm text-green-700">
