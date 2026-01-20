@@ -25,6 +25,8 @@ export default function CollegePaymentsIndex({ payments, stats, filters, current
     const [studentType, setStudentType] = useState(filters?.student_type || 'all')
     const [showPaymentModal, setShowPaymentModal] = useState(false)
     const [selectedPayment, setSelectedPayment] = useState(null)
+    const [calculatedBalance, setCalculatedBalance] = useState(null)
+    const [isCalculating, setIsCalculating] = useState(false)
     const [paymentForm, setPaymentForm] = useState({
         amount_paid: '',
         payment_date: new Date().toISOString().split('T')[0],
@@ -34,14 +36,33 @@ export default function CollegePaymentsIndex({ payments, stats, filters, current
     })
 
     const handleFilterChange = () => {
+        // Get current page from URL if it exists
+        const urlParams = new URLSearchParams(window.location.search);
+        const currentPage = urlParams.get('page');
+
         router.get(route('registrar.payments.college.index'), {
             academic_year: academicYear,
             semester: semester,
             student_type: studentType,
+            ...(currentPage && { page: currentPage }),
         }, {
             preserveState: true,
             preserveScroll: true,
         })
+    }
+
+    const handlePageChange = (url) => {
+        const urlObj = new URL(url);
+        const page = urlObj.searchParams.get('page');
+        
+        router.get(route('registrar.payments.college.index'), {
+            page: page,
+            academic_year: academicYear,
+            semester: semester,
+            student_type: studentType,
+        }, {
+            preserveScroll: true,
+        });
     }
 
     // Auto-apply filters when they change
@@ -69,9 +90,9 @@ export default function CollegePaymentsIndex({ payments, stats, filters, current
         ]
     }
 
-    const handleRecordPayment = (payment) => {
-        // Prevent opening modal if balance is 0
-        if (payment.balance <= 0) {
+    const handleRecordPayment = async (payment) => {
+        // Prevent opening modal if balance is 0 (for regular students)
+        if (payment.balance <= 0 && payment.student?.student_type !== 'irregular') {
             toast.error('Payment Not Allowed', {
                 description: 'This student has already fully paid. No additional payment can be recorded.',
             })
@@ -79,6 +100,37 @@ export default function CollegePaymentsIndex({ payments, stats, filters, current
         }
         
         setSelectedPayment(payment)
+        
+        // If irregular student and prelim not paid yet and balance hasn't been calculated, calculate balance first
+        if (payment.student?.student_type === 'irregular' && !payment.prelim_paid && payment.total_semester_fee === 0) {
+            setIsCalculating(true)
+            try {
+                const response = await fetch(route('registrar.payments.college.calculate-irregular', payment.id))
+                const data = await response.json()
+                
+                if (data.success) {
+                    setCalculatedBalance(data.calculated_balance)
+                    // Update payment object with calculated balance
+                    payment.balance = data.calculated_balance
+                    payment.total_semester_fee = data.calculated_balance
+                    toast.success('Balance Calculated', {
+                        description: `Irregular student balance calculated: ₱${data.calculated_balance.toFixed(2)}`,
+                    })
+                } else {
+                    toast.error('Calculation Failed', {
+                        description: data.message || 'Failed to calculate irregular student balance.',
+                    })
+                }
+            } catch (error) {
+                console.error('Error calculating irregular balance:', error)
+                toast.error('Calculation Error', {
+                    description: 'An error occurred while calculating the balance.',
+                })
+            } finally {
+                setIsCalculating(false)
+            }
+        }
+        
         setShowPaymentModal(true)
         setPaymentForm({
             amount_paid: '',
@@ -103,11 +155,12 @@ export default function CollegePaymentsIndex({ payments, stats, filters, current
         })
     }
 
-    const filteredPayments = payments.data.filter(payment =>
-        payment.student?.user?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        payment.student?.student_number?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        payment.payment_type?.toLowerCase().includes(searchTerm.toLowerCase())
-    )
+    const filteredPayments = Array.isArray(payments?.data) ? payments.data.filter(payment =>
+        !searchTerm ||
+        payment?.student?.user?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        payment?.student?.student_number?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        payment?.payment_type?.toLowerCase().includes(searchTerm.toLowerCase())
+    ) : []
 
     const getStatusColor = (status) => {
         const colors = {
@@ -359,11 +412,17 @@ export default function CollegePaymentsIndex({ payments, stats, filters, current
                                                 {formatCurrency(payment.total_semester_fee)}
                                             </td>
                                             <td className="py-3 px-4">
-                                                <span className={`font-medium ${
-                                                    payment.balance > 0 ? 'text-red-600' : 'text-green-600'
-                                                }`}>
-                                                    {formatCurrency(payment.balance)}
-                                                </span>
+                                                {payment.student?.student_type === 'irregular' && !payment.prelim_paid && payment.total_semester_fee === 0 ? (
+                                                    <span className="text-orange-600 font-medium italic">
+                                                        To be calculated
+                                                    </span>
+                                                ) : (
+                                                    <span className={`font-medium ${
+                                                        payment.balance > 0 ? 'text-red-600' : 'text-green-600'
+                                                    }`}>
+                                                        {formatCurrency(payment.balance)}
+                                                    </span>
+                                                )}
                                             </td>
                                             <td className="py-3 px-4">
                                                 <Badge 
@@ -418,9 +477,9 @@ export default function CollegePaymentsIndex({ payments, stats, filters, current
                                 <div className="flex gap-1">
                                     {payments.links.map((link, index) => (
                                         link.url ? (
-                                            <Link
+                                            <button
                                                 key={index}
-                                                href={link.url}
+                                                onClick={() => handlePageChange(link.url)}
                                                 className={`px-3 py-1 text-sm border rounded ${
                                                     link.active 
                                                         ? 'bg-blue-500 text-white border-blue-500' 
@@ -532,7 +591,17 @@ export default function CollegePaymentsIndex({ payments, stats, filters, current
                                     </div>
                                     {selectedPayment && (
                                         <p className="text-xs text-gray-500 mt-1">
-                                            Balance: {formatCurrency(selectedPayment.balance)}
+                                            {selectedPayment.student?.student_type === 'irregular' && calculatedBalance !== null ? (
+                                                <>Balance: {formatCurrency(calculatedBalance)}</>
+                                            ) : (
+                                                <>Balance: {formatCurrency(selectedPayment.balance)}</>
+                                            )}
+                                        </p>
+                                    )}
+                                    {isCalculating && (
+                                        <p className="text-xs text-blue-600 mt-1 flex items-center gap-1">
+                                            <Clock className="w-3 h-3 animate-spin" />
+                                            Calculating irregular student fees...
                                         </p>
                                     )}
                                 </div>

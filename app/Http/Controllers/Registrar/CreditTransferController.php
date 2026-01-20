@@ -74,7 +74,6 @@ class CreditTransferController extends Controller
 
             // Determine credited subjects and subjects to catch up
             $creditedSubjects = [];
-            $subjectsToCatchUp = [];
             $feeAdjustments = [
                 'credits' => 0,
                 'catchup' => 0,
@@ -161,17 +160,17 @@ class CreditTransferController extends Controller
                         // Remove spaces from codes for comparison (e.g., "PE 3" vs "PE3")
                         $newCode = strtolower(str_replace(' ', '', trim($newSubject->subject_code)));
                         $completedCode = strtolower(str_replace(' ', '', trim($completed['subject_code'])));
-                        
+
                         // Match by name (exact match) - most reliable since codes differ across programs
                         if ($newName === $completedName) {
                             return true;
                         }
-                        
+
                         // Match by code (exact match, ignoring spaces) - secondary check
                         if ($newCode === $completedCode) {
                             return true;
                         }
-                        
+
                         return false;
                     });
 
@@ -181,8 +180,8 @@ class CreditTransferController extends Controller
                         $alreadyAdded = collect($creditedSubjects)->contains(function ($credited) use ($matchingNewSubject) {
                             return $credited['subject_id'] === $matchingNewSubject->subject_id;
                         });
-                        
-                        if (!$alreadyAdded) {
+
+                        if (! $alreadyAdded) {
                             $creditedSubjects[] = [
                                 'subject_id' => $matchingNewSubject->subject_id,
                                 'subject_code' => $matchingNewSubject->subject_code,
@@ -192,29 +191,6 @@ class CreditTransferController extends Controller
                                 'semester' => $matchingNewSubject->semester,
                                 'grade' => $completed['final_grade'],
                                 'old_subject_code' => $completed['subject_code'], // Show the old code for reference
-                            ];
-                        }
-                    }
-                }
-
-                // Find catch-up subjects: subjects from previous year levels only (year_level < current)
-                // Example: 2nd year student needs to catch up on 1st year subjects (both 1st and 2nd sem)
-                foreach ($newSubjects as $newSubject) {
-                    // Only subjects from year levels BELOW current year level
-                    if ($newSubject->year_level < $studentYearLevel) {
-                        // Check if student already completed it
-                        $alreadyCompleted = collect($creditedSubjects)->contains(function ($credited) use ($newSubject) {
-                            return $credited['subject_id'] === $newSubject->subject_id;
-                        });
-
-                        if (!$alreadyCompleted) {
-                            $subjectsToCatchUp[] = [
-                                'subject_id' => $newSubject->subject_id,
-                                'subject_code' => $newSubject->subject_code,
-                                'subject_name' => $newSubject->subject_name,
-                                'units' => $newSubject->units,
-                                'year_level' => $newSubject->year_level,
-                                'semester' => $newSubject->semester,
                             ];
                         }
                     }
@@ -242,43 +218,13 @@ class CreditTransferController extends Controller
                             'original_subject_code' => $externalCredit['subject_code'],
                             'original_subject_name' => $externalCredit['subject_name'],
                             'previous_school' => $externalCredit['previous_school'] ?? null,
-                            'fee_adjustment' => -300,
                         ];
-                        $feeAdjustments['credits'] -= 300;
-                    }
-                }
-
-                // Check for subjects that need to be caught up
-                foreach ($newSubjects as $newSubject) {
-                    if ($newSubject->year_level < $studentYearLevel ||
-                        ($newSubject->year_level == $studentYearLevel && $newSubject->semester == '1st')) {
-
-                        // Check if already credited
-                        $alreadyCredited = collect($creditedSubjects)->contains(function ($credited) use ($newSubject) {
-                            return $credited['subject_id'] === $newSubject->subject_id;
-                        });
-
-                        if (! $alreadyCredited) {
-                            $subjectsToCatchUp[] = [
-                                'subject_id' => $newSubject->subject_id,
-                                'subject_code' => $newSubject->subject_code,
-                                'subject_name' => $newSubject->subject_name,
-                                'units' => $newSubject->units,
-                                'year_level' => $newSubject->year_level,
-                                'semester' => $newSubject->semester,
-                                'fee_adjustment' => 300,
-                            ];
-                            $feeAdjustments['catchup'] += 300;
-                        }
                     }
                 }
             }
 
             // For shiftees, package the data without fee adjustments
             // Irregular student fees are calculated based on actual enrolled subjects per semester
-            $feeAdjustments['transferredSubjects'] = $creditedSubjects;
-            $feeAdjustments['catchUpSubjects'] = $subjectsToCatchUp;
-            $feeAdjustments['total'] = 0;
 
             // Prepare all new curriculum subjects for display
             $allNewSubjects = $newSubjects->map(function ($subject) {
@@ -307,8 +253,6 @@ class CreditTransferController extends Controller
                         ],
                     ],
                     'credited_subjects' => $creditedSubjects,
-                    'subjects_to_catch_up' => $subjectsToCatchUp,
-                    'fee_adjustments' => $feeAdjustments,
                 ],
             ];
 
@@ -349,7 +293,6 @@ class CreditTransferController extends Controller
             'new_program_id' => 'required|exists:programs,id',
             'transfer_type' => 'required|in:shiftee,transferee',
             'credited_subjects' => 'required|array',
-            'subjects_to_catch_up' => 'nullable|array',
             'previous_school' => 'nullable|string',
         ]);
 
@@ -387,7 +330,6 @@ class CreditTransferController extends Controller
                     'transfer_type' => $request->transfer_type,
                     'credit_status' => 'credited',
                     'verified_semester_grade' => $subject['grade'] ?? null,
-                    'fee_adjustment' => -300,
                     'previous_school' => $subject['previous_school'] ?? $request->previous_school,
                     'approved_by' => auth()->id(),
                     'approved_at' => now(),
@@ -409,30 +351,6 @@ class CreditTransferController extends Controller
                         'final_grade' => $subject['grade'] ?? null,
                         'credited_at' => now(),
                         'student_credit_transfer_id' => $creditTransfer->id,
-                        'approved_by' => auth()->id(),
-                        'approved_at' => now(),
-                    ]);
-                }
-            }
-
-            // Store catch-up subjects
-            if ($request->has('subjects_to_catch_up')) {
-                foreach ($request->subjects_to_catch_up as $subject) {
-                    StudentCreditTransfer::create([
-                        'student_id' => $student->id,
-                        'previous_program_id' => $previousProgram?->id,
-                        'new_program_id' => $newProgram->id,
-                        'previous_curriculum_id' => $previousCurriculum?->id,
-                        'new_curriculum_id' => $newCurriculum->id,
-                        'subject_id' => $subject['subject_id'],
-                        'subject_code' => $subject['subject_code'],
-                        'subject_name' => $subject['subject_name'],
-                        'units' => $subject['units'],
-                        'year_level' => $subject['year_level'],
-                        'semester' => $subject['semester'],
-                        'transfer_type' => $request->transfer_type,
-                        'credit_status' => 'for_catchup',
-                        'fee_adjustment' => 300,
                         'approved_by' => auth()->id(),
                         'approved_at' => now(),
                     ]);
@@ -631,7 +549,6 @@ class CreditTransferController extends Controller
     {
         $request->validate([
             'credit_status' => 'required|in:credited,rejected,pending',
-            'rejection_reason' => 'required_if:credit_status,rejected',
         ]);
 
         try {
@@ -642,7 +559,6 @@ class CreditTransferController extends Controller
 
             $credit->update([
                 'credit_status' => $newStatus,
-                'rejection_reason' => $request->rejection_reason ?? null,
                 'approved_by' => auth()->id(),
                 'approved_at' => now(),
             ]);

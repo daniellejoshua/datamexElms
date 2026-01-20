@@ -60,7 +60,7 @@ class CollegePaymentController extends Controller
         $currentPage = request()->get('page', 1);
         $currentPageItems = $payments->slice(($currentPage - 1) * $perPage, $perPage);
         $paginatedPayments = new \Illuminate\Pagination\LengthAwarePaginator(
-            $currentPageItems,
+            $currentPageItems->values(), // Convert to array and reindex
             $payments->count(),
             $perPage,
             $currentPage,
@@ -123,7 +123,7 @@ class CollegePaymentController extends Controller
         }
 
         return Inertia::render('Registrar/Payments/College/Index', [
-            'payments' => $paginatedPayments,
+            'payments' => $paginatedPayments->toArray(),
             'stats' => $stats,
             'filters' => [
                 'academic_year' => $filterAcademicYear,
@@ -297,5 +297,59 @@ class CollegePaymentController extends Controller
         $payment->save();
 
         return back()->with('success', 'Payment of ₱'.number_format($validated['amount_paid'], 2).' recorded successfully. OR#: '.$validated['or_number']);
+    }
+
+    /**
+     * Calculate irregular student balance with detailed breakdown.
+     */
+    public function calculateIrregularBalance(StudentSemesterPayment $payment)
+    {
+        // Check if student is irregular
+        if ($payment->student->student_type !== 'irregular') {
+            return response()->json([
+                'success' => false,
+                'message' => 'This calculation is only for irregular students.',
+            ], 400);
+        }
+
+        try {
+            $paymentService = app(\App\Services\StudentPaymentService::class);
+            $calculation = $paymentService->calculateIrregularBalance($payment);
+
+            // Update the payment record with calculated balance
+            $payment->update([
+                'total_semester_fee' => $calculation['calculated_balance'],
+                'balance' => $calculation['calculated_balance'],
+                'irregular_subject_fee' => 300.00,
+                'irregular_subjects_count' => $calculation['past_year_subjects_count'],
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'calculated_balance' => $calculation['calculated_balance'],
+                'breakdown' => $calculation['breakdown'],
+                'details' => [
+                    'past_year_subjects' => $calculation['past_year_subjects'],
+                    'past_year_subjects_count' => $calculation['past_year_subjects_count'],
+                    'past_year_subjects_fee' => $calculation['past_year_subjects_fee'],
+                    'base_fee' => $calculation['base_fee'],
+                    'credited_subjects' => $calculation['credited_subjects'],
+                    'credited_subjects_count' => $calculation['credited_subjects_count'],
+                    'credited_subjects_deduction' => $calculation['credited_subjects_deduction'],
+                    'current_year_level' => $calculation['current_year_level'],
+                ],
+            ]);
+        } catch (\Exception $e) {
+            \Log::error('Error calculating irregular student balance: '.$e->getMessage(), [
+                'payment_id' => $payment->id,
+                'student_id' => $payment->student_id,
+                'trace' => $e->getTraceAsString(),
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'An error occurred while calculating the balance: '.$e->getMessage(),
+            ], 500);
+        }
     }
 }

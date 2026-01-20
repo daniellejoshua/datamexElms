@@ -26,24 +26,19 @@ class StudentCreditTransfer extends Model
         'semester',
         'transfer_type',
         'credit_status',
-        'fee_adjustment',
         'notes',
         'previous_school',
         'approved_by',
         'approved_at',
-        'grade_verified_at',
         'verified_semester_grade',
-        'rejection_reason',
     ];
 
     protected function casts(): array
     {
         return [
             'units' => 'decimal:2',
-            'fee_adjustment' => 'decimal:2',
             'verified_semester_grade' => 'decimal:2',
             'approved_at' => 'datetime',
-            'grade_verified_at' => 'datetime',
         ];
     }
 

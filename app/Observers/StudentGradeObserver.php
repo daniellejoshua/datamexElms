@@ -136,8 +136,6 @@ class StudentGradeObserver
                 // Update credit status to "credited"
                 $credit->update([
                     'credit_status' => 'credited',
-                    'grade_verified_at' => now(),
-                    'verified_semester_grade' => $grade->semester_grade,
                 ]);
 
                 Log::info('Credit transfer automatically approved', [
@@ -150,9 +148,6 @@ class StudentGradeObserver
                 // Student failed - mark as rejected or needs retake
                 $credit->update([
                     'credit_status' => 'rejected',
-                    'grade_verified_at' => now(),
-                    'verified_semester_grade' => $grade->semester_grade,
-                    'rejection_reason' => 'Failed subject with grade: '.$grade->semester_grade,
                 ]);
 
                 Log::info('Credit transfer rejected due to failing grade', [

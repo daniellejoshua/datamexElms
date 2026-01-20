@@ -14,14 +14,19 @@ export default function PaymentsIndex({ payments, filters, stats }) {
     const [academicYear, setAcademicYear] = useState(filters.academic_year || 'all');
     const [semester, setSemester] = useState(filters.semester || 'all');
 
-    const handleFilter = () => {
-        router.get(route('registrar.payments.index'), {
-            search,
-            status,
-            academic_year: academicYear,
-            semester,
-        }, {
-            preserveState: true,
+    const handlePageChange = (pageUrl) => {
+        const url = new URL(pageUrl);
+        const page = url.searchParams.get('page');
+
+        const queryParams = {};
+        if (page) queryParams.page = page;
+        // Always include current filter values, even if they're default
+        if (search) queryParams.search = search;
+        if (status && status !== 'all') queryParams.status = status;
+        if (academicYear && academicYear !== 'all') queryParams.academic_year = academicYear;
+        if (semester && semester !== 'all') queryParams.semester = semester;
+
+        router.get(route('registrar.payments.index'), queryParams, {
             preserveScroll: true,
         });
     };
@@ -302,19 +307,27 @@ export default function PaymentsIndex({ payments, filters, stats }) {
                                     Showing {payments.from} to {payments.to} of {payments.total} results
                                 </p>
                                 <div className="flex gap-2">
-                                    {payments.links.map((link, index) => (
-                                        <Link
-                                            key={index}
-                                            href={link.url}
-                                            className={`px-3 py-1 text-sm border rounded ${
-                                                link.active
-                                                    ? 'bg-blue-600 text-white border-blue-600'
-                                                    : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'
-                                            } ${!link.url ? 'opacity-50 cursor-not-allowed' : ''}`}
-                                            disabled={!link.url}
-                                            dangerouslySetInnerHTML={{ __html: link.label }}
-                                        />
-                                    ))}
+                                    {payments.links.map((link, index) => {
+
+                                        return (
+                                            <button
+                                                key={index}
+                                                onClick={(e) => {
+                                                    e.preventDefault();
+                                                    if (link.url) {
+                                                        handlePageChange(link.url);
+                                                    }
+                                                }}
+                                                disabled={!link.url}
+                                                className={`px-3 py-1 text-sm border rounded ${
+                                                    link.active
+                                                        ? 'bg-blue-600 text-white border-blue-600'
+                                                        : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'
+                                                } ${!link.url ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                                dangerouslySetInnerHTML={{ __html: link.label }}
+                                            />
+                                        );
+                                    })}
                                 </div>
                             </div>
                         )}

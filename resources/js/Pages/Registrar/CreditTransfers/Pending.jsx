@@ -99,7 +99,6 @@ export default function PendingCreditTransfers({ auth }) {
         try {
             await axios.patch(`/registrar/credit-transfers/${creditId}/status`, {
                 credit_status: status,
-                rejection_reason: reason,
             })
             toast.success(`Credit ${status === 'credited' ? 'approved' : 'rejected'} successfully`)
             loadPendingCredits()

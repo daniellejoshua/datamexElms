@@ -473,8 +473,6 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
     const [creditedSubjects, setCreditedSubjects] = useState([])
     const [showCreditModal, setShowCreditModal] = useState(false)
     const [curriculumComparison, setCurriculumComparison] = useState(null)
-    const [feeAdjustments, setFeeAdjustments] = useState({ credits: 0, catchup: 0, total: 0 })
-    const [subjectsToCatchUp, setSubjectsToCatchUp] = useState([])
     const [loadingCurriculumComparison, setLoadingCurriculumComparison] = useState(false)
     const [subjectSearchQuery, setSubjectSearchQuery] = useState('')
     
@@ -708,8 +706,6 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
             setPreviousSchool('')
             setCreditedSubjects([])
             setCurriculumComparison(null)
-            setFeeAdjustments({ credits: 0, catchup: 0, total: 0 })
-            setSubjectsToCatchUp([])
         }
     }, [data.enrollment_type])
 
@@ -1245,16 +1241,10 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
             
             console.log('✅ Full API Response:', response.data)
             console.log('📦 Data Object:', response.data.data)
-            console.log('💰 Fee Adjustments Object:', response.data.data?.fee_adjustments)
-            console.log('📚 Transferred Subjects Array:', response.data.data?.fee_adjustments?.transferredSubjects)
-            console.log('📚 Transferred Count:', response.data.data?.fee_adjustments?.transferredSubjects?.length)
-            console.log('⚠️ Catch-up Subjects Array:', response.data.data?.fee_adjustments?.catchUpSubjects)
             
             if (response.data.success) {
                 setCourseShiftComparison(response.data.data)
-                const transferredCount = response.data.data?.fee_adjustments?.transferredSubjects?.length || 0
-                console.log('🎯 Setting transferred count to:', transferredCount)
-                toast.success(`Subject analysis complete: ${transferredCount} subject(s) won't need to be retaken`)
+                toast.success('Subject analysis complete')
             }
         } catch (error) {
             console.error('Error comparing curricula:', error)
@@ -1278,8 +1268,6 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
             
             if (response.data.success) {
                 setCurriculumComparison(response.data.data)
-                setFeeAdjustments(response.data.data.fee_adjustments)
-                setSubjectsToCatchUp(response.data.data.subjects_to_catch_up)
                 
                 toast.success('Curriculum comparison completed successfully')
             } else {
@@ -1387,8 +1375,6 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
             submitData.previous_program_id = previousProgram?.id || null
             submitData.previous_school = previousSchool || null
             submitData.credited_subjects = passingSubjects
-            submitData.subjects_to_catch_up = subjectsToCatchUp || []
-            submitData.fee_adjustments = feeAdjustments
             
             console.log('📤 Sending for TRANSFEREE:')
             console.log('  transfer_type:', submitData.transfer_type)
@@ -1416,8 +1402,6 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
             submitData.previous_program_id = previousProgram?.id || null
             submitData.previous_school = previousSchool || null
             submitData.credited_subjects = passingCreditedSubjects
-            submitData.subjects_to_catch_up = subjectsToCatchUp || []
-            submitData.fee_adjustments = feeAdjustments
 
             console.log('📤 Sending for SHIFTEE:')
             console.log('  transfer_type:', submitData.transfer_type)
@@ -2849,34 +2833,24 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                                         <h4 className="font-semibold text-green-900">Won't Retake</h4>
                                     </div>
                                     <p className="text-2xl font-bold text-green-700">
-                                        {courseShiftComparison.fee_adjustments?.transferredSubjects?.length || 0}
+                                        {courseShiftComparison.credited_subjects?.length || 0}
                                     </p>
                                     <p className="text-xs text-green-600 mt-1">subjects already completed</p>
                                 </div>
                                 
-                                <div className="border rounded-lg p-4 bg-amber-50 border-amber-200">
-                                    <div className="flex items-center gap-2 mb-1">
-                                        <AlertTriangle className="w-5 h-5 text-amber-600" />
-                                        <h4 className="font-semibold text-amber-900">To Catch Up</h4>
-                                    </div>
-                                    <p className="text-2xl font-bold text-amber-700">
-                                        {courseShiftComparison.fee_adjustments?.catchUpSubjects?.length || 0}
-                                    </p>
-                                    <p className="text-xs text-amber-600 mt-1">from previous year levels</p>
-                                </div>
                             </div>
 
                             {/* Details in Columns */}
-                            <div className="grid grid-cols-2 gap-4">
+                            <div className="grid grid-cols-1 gap-4">
                                 {/* Transferred Subjects */}
                                 <div className="border rounded-lg overflow-hidden">
                                     <div className="bg-green-100 px-4 py-2 border-b border-green-200">
                                         <h5 className="font-semibold text-green-900 text-sm">✓ Already Completed</h5>
                                     </div>
                                     <div className="max-h-64 overflow-y-auto bg-white">
-                                        {courseShiftComparison.fee_adjustments?.transferredSubjects?.length > 0 ? (
+                                        {courseShiftComparison.credited_subjects?.length > 0 ? (
                                             <div className="divide-y">
-                                                {courseShiftComparison.fee_adjustments.transferredSubjects.map((subject, idx) => (
+                                                {courseShiftComparison.credited_subjects.map((subject, idx) => (
                                                     <div key={idx} className="p-3 hover:bg-green-50">
                                                         <div className="flex items-center gap-2">
                                                             <span className="font-medium text-sm text-gray-900">{subject.subject_code}</span>
@@ -2897,42 +2871,6 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                                                 No matching subjects
                                             </div>
                                         )}
-                                    </div>
-                                </div>
-
-                                {/* Catch-Up Subjects */}
-                                <div className="border rounded-lg overflow-hidden">
-                                    <div className="bg-amber-100 px-4 py-2 border-b border-amber-200">
-                                        <h5 className="font-semibold text-amber-900 text-sm">⚠ Need to Complete</h5>
-                                    </div>
-                                    <div className="max-h-64 overflow-y-auto bg-white">
-                                        {courseShiftComparison.fee_adjustments?.catchUpSubjects?.length > 0 ? (
-                                            <div className="divide-y">
-                                                {courseShiftComparison.fee_adjustments.catchUpSubjects.map((subject, idx) => (
-                                                    <div key={idx} className="p-3 hover:bg-amber-50">
-                                                        <div className="font-medium text-sm text-gray-900">{subject.subject_code}</div>
-                                                        <div className="text-xs text-gray-600 line-clamp-1">{subject.subject_name}</div>
-                                                        <div className="text-xs text-gray-500 mt-1">
-                                                            Year {subject.year_level} • {subject.semester} Sem • {subject.units} units
-                                                        </div>
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        ) : (
-                                            <div className="p-6 text-center text-gray-500 text-sm">
-                                                All caught up!
-                                            </div>
-                                        )}
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* Info Box */}
-                            <div className="border rounded-lg p-3 bg-blue-50">
-                                <div className="flex gap-2">
-                                    <Info className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
-                                    <div className="text-xs text-blue-900">
-                                        <p><strong>Note:</strong> Subjects for your current year level will be shown during section enrollment. Complete all catch-up subjects to become a regular student.</p>
                                     </div>
                                 </div>
                             </div>

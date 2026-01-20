@@ -249,4 +249,110 @@ class StudentPaymentService
 
         return $irregularSubjectsCount * 300.00; // 300 pesos per irregular subject
     }
+
+    /**
+     * Calculate detailed balance for irregular students.
+     *
+     * Formula:
+     * - For each subject from past year levels: +300
+     * - Plus base fee from program_fees (program, year_level, semester)
+     * - For each credited subject aligned with current semester/year level: -300
+     *
+     * @return array with breakdown
+     */
+    public function calculateIrregularBalance(StudentSemesterPayment $payment): array
+    {
+        $student = $payment->student;
+        $academicYear = $payment->academic_year;
+        $semester = $payment->semester;
+
+        // Get student's current year level
+        $currentYearLevel = $student->current_year_level ?? $student->year_level;
+        if (is_string($currentYearLevel)) {
+            // Extract number from string like "1st Year" -> 1
+            preg_match('/\d+/', $currentYearLevel, $matches);
+            $currentYearLevel = isset($matches[0]) ? (int) $matches[0] : 1;
+        }
+
+        // Get all subject enrollments for this student in the current academic period
+        $subjectEnrollments = \App\Models\StudentSubjectEnrollment::with([
+            'sectionSubject.subject',
+            'sectionSubject.section',
+        ])
+            ->where('student_id', $student->id)
+            ->where('academic_year', $academicYear)
+            ->where('semester', $semester)
+            ->where('status', 'active')
+            ->get();
+
+        // Count subjects from past year levels (+300 each)
+        $pastYearSubjectsCount = 0;
+        $pastYearSubjects = [];
+
+        foreach ($subjectEnrollments as $enrollment) {
+            $subjectYearLevel = $enrollment->sectionSubject->section->year_level ?? $currentYearLevel;
+
+            // If subject is from a past/lower year level
+            if ($subjectYearLevel < $currentYearLevel) {
+                $pastYearSubjectsCount++;
+                $pastYearSubjects[] = [
+                    'code' => $enrollment->sectionSubject->subject->subject_code,
+                    'name' => $enrollment->sectionSubject->subject->subject_name,
+                    'year_level' => $subjectYearLevel,
+                ];
+            }
+        }
+
+        $pastYearSubjectsFee = $pastYearSubjectsCount * 300;
+
+        // Get base fee from program_fees table for this program, year level, and semester
+        $programFee = \App\Models\ProgramFee::where('program_id', $student->program_id)
+            ->where('year_level', $currentYearLevel)
+            ->where('education_level', $student->education_level)
+            ->where('fee_type', 'regular') // Use 'regular' fee type
+            ->first();
+
+        $baseFee = $programFee->semester_fee ?? $student->program->semester_fee ?? 12000.00;
+
+        // Get credited subjects aligned with current year level and semester (-300 each)
+        $creditedSubjectsCount = 0;
+        $creditedSubjects = [];
+
+        $credits = \App\Models\StudentSubjectCredit::with('subject')
+            ->where('student_id', $student->id)
+            ->where('year_level', $currentYearLevel)
+            ->where('semester', $semester === '1st' ? 'first' : 'second')
+            ->where('credit_status', 'approved')
+            ->get();
+
+        foreach ($credits as $credit) {
+            $creditedSubjectsCount++;
+            $creditedSubjects[] = [
+                'code' => $credit->subject_code,
+                'name' => $credit->subject_name,
+                'units' => $credit->units,
+            ];
+        }
+
+        $creditedSubjectsDeduction = $creditedSubjectsCount * 300;
+
+        // Calculate final balance
+        $calculatedBalance = $pastYearSubjectsFee + $baseFee - $creditedSubjectsDeduction;
+
+        // Ensure balance is not negative
+        $calculatedBalance = max($calculatedBalance, 0);
+
+        return [
+            'past_year_subjects_count' => $pastYearSubjectsCount,
+            'past_year_subjects_fee' => $pastYearSubjectsFee,
+            'past_year_subjects' => $pastYearSubjects,
+            'base_fee' => $baseFee,
+            'credited_subjects_count' => $creditedSubjectsCount,
+            'credited_subjects_deduction' => $creditedSubjectsDeduction,
+            'credited_subjects' => $creditedSubjects,
+            'calculated_balance' => $calculatedBalance,
+            'current_year_level' => $currentYearLevel,
+            'breakdown' => "({$pastYearSubjectsCount} past subjects × ₱300) + ₱".number_format($baseFee, 2)." - ({$creditedSubjectsCount} credits × ₱300)",
+        ];
+    }
 }

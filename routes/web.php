@@ -63,6 +63,7 @@ Route::middleware([])->prefix('registrar')->name('registrar.')->group(function (
         Route::get('/student/{student}', [CollegePaymentController::class, 'show'])->name('show');
         Route::post('/', [CollegePaymentController::class, 'store'])->name('store');
         Route::post('/payment/{payment}/record', [CollegePaymentController::class, 'recordPayment'])->name('record');
+        Route::get('/payment/{payment}/calculate-irregular', [CollegePaymentController::class, 'calculateIrregularBalance'])->name('calculate-irregular');
     });
 
     // SHS Payment Routes
