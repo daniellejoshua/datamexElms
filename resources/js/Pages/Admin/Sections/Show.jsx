@@ -88,21 +88,28 @@ const Show = ({ section, sectionSubjects, availableStudents }) => {
     return (
         <AuthenticatedLayout
             header={
-                <div className="flex items-center gap-3">
-                    <Button asChild variant="ghost" size="sm">
-                        <Link href={route('admin.sections.index')} className="flex items-center gap-2">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-0">
+                    <div className="flex items-center gap-2 sm:gap-3">
+                        <Button 
+                            variant="ghost" 
+                            size="sm" 
+                            className="flex-shrink-0"
+                            onClick={() => router.visit(section.program.education_level === 'college' ? '/admin/college/sections' : '/admin/shs/sections')}
+                        >
                             <ArrowLeft className="w-4 h-4" />
-                            Back to Sections
-                        </Link>
-                    </Button>
-                    <div className="h-6 w-px bg-gray-300"></div>
-                    <div className="flex items-center gap-2">
-                        <div className="bg-blue-100 p-1.5 rounded-md">
-                            <Users className="w-4 h-4 text-blue-600" />
-                        </div>
-                        <div>
-                            <h2 className="text-lg font-semibold text-gray-900">Section Details</h2>
-                            <p className="text-xs text-gray-500 mt-0.5">View comprehensive section information and enrolled students</p>
+                            <span className="hidden sm:inline ml-2">{section.program.education_level === 'college' ? 'Back to College Sections' : 'Back to SHS Sections'}</span>
+                        </Button>
+                        <div className="hidden sm:block h-6 w-px bg-gray-300"></div>
+                        <div className="flex items-center px-2 py-1 flex-1 sm:flex-initial">
+                            <div className="flex items-center gap-2">
+                                <div className="bg-green-100 p-1.5 rounded-md flex-shrink-0">
+                                    <Users className="w-4 h-4 text-green-600" />
+                                </div>
+                                <div className="min-w-0">
+                                    <h2 className="text-base sm:text-lg font-semibold text-gray-900 truncate">Section Details</h2>
+                                    <p className="text-xs text-gray-500 mt-0.5 hidden sm:block">View comprehensive section information and enrolled students</p>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -110,36 +117,36 @@ const Show = ({ section, sectionSubjects, availableStudents }) => {
         >
             <Head title={`${formatSectionName(section)} - Section Details`} />
 
-            <div className="p-4 sm:p-6 lg:p-8 space-y-6">
+            <div className="p-3 sm:p-4 lg:p-6 xl:p-8 space-y-4 sm:space-y-6">
                 {/* Section Profile Header */}
                 <Card>
-                    <CardContent className="pt-6">
-                        <div className="flex items-start gap-6">
-                            <div className="w-20 h-20 bg-blue-500 rounded-full flex items-center justify-center flex-shrink-0">
-                                <span className="text-white font-bold text-2xl">
+                    <CardContent className="pt-4 sm:pt-6">
+                        <div className="flex flex-col sm:flex-row sm:items-start gap-4 sm:gap-6">
+                            <div className="w-16 h-16 sm:w-20 sm:h-20 bg-blue-500 rounded-full flex items-center justify-center flex-shrink-0 mx-auto sm:mx-0">
+                                <span className="text-white font-bold text-xl sm:text-2xl">
                                     {section.year_level || ''}
                                     {section.section_name?.charAt(0) || 'S'}
                                 </span>
                             </div>
 
-                            <div className="flex-1 min-w-0">
-                                <div className="flex items-start justify-between">
-                                    <div>
-                                        <h1 className="text-2xl font-bold text-gray-900">
+                            <div className="flex-1 min-w-0 text-center sm:text-left">
+                                <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2">
+                                    <div className="flex-1">
+                                        <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900 break-words">
                                             {formatSectionName(section)}
                                         </h1>
-                                        <p className="text-lg text-gray-600 mt-1">
+                                        <p className="text-base sm:text-lg text-gray-600 mt-1">
                                             {section.program?.program_name || 'Program Not Found'}
                                         </p>
-                                        <div className="flex items-center gap-2 mt-2">
+                                        <div className="flex flex-wrap justify-center sm:justify-start items-center gap-2 mt-3">
                                             {getStatusBadge(section.status)}
-                                            <Badge variant="outline" className="text-xs bg-purple-50 text-purple-700 border-purple-200">
+                                            <Badge variant="outline" className="text-xs bg-purple-50 text-purple-700 border-purple-200 px-2 py-1">
                                                 AY {section.academic_year}
                                             </Badge>
-                                            <Badge variant="outline" className="text-xs bg-blue-50 text-blue-700 border-blue-200">
+                                            <Badge variant="outline" className="text-xs bg-blue-50 text-blue-700 border-blue-200 px-2 py-1">
                                                 {section.semester} Semester
                                             </Badge>
-                                            <Badge variant="outline" className="text-xs bg-green-50 text-green-700 border-green-200">
+                                            <Badge variant="outline" className="text-xs bg-green-50 text-green-700 border-green-200 px-2 py-1">
                                                 Year {section.year_level}
                                             </Badge>
                                         </div>
@@ -195,15 +202,23 @@ const Show = ({ section, sectionSubjects, availableStudents }) => {
                                                     }`} />
                                                 </div>
                                                 <div className="flex-1 min-w-0">
-                                                    <h4 className="font-semibold text-gray-900 text-base truncate">
-                                                        {sectionSubject.subject?.subject_name || sectionSubject.subject?.name || 'Subject Not Found'}
-                                                        {sectionSubject.subject?.subject_code && (
-                                                            <span className="text-sm text-gray-500 ml-2 font-normal">
-                                                                ({sectionSubject.subject.subject_code})
+                                                    <h4 className="font-semibold text-gray-900 text-sm sm:text-base truncate">
+                                                        {/* Mobile: Show only code, Desktop: Show truncated name + code */}
+                                                        <span className="sm:hidden">
+                                                            {sectionSubject.subject?.subject_code || 'No Code'}
+                                                        </span>
+                                                        <span className="hidden sm:inline">
+                                                            <span className="truncate inline-block max-w-[200px] lg:max-w-[300px]">
+                                                                {sectionSubject.subject?.subject_name || sectionSubject.subject?.name || 'Subject Not Found'}
                                                             </span>
-                                                        )}
+                                                            {sectionSubject.subject?.subject_code && (
+                                                                <span className="text-sm text-gray-500 ml-2 font-normal">
+                                                                    ({sectionSubject.subject.subject_code})
+                                                                </span>
+                                                            )}
+                                                        </span>
                                                     </h4>
-                                                    <p className="text-sm text-gray-600 truncate">
+                                                    <p className="text-xs sm:text-sm text-gray-600 truncate">
                                                         {sectionSubject.teacher ? (sectionSubject.teacher.user?.name || 'Teacher Name Not Available') : 'No Teacher Assigned'}
                                                     </p>
                                                 </div>

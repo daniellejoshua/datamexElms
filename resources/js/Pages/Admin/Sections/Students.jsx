@@ -192,18 +192,25 @@ export default function Students({ section, enrolledStudents, availableStudents,
                 <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
                         <button 
-                            onClick={() => window.location.href = getBackRoute(section)}
-                            className="flex items-center gap-2 px-3 py-1.5 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-md transition-colors"
+                            onClick={() => router.visit(section.program.education_level === 'college' ? '/admin/college/sections' : '/admin/shs/sections')}
+                            className="hidden sm:flex items-center gap-2 px-3 py-1.5 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-md transition-colors"
                         >
                             <ArrowLeft className="w-4 h-4" />
-                            Back to Sections
+                            {section.program.education_level === 'college' ? 'Back to College Sections' : 'Back to SHS Sections'}
                         </button>
-                        <div className="h-6 w-px bg-gray-300"></div>
-                        <div>
-                            <h2 className="text-2xl font-bold text-gray-900">Section Students</h2>
-                            <p className="text-sm text-blue-600 font-medium mt-1">
-                                Manage enrollment for {formatSectionName(section)}
-                            </p>
+                        <div className="hidden sm:block h-6 w-px bg-gray-300"></div>
+                        <div className="flex items-center px-2 py-1">
+                            <div className="flex items-center gap-2">
+                                <div className="bg-green-100 p-1.5 rounded-md">
+                                    <Users className="w-4 h-4 text-green-600" />
+                                </div>
+                                <div>
+                                    <h2 className="text-lg font-semibold text-gray-900">Section Students</h2>
+                                    <p className="text-xs text-gray-500 mt-0.5">
+                                        Manage enrollment for {formatSectionName(section)}
+                                    </p>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>

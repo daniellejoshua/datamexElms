@@ -24,6 +24,8 @@ class Section extends Model
         'status',
     ];
 
+    protected $appends = ['formatted_name'];
+
     public function program(): BelongsTo
     {
         return $this->belongsTo(Program::class);

@@ -89,7 +89,7 @@ class CollegeSectionController extends Controller
                 'academic_year' => $currentAcademicYear,
                 'semester' => $currentSemester,
             ],
-            'academicYearOptions' => AcademicHelper::getAcademicYearOptions(),
+            'academicYearOptions' => AcademicHelper::getAcademicYearOptions(2, 0),
             'semesterOptions' => AcademicHelper::getSemesterOptions(),
         ]);
     }
@@ -132,7 +132,7 @@ class CollegeSectionController extends Controller
                 'academic_year' => $currentAcademicYear,
                 'semester' => $currentSemester,
             ],
-            'academicYearOptions' => AcademicHelper::getAcademicYearOptions(),
+            'academicYearOptions' => AcademicHelper::getAcademicYearOptions(2, 0),
             'semesterOptions' => AcademicHelper::getSemesterOptions(),
         ]);
     }
@@ -219,7 +219,7 @@ class CollegeSectionController extends Controller
             'section' => $section->load(['program', 'curriculum']),
             'programs' => $programs,
             'curricula' => $curricula,
-            'academicYearOptions' => AcademicHelper::getAcademicYearOptions(),
+            'academicYearOptions' => AcademicHelper::getAcademicYearOptions(2, 0),
             'semesterOptions' => AcademicHelper::getSemesterOptions(),
         ]);
     }

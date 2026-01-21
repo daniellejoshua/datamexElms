@@ -3,7 +3,8 @@ import { Head, useForm, router, Link } from '@inertiajs/react';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import TeacherScheduleModal from '@/Components/TeacherScheduleModal';
 import Modal from '@/Components/Modal';
-import { ArrowLeft } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { ArrowLeft,BookOpen } from 'lucide-react';
 import { toast } from 'sonner';
 
 const Subjects = ({ section, subjects, teachers }) => {
@@ -248,21 +249,32 @@ const Subjects = ({ section, subjects, teachers }) => {
         <AuthenticatedLayout
             header={
                 <div className="flex items-center gap-2 sm:gap-3 min-h-[44px]">
-                    {/* Back Navigation - Icon only */}
-                    <button className="flex items-center justify-center w-8 h-8 sm:w-10 sm:h-10 rounded-md text-gray-600 hover:text-gray-900 hover:bg-gray-100 transition-colors flex-shrink-0">
-                        <Link href={route('admin.sections.index')} className="flex items-center justify-center w-full h-full">
-                            <ArrowLeft className="w-4 h-4" />
-                        </Link>
-                    </button>
+                    {/* Back Navigation */}
+                    <Button 
+                        variant="ghost" 
+                        size="sm" 
+                        className="flex-shrink-0"
+                        onClick={() => router.visit('/admin/college/sections')}
+                    >
+                        <ArrowLeft className="w-4 h-4" />
+                        <span className="hidden sm:inline ml-2">Back to College Sections</span>
+                    </Button>
 
                     {/* Title Section */}
-                    <div className="min-w-0 flex-1">
-                        <h2 className="text-lg sm:text-xl lg:text-2xl font-bold text-gray-900 truncate">
-                            {section.program?.program_code}-{section.year_level}{section.section_name}
-                        </h2>
-                        <p className="text-xs sm:text-sm text-red-600 font-medium mt-0.5 hidden sm:block">
-                            {section.academic_year} • {section.semester} Semester
-                        </p>
+                    <div className="flex items-center px-2 py-1">
+                        <div className="flex items-center gap-2">
+                            <div className="bg-green-100 p-1.5 rounded-md">
+                                <BookOpen className="w-4 h-4 text-green-600" />
+                            </div>
+                            <div>
+                                <h2 className="text-lg font-semibold text-gray-900 truncate">
+                                    {section.program?.program_code}-{section.year_level}{section.section_name}
+                                </h2>
+                                <p className="text-xs text-gray-500 mt-0.5">
+                                    {section.academic_year} • {section.semester} Semester
+                                </p>
+                            </div>
+                        </div>
                     </div>
                 </div>
             }

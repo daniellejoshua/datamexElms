@@ -1,6 +1,7 @@
 import React from 'react';
 import { Head } from '@inertiajs/react';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
+import { ArrowLeft } from 'lucide-react';
 
 const Show = ({ archivedSection }) => {
     const formatDate = (dateString) => {
@@ -34,16 +35,23 @@ const Show = ({ archivedSection }) => {
     return (
         <AuthenticatedLayout
             header={
-                <div className="flex justify-between items-center">
-                    <h2 className="text-xl font-semibold leading-tight text-gray-800 dark:text-gray-200">
-                        Archived Section: {archivedSection.section_name}
-                    </h2>
-                    <a
-                        href={route('admin.academic-years.index')}
-                        className="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-md text-sm font-medium transition-colors duration-200"
-                    >
-                        Back to Archives
-                    </a>
+                <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                        <button
+                            onClick={() => window.location.href = route('admin.academic-years.index')}
+                            className="hidden sm:flex items-center gap-2 px-3 py-1.5 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-md transition-colors"
+                        >
+                            <ArrowLeft className="w-4 h-4" />
+                            Back to Archives
+                        </button>
+                        <div className="hidden sm:block h-6 w-px bg-gray-300"></div>
+                        <div>
+                            <h2 className="text-xl sm:text-2xl font-bold text-gray-900">Archived Section</h2>
+                            <p className="text-sm text-blue-600 font-medium mt-1">
+                                {archivedSection.section_name}
+                            </p>
+                        </div>
+                    </div>
                 </div>
             }
         >

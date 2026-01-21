@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Head, Link, useForm } from '@inertiajs/react';
+import { Head, Link, useForm, router } from '@inertiajs/react';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -8,9 +8,25 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { ArrowLeft, GraduationCap, AlertCircle} from 'lucide-react';
+import { GraduationCap, AlertCircle, Edit as EditIcon, ArrowLeft} from 'lucide-react';
 
 const Edit = ({ section, programs, curricula, academicYearOptions, semesterOptions }) => {
+    if (!section) {
+        return (
+            <AuthenticatedLayout>
+                <div className="p-4 sm:p-6 lg:p-8">
+                    <div className="max-w-2xl mx-auto">
+                        <Card className="shadow-lg">
+                            <CardContent className="p-6">
+                                <div className="text-center">Loading section data...</div>
+                            </CardContent>
+                        </Card>
+                    </div>
+                </div>
+            </AuthenticatedLayout>
+        );
+    }
+
     const { data, setData, put, processing, errors } = useForm({
         section_name: section.section_name,
         status: section.status
@@ -43,31 +59,58 @@ const Edit = ({ section, programs, curricula, academicYearOptions, semesterOptio
 
     const handleSubmit = (e) => {
         e.preventDefault();
+        if (!section?.id) return;
         put(route('admin.college.sections.update', section.id));
     };
 
     return (
         <AuthenticatedLayout
             header={
-                <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                        <Button asChild variant="ghost" size="sm">
-                            <Link href="/admin/college/sections" className="flex items-center gap-2">
-                                <ArrowLeft className="w-4 h-4" />
-                                Back to College Sections
-                            </Link>
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-0">
+                    <div className="flex items-center gap-2 sm:gap-3">
+                        <Button 
+                            variant="ghost" 
+                            size="sm" 
+                            className="flex-shrink-0"
+                            onClick={() => router.visit('/admin/college/sections')}
+                        >
+                            <ArrowLeft className="w-4 h-4" />
+                            <span className="hidden sm:inline ml-2">Back to College Sections</span>
                         </Button>
-                        <div className="h-6 w-px bg-gray-300"></div>
-                        <div>
-                            <h2 className="text-2xl font-bold text-gray-900">Edit College Section</h2>
-                            <p className="text-sm text-blue-600 font-medium mt-1">Update section information</p>
+                        <div className="hidden sm:block h-6 w-px bg-gray-300"></div>
+                        <div className="flex items-center px-2 py-1 flex-1 sm:flex-initial">
+                            <div className="flex items-center gap-2">
+                                <div className="bg-green-100 p-1.5 rounded-md flex-shrink-0">
+                                    <EditIcon className="w-4 h-4 text-green-600" />
+                                </div>
+                                <div className="min-w-0">
+                                    <h2 className="text-lg font-semibold text-gray-900">Edit College Section</h2>
+                                    <p className="text-xs text-gray-500 mt-0.5 hidden sm:block">Update section information</p>
+                                </div>
+                            </div>
                         </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        {/* Optional actions can go here */}
                     </div>
                 </div>
             }
         >
             <Head title={`Edit Section: ${section.section_name}`} />
             
+            {!section && (
+                <div className="p-4 sm:p-6 lg:p-8">
+                    <div className="max-w-2xl mx-auto">
+                        <Card className="shadow-lg">
+                            <CardContent className="p-6">
+                                <div className="text-center">Loading section data...</div>
+                            </CardContent>
+                        </Card>
+                    </div>
+                </div>
+            )}
+
+            {section && (
             <div className="p-4 sm:p-6 lg:p-8">
                 <div className="max-w-2xl mx-auto">
                     <Card className="shadow-lg">
@@ -91,9 +134,9 @@ const Edit = ({ section, programs, curricula, academicYearOptions, semesterOptio
                                         </Label>
                                         <div className="flex items-center gap-2 p-3 bg-gray-50 border border-gray-200 rounded-md">
                                             <Badge variant="secondary" className="font-mono text-xs">
-                                                {section.program.program_code}
+                                                {section.program?.program_code || 'N/A'}
                                             </Badge>
-                                            <span className="text-sm font-medium">{section.program.program_name}</span>
+                                            <span className="text-sm font-medium">{section.program?.program_name || 'N/A'}</span>
                                         </div>
                                     </div>
 
@@ -219,10 +262,11 @@ const Edit = ({ section, programs, curricula, academicYearOptions, semesterOptio
 
                                 {/* Submit Buttons */}
                                 <div className="flex items-center justify-between pt-6 border-t border-gray-200">
-                                    <Button asChild variant="outline">
-                                        <Link href="/admin/college/sections">
-                                            Cancel
-                                        </Link>
+                                    <Button 
+                                        variant="outline"
+                                        onClick={() => router.visit('/admin/college/sections')}
+                                    >
+                                        Cancel
                                     </Button>
                                     <Button 
                                         type="submit" 
@@ -237,6 +281,7 @@ const Edit = ({ section, programs, curricula, academicYearOptions, semesterOptio
                     </Card>
                 </div>
             </div>
+            )}
         </AuthenticatedLayout>
     );
 };

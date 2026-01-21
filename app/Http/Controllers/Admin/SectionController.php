@@ -1317,7 +1317,7 @@ class SectionController extends Controller
 
         // Get subjects already enrolled in other sections (for display purposes)
         $enrolledInOtherSections = $section->sectionSubjects()
-            ->with(['subject', 'teacher.user'])
+            ->with(['subject', 'teacher.user', 'section'])
             ->where('status', 'active')
             ->whereHas('subject', function ($query) use ($enrolledSubjectCodes, $allCreditedCodes) {
                 $query->whereIn('subject_code', $enrolledSubjectCodes)
@@ -1331,7 +1331,7 @@ class SectionController extends Controller
             'availableSubjects' => $availableSubjects,
             'currentEnrollments' => $currentEnrollments,
             'creditedSubjects' => $creditedSubjects, // Subjects already credited
-            'enrolledInOtherSections' => $enrolledInOtherSections, // Subjects already enrolled in other sections
+            'enrolledInOtherSections' => $enrolledInOtherSections->toArray(), // Subjects already enrolled in other sections
         ]);
     }
 

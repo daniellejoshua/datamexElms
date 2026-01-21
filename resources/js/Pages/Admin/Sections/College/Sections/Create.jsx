@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Head, Link, useForm } from '@inertiajs/react';
+import { Head, Link, useForm, router } from '@inertiajs/react';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -8,7 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { ArrowLeft, GraduationCap, Users, Calendar, BookOpen, AlertCircle } from 'lucide-react';
+import { ArrowLeft, GraduationCap, Users,Plus, Calendar, BookOpen, AlertCircle } from 'lucide-react';
 
 const Create = ({ programs, archivedSections, currentAcademicPeriod, academicYearOptions, semesterOptions }) => {
     const { data, setData, post, processing, errors } = useForm({
@@ -123,18 +123,28 @@ const Create = ({ programs, archivedSections, currentAcademicPeriod, academicYea
     return (
         <AuthenticatedLayout
             header={
-                <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                        <Button asChild variant="ghost" size="sm">
-                            <Link href="/admin/college/sections" className="flex items-center gap-2">
-                                <ArrowLeft className="w-4 h-4" />
-                                Back to College Sections
-                            </Link>
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-0">
+                    <div className="flex items-center gap-2 sm:gap-3">
+                        <Button 
+                            variant="ghost" 
+                            size="sm" 
+                            className="flex-shrink-0"
+                            onClick={() => router.visit('/admin/college/sections')}
+                        >
+                            <ArrowLeft className="w-4 h-4" />
+                            <span className="hidden sm:inline ml-2">Back to College Sections</span>
                         </Button>
-                        <div className="h-6 w-px bg-gray-300"></div>
-                        <div>
-                            <h2 className="text-2xl font-bold text-gray-900">Create College Section</h2>
-                            <p className="text-sm text-blue-600 font-medium mt-1">Add a new college section</p>
+                        <div className="hidden sm:block h-6 w-px bg-gray-300"></div>
+                        <div className="flex items-center px-2 py-1 flex-1 sm:flex-initial">
+                            <div className="flex items-center gap-2">
+                                <div className="bg-green-100 p-1.5 rounded-md flex-shrink-0">
+                                    <Plus className="w-4 h-4 text-green-600" />
+                                </div>
+                                <div className="min-w-0">
+                                    <h2 className="text-lg font-semibold text-gray-900 truncate">Create College Section</h2>
+                                    <p className="text-xs text-gray-500 mt-0.5 hidden sm:block">Add a new college section</p>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>

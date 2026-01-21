@@ -1,12 +1,12 @@
 import React, { useState } from 'react';
-import { Head, Link, useForm } from '@inertiajs/react';
+import { Head, Link, useForm, router } from '@inertiajs/react';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Checkbox } from '@/components/ui/checkbox';
-import { ArrowLeft, ArrowRight, Users, Calendar, CheckCircle2, AlertCircle, RefreshCcw } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Users, Calendar, CheckCircle2,Plus,AlertCircle, RefreshCcw } from 'lucide-react';
 
 const CarryForward = ({ archivedSections, currentAcademicPeriod, previousSemester }) => {
     const [selectedSection, setSelectedSection] = useState(null);
@@ -56,16 +56,25 @@ const CarryForward = ({ archivedSections, currentAcademicPeriod, previousSemeste
             header={
                 <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
-                        <Button asChild variant="ghost" size="sm">
-                            <Link href="/admin/college/sections" className="flex items-center gap-2">
-                                <ArrowLeft className="w-4 h-4" />
-                                Back to Sections
-                            </Link>
+                        <Button 
+                            variant="ghost" 
+                            size="sm"
+                            onClick={() => router.visit('/admin/college/sections')}
+                        >
+                            <ArrowLeft className="w-4 h-4 mr-2" />
+                            Back to Sections
                         </Button>
                         <div className="h-6 w-px bg-gray-300"></div>
-                        <div>
-                            <h2 className="text-2xl font-bold text-gray-900">Carry Forward Section</h2>
-                            <p className="text-sm text-blue-600 font-medium mt-1">Create new section from previous semester</p>
+                        <div className="flex items-center px-2 py-1">
+                            <div className="flex items-center gap-2">
+                                <div className="bg-green-100 p-1.5 rounded-md">
+                                    <RefreshCcw className="w-4 h-4 text-green-600" />
+                                </div>
+                                <div>
+                                    <h2 className="text-lg font-semibold text-gray-900">Carry Forward Section</h2>
+                                    <p className="text-xs text-gray-500 mt-0.5">Create new section from previous semester</p>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>

@@ -152,10 +152,15 @@ const Index = ({ currentAcademicYear, currentSemester, unpaid_count = 0, unpaid_
     return (
         <AuthenticatedLayout
             header={
-                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
-                    <div>
-                        <h2 className="text-2xl font-bold text-gray-900">Academic Year Archive</h2>
-                        <p className="text-sm text-blue-600 font-medium mt-1">Manage semester archiving and academic transitions</p>
+                <div className="flex items-center px-2 py-1">
+                    <div className="flex items-center gap-2">
+                        <div className="bg-green-100 p-1.5 rounded-md">
+                            <Calendar className="w-4 h-4 text-green-600" />
+                        </div>
+                        <div>
+                            <h2 className="text-lg font-semibold text-gray-900">Academic Year Archive</h2>
+                            <p className="text-xs text-gray-500 mt-0.5">Manage semester archiving and academic transitions</p>
+                        </div>
                     </div>
                 </div>
             }

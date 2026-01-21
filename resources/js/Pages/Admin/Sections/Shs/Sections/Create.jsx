@@ -96,9 +96,16 @@ const Create = ({ programs, archivedSections, currentAcademicPeriod, academicYea
                             </Link>
                         </Button>
                         <div className="h-6 w-px bg-gray-300"></div>
-                        <div>
-                            <h2 className="text-2xl font-bold text-gray-900">Create SHS Section</h2>
-                            <p className="text-sm text-purple-600 font-medium mt-1">Add a new senior high school section</p>
+                        <div className="flex items-center px-2 py-1">
+                            <div className="flex items-center gap-2">
+                                <div className="bg-green-100 p-1.5 rounded-md">
+                                    <Plus className="w-4 h-4 text-green-600" />
+                                </div>
+                                <div>
+                                    <h2 className="text-lg font-semibold text-gray-900">Create SHS Section</h2>
+                                    <p className="text-xs text-gray-500 mt-0.5">Add a new senior high school section</p>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>

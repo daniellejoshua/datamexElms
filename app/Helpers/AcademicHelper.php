@@ -18,14 +18,14 @@ class AcademicHelper
         $currentYear = $now->year;
         $currentMonth = $now->month;
 
-        // Academic year typically starts in August (month 8)
-        // If current month is before August, we're in the second half of academic year
-        if ($currentMonth >= 8) {
-            // August to December = first half of academic year
+        // Academic year typically starts in January (month 1)
+        // If current month is January or later, we're in the academic year
+        if ($currentMonth >= 1) {
+            // January to December = academic year
             $startYear = $currentYear;
             $endYear = $currentYear + 1;
         } else {
-            // January to July = second half of academic year
+            // This shouldn't happen since month >=1 always
             $startYear = $currentYear - 1;
             $endYear = $currentYear;
         }

@@ -29,6 +29,7 @@ import {
     AlertCircle,
     CheckCircle,
     ArrowRight,
+    ArrowLeft,
 } from 'lucide-react';
 import axios from 'axios';
 
@@ -141,9 +142,17 @@ const Index = ({ currentAcademicYear, currentSemester, unpaid_count = 0, unpaid_
     return (
         <AuthenticatedLayout
             header={
-                <h2 className="font-semibold text-2xl text-gray-800 dark:text-gray-200 leading-tight">
-                    Academic Year Management
-                </h2>
+                <div className="flex items-center px-2 py-1">
+                    <div className="flex items-center gap-2">
+                        <div className="bg-green-100 p-1.5 rounded-md">
+                            <Calendar className="w-4 h-4 text-green-600" />
+                        </div>
+                        <div>
+                            <h2 className="text-lg font-semibold text-gray-900">Academic Year Management</h2>
+                            <p className="text-xs text-gray-500 mt-0.5">Manage academic years and archiving</p>
+                        </div>
+                    </div>
+                </div>
             }
         >
             <Head title="Academic Year Management" />

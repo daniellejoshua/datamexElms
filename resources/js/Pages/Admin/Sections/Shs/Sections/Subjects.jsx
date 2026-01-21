@@ -261,13 +261,20 @@ const Subjects = ({ section, subjects, teachers }) => {
                     </button>
 
                     {/* Title Section */}
-                    <div className="min-w-0 flex-1">
-                        <h2 className="text-lg sm:text-xl lg:text-2xl font-bold text-gray-900 truncate">
-                            {section.program?.program_code}-{section.year_level}{section.section_name}
-                        </h2>
-                        <p className="text-xs sm:text-sm text-blue-600 font-medium mt-0.5 hidden sm:block">
-                            {section.academic_year} • {section.semester} Semester
-                        </p>
+                    <div className="flex items-center px-2 py-1">
+                        <div className="flex items-center gap-2">
+                            <div className="bg-green-100 p-1.5 rounded-md">
+                                <BookOpen className="w-4 h-4 text-green-600" />
+                            </div>
+                            <div>
+                                <h2 className="text-lg font-semibold text-gray-900 truncate">
+                                    {section.program?.program_code}-{section.year_level}{section.section_name}
+                                </h2>
+                                <p className="text-xs text-gray-500 mt-0.5">
+                                    {section.academic_year} • {section.semester} Semester
+                                </p>
+                            </div>
+                        </div>
                     </div>
                 </div>
             }

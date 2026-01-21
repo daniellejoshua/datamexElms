@@ -147,23 +147,26 @@ export default function SubjectEnrollment({ section, student, availableSubjects,
         <AuthenticatedLayout
             header={
                 <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-4">
-                        <Link
-                            href={getBackUrl()}
-                            className="p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-full transition-colors"
+                    <div className="flex items-center gap-3">
+                        <button
+                            onClick={() => router.visit('/admin/college/sections')}
+                            className="hidden sm:flex items-center gap-2 px-3 py-1.5 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-md transition-colors"
                         >
-                            <ArrowLeft className="h-5 w-5" />
-                        </Link>
-                        <div>
-                            <h2 className="font-semibold text-xl text-gray-800 leading-tight">
-                                Subject Enrollment: {student.user.name}
-                            </h2>
-                            <div className="flex items-center gap-3 text-sm text-gray-600 mt-1">
-                                <span>{student.student_number}</span>
-                                <span className="text-gray-400">•</span>
-                                <span>{formatSectionName(section)}</span>
-                                <span className="text-gray-400">•</span>
-                                <span>AY {section.academic_year} - {section.semester} Semester</span>
+                            <ArrowLeft className="w-4 h-4" />
+                            Back to College Sections
+                        </button>
+                        <div className="hidden sm:block h-6 w-px bg-gray-300"></div>
+                        <div className="flex items-center px-2 py-1">
+                            <div className="flex items-center gap-2">
+                                <div className="bg-green-100 p-1.5 rounded-md">
+                                    <BookOpen className="w-4 h-4 text-green-600" />
+                                </div>
+                                <div>
+                                    <h2 className="text-lg font-semibold text-gray-900">Subject Enrollment</h2>
+                                    <p className="text-xs text-gray-500 mt-0.5">
+                                        {student.user.name} • {student.student_number} • {formatSectionName(section)}
+                                    </p>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -417,9 +420,9 @@ export default function SubjectEnrollment({ section, student, availableSubjects,
                             </div>
                             <div className="p-4">
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                    {enrolledInOtherSections.map((sectionSubject) => (
+                                    {enrolledInOtherSections.map((enrollment) => (
                                         <div 
-                                            key={sectionSubject.id} 
+                                            key={enrollment.id} 
                                             className="flex items-start p-3 bg-orange-50 border border-orange-200 rounded"
                                         >
                                             <div className="flex-shrink-0 mr-3 mt-0.5">
@@ -427,18 +430,18 @@ export default function SubjectEnrollment({ section, student, availableSubjects,
                                             </div>
                                             <div className="flex-1 min-w-0">
                                                 <p className="font-medium text-gray-900">
-                                                    {sectionSubject.subject.subject_code}
+                                                    {enrollment.subject?.subject_code || 'Unknown Subject'}
                                                 </p>
                                                 <p className="text-sm text-gray-600 mt-0.5">
-                                                    {sectionSubject.subject.subject_name}
+                                                    {enrollment.subject?.subject_name || 'Unknown Subject Name'}
                                                 </p>
-                                                {sectionSubject.teacher && (
+                                                {enrollment.teacher && (
                                                     <p className="text-xs text-gray-500 mt-1">
-                                                        Teacher: {sectionSubject.teacher.user.name}
+                                                        Teacher: {enrollment.teacher.user?.name || 'Unknown Teacher'}
                                                     </p>
                                                 )}
                                                 <Badge variant="outline" className="text-xs bg-orange-100 text-orange-700 border-orange-200 mt-2">
-                                                    Enrolled Elsewhere
+                                                    Enrolled in {enrollment.section?.formatted_name || enrollment.section?.section_name || 'Unknown Section'}
                                                 </Badge>
                                             </div>
                                         </div>
