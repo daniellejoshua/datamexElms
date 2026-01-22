@@ -66,22 +66,23 @@ const Show = ({ teacher }) => {
     return (
         <AuthenticatedLayout
             header={
-                <div className="flex items-center justify-between">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                     <div className="flex items-center gap-3">
                         <Button asChild variant="ghost" size="sm">
                             <Link href={route('admin.teachers.index')} className="flex items-center gap-2">
                                 <ArrowLeft className="w-4 h-4" />
-                                Back to Teachers
+                                <span className="hidden sm:inline">Back to Teachers</span>
+                                <span className="sm:hidden">Back</span>
                             </Link>
                         </Button>
-                        <div className="h-6 w-px bg-gray-300"></div>
+                        <div className="h-6 w-px bg-gray-300 hidden sm:block"></div>
                         <div className="flex items-center gap-2">
                             <div className="bg-blue-100 p-1.5 rounded-md">
                                 <User className="w-4 h-4 text-blue-600" />
                             </div>
                             <div>
                                 <h2 className="text-lg font-semibold text-gray-900">Teacher Details</h2>
-                                <p className="text-xs text-gray-500 mt-0.5">View comprehensive teacher information and assignments</p>
+                                <p className="text-xs text-gray-500 mt-0.5 hidden sm:block">View comprehensive teacher information and assignments</p>
                             </div>
                         </div>
                     </div>
@@ -94,31 +95,33 @@ const Show = ({ teacher }) => {
                 {/* Teacher Profile Header */}
                 <Card>
                     <CardContent className="pt-6">
-                        <div className="flex items-start gap-6">
-                            {teacher.profile_picture ? (
-                                <img
-                                    src={teacher.profile_picture}
-                                    alt={`${teacher.first_name} ${teacher.last_name}`}
-                                    className="w-20 h-20 rounded-full object-cover border-4 border-gray-100 flex-shrink-0"
-                                />
-                            ) : (
-                                <div className="w-20 h-20 bg-blue-500 rounded-full flex items-center justify-center flex-shrink-0">
-                                    <span className="text-white font-bold text-2xl">
-                                        {teacher.first_name.charAt(0)}{teacher.last_name.charAt(0)}
-                                    </span>
-                                </div>
-                            )}
+                        <div className="flex flex-col sm:flex-row items-center sm:items-start gap-6">
+                            <div className="flex flex-col items-center">
+                                {teacher.profile_picture ? (
+                                    <img
+                                        src={teacher.profile_picture}
+                                        alt={`${teacher.first_name} ${teacher.last_name}`}
+                                        className="w-20 h-20 rounded-full object-cover border-4 border-gray-100 flex-shrink-0"
+                                    />
+                                ) : (
+                                    <div className="w-20 h-20 bg-blue-500 rounded-full flex items-center justify-center flex-shrink-0">
+                                        <span className="text-white font-bold text-2xl">
+                                            {teacher.first_name.charAt(0)}{teacher.last_name.charAt(0)}
+                                        </span>
+                                    </div>
+                                )}
+                            </div>
 
-                            <div className="flex-1 min-w-0">
-                                <div className="flex items-start justify-between">
-                                    <div>
+                            <div className="flex-1 min-w-0 w-full text-center sm:text-left">
+                                <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+                                    <div className="flex-1">
                                         <h1 className="text-2xl font-bold text-gray-900">
                                             {teacher.first_name} {teacher.middle_name ? teacher.middle_name + ' ' : ''}{teacher.last_name}
                                         </h1>
                                         <p className="text-lg text-gray-600 mt-1">
                                             Employee #{teacher.employee_number || teacher.user?.formatted_employee_number || 'N/A'}
                                         </p>
-                                        <div className="flex items-center gap-2 mt-2">
+                                        <div className="flex flex-wrap justify-center sm:justify-start items-center gap-2 mt-2">
                                             {getStatusBadge(teacher.status)}
                                             {teacher.department && (
                                                 <Badge variant="outline">
@@ -129,12 +132,14 @@ const Show = ({ teacher }) => {
                                         </div>
                                     </div>
 
-                                    <Button asChild variant="outline" size="sm">
-                                        <Link href={route('admin.teachers.edit', teacher.id)}>
-                                            <Edit className="w-4 h-4 mr-2" />
-                                            Edit Teacher
-                                        </Link>
-                                    </Button>
+                                    <div className="flex justify-center sm:justify-end mt-4 sm:mt-0">
+                                        <Button asChild variant="outline" size="sm">
+                                            <Link href={route('admin.teachers.edit', teacher.id)}>
+                                                <Edit className="w-4 h-4 mr-2" />
+                                                Edit Teacher
+                                            </Link>
+                                        </Button>
+                                    </div>
                                 </div>
                             </div>
                         </div>

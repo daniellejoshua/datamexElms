@@ -5,6 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { ArrowLeft, Save, Edit as EditIcon, User, AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
@@ -126,22 +127,23 @@ const Edit = ({ teacher }) => {
     return (
         <AuthenticatedLayout
             header={
-                <div className="flex items-center justify-between">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                     <div className="flex items-center gap-3">
                         <Button asChild variant="ghost" size="sm">
                             <Link href={route('admin.teachers.show', teacher.id)} className="flex items-center gap-2">
                                 <ArrowLeft className="w-4 h-4" />
-                                Back to Teacher
+                                <span className="hidden sm:inline">Back to Teacher</span>
+                                <span className="sm:hidden">Back</span>
                             </Link>
                         </Button>
-                        <div className="h-6 w-px bg-gray-300"></div>
+                        <div className="h-6 w-px bg-gray-300 hidden sm:block"></div>
                         <div className="flex items-center gap-2">
                             <div className="bg-blue-100 p-1.5 rounded-md">
                                 <User className="w-4 h-4 text-blue-600" />
                             </div>
                             <div>
                                 <h2 className="text-lg font-semibold text-gray-900">Edit Teacher</h2>
-                                <p className="text-xs text-gray-500 mt-0.5">Update teacher information and account details</p>
+                                <p className="text-xs text-gray-500 mt-0.5 hidden sm:block">Update teacher information and account details</p>
                             </div>
                         </div>
                     </div>
@@ -327,15 +329,25 @@ const Edit = ({ teacher }) => {
 
                                         <div>
                                             <Label htmlFor="status">Status *</Label>
-                                            <select
-                                                id="status"
-                                                value={data.status}
-                                                onChange={(e) => setData('status', e.target.value)}
-                                                className={`flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 ${errors.status ? 'border-red-500' : ''}`}
-                                            >
-                                                <option value="active">Active</option>
-                                                <option value="inactive">Inactive</option>
-                                            </select>
+                                            <Select value={data.status} onValueChange={(value) => setData('status', value)}>
+                                                <SelectTrigger className={`h-10 ${errors.status ? 'border-red-500' : 'border-gray-300 focus:border-blue-500'}`}>
+                                                    <SelectValue placeholder="Select status" />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    <SelectItem value="active">
+                                                        <div className="flex items-center gap-2">
+                                                            <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                                                            <span className="text-green-700 font-medium">Active</span>
+                                                        </div>
+                                                    </SelectItem>
+                                                    <SelectItem value="inactive">
+                                                        <div className="flex items-center gap-2">
+                                                            <div className="w-2 h-2 bg-gray-500 rounded-full"></div>
+                                                            <span className="text-gray-700 font-medium">Inactive</span>
+                                                        </div>
+                                                    </SelectItem>
+                                                </SelectContent>
+                                            </Select>
                                             {errors.status && (
                                                 <p className="text-sm text-red-600 mt-1">{errors.status}</p>
                                             )}
