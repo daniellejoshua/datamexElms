@@ -51,6 +51,40 @@ class StudentRegularityCheckService
     }
 
     /**
+     * Check if a student can become regular after re-enrollment by completing all previous year levels.
+     * This is a more lenient check that focuses only on previous year levels, not current semester subjects.
+     */
+    public function checkAndUpdateRegularityAfterReenrollment(Student $student): bool
+    {
+        // Only check irregular students
+        if ($student->student_type !== 'irregular') {
+            return false;
+        }
+
+        // Students without a curriculum can't be checked
+        if (! $student->curriculum_id) {
+            return false;
+        }
+
+        $canBecomeRegular = $this->hasCompletedPreviousYearLevels($student);
+
+        if ($canBecomeRegular) {
+            $student->update(['student_type' => 'regular']);
+
+            Log::info("Student {$student->student_number} ({$student->user->name}) has been promoted to REGULAR status after re-enrollment", [
+                'previous_type' => 'irregular',
+                'current_year_level' => $student->current_year_level,
+                'curriculum_id' => $student->curriculum_id,
+                'check_type' => 'previous_year_levels_only',
+            ]);
+
+            return true;
+        }
+
+        return false;
+    }
+
+    /**
      * Check if student has completed all subjects expected for their year level.
      */
     protected function hasCompletedExpectedSubjects(Student $student): bool
@@ -78,6 +112,39 @@ class StudentRegularityCheckService
         }
 
         // All expected subjects completed - can be regular
+        return true;
+    }
+
+    /**
+     * Check if student has completed all subjects from previous year levels only.
+     * This is used for re-enrollment to provide a more lenient regularity check.
+     */
+    protected function hasCompletedPreviousYearLevels(Student $student): bool
+    {
+        $currentYearNum = $this->extractYearNumber($student->current_year_level);
+
+        // Get all subjects from previous year levels only (not current year)
+        $previousYearSubjects = CurriculumSubject::where('curriculum_id', $student->curriculum_id)
+            ->where('year_level', '<', $currentYearNum)
+            ->get();
+
+        if ($previousYearSubjects->isEmpty()) {
+            // No previous year subjects means first year student - should be regular
+            return true;
+        }
+
+        // Get all subjects the student has actually completed
+        $completedSubjectIds = $this->getCompletedSubjectIds($student);
+
+        // Check if student has completed ALL previous year level subjects
+        foreach ($previousYearSubjects as $subject) {
+            if (! in_array($subject->subject_id, $completedSubjectIds)) {
+                // Missing at least one required subject from previous years - still irregular
+                return false;
+            }
+        }
+
+        // All previous year level subjects completed - can be regular
         return true;
     }
 
@@ -147,7 +214,7 @@ class StudentRegularityCheckService
 
         // Get credited subjects (for shifters/transferees)
         $creditedSubjects = StudentSubjectCredit::where('student_id', $student->id)
-            ->where('credit_status', 'approved')
+            ->where('credit_status', 'credited')
             ->pluck('subject_id')
             ->toArray();
 

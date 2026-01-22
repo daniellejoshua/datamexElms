@@ -181,10 +181,10 @@ export default function Create({ programs, subjects: initialSubjects }) {
                         <Button asChild variant="ghost" size="sm">
                             <Link href={route('admin.curriculum.index')} className="flex items-center gap-2">
                                 <ArrowLeft className="w-4 h-4" />
-                                Back to Curriculum
+                                <span className="hidden sm:inline">Back to Curriculum</span>
                             </Link>
                         </Button>
-                        <div className="h-6 w-px bg-gray-300"></div>
+                        <div className="hidden md:block h-6 w-px bg-gray-300"></div>
                         <div className="flex items-center gap-2">
                             <div className="bg-blue-100 p-1.5 rounded-md">
                                 <FileText className="w-4 h-4 text-blue-600" />

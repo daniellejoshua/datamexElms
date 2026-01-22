@@ -28,6 +28,7 @@ Route::middleware(['web', 'auth:web', 'throttle.api'])->group(function () {
             ->first();
 
         if ($student) {
+
             // Check for unpaid balances from previous semesters
             $unpaidBalances = \App\Models\StudentSemesterPayment::where('student_id', $student->id)
                 ->where('balance', '>', 0)
@@ -47,7 +48,7 @@ Route::middleware(['web', 'auth:web', 'throttle.api'])->group(function () {
             return response()->json([
                 'exists' => true,
                 'has_unpaid_balances' => $unpaidBalances->isNotEmpty(),
-                'unpaid_balances' => $unpaidBalances,
+                'unpaid_balances' => $unpaid_balances,
                 'student' => [
                     'id' => $student->id,
                     'first_name' => $student->first_name,

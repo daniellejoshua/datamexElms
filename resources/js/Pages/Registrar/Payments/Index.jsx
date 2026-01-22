@@ -31,6 +31,19 @@ export default function PaymentsIndex({ payments, filters, stats }) {
         });
     };
 
+    // Apply current filter values and navigate
+    const handleFilter = () => {
+        const queryParams = {};
+        if (search) queryParams.search = search;
+        if (status && status !== 'all') queryParams.status = status;
+        if (academicYear && academicYear !== 'all') queryParams.academic_year = academicYear;
+        if (semester && semester !== 'all') queryParams.semester = semester;
+
+        router.get(route('registrar.payments.index'), queryParams, {
+            preserveScroll: true,
+        });
+    };
+
     const getStatusIcon = (status) => {
         switch (status) {
             case 'completed':

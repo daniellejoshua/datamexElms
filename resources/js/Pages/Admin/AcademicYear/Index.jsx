@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/Components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -51,6 +51,7 @@ const Index = ({ currentAcademicYear, currentSemester, unpaid_count = 0, unpaid_
     // Modal states
     const [selectedSection, setSelectedSection] = useState(null);
     const [showIncompleteGradesModal, setShowIncompleteGradesModal] = useState(false);
+    const [showRegularityModal, setShowRegularityModal] = useState(false);
     const [processingArchive, setProcessingArchive] = useState(false);
     const [errors, setErrors] = useState({});
 
@@ -330,6 +331,7 @@ const Index = ({ currentAcademicYear, currentSemester, unpaid_count = 0, unpaid_
                                 setSelectedSection(section);
                                 setShowIncompleteGradesModal(true);
                             }}
+                            onShowRegularity={() => setShowRegularityModal(true)}
                         />
                     )}
 
@@ -371,12 +373,19 @@ const Index = ({ currentAcademicYear, currentSemester, unpaid_count = 0, unpaid_
                 }}
                 section={selectedSection}
             />
+
+            {/* Regularity Promotion Modal */}
+            <RegularityModal
+                isOpen={showRegularityModal}
+                onClose={() => setShowRegularityModal(false)}
+                students={validationData?.eligible_for_regular || []}
+            />
         </AuthenticatedLayout>
     );
 };
 
 // Validation Summary Component
-const ValidationSummary = ({ data, currentAcademicYear, currentSemester, getSemesterDisplay, onProceed, onCancel, onShowIncompleteGrades }) => {
+const ValidationSummary = ({ data, currentAcademicYear, currentSemester, getSemesterDisplay, onProceed, onCancel, onShowIncompleteGrades, onShowRegularity }) => {
     return (
         <div className="space-y-6">
             <Card className="border-0 shadow-lg">
@@ -459,7 +468,19 @@ const ValidationSummary = ({ data, currentAcademicYear, currentSemester, getSeme
                                     <p className="font-semibold text-amber-800 dark:text-amber-200">Important notices:</p>
                                     <ul className="list-disc list-inside space-y-1 text-amber-700 dark:text-amber-300">
                                         {data.warnings.map((warning, index) => (
-                                            <li key={index}>{warning}</li>
+                                            <li key={index}>
+                                                {warning.includes('irregular students will be automatically promoted') ? (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => onShowRegularity?.()}
+                                                        className="text-amber-700 dark:text-amber-300 underline hover:text-amber-800 dark:hover:text-amber-200 cursor-pointer"
+                                                    >
+                                                        {warning}
+                                                    </button>
+                                                ) : (
+                                                    warning
+                                                )}
+                                            </li>
                                         ))}
                                     </ul>
                                 </div>
@@ -926,6 +947,70 @@ const IncompleteGradesModal = ({ isOpen, onClose, section }) => {
                                 </AccordionItem>
                             ))}
                         </Accordion>
+                    </div>
+                </div>
+
+                <DialogFooter>
+                    <Button onClick={onClose} variant="outline">
+                        Close
+                    </Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+    );
+};
+
+// Regularity Promotion Modal
+const RegularityModal = ({ isOpen, onClose, students }) => {
+    return (
+        <Dialog open={isOpen} onOpenChange={onClose}>
+            <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+                <DialogHeader>
+                    <DialogTitle className="flex items-center space-x-2">
+                        <GraduationCap className="h-5 w-5 text-green-600" />
+                        <span>Students Eligible for Regular Status</span>
+                    </DialogTitle>
+                    <DialogDescription>
+                        These irregular students have completed all required subjects and will be automatically promoted to regular status during archiving.
+                    </DialogDescription>
+                </DialogHeader>
+
+                <div className="py-4">
+                    <div className="space-y-3">
+                        {students && students.length > 0 ? (
+                            students.map((student, index) => (
+                                <div
+                                    key={index}
+                                    className="flex items-center justify-between p-4 bg-green-50 dark:bg-green-950/20 rounded-lg border border-green-200 dark:border-green-800"
+                                >
+                                    <div className="flex items-center space-x-3">
+                                        <div className="flex-shrink-0">
+                                            <CheckCircle className="h-5 w-5 text-green-600" />
+                                        </div>
+                                        <div>
+                                            <p className="font-medium text-gray-900 dark:text-white">
+                                                {student.name}
+                                            </p>
+                                            <p className="text-sm text-gray-600 dark:text-gray-400">
+                                                Student Number: {student.student_number}
+                                            </p>
+                                            {student.year_level && (
+                                                <p className="text-sm text-gray-600 dark:text-gray-400">
+                                                    Year Level: {student.year_level}
+                                                </p>
+                                            )}
+                                        </div>
+                                    </div>
+                                    <Badge className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
+                                        Will Become Regular
+                                    </Badge>
+                                </div>
+                            ))
+                        ) : (
+                            <p className="text-center text-gray-500 dark:text-gray-400 py-8">
+                                No students are eligible for regularity promotion.
+                            </p>
+                        )}
                     </div>
                 </div>
 

@@ -471,11 +471,13 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
     const [previousProgram, setPreviousProgram] = useState(null)
     const [previousSchool, setPreviousSchool] = useState('')
     const [creditedSubjects, setCreditedSubjects] = useState([])
+    const [subjectsToCatchUp, setSubjectsToCatchUp] = useState([])
     const [showCreditModal, setShowCreditModal] = useState(false)
     const [curriculumComparison, setCurriculumComparison] = useState(null)
     const [loadingCurriculumComparison, setLoadingCurriculumComparison] = useState(false)
     const [subjectSearchQuery, setSubjectSearchQuery] = useState('')
-    
+    const [feeAdjustments, setFeeAdjustments] = useState({ creditedPassed: [], pastSubjectsToCatchUp: [], creditedFailed: [], isIrregular: undefined })
+
 
 
 
@@ -709,19 +711,18 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
         }
     }, [data.enrollment_type])
 
-    // Show error modal when student error exists, or redirect to payment if balance issue
+    // Show error modal when student error exists. For balance/outstanding errors, show a concise message only (no redirect).
     useEffect(() => {
         if (errors.student) {
-            // Check if it's a balance/outstanding payment error
+            // If it's a balance/outstanding/payment error, show a simple modal and do NOT redirect
             if (errors.student.toLowerCase().includes('outstanding') ||
                 errors.student.toLowerCase().includes('balance') ||
                 errors.student.toLowerCase().includes('payment')) {
-                // Redirect to payment page instead of showing modal
-                if (studentFound) {
-                    router.visit(route('registrar.payments.index', { search: studentFound.student_id }))
-                    return
-                }
+                setErrorMessage('Student has balance remaining.')
+                setShowErrorModal(true)
+                return
             }
+
             setErrorMessage(errors.student)
             setShowErrorModal(true)
         } else {
@@ -1483,18 +1484,17 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
             },
             onError: (errors) => {
                 console.error('Validation errors:', errors)
-                // Redirect to payment page if there's a student balance error
+                // If there's a balance/outstanding/payment error, show a concise modal message only (no redirect)
                 if (errors.student && (
                     errors.student.toLowerCase().includes('outstanding') ||
                     errors.student.toLowerCase().includes('balance') ||
                     errors.student.toLowerCase().includes('payment')
                 )) {
-                    if (studentFound) {
-                        router.visit(route('registrar.payments.index', { search: studentFound.student_id }))
-                        return
-                    }
+                    setErrorMessage('Student has balance remaining.')
+                    setShowErrorModal(true)
+                    return
                 }
-                // Show error modal if there's a student balance error
+                // Show other student errors in the modal
                 if (errors.student) {
                     setErrorMessage(errors.student)
                     setShowErrorModal(true)

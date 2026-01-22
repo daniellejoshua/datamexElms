@@ -6,13 +6,13 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { ArrowLeft, FileText, AlertCircle, CheckCircle, XCircle } from 'lucide-react';
+import { ArrowLeft, FileText, AlertCircle, CheckCircle, XCircle, Edit as EditIcon } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { useEffect } from 'react';
 
-export default function Edit({ curriculum, programs, currentSemester }) {
+export default function EditCurriculum({ curriculum, programs, currentSemester }) {
     const { data, setData, put, processing, errors } = useForm({
         program_id: curriculum.program_id,
         curriculum_code: curriculum.curriculum_code,
@@ -31,16 +31,25 @@ export default function Edit({ curriculum, programs, currentSemester }) {
     return (
         <AuthenticatedLayout
             header={
-                <div className="flex items-center gap-4">
-                    <Link href={route('admin.curriculum.index')}>
-                        <Button variant="outline" size="sm">
-                            <ArrowLeft className="w-4 h-4 mr-2" />
-                            Back to Curriculum
+                <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                        <Button asChild variant="ghost" size="sm">
+                            <Link href={route('admin.curriculum.index')} className="flex items-center gap-2">
+                                <ArrowLeft className="w-4 h-4" />
+                                <span className="hidden sm:inline">Back to Curriculum</span>
+                            </Link>
                         </Button>
-                    </Link>
-                    <h2 className="font-semibold text-xl text-gray-800 leading-tight">
-                        Edit Curriculum
-                    </h2>
+                        <div className="hidden md:block h-6 w-px bg-gray-300"></div>
+                        <div className="flex items-center gap-2">
+                            <div className="bg-orange-100 p-1.5 rounded-md">
+                                <EditIcon className="w-4 h-4 text-orange-600" />
+                            </div>
+                            <div>
+                                <h2 className="text-lg font-semibold text-gray-900">Edit Curriculum</h2>
+                                <p className="text-xs text-gray-500 mt-0.5">Modify curriculum details</p>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             }
         >

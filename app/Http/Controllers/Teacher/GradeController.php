@@ -275,12 +275,6 @@ class GradeController extends Controller
                 }
 
                 $grade->save();
-
-                // Check if student can become regular after grade submission
-                if ($grade->completion_status === 'passed') {
-                    $regularityCheckService = app(StudentRegularityCheckService::class);
-                    $regularityCheckService->checkAndUpdateRegularity($grade->student);
-                }
             }
         }
 

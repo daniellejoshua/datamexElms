@@ -10,8 +10,10 @@ A comprehensive service that handles all logic for checking student regularity s
 
 **Key Methods:**
 - `checkAndUpdateRegularity(Student $student)`: Checks a single student and updates their status if eligible
+- `checkAndUpdateRegularityAfterReenrollment(Student $student)`: More lenient check for re-enrolled students (previous year levels only)
 - `checkAllIrregularStudents()`: Batch processes all irregular students
 - `hasCompletedExpectedSubjects(Student $student)`: Validates if student completed required subjects
+- `hasCompletedPreviousYearLevels(Student $student)`: Checks if student completed all subjects from previous year levels only
 - `getCompletedSubjectIds(Student $student)`: Retrieves all completed subjects from multiple sources
 - `getIrregularityDetails(Student $student)`: Returns detailed irregularity information for frontend display
 
@@ -37,31 +39,17 @@ $promotedCount = $regularityCheckService->checkAllIrregularStudents();
 
 Success message shows: "X irregular students promoted to regular status"
 
-### 2. Grade Submission
-**File:** `app/Http/Controllers/Teacher/GradeController.php`
-**Method:** `updateGrades()`
-
-When a teacher submits final grades for a student, the system immediately checks if that student (if irregular) can now be promoted to regular.
-
-```php
-// Check if student can become regular after grade submission
-if ($grade->completion_status === 'passed') {
-    $regularityCheckService = app(StudentRegularityCheckService::class);
-    $regularityCheckService->checkAndUpdateRegularity($grade->student);
-}
-```
-
-### 3. Student Re-enrollment
+### 2. Student Re-enrollment
 **File:** `app/Http/Controllers/RegistrarController.php`
 **Method:** `store()`
 
-When registrar re-enrolls a student (especially returning/archived students), the system checks if they can be regular.
+When registrar re-enrolls a student (especially returning/archived students), the system checks if they can be regular using a more lenient check that focuses only on previous year levels.
 
 ```php
 // Check if irregular student can become regular after enrollment
 if ($student->student_type === 'irregular') {
     $regularityCheckService = app(\App\Services\StudentRegularityCheckService::class);
-    $regularityCheckService->checkAndUpdateRegularity($student);
+    $regularityCheckService->checkAndUpdateRegularityAfterReenrollment($student);
 }
 ```
 
@@ -76,6 +64,19 @@ if ($student->student_type === 'irregular') {
    - Credited subjects from course shifts/transfers
    - Directly credited subjects
 
+### Regularity Check Types
+
+#### 1. Standard Check (`checkAndUpdateRegularity`)
+- Used during: Semester archiving
+- Requires: ALL subjects up to current year/semester completed
+- Includes: Previous years + current year earlier semesters
+
+#### 2. Re-enrollment Check (`checkAndUpdateRegularityAfterReenrollment`)
+- Used during: Student re-enrollment
+- Requires: ALL subjects from previous year levels only
+- More lenient: Doesn't require current semester subjects
+- Purpose: Allows students who completed previous years to become regular immediately upon re-enrollment
+
 ### Example Scenarios:
 
 **Scenario 1: Course Shiftee**
@@ -85,14 +86,15 @@ if ($student->student_type === 'irregular') {
 - Once all 3 catch-up subjects are completed → becomes REGULAR
 
 **Scenario 2: Returning Student**
-- Student was archived after failing 2 subjects
+ - Student was archived after failing 2 subjects
 - Student re-enrolls and completes those 2 subjects
 - System checks: Do they now have all required subjects? → YES → becomes REGULAR
 
-**Scenario 3: Transferee with Credits**
-- Student transfers from another school with credited subjects
-- System recognizes credited subjects
-- Student completes remaining subjects → becomes REGULAR
+**Scenario 4: Re-enrolled Student with Previous Years Complete**
+- Student was irregular and completed all subjects from 1st and 2nd year
+- Student re-enrolls for 3rd year but hasn't started 3rd year subjects yet
+- Re-enrollment check: Have they completed all previous year levels? → YES → becomes REGULAR immediately
+- Student can now proceed as a regular 3rd year student
 
 ## Testing
 
@@ -114,12 +116,11 @@ Tests are located in `tests/Feature/StudentRegularityCheckTest.php` covering:
 
 ## Usage
 
-The system runs automatically at three key points:
-1. **After semester archiving** - Batch checks all irregular students
-2. **After grade submission** - Checks individual student when passed grade submitted
-3. **During re-enrollment** - Checks returning/new irregular students
+The system runs automatically at two key points:
+1. **After semester archiving** - Standard check on all irregular students
+2. **During re-enrollment** - Lenient check focusing only on previous year levels
 
-No manual intervention required! The system intelligently promotes students when they've completed requirements.
+No manual intervention required! The system intelligently promotes students when they've completed requirements, with more flexibility during re-enrollment.
 
 ## Future Enhancements
 
@@ -136,7 +137,6 @@ No manual intervention required! The system intelligently promotes students when
 
 ### Modified:
 - `app/Http/Controllers/Admin/AcademicYearController.php` - Added archiving integration
-- `app/Http/Controllers/Teacher/GradeController.php` - Added grade submission integration  
 - `app/Http/Controllers/RegistrarController.php` - Added re-enrollment integration
 
 All code follows Laravel best practices, uses proper type hinting, and includes comprehensive comments.
