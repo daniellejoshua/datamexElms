@@ -148,6 +148,10 @@ export default function Students({ section, enrolledStudents, availableStudents,
             data: {
                 student_id: studentToRemove.id
             },
+            onSuccess: () => {
+                setIsRemoveModalOpen(false);
+                setStudentToRemove(null);
+            },
             onError: (errors) => {
                 console.error('Remove student errors:', errors);
                 alert('Failed to remove student. Please check the console for details.');
@@ -294,10 +298,10 @@ export default function Students({ section, enrolledStudents, availableStudents,
                                                 >
                                                     {enrollment.student.user.name}
                                                 </p>
-                                                <div className="flex items-center gap-2 mt-0.5">
-                                                    <p className="text-sm text-gray-600">{enrollment.student.student_number}</p>
+                                                <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2 mt-0.5">
+                                                    <p className="text-xs sm:text-sm text-gray-600 truncate">{enrollment.student.student_number}</p>
                                                     {enrollment.student.student_type === 'irregular' && (
-                                                        <Badge variant="outline" className="text-xs bg-orange-50 text-orange-700 border-orange-200">
+                                                        <Badge variant="outline" className="text-xs bg-orange-50 text-orange-700 border-orange-200 px-1.5 py-0.5 sm:px-2 sm:py-1 w-fit">
                                                             Irregular
                                                         </Badge>
                                                     )}
@@ -428,15 +432,15 @@ export default function Students({ section, enrolledStudents, availableStudents,
                                                 >
                                                     {student.user.name}
                                                 </p>
-                                                <div className="flex items-center gap-3 text-sm text-gray-600">
-                                                    <span>{student.student_number}</span>
+                                                <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-3 text-xs sm:text-sm text-gray-600">
+                                                    <span className="truncate">{student.student_number}</span>
                                                     {student.program?.program_code && (
-                                                        <span className="text-xs bg-gray-200 px-2 py-1 rounded">
+                                                        <span className="text-xs bg-gray-200 px-1.5 py-0.5 sm:px-2 sm:py-1 rounded w-fit">
                                                             {student.program.program_code}
                                                         </span>
                                                     )}
                                                     {student.student_type === 'irregular' && (
-                                                        <Badge variant="outline" className="text-xs bg-yellow-50 border-yellow-300 text-yellow-700">
+                                                        <Badge variant="outline" className="text-xs bg-yellow-50 border-yellow-300 text-yellow-700 px-1.5 py-0.5 sm:px-2 sm:py-1 w-fit">
                                                             Irregular
                                                         </Badge>
                                                     )}

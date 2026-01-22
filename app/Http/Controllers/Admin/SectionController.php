@@ -1129,22 +1129,13 @@ class SectionController extends Controller
                     }
                     // For irregular students in different year levels, enroll them in subjects they haven't taken yet
                 } else {
-                    // Get subjects the student is already enrolled in for this academic period
-                    $enrolledSubjectIds = StudentSubjectEnrollment::where('student_id', $studentId)
-                        ->where('academic_year', $section->academic_year)
-                        ->where('semester', $section->semester)
-                        ->where('status', 'active')
-                        ->pluck('section_subject_id')
-                        ->toArray();
-
-                    // Get section subjects excluding those the student is already enrolled in
+                    // For regular students, enroll them in all section subjects
                     $sectionSubjects = SectionSubject::where('section_id', $section->id)
                         ->where('status', 'active')
-                        ->whereNotIn('id', $enrolledSubjectIds)
                         ->get();
 
                     foreach ($sectionSubjects as $sectionSubject) {
-                        // Check if student is already enrolled in this subject (double check)
+                        // Check if student is already enrolled in this subject
                         $existingSubjectEnrollment = StudentSubjectEnrollment::where([
                             'student_id' => $studentId,
                             'section_subject_id' => $sectionSubject->id,
@@ -1156,7 +1147,7 @@ class SectionController extends Controller
                             StudentSubjectEnrollment::create([
                                 'student_id' => $studentId,
                                 'section_subject_id' => $sectionSubject->id,
-                                'enrollment_type' => 'irregular',
+                                'enrollment_type' => 'regular',
                                 'academic_year' => $section->academic_year,
                                 'semester' => $section->semester,
                                 'status' => 'active',
@@ -1316,14 +1307,21 @@ class SectionController extends Controller
             ->get();
 
         // Get subjects already enrolled in other sections (for display purposes)
-        $enrolledInOtherSections = $section->sectionSubjects()
-            ->with(['subject', 'teacher.user', 'section'])
+        $enrolledInOtherSections = StudentSubjectEnrollment::where('student_id', $student->id)
+            ->where('academic_year', $section->academic_year)
+            ->where('semester', $section->semester)
             ->where('status', 'active')
-            ->whereHas('subject', function ($query) use ($enrolledSubjectCodes, $allCreditedCodes) {
-                $query->whereIn('subject_code', $enrolledSubjectCodes)
-                      ->whereNotIn('subject_code', $allCreditedCodes);
+            ->whereHas('sectionSubject', function ($query) use ($section) {
+                $query->where('section_id', '!=', $section->id); // Exclude current section
             })
-            ->get();
+            ->whereHas('sectionSubject.section', function ($query) use ($section) {
+                $query->where('year_level', $section->year_level); // Only same year level
+            })
+            ->with(['sectionSubject.subject', 'sectionSubject.teacher.user', 'sectionSubject.section'])
+            ->get()
+            ->map(function ($enrollment) {
+                return $enrollment->sectionSubject;
+            });
 
         return $this->inertia->render('Admin/Sections/SubjectEnrollment', [
             'section' => $section,
@@ -1347,7 +1345,16 @@ class SectionController extends Controller
 
         $request->validate([
             'subject_ids' => 'required|array|min:1',
-            'subject_ids.*' => 'required|exists:section_subjects,id',
+            'subject_ids.*' => [
+                'required',
+                'exists:section_subjects,id',
+                function ($attribute, $value, $fail) use ($section) {
+                    $sectionSubject = \App\Models\SectionSubject::find($value);
+                    if (! $sectionSubject || $sectionSubject->section_id !== $section->id) {
+                        $fail('The selected subject does not belong to this section.');
+                    }
+                },
+            ],
         ]);
 
         try {

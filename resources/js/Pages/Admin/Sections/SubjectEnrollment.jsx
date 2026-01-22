@@ -132,8 +132,8 @@ export default function SubjectEnrollment({ section, student, availableSubjects,
     };
 
     const formatSectionName = (section) => {
-        if (section.program?.program_code) {
-            const identifier = section.semester === 'first' ? 'A' : 'B';
+        if (section.program?.program_code && section.year_level) {
+            const identifier = section.section_name;
             return `${section.program.program_code}-${section.year_level}${identifier}`;
         }
         return section.section_name || `Section ${section.id}`;
@@ -149,11 +149,11 @@ export default function SubjectEnrollment({ section, student, availableSubjects,
                 <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
                         <button
-                            onClick={() => router.visit('/admin/college/sections')}
+                            onClick={() => router.visit(getBackUrl())}
                             className="hidden sm:flex items-center gap-2 px-3 py-1.5 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-md transition-colors"
                         >
                             <ArrowLeft className="w-4 h-4" />
-                            Back to College Sections
+                            Back to Student Section
                         </button>
                         <div className="hidden sm:block h-6 w-px bg-gray-300"></div>
                         <div className="flex items-center px-2 py-1">
