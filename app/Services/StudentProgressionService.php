@@ -266,14 +266,9 @@ class StudentProgressionService
                     throw new \Exception("Semester {$semester} {$academicYear} is already finalized for {$student->education_level}");
                 }
 
-                // Determine if student should graduate or progress
-                $isGraduating = $this->shouldGraduate($student, $academicYear, $semester);
-
-                if ($isGraduating) {
-                    $this->graduateStudent($student);
-                } else {
-                    $this->progressToNextSemester($student, $this->getNextAcademicPeriod($academicYear, $semester)['year'], $this->getNextAcademicPeriod($academicYear, $semester)['semester']);
-                }
+                // Note: Graduation is now handled automatically during archiving
+                // Only progress to next semester for continuing students
+                $this->progressToNextSemester($student, $this->getNextAcademicPeriod($academicYear, $semester)['year'], $this->getNextAcademicPeriod($academicYear, $semester)['semester']);
 
                 $results['success']++;
             } catch (\Exception $e) {

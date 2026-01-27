@@ -193,6 +193,45 @@ describe('Student Enrollment Management', function () {
         ]);
     });
 
+    it('applies irregular availability rules', function () {
+        $program = Program::factory()->create();
+        $sectionHigh = Section::factory()->create([
+            'program_id' => $program->id,
+            'year_level' => 3,
+        ]);
+        $sectionSame = Section::factory()->create([
+            'program_id' => $program->id,
+            'year_level' => 3,
+        ]);
+        $sectionLower = Section::factory()->create([
+            'program_id' => $program->id,
+            'year_level' => 2,
+        ]);
+
+        $student = Student::factory()->create([
+            'program_id' => $program->id,
+            'student_type' => 'irregular',
+            'current_year_level' => 3,
+        ]);
+
+        StudentEnrollment::factory()->create([
+            'student_id' => $student->id,
+            'section_id' => $sectionHigh->id,
+            'status' => 'active',
+            'academic_year' => $sectionHigh->academic_year,
+            'semester' => $sectionHigh->semester,
+        ]);
+
+        $responseSame = $this->get(route('admin.sections.students', $sectionSame->id));
+        $responseSame->assertOk()->assertInertia(fn ($page) => $page->has('availableStudents', 0));
+
+        $responseHigher = $this->get(route('admin.sections.students', $sectionHigh->id));
+        $responseHigher->assertOk()->assertInertia(fn ($page) => $page->has('availableStudents', 0));
+
+        $responseLower = $this->get(route('admin.sections.students', $sectionLower->id));
+        $responseLower->assertOk()->assertInertia(fn ($page) => $page->has('availableStudents', 1)->where('availableStudents.0.id', $student->id));
+    });
+
     it('unenrolls a student successfully', function () {
         // Use existing data to avoid unique constraint violations
         $program = Program::factory()->create([

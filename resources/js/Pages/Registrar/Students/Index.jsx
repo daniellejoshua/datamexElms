@@ -43,9 +43,18 @@ export default function StudentsIndex({ students, programs, filters, auth, on_ho
     const [searchTerm, setSearchTerm] = useState('')
     const [educationLevel, setEducationLevel] = useState(filters?.education_level || 'all')
     const [status, setStatus] = useState(filters?.status || 'all')
-    const [yearLevel, setYearLevel] = useState(filters?.year_level || 'all')
+    const [yearLevel, setYearLevel] = useState(() => {
+        // Map backend year level values to frontend values
+        const backendYearLevel = filters?.year_level || 'all';
+        if (backendYearLevel === '11' && (filters?.education_level === 'senior_high' || educationLevel === 'senior_high')) {
+            return 'grade_11';
+        } else if (backendYearLevel === '12' && (filters?.education_level === 'senior_high' || educationLevel === 'senior_high')) {
+            return 'grade_12';
+        }
+        return backendYearLevel;
+    })
     const [studentType, setStudentType] = useState(filters?.student_type || 'all')
-    const [enrollmentStatus, setEnrollmentStatus] = useState(filters?.enrollment_status || 'enrolled')
+    const [enrollmentStatus, setEnrollmentStatus] = useState(filters?.enrollment_status || 'all')
     const [selectedStudent, setSelectedStudent] = useState(null)
     const [isViewModalOpen, setIsViewModalOpen] = useState(false)
     const [isEditMode, setIsEditMode] = useState(false)
@@ -59,10 +68,16 @@ export default function StudentsIndex({ students, programs, filters, auth, on_ho
 
     const handleFilterChange = () => {
         setIsApplyingFilters(true)
+        
+        // Map frontend year level values to backend values
+        const mappedYearLevel = yearLevel === 'grade_11' ? '11' : 
+                               yearLevel === 'grade_12' ? '12' : 
+                               yearLevel;
+        
         router.get(route('registrar.students'), {
             education_level: educationLevel,
             status: status,
-            year_level: yearLevel,
+            year_level: mappedYearLevel,
             student_type: studentType,
             enrollment_status: enrollmentStatus,
         }, {
@@ -77,7 +92,7 @@ export default function StudentsIndex({ students, programs, filters, auth, on_ho
         setStatus('all')
         setYearLevel('all')
         setStudentType('all')
-        setEnrollmentStatus('enrolled')
+        setEnrollmentStatus('all')
         setIsApplyingFilters(true)
         router.get(route('registrar.students'), {}, {
             onFinish: () => setIsApplyingFilters(false),
@@ -141,6 +156,18 @@ export default function StudentsIndex({ students, programs, filters, auth, on_ho
 
         return () => clearTimeout(timeoutId)
     }, [educationLevel, status, yearLevel, studentType, enrollmentStatus])
+
+    // Dynamic education level based on year level selection
+    useEffect(() => {
+        if (yearLevel === 'grade_11' || yearLevel === 'grade_12') {
+            setEducationLevel('senior_high')
+        } else if (yearLevel === '1' || yearLevel === '2' || yearLevel === '3' || yearLevel === '4') {
+            setEducationLevel('college')
+        } else if (yearLevel === 'all') {
+            setEducationLevel('all')
+        }
+        // If year level is 'all', don't change education level automatically
+    }, [yearLevel])
 
     const handleViewStudent = (studentId) => {
         const student = filteredStudents.find(s => s.id === studentId)
@@ -395,8 +422,10 @@ export default function StudentsIndex({ students, programs, filters, auth, on_ho
                                                 </SelectTrigger>
                                                 <SelectContent>
                                                     <SelectItem value="all">All Years</SelectItem>
-                                                    <SelectItem value="1">1st Year / Grade 11</SelectItem>
-                                                    <SelectItem value="2">2nd Year / Grade 12</SelectItem>
+                                                    <SelectItem value="grade_11">Grade 11</SelectItem>
+                                                    <SelectItem value="grade_12">Grade 12</SelectItem>
+                                                    <SelectItem value="1">1st Year</SelectItem>
+                                                    <SelectItem value="2">2nd Year</SelectItem>
                                                     <SelectItem value="3">3rd Year</SelectItem>
                                                     <SelectItem value="4">4th Year</SelectItem>
                                                 </SelectContent>
@@ -409,7 +438,7 @@ export default function StudentsIndex({ students, programs, filters, auth, on_ho
                                             </label>
                                             <Select value={enrollmentStatus} onValueChange={setEnrollmentStatus}>
                                                 <SelectTrigger className="w-full h-8">
-                                                    <SelectValue placeholder="Currently Enrolled" />
+                                                    <SelectValue placeholder="All Students" />
                                                 </SelectTrigger>
                                                 <SelectContent>
                                                     <SelectItem value="enrolled">Currently Enrolled</SelectItem>

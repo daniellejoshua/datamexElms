@@ -8,7 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { ArrowLeft, GraduationCap, Users, Calendar, BookOpen, AlertCircle } from 'lucide-react';
+import { ArrowLeft, GraduationCap, Users, Calendar, BookOpen, AlertCircle, Plus } from 'lucide-react';
 
 const Create = ({ programs, archivedSections, currentAcademicPeriod, academicYearOptions, semesterOptions }) => {
     const { data, setData, post, processing, errors } = useForm({

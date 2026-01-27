@@ -215,49 +215,80 @@ class SectionController extends Controller
         $sectionSubjects = $section->sectionSubjects()->with(['subject', 'teacher.user'])->get();
 
         // Get available students for enrollment
-        $enrolledStudentIds = $section->studentEnrollments()
-            ->where('status', 'active')
-            ->pluck('student_id');
+        // Check if this is an SHS section
+        $isShsSection = $section->program->education_level === 'senior_high';
 
         // Get available students that match the program and enrollment rules
-        // Only show students who are enrolled in the current academic period
-        $availableStudentsQuery = Student::with(['user', 'program', 'studentEnrollments' => function ($query) use ($section) {
-            $query->where('status', 'active')
-                ->where('academic_year', $section->academic_year)
-                ->where('semester', $section->semester);
+        $availableStudentsQuery = Student::with(['user', 'program', 'studentEnrollments' => function ($query) {
+            $query->where('status', 'active');
         }])
-            ->whereNotIn('id', $enrolledStudentIds)
-            ->where('program_id', $section->program_id) // Only students from same program
-            ->where('curriculum_id', $section->curriculum_id) // Only students from same curriculum
-            ->where('status', 'active') // Only active students
+            ->where('program_id', $section->program_id)
+            ->where('curriculum_id', $section->curriculum_id)
+            ->where('status', 'active')
             ->where(function ($query) use ($section) {
-                // Regular students must match year level, irregular students are exempt
                 $query->where('current_year_level', $section->year_level)
                     ->orWhere('student_type', 'irregular');
-            })
-            ->whereHas('studentEnrollments', function ($query) use ($section) {
-                // Only students enrolled in the current academic period
-                $query->where('academic_year', $section->academic_year)
-                    ->where('semester', $section->semester)
-                    ->where('status', 'active');
             });
 
-        // For non-irregular students, exclude those already enrolled in THIS SPECIFIC section for current academic period
+        // Filter students based on enrollment rules
         $availableStudents = $availableStudentsQuery->get()->filter(function ($student) use ($section) {
-            // If student is irregular, they can be in multiple sections
-            if ($student->student_type === 'irregular') {
+            // Check if student has any active enrollment in the current academic period
+            $hasCurrentPeriodEnrollment = $student->studentEnrollments->contains(function ($enrollment) use ($section) {
+                return $enrollment->academic_year === $section->academic_year &&
+                       $enrollment->semester === $section->semester &&
+                       $enrollment->status === 'active';
+            });
+
+            // Students must be enrolled in the current academic period to be considered
+            if (! $hasCurrentPeriodEnrollment) {
+                return false;
+            }
+
+            // For regular students: exclude only if they already have an active enrollment
+            // with a section assigned in the current academic period (prevents double-sectioning)
+            if ($student->student_type !== 'irregular') {
+                $hasActiveEnrollmentWithSection = $student->studentEnrollments->contains(function ($enrollment) use ($section) {
+                    return $enrollment->academic_year === $section->academic_year &&
+                           $enrollment->semester === $section->semester &&
+                           $enrollment->status === 'active' &&
+                           ! empty($enrollment->section_id);
+                });
+
+                return ! $hasActiveEnrollmentWithSection;
+            }
+
+            // For irregular students: check their current enrollments
+            $currentEnrollments = $student->studentEnrollments->filter(function ($enrollment) {
+                return $enrollment->status === 'active';
+            });
+
+            if ($currentEnrollments->isEmpty()) {
+                // No current enrollments, can be enrolled anywhere
                 return true;
             }
 
-            // For regular students, check if they're already enrolled in THIS SPECIFIC section for this academic period
-            $hasActiveEnrollmentInThisSection = $student->studentEnrollments()
-                ->where('status', 'active')
-                ->where('section_id', $section->id)
-                ->where('academic_year', $section->academic_year)
-                ->where('semester', $section->semester)
-                ->exists();
+            // Get the highest year level the student is currently enrolled in
+            $maxCurrentYearLevel = $currentEnrollments->max(function ($enrollment) {
+                return $enrollment->section?->year_level ?? 0;
+            });
 
-            return ! $hasActiveEnrollmentInThisSection;
+            // Check if student already has an enrollment at this year level
+            $hasEnrollmentAtThisLevel = $currentEnrollments->contains(function ($enrollment) use ($section) {
+                return ($enrollment->section?->year_level ?? null) === $section->year_level;
+            });
+
+            // Don't show for same year level (to prevent multiple enrollments at same level)
+            if ($hasEnrollmentAtThisLevel) {
+                return false;
+            }
+
+            // Don't show for higher year levels
+            if ($section->year_level > $maxCurrentYearLevel) {
+                return false;
+            }
+
+            // Show for lower year levels
+            return $section->year_level < $maxCurrentYearLevel;
         });
 
         return $this->inertia->render('Admin/Sections/Show', [
@@ -419,8 +450,8 @@ class SectionController extends Controller
             'end_time' => 'nullable|date_format:H:i|after:start_time',
         ]);
 
-        // Get the current section subject for exclusion in conflict check
-        $sectionSubject = $section->subjects()->where('subject_id', $subject->id)->firstOrFail();
+        // Get the current section subject pivot record for exclusion in conflict check
+        $sectionSubject = $section->sectionSubjects()->where('subject_id', $subject->id)->firstOrFail();
 
         // Additional teacher schedule conflict validation if teacher and schedule are provided
         if ($validated['teacher_id'] && $validated['schedule_days'] && $validated['start_time'] && $validated['end_time']) {
@@ -508,23 +539,46 @@ class SectionController extends Controller
                     ->where('status', 'active');
             });
 
-        // For non-irregular students, exclude those already enrolled in THIS SPECIFIC section for current academic period
-        // For irregular students, exclude those already enrolled in THIS SPECIFIC section for current academic period
         $availableStudents = $availableStudentsQuery->get()->filter(function ($student) use ($section) {
-            // If student is irregular, they can be in multiple sections
-            if ($student->student_type === 'irregular') {
+            // Regular students: exclude if they already have any active enrollment with a section
+            // in the current academic period (prevents enrolling a regular student into another section)
+            if ($student->student_type !== 'irregular') {
+                $hasAnyAssignedSectionEnrollment = $student->studentEnrollments->contains(function ($enrollment) {
+                    return ! empty($enrollment->section_id);
+                });
+
+                return ! $hasAnyAssignedSectionEnrollment;
+            }
+
+            // Irregular students: apply year level constraints
+            $currentEnrollments = $student->studentEnrollments->filter(function ($enrollment) {
+                return $enrollment->status === 'active';
+            });
+
+            if ($currentEnrollments->isEmpty()) {
                 return true;
             }
 
-            // For regular students, check if they're already enrolled in THIS SPECIFIC section for this academic period
-            $hasActiveEnrollmentInThisSection = $student->studentEnrollments()
-                ->where('status', 'active')
-                ->where('section_id', $section->id)
-                ->where('academic_year', $section->academic_year)
-                ->where('semester', $section->semester)
-                ->exists();
+            $maxCurrentYearLevel = $currentEnrollments->max(function ($enrollment) {
+                return $enrollment->section?->year_level ?? 0;
+            });
 
-            return ! $hasActiveEnrollmentInThisSection;
+            // Don't show for same year level (to prevent multiple enrollments at same level)
+            $hasEnrollmentAtThisLevel = $currentEnrollments->contains(function ($enrollment) use ($section) {
+                return ($enrollment->section?->year_level ?? null) === $section->year_level;
+            });
+
+            if ($hasEnrollmentAtThisLevel) {
+                return false;
+            }
+
+            // Don't show for higher year levels
+            if ($section->year_level > $maxCurrentYearLevel) {
+                return false;
+            }
+
+            // Show for lower year levels only
+            return $section->year_level < $maxCurrentYearLevel;
         });
 
         // Debug logging
@@ -934,7 +988,11 @@ class SectionController extends Controller
                 }
 
                 // Ensure student has payment records
-                $student->ensurePaymentRecords($section->academic_year, $section->semester);
+                if ($student->isShs()) {
+                    $student->ensureShsPaymentRecords($section->academic_year, $section->semester);
+                } else {
+                    $student->ensurePaymentRecords($section->academic_year, $section->semester);
+                }
 
                 $enrolledStudents[] = [
                     'id' => $student->id,
@@ -1031,24 +1089,41 @@ class SectionController extends Controller
                     continue;
                 }
 
-                // Check if student is already enrolled in another section for the same academic period
-                // Skip this check for irregular students (they can be enrolled in multiple sections)
+                // Check enrollment conflicts based on student type
                 if ($student->student_type !== 'irregular') {
-                    $conflictingEnrollment = StudentEnrollment::where([
+                    // Regular students cannot be enrolled in multiple sections
+                    $anyEnrollment = StudentEnrollment::where([
                         'student_id' => $studentId,
-                        'academic_year' => $section->academic_year,
-                        'semester' => $section->semester,
                         'status' => 'active',
-                    ])->whereNot('section_id', $section->id)->first();
+                    ])->first();
 
-                    if ($conflictingEnrollment) {
-                        $conflictSection = Section::with('program')->find($conflictingEnrollment->section_id);
+                    if ($anyEnrollment) {
+                        $conflictSection = Section::with('program')->find($anyEnrollment->section_id);
                         $skippedStudents[] = $student->user->name.' (already enrolled in '.
                             $conflictSection->program->program_code.' Year '.
                             $conflictSection->year_level.' Section '.
                             $conflictSection->section_name.')';
 
                         continue;
+                    }
+                } else {
+                    // Irregular students: check year level constraints
+                    $currentEnrollments = StudentEnrollment::with('section')
+                        ->where('student_id', $studentId)
+                        ->where('status', 'active')
+                        ->get();
+
+                    if ($currentEnrollments->isNotEmpty()) {
+                        $maxCurrentYearLevel = $currentEnrollments->max(function ($enrollment) {
+                            return $enrollment->section->year_level ?? 0;
+                        });
+
+                        // Cannot enroll in same or higher year level
+                        if ($section->year_level >= $maxCurrentYearLevel) {
+                            $skippedStudents[] = $student->user->name.' (cannot enroll in same or higher year level as current enrollment)';
+
+                            continue;
+                        }
                     }
                 }
 
@@ -1159,7 +1234,11 @@ class SectionController extends Controller
                 }
 
                 // Ensure student has payment records for the academic year/semester
-                $student->ensurePaymentRecords($section->academic_year, $section->semester);
+                if ($student->isShs()) {
+                    $student->ensureShsPaymentRecords($section->academic_year, $section->semester);
+                } else {
+                    $student->ensurePaymentRecords($section->academic_year, $section->semester);
+                }
 
                 $enrolledStudents[] = $student->user->name;
             }

@@ -345,8 +345,8 @@ class CollegeSectionController extends Controller
             'end_time' => 'nullable|date_format:H:i|after:start_time',
         ]);
 
-        // Get the current section subject for exclusion in conflict check
-        $sectionSubject = $section->subjects()->where('subject_id', $subject->id)->firstOrFail();
+        // Get the current section subject pivot record for exclusion in conflict check
+        $sectionSubject = $section->sectionSubjects()->where('subject_id', $subject->id)->firstOrFail();
 
         // Additional teacher schedule conflict validation if teacher and schedule are provided
         if ($validated['teacher_id'] && $validated['schedule_days'] && $validated['start_time'] && $validated['end_time']) {

@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Registrar;
 
 use App\Http\Controllers\Controller;
 use App\Models\SchoolSetting;
+use App\Models\ShsStudentPayment;
 use App\Models\Student;
 use App\Models\StudentEnrollment;
 use App\Models\StudentSemesterPayment;
@@ -143,16 +144,20 @@ class CollegePaymentController extends Controller
     {
         $student->load(['user', 'program']);
 
-        if ($student->education_level !== 'college') {
-            abort(404, 'Student not found in college records.');
+        if ($student->education_level === 'college') {
+            $payments = StudentSemesterPayment::where('student_id', $student->id)
+                ->with(['paymentTransactions' => function ($query) {
+                    $query->orderBy('payment_date', 'desc');
+                }])
+                ->orderBy('created_at', 'desc')
+                ->get();
+        } elseif ($student->education_level === 'senior_high') {
+            $payments = ShsStudentPayment::where('student_id', $student->id)
+                ->orderBy('created_at', 'desc')
+                ->get();
+        } else {
+            abort(404, 'Student education level not supported.');
         }
-
-        $payments = StudentSemesterPayment::where('student_id', $student->id)
-            ->with(['paymentTransactions' => function ($query) {
-                $query->orderBy('payment_date', 'desc');
-            }])
-            ->orderBy('created_at', 'desc')
-            ->get();
 
         return Inertia::render('Registrar/Payments/College/Show', [
             'student' => $student,

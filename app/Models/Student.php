@@ -243,6 +243,43 @@ class Student extends Model
     }
 
     /**
+     * Ensure SHS student has payment records for the given academic year and semester
+     */
+    public function ensureShsPaymentRecords(string $academicYear, string $semester): void
+    {
+        // Check if payment record already exists
+        $existingPayment = ShsStudentPayment::where([
+            'student_id' => $this->id,
+            'academic_year' => $academicYear,
+            'semester' => $semester,
+        ])->first();
+
+        if (! $existingPayment) {
+            // Create SHS payment record with quarterly structure
+            // SHS typically has lower fees than college
+            $quarterlyAmount = 8000; // Total per quarter
+            $totalSemesterFee = $quarterlyAmount * 4; // 4 quarters
+
+            ShsStudentPayment::create([
+                'student_id' => $this->id,
+                'academic_year' => $academicYear,
+                'semester' => $semester,
+                'first_quarter_amount' => $quarterlyAmount,
+                'first_quarter_paid' => false,
+                'second_quarter_amount' => $quarterlyAmount,
+                'second_quarter_paid' => false,
+                'third_quarter_amount' => $quarterlyAmount,
+                'third_quarter_paid' => false,
+                'fourth_quarter_amount' => $quarterlyAmount,
+                'fourth_quarter_paid' => false,
+                'total_semester_fee' => $totalSemesterFee,
+                'total_paid' => 0,
+                'balance' => $totalSemesterFee,
+            ]);
+        }
+    }
+
+    /**
      * Assign the initial curriculum to a student based on their enrollment academic year
      */
     public function assignInitialCurriculum()

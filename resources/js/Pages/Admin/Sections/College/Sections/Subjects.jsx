@@ -9,7 +9,6 @@ import { toast } from 'sonner';
 
 const Subjects = ({ section, subjects, teachers }) => {
     const [editingSubject, setEditingSubject] = useState(null);
-    const [openDropdown, setOpenDropdown] = useState(null);
     const [showScheduleModal, setShowScheduleModal] = useState(false);
     const [teacherSchedule, setTeacherSchedule] = useState([]);
     const [proposedSchedule, setProposedSchedule] = useState(null);
@@ -241,9 +240,7 @@ const Subjects = ({ section, subjects, teachers }) => {
         return 'Not set';
     };
 
-    const toggleDropdown = (id) => {
-        setOpenDropdown(openDropdown === id ? null : id);
-    };
+
 
     return (
         <AuthenticatedLayout
@@ -400,6 +397,8 @@ const Subjects = ({ section, subjects, teachers }) => {
                                                 </label>
                                                 <input
                                                     type="time"
+                                                    min="08:00"
+                                                    max="21:00"
                                                     value={editData.start_time}
                                                     onChange={(e) => {
                                                         setEditData('start_time', e.target.value);
@@ -425,6 +424,8 @@ const Subjects = ({ section, subjects, teachers }) => {
                                                 </label>
                                                 <input
                                                     type="time"
+                                                    min="08:00"
+                                                    max="21:00"
                                                     value={editData.end_time}
                                                     onChange={(e) => {
                                                         setEditData('end_time', e.target.value);
@@ -579,55 +580,18 @@ const Subjects = ({ section, subjects, teachers }) => {
                                                             {sectionSubject.status}
                                                         </span>
                                                     </td>
-                                                    <td className="px-4 sm:px-6 py-4 whitespace-nowrap text-right text-sm font-medium relative">
+                                                    <td className="px-4 sm:px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                                                         <button
-                                                            onClick={() => toggleDropdown(sectionSubject.id)}
+                                                            onClick={() => handleEditSubject(sectionSubject)}
                                                             disabled={isReadOnly}
-                                                            className={`p-2 transition-colors ${
-                                                                isReadOnly 
-                                                                    ? 'text-gray-300 cursor-not-allowed' 
-                                                                    : 'text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300'
-                                                            }`}
+                                                            className={`p-2 transition-colors ${isReadOnly ? 'text-gray-300 cursor-not-allowed' : 'text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300'}`}
+                                                            title="Edit"
                                                         >
-                                                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 5v.01M12 12v.01M12 19v.01" />
+                                                            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                                                             </svg>
                                                         </button>
-                                                        
-                                                        {openDropdown === sectionSubject.id && (
-                                                            <div className="absolute right-0 top-0 mt-8 w-48 bg-white dark:bg-gray-800 rounded-md shadow-lg border border-gray-200 dark:border-gray-700 z-50">
-                                                                <div className="py-1 flex">
-                                                                    <button
-                                                                        onClick={() => {
-                                                                            handleEditSubject(sectionSubject);
-                                                                            setOpenDropdown(null);
-                                                                        }}
-                                                                        disabled={isReadOnly}
-                                                                        className={`flex-1 px-4 py-2 text-sm transition-colors border-r border-gray-200 dark:border-gray-600 ${
-                                                                            isReadOnly 
-                                                                                ? 'text-gray-400 cursor-not-allowed' 
-                                                                                : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
-                                                                        }`}
-                                                                    >
-                                                                        Edit
-                                                                    </button>
-                                                                    <button
-                                                                        onClick={() => {
-                                                                            handleDetachSubject(sectionSubject.subject.id);
-                                                                            setOpenDropdown(null);
-                                                                        }}
-                                                                        disabled={isReadOnly}
-                                                                        className={`flex-1 px-4 py-2 text-sm transition-colors ${
-                                                                            isReadOnly 
-                                                                                ? 'text-red-300 cursor-not-allowed' 
-                                                                                : 'text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20'
-                                                                        }`}
-                                                                    >
-                                                                        Remove
-                                                                    </button>
-                                                                </div>
-                                                            </div>
-                                                        )}
                                                     </td>
                                                 </tr>
                                             ))}
@@ -648,13 +612,7 @@ const Subjects = ({ section, subjects, teachers }) => {
                 </div>
             </div>
 
-            {/* Click outside handler for dropdown */}
-            {openDropdown && (
-                <div 
-                    className="fixed inset-0 z-0" 
-                    onClick={() => setOpenDropdown(null)}
-                ></div>
-            )}
+
 
             {/* Teacher Schedule Modal */}
             <TeacherScheduleModal

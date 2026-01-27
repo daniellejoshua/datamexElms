@@ -51,7 +51,7 @@ const Index = ({ currentAcademicYear, currentSemester, unpaid_count = 0, unpaid_
     // Modal states
     const [selectedSection, setSelectedSection] = useState(null);
     const [showIncompleteGradesModal, setShowIncompleteGradesModal] = useState(false);
-    const [showRegularityModal, setShowRegularityModal] = useState(false);
+    const [showRegularityModal, vularityModal] = useState(false);
     const [processingArchive, setProcessingArchive] = useState(false);
     const [errors, setErrors] = useState({});
 

@@ -17,6 +17,7 @@ class StudentProgressionController extends Controller
 
     /**
      * Show the semester progression management page.
+     * Note: Graduation is now handled automatically during archiving.
      */
     public function index(Request $request)
     {
@@ -68,21 +69,11 @@ class StudentProgressionController extends Controller
         // Check if current semester is finalized
         $isFinalized = SemesterFinalization::isFinalized($academicYear, $semester, $educationLevel);
 
-        // Get graduation candidates
-        $graduationCandidates = $this->progressionService->getGraduationCandidates($academicYear, $semester, $educationLevel);
+        // Note: Graduation candidates are now handled automatically during archiving
+        // This page now focuses on semester progression for continuing students
 
         return Inertia::render('Registrar/StudentProgression/Index', [
             'students' => $students,
-            'graduationCandidates' => $graduationCandidates->map(function ($student) {
-                return [
-                    'id' => $student->id,
-                    'name' => $student->user->name,
-                    'student_number' => $student->student_number,
-                    'program' => $student->program?->name,
-                    'track' => $student->track,
-                    'year_level' => $student->current_year_level,
-                ];
-            }),
             'filters' => [
                 'academic_year' => $academicYear,
                 'semester' => $semester,
@@ -93,7 +84,7 @@ class StudentProgressionController extends Controller
                 'total_students' => $students->count(),
                 'passing_students' => $students->where('is_passing', true)->count(),
                 'complete_grades' => $students->where('has_complete_grades', true)->count(),
-                'graduation_candidates' => $graduationCandidates->count(),
+                'note' => 'Graduation is now handled automatically during archiving at the end of the academic year.',
             ],
         ]);
     }
@@ -106,7 +97,7 @@ class StudentProgressionController extends Controller
         $request->validate([
             'academic_year' => 'required|string',
             'semester' => 'required|in:1st,2nd',
-            'action' => 'required|in:next_semester,next_year,graduate',
+            'action' => 'required|in:next_semester,next_year',
         ]);
 
         try {
@@ -123,10 +114,6 @@ class StudentProgressionController extends Controller
                 case 'next_year':
                     $nextAcademicYear = $this->getNextAcademicYear($request->academic_year);
                     $this->progressionService->progressToNextYearLevel($student, $nextAcademicYear);
-                    break;
-
-                case 'graduate':
-                    $this->progressionService->graduateStudent($student);
                     break;
             }
 

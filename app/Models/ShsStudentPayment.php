@@ -54,6 +54,11 @@ class ShsStudentPayment extends Model
         return $this->belongsTo(Student::class);
     }
 
+    public function paymentTransactions()
+    {
+        return $this->morphMany(PaymentTransaction::class, 'payable');
+    }
+
     /**
      * Calculate total paid amount
      */

@@ -7,6 +7,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\StoreSectionRequest;
 use App\Http\Requests\Admin\UpdateSectionRequest;
 use App\Models\ArchivedSection;
+use App\Models\CurriculumSubject;
 use App\Models\Program;
 use App\Models\SchoolSetting;
 use App\Models\Section;
@@ -14,6 +15,7 @@ use App\Models\Student;
 use App\Models\StudentEnrollment;
 use App\Models\Subject;
 use App\Models\Teacher;
+use App\Models\YearLevelCurriculumGuide;
 use App\Rules\TeacherScheduleConflict;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -153,10 +155,48 @@ class ShsSectionController extends Controller
             return back()->withErrors(['program_id' => 'Selected program is not an SHS program.']);
         }
 
-        $section = Section::create($request->validated());
+        // Automatically determine curriculum based on year level guide
+        $curriculumId = $request->curriculum_id;
+        if (! $curriculumId) {
+            // Try to find a year level guide for this program and year level (not filtered by academic year)
+            $guide = YearLevelCurriculumGuide::where('program_id', $request->program_id)
+                ->where('year_level', $request->year_level)
+                ->with('curriculum')
+                ->first();
+
+            if ($guide && $guide->curriculum) {
+                $curriculumId = $guide->curriculum->id;
+            } else {
+                // Fallback to program's current curriculum
+                $curriculumId = $program->current_curriculum?->id;
+            }
+        }
+
+        if (! $curriculumId) {
+            return back()->withErrors(['curriculum_id' => 'No curriculum found for this program and year level. Please create a year level guide or select a curriculum manually.']);
+        }
+
+        $sectionData = $request->validated();
+        $sectionData['curriculum_id'] = $curriculumId;
+
+        $section = Section::create($sectionData);
+
+        // Automatically attach subjects from the curriculum that match the section's year level and semester
+        $curriculumSubjects = CurriculumSubject::where('curriculum_id', $curriculumId)
+            ->where('year_level', $request->year_level)
+            ->where('semester', $request->semester)
+            ->where('status', 'active')
+            ->get();
+
+        foreach ($curriculumSubjects as $curriculumSubject) {
+            $section->sectionSubjects()->create([
+                'subject_id' => $curriculumSubject->subject_id,
+                'status' => 'active',
+            ]);
+        }
 
         return redirect()->route('admin.shs.sections.index')
-            ->with('success', 'SHS section created successfully.');
+            ->with('success', 'SHS section created successfully with subjects attached.');
     }
 
     public function show(Section $section): Response
@@ -437,8 +477,8 @@ class ShsSectionController extends Controller
             'end_time' => 'nullable|date_format:H:i|after:start_time',
         ]);
 
-        // Get the current section subject for exclusion in conflict check
-        $sectionSubject = $section->subjects()->where('subject_id', $subject->id)->firstOrFail();
+        // Get the current section subject pivot record for exclusion in conflict check
+        $sectionSubject = $section->sectionSubjects()->where('subject_id', $subject->id)->firstOrFail();
 
         // Additional teacher schedule conflict validation if teacher and schedule are provided
         if ($validated['teacher_id'] && $validated['schedule_days'] && $validated['start_time'] && $validated['end_time']) {

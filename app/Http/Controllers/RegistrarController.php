@@ -9,6 +9,7 @@ use App\Models\PaymentTransaction;
 use App\Models\Program;
 use App\Models\SchoolSetting;
 use App\Models\Section;
+use App\Models\ShsStudentPayment;
 use App\Models\Student;
 use App\Models\StudentEnrollment;
 use App\Models\StudentSemesterPayment;
@@ -389,7 +390,7 @@ class RegistrarController extends Controller
         $status = request('status', 'all');
         $yearLevel = request('year_level', 'all');
         $studentType = request('student_type', 'all');
-        $enrollmentStatus = request('enrollment_status', 'enrolled'); // Default to 'enrolled'
+        $enrollmentStatus = request('enrollment_status', 'all'); // Default to 'all'
 
         $currentAcademicYear = SchoolSetting::getCurrentAcademicYear();
         $currentSemester = SchoolSetting::getCurrentSemester();
@@ -402,7 +403,13 @@ class RegistrarController extends Controller
                 $q->where('status', $status);
             })
             ->when($yearLevel !== 'all', function ($q) use ($yearLevel) {
-                $q->where('year_level', $yearLevel);
+                // Map frontend year level values to database values
+                $mappedYearLevel = match ($yearLevel) {
+                    '11' => 11,
+                    '12' => 12,
+                    default => (int) $yearLevel
+                };
+                $q->where('current_year_level', $mappedYearLevel);
             })
             ->when($studentType !== 'all', function ($q) use ($studentType) {
                 $q->where('student_type', $studentType);
@@ -1141,31 +1148,105 @@ class RegistrarController extends Controller
             }
 
             // Check if payment record already exists for this semester
-            $existingPayment = StudentSemesterPayment::where([
-                'student_id' => $student->id,
-                'academic_year' => $academicYear,
-                'semester' => $semester,
-            ])->first();
+            if ($validated['education_level'] === 'senior_high') {
+                // For SHS students, create yearly payment record (not quarterly)
+                $existingShsPayment = ShsStudentPayment::where([
+                    'student_id' => $student->id,
+                    'academic_year' => $academicYear,
+                    'semester' => 'annual', // Use 'annual' for yearly payments
+                ])->first();
 
-            if (! $existingPayment) {
-                // Create the payment record (without setting enrollment_paid yet)
-                $semesterPayment = StudentSemesterPayment::create([
+                if (! $existingShsPayment) {
+                    // Determine yearly fee based on grade level
+                    $yearlyFee = $this->getShsYearlyFee($validated['year_level'], $enrollmentFee);
+
+                    // Create SHS yearly payment record
+                    $shsPayment = ShsStudentPayment::create([
+                        'student_id' => $student->id,
+                        'academic_year' => $academicYear,
+                        'semester' => 'annual',
+                        'first_quarter_amount' => 0, // Not used for yearly payments
+                        'second_quarter_amount' => 0,
+                        'third_quarter_amount' => 0,
+                        'fourth_quarter_amount' => 0,
+                        'total_semester_fee' => $yearlyFee,
+                        'total_paid' => 0,
+                        'balance' => $yearlyFee,
+                    ]);
+                } else {
+                    $shsPayment = $existingShsPayment;
+                }
+
+                // For SHS, we don't create payment transactions the same way
+                // The payment logic is handled differently for yearly payments
+                $semesterPayment = null; // Not used for SHS
+
+                // Create enrollment transaction for SHS students
+                if ($paymentAmount > 0) {
+                    PaymentTransaction::create([
+                        'student_id' => $student->id,
+                        'payable_type' => ShsStudentPayment::class,
+                        'payable_id' => $shsPayment->id,
+                        'amount' => $paymentAmount,
+                        'payment_type' => 'enrollment_fee',
+                        'payment_method' => 'cash',
+                        'reference_number' => 'REG-'.now()->format('YmdHis').'-'.$student->id,
+                        'description' => 'Enrollment for '.$validated['year_level'],
+                        'payment_date' => now(),
+                        'status' => 'completed',
+                        'processed_by' => Auth::id(),
+                        'notes' => 'Payment made during SHS student enrollment',
+                    ]);
+
+                    // Update the SHS payment record with the payment
+                    $shsPayment->total_paid = $paymentAmount;
+                    $shsPayment->balance = $shsPayment->total_semester_fee - $paymentAmount;
+                    $shsPayment->save();
+                } else {
+                    // Create transaction record even for zero payment (enrollment record)
+                    PaymentTransaction::create([
+                        'student_id' => $student->id,
+                        'payable_type' => ShsStudentPayment::class,
+                        'payable_id' => $shsPayment->id,
+                        'amount' => 0,
+                        'payment_type' => 'enrollment_fee',
+                        'payment_method' => 'cash',
+                        'reference_number' => 'REG-'.now()->format('YmdHis').'-'.$student->id,
+                        'description' => 'Enrollment for '.$validated['year_level'],
+                        'payment_date' => now(),
+                        'status' => 'completed',
+                        'processed_by' => Auth::id(),
+                        'notes' => 'SHS student enrollment (voucher student)',
+                    ]);
+                }
+            } else {
+                // For college students, create StudentSemesterPayment record
+                $existingPayment = StudentSemesterPayment::where([
                     'student_id' => $student->id,
                     'academic_year' => $academicYear,
                     'semester' => $semester,
-                    'enrollment_fee' => $enrollmentFee,
-                    'enrollment_paid' => false,
-                    'enrollment_payment_date' => null,
-                    'total_semester_fee' => $enrollmentFee,
-                    'payment_plan' => 'installment',
-                    // Note: total_paid and balance will be calculated by the model's booted() method
-                ]);
-            } else {
-                $semesterPayment = $existingPayment;
+                ])->first();
+
+                if (! $existingPayment) {
+                    // Create the payment record (without setting enrollment_paid yet)
+                    $semesterPayment = StudentSemesterPayment::create([
+                        'student_id' => $student->id,
+                        'academic_year' => $academicYear,
+                        'semester' => $semester,
+                        'enrollment_fee' => $enrollmentFee,
+                        'enrollment_paid' => false,
+                        'enrollment_payment_date' => null,
+                        'total_semester_fee' => $enrollmentFee,
+                        'payment_plan' => 'installment',
+                        // Note: total_paid and balance will be calculated by the model's booted() method
+                    ]);
+                } else {
+                    $semesterPayment = $existingPayment;
+                }
             }
 
-            // If there's an initial payment, create a payment transaction
-            if ($paymentAmount > 0) {
+            // If there's an initial payment and it's a college student, create a payment transaction
+            if ($paymentAmount > 0 && $validated['education_level'] !== 'senior_high') {
                 PaymentTransaction::create([
                     'student_id' => $student->id,
                     'payable_type' => StudentSemesterPayment::class,
@@ -1975,5 +2056,27 @@ class RegistrarController extends Controller
             'subjectGrades' => $subjectGrades,
             'archivedEnrollments' => $archivedEnrollments,
         ]);
+    }
+
+    /**
+     * Get the yearly fee for SHS students based on grade level.
+     */
+    private function getShsYearlyFee(string $yearLevel, float $baseFee): float
+    {
+        // Extract numeric year level from strings like "Grade 11", "Grade 12", "11", "12"
+        $numericLevel = 0;
+        if (preg_match('/(\d+)/', $yearLevel, $matches)) {
+            $numericLevel = (int) $matches[1];
+        }
+
+        // Grade 12 pays more than Grade 11
+        if ($numericLevel === 12) {
+            return $baseFee * 1.2; // 20% more for Grade 12
+        } elseif ($numericLevel === 11) {
+            return $baseFee; // Base fee for Grade 11
+        }
+
+        // Default to base fee
+        return $baseFee;
     }
 }

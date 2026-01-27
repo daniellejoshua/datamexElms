@@ -3,6 +3,8 @@
 namespace App\Http\Controllers\Registrar;
 
 use App\Http\Controllers\Controller;
+use App\Models\PaymentTransaction;
+use App\Models\SchoolSetting;
 use App\Models\ShsStudentPayment;
 use App\Models\Student;
 use Illuminate\Http\Request;
@@ -16,30 +18,107 @@ class ShsPaymentController extends Controller
      */
     public function index(): Response
     {
-        $payments = ShsStudentPayment::with(['student.user'])
-            ->whereHas('student', function ($query) {
-                $query->where('education_level', 'senior_high');
+        // Get current academic year and semester
+        $currentAcademicYear = SchoolSetting::getCurrentAcademicYear();
+        $currentSemester = SchoolSetting::getCurrentSemester();
+
+        // Get filter parameters from request, defaulting to current values
+        $filterAcademicYear = request('academic_year', $currentAcademicYear);
+        $filterSemester = request('semester', $currentSemester);
+        $filterStudentType = request('student_type', 'all');
+
+        $query = ShsStudentPayment::with(['student' => function ($query) use ($filterAcademicYear, $filterSemester) {
+            $query->select(['id', 'user_id', 'student_number', 'first_name', 'last_name', 'year_level', 'track', 'strand', 'has_voucher', 'voucher_status', 'voucher_id', 'program_id'])
+                ->with('user:id,name')
+                ->with(['enrollments' => function ($enrollmentQuery) use ($filterAcademicYear, $filterSemester) {
+                    $enrollmentQuery->where('academic_year', $filterAcademicYear)
+                        ->where('semester', $filterSemester)
+                        ->where('status', 'enrolled')
+                        ->with('section:id,section_name');
+                }]);
+        }])
+            ->whereHas('student', function ($q) use ($filterStudentType) {
+                $q->where('education_level', 'senior_high');
+                if ($filterStudentType !== 'all') {
+                    $q->where('student_type', $filterStudentType);
+                }
             })
-            ->paginate(15);
+            ->where('academic_year', $filterAcademicYear)
+            ->where(function ($query) use ($filterSemester) {
+                $query->where('semester', $filterSemester)
+                    ->orWhere('semester', 'annual');
+            });
+
+        $payments = $query->paginate(15);
+
+        // Modify payment data for students with active vouchers
+        $payments->getCollection()->transform(function ($payment) {
+            if ($payment->student && $payment->student->has_voucher && $payment->student->voucher_status === 'active') {
+                $payment->total_semester_fee = 0;
+                $payment->balance = 0; // Set balance to 0 for voucher students
+            }
+
+            return $payment;
+        });
 
         $stats = [
-            'total_payments' => ShsStudentPayment::whereHas('student', function ($query) {
+            'total_students' => Student::where('education_level', 'senior_high')
+                ->when($filterStudentType !== 'all', function ($query) use ($filterStudentType) {
+                    $query->where('student_type', $filterStudentType);
+                })
+                ->count(),
+            'students_not_enrolled' => Student::where('education_level', 'senior_high')
+                ->when($filterStudentType !== 'all', function ($query) use ($filterStudentType) {
+                    $query->where('student_type', $filterStudentType);
+                })
+                ->whereDoesntHave('enrollments', function ($query) use ($filterAcademicYear, $filterSemester) {
+                    $query->where('academic_year', $filterAcademicYear)
+                        ->where('semester', $filterSemester)
+                        ->where('status', 'active')
+                        ->whereNotNull('section_id');
+                })
+                ->count(),
+            'students_with_balance' => ShsStudentPayment::whereHas('student', function ($query) use ($filterStudentType) {
                 $query->where('education_level', 'senior_high');
-            })->count(),
-            'pending_payments' => ShsStudentPayment::whereHas('student', function ($query) {
+                if ($filterStudentType !== 'all') {
+                    $query->where('student_type', $filterStudentType);
+                }
+            })->where('academic_year', $filterAcademicYear)->where('semester', $filterSemester)->where('balance', '>', 0)->count(),
+            'total_outstanding_balance' => ShsStudentPayment::whereHas('student', function ($query) use ($filterStudentType) {
                 $query->where('education_level', 'senior_high');
-            })->where('balance', '>', 0)->count(),
-            'overdue_payments' => ShsStudentPayment::whereHas('student', function ($query) {
-                $query->where('education_level', 'senior_high');
-            })->where('balance', '>', 0)->count(), // SHS doesn't have overdue status
-            'total_collectible' => ShsStudentPayment::whereHas('student', function ($query) {
-                $query->where('education_level', 'senior_high');
-            })->sum('balance'),
+                if ($filterStudentType !== 'all') {
+                    $query->where('student_type', $filterStudentType);
+                }
+            })->where('academic_year', $filterAcademicYear)->where('semester', $filterSemester)->sum('balance'),
         ];
+
+        // Generate academic years list
+        $academicYears = ShsStudentPayment::whereHas('student', function ($query) {
+            $query->where('education_level', 'senior_high');
+        })
+            ->distinct()
+            ->pluck('academic_year')
+            ->sort()
+            ->values()
+            ->toArray();
+
+        // Ensure current academic year is included even if no payments exist yet
+        if (! in_array($currentAcademicYear, $academicYears)) {
+            $academicYears[] = $currentAcademicYear;
+            sort($academicYears);
+        }
 
         return Inertia::render('Registrar/Payments/Shs/Index', [
             'payments' => $payments,
             'stats' => $stats,
+            'filters' => [
+                'academic_year' => $filterAcademicYear,
+                'semester' => $filterSemester,
+                'student_type' => $filterStudentType,
+            ],
+            'currentAcademicYear' => $currentAcademicYear,
+            'currentSemester' => $currentSemester,
+            'academicYears' => $academicYears,
         ]);
     }
 
@@ -48,13 +127,19 @@ class ShsPaymentController extends Controller
      */
     public function show(Student $student): Response
     {
-        $student->load(['user']);
+        $student->load(['user', 'program', 'enrollments' => function ($query) {
+            $query->where('status', 'enrolled')
+                ->with('section:id,section_name')
+                ->orderBy('academic_year', 'desc')
+                ->orderBy('semester', 'desc');
+        }]);
 
         if ($student->education_level !== 'senior_high') {
             abort(404, 'Student not found in SHS records.');
         }
 
         $payments = ShsStudentPayment::where('student_id', $student->id)
+            ->with('paymentTransactions')
             ->orderBy('created_at', 'desc')
             ->get();
 
@@ -114,7 +199,8 @@ class ShsPaymentController extends Controller
         $validated = $request->validate([
             'amount_paid' => 'required|numeric|min:0.01',
             'payment_date' => 'required|date',
-            'quarter' => 'required|in:1,2,3,4',
+            'or_number' => 'nullable|string|max:255',
+            'quarter' => 'required|in:yearly',
             'notes' => 'nullable|string',
         ]);
 
@@ -125,32 +211,33 @@ class ShsPaymentController extends Controller
         $newTotalPaid = $payment->total_paid + $validated['amount_paid'];
         $newBalance = $payment->balance - $validated['amount_paid'];
 
-        // Mark specific quarter as paid based on quarter selection
-        $quarterField = match ($validated['quarter']) {
-            1 => 'first_quarter_paid',
-            2 => 'second_quarter_paid',
-            3 => 'third_quarter_paid',
-            4 => 'fourth_quarter_paid',
-        };
-
-        $quarterDateField = match ($validated['quarter']) {
-            1 => 'first_quarter_payment_date',
-            2 => 'second_quarter_payment_date',
-            3 => 'third_quarter_payment_date',
-            4 => 'fourth_quarter_payment_date',
-        };
-
+        // For yearly payments, we don't mark specific quarters
+        // Just update the total paid and balance
         $payment->update([
             'total_paid' => $newTotalPaid,
             'balance' => $newBalance,
-            $quarterField => true,
-            $quarterDateField => $validated['payment_date'],
+        ]);
+
+        // Create PaymentTransaction record
+        \App\Models\PaymentTransaction::create([
+            'student_id' => $payment->student_id,
+            'payable_type' => \App\Models\ShsStudentPayment::class,
+            'payable_id' => $payment->id,
+            'amount' => $validated['amount_paid'],
+            'payment_type' => 'tuition_fee',
+            'payment_method' => 'cash',
+            'reference_number' => $validated['or_number'] ?? 'PAY-'.now()->format('YmdHis').'-'.$payment->id,
+            'description' => 'Tuition payment for '.$payment->academic_year.' - '.$payment->semester,
+            'payment_date' => $validated['payment_date'],
+            'status' => 'completed',
+            'processed_by' => \Illuminate\Support\Facades\Auth::id(),
+            'notes' => $validated['notes'],
         ]);
 
         // Clear dashboard cache since payment data changed
         \Illuminate\Support\Facades\Cache::forget('registrar.dashboard.stats');
 
-        return back()->with('success', 'Payment of ₱'.number_format($validated['amount_paid'], 2).' recorded successfully for Quarter '.$validated['quarter'].'.');
+        return back()->with('success', 'Payment of ₱'.number_format($validated['amount_paid'], 2).' recorded successfully for yearly payment.');
     }
 
     /**

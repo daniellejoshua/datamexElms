@@ -14,9 +14,9 @@ use Illuminate\Support\Facades\DB;
 
 class ArchiveSemesterData extends Command
 {
-    protected $signature = 'school:archive-semester-data {--notes=} {--academic-year=} {--semester=}';
+    protected $signature = 'school:archive-semester-data {--notes=} {--academic-year=} {--semester=} {--force}';
 
-    protected $description = 'Archive all sections, enrollments, and grades for the current semester. Only Head Teacher can run.';
+    protected $description = 'Archive all sections, enrollments, and grades. SHS: Annual archiving with graduation. College: Semester archiving with final semester graduation. Only Head Teacher can run.';
 
     public function handle(): int
     {
@@ -41,9 +41,35 @@ class ArchiveSemesterData extends Command
                 default => $semesterOption,
             };
 
-            $sections = Section::with(['studentEnrollments', 'studentEnrollments.studentGrades', 'studentEnrollments.shsStudentGrades', 'sectionSubjects', 'sectionSubjects.subject', 'sectionSubjects.teacher.user'])->get();
+            // Validate archiving rules based on education level
+            if (! $this->validateArchivingRules($semester)) {
+                return 1;
+            }
+
+            $this->info("Starting archive process for {$academicYear} - {$semester} semester...");
+
+            // Get sections to archive based on education level rules
+            $sectionsQuery = Section::with(['studentEnrollments', 'studentEnrollments.studentGrades', 'studentEnrollments.shsStudentGrades', 'sectionSubjects', 'sectionSubjects.subject', 'sectionSubjects.teacher.user']);
+
+            // For SHS, only archive at end of academic year (2nd semester)
+            if ($semester === 'second') {
+                // Archive all sections for the academic year
+                $sections = $sectionsQuery->get();
+            } else {
+                // For college mid-year archiving, only archive college sections
+                $sections = $sectionsQuery->whereHas('program', function ($query) {
+                    $query->where('education_level', 'college');
+                })->get();
+            }
+
+            $this->info("Found {$sections->count()} sections to archive");
+
             $archivedStudentIds = [];
+            $graduatedStudents = [];
+
             foreach ($sections as $section) {
+                $this->info("Archiving section: {$section->section_name}");
+
                 $archivedSection = ArchivedSection::create([
                     'original_section_id' => $section->id,
                     'program_id' => $section->program_id,
@@ -76,7 +102,13 @@ class ArchiveSemesterData extends Command
                     'archived_by' => $user->id,
                     'archive_notes' => $this->option('notes'),
                 ]);
+
                 foreach ($section->studentEnrollments as $enrollment) {
+                    $student = $enrollment->student;
+
+                    // Check if student should graduate
+                    $shouldGraduate = $this->shouldGraduateStudent($student, $academicYear, $semester, $enrollment);
+
                     // Preserve original status for archival snapshot; only mark active->completed
                     $originalStatus = $enrollment->status;
                     $completionDate = $enrollment->completion_date ?? now();
@@ -85,7 +117,7 @@ class ArchiveSemesterData extends Command
                         $enrollment->status = 'completed';
                         $enrollment->completion_date = $completionDate;
                         $enrollment->save();
-                        $finalStatus = 'completed';
+                        $finalStatus = $shouldGraduate ? 'graduated' : 'completed';
                     } else {
                         // preserve dropped/withdrawn/etc.
                         $finalStatus = $originalStatus;
@@ -105,8 +137,15 @@ class ArchiveSemesterData extends Command
                         'letter_grade' => $enrollment->letter_grade,
                         'student_data' => $enrollment->student->toArray(),
                     ]);
+
                     $archivedStudentIds[] = $enrollment->student_id;
+
+                    // Track students for graduation
+                    if ($shouldGraduate) {
+                        $graduatedStudents[] = $student;
+                    }
                 }
+
                 // Mark section as archived (non-destructive) instead of deleting it
                 $section->status = 'archived';
                 $section->save();
@@ -115,10 +154,12 @@ class ArchiveSemesterData extends Command
                 \App\Models\SectionSubject::where('section_id', $section->id)
                     ->update(['status' => 'inactive']);
             }
-            // Create ArchivedStudent records for the students we just archived
+
+            // Create ArchivedStudent records and handle graduation
             $archivedStudentIds = array_values(array_unique($archivedStudentIds));
             if (! empty($archivedStudentIds)) {
                 $students = Student::with('user', 'program')->whereIn('id', $archivedStudentIds)->get();
+
                 foreach ($students as $student) {
                     // Skip if an archived record already exists for this student and period
                     $exists = ArchivedStudent::where('original_student_id', $student->id)
@@ -157,13 +198,31 @@ class ArchiveSemesterData extends Command
                         'student_data' => $student->toArray(),
                     ]);
 
-                    // Mark student status to 'archived' so admins can filter them out if desired
-                    $student->status = 'archived';
+                    // Check if this student should be graduated
+                    $shouldGraduate = in_array($student, $graduatedStudents);
+
+                    if ($shouldGraduate) {
+                        // Graduate the student
+                        $student->status = 'graduated';
+                        $this->info("Graduating student: {$student->user->name} ({$student->student_number})");
+                    } else {
+                        // Mark as archived (for continuing students)
+                        $student->status = 'archived';
+                    }
+
                     $student->save();
                 }
             }
+
             DB::commit();
-            $this->info('Semester data archived successfully.');
+
+            $graduationCount = count($graduatedStudents);
+            $this->info('Archive process completed successfully!');
+            $this->info("Archived {$sections->count()} sections");
+            $this->info('Processed '.count($archivedStudentIds).' students');
+            if ($graduationCount > 0) {
+                $this->info("Graduated {$graduationCount} students");
+            }
 
             return 0;
         } catch (\Exception $e) {
@@ -172,5 +231,58 @@ class ArchiveSemesterData extends Command
 
             return 1;
         }
+    }
+
+    /**
+     * Validate archiving rules based on education level and semester.
+     */
+    private function validateArchivingRules(string $semester): bool
+    {
+        if ($semester !== 'second' && ! $this->option('force')) {
+            $this->warn('Note: Only archiving college sections for mid-year archiving.');
+            $this->warn('SHS sections will only be archived at the end of the academic year (2nd semester).');
+            $this->warn('Use --force flag to override this behavior.');
+        }
+
+        return true;
+    }
+
+    /**
+     * Determine if a student should graduate based on their current status and performance.
+     */
+    private function shouldGraduateStudent(Student $student, string $academicYear, string $semester, $enrollment): bool
+    {
+        // Only consider active students
+        if ($student->status !== 'active') {
+            return false;
+        }
+
+        // Check education level specific graduation requirements
+        if ($student->education_level === 'college') {
+            // College students graduate in 4th year, 2nd semester
+            return $student->current_year_level == 4 &&
+                   $semester === 'second' &&
+                   $this->hasPassingGrades($enrollment);
+        } elseif ($student->education_level === 'senior_high') {
+            // SHS students graduate at end of Grade 12 (2nd semester of academic year)
+            return $student->current_year_level == 12 &&
+                   $semester === 'second' &&
+                   $this->hasPassingGrades($enrollment);
+        }
+
+        return false;
+    }
+
+    /**
+     * Check if enrollment has passing grades for graduation.
+     */
+    private function hasPassingGrades($enrollment): bool
+    {
+        $grades = $enrollment->studentGrades ?? collect();
+
+        // All subjects must have final grades >= 75
+        return $grades->every(function ($grade) {
+            return $grade->final_grade && $grade->final_grade >= 75;
+        });
     }
 }

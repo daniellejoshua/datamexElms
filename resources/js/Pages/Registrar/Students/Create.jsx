@@ -2168,7 +2168,13 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                                 <div className="flex gap-2">
                                     <Select
                                         value={data.year_level}
-                                        onValueChange={(value) => setData('year_level', value)}
+                                        onValueChange={(value) => {
+                                            setData('year_level', value)
+                                            // Auto-set enrollment type to 'new' for 1st Year or Grade 11
+                                            if (value === '1st Year' || value === 'Grade 11') {
+                                                setData('enrollment_type', 'new')
+                                            }
+                                        }}
                                         disabled={!formUnlocked || !selectedProgram}
                                     >
                                         <SelectTrigger className={`h-10 flex-1 ${errors.year_level ? 'border-red-500' : 'border-gray-300 focus:border-green-500'} ${!selectedProgram ? 'bg-gray-100 cursor-not-allowed' : ''}`}>
@@ -2208,19 +2214,33 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
 
                         <div>
                             <Label htmlFor="enrollment_type" className="text-sm font-medium">Enrollment Type *</Label>
-                            <Select value={data.enrollment_type ?? ''} onValueChange={(value) => setData('enrollment_type', value)} disabled={!formUnlocked}>
-                                <SelectTrigger className={`h-10 ${errors.student_type ? 'border-red-500' : 'border-gray-300 focus:border-green-500'}`}>
+                            <Select
+                                value={data.enrollment_type ?? ''}
+                                onValueChange={(value) => setData('enrollment_type', value)}
+                                disabled={!formUnlocked || (data.year_level === '1st Year' || data.year_level === 'Grade 11')}
+                            >
+                                <SelectTrigger className={`h-10 ${errors.student_type ? 'border-red-500' : 'border-gray-300 focus:border-green-500'} ${(data.year_level === '1st Year' || data.year_level === 'Grade 11') ? 'bg-gray-50 cursor-not-allowed' : ''}`}>
                                     <SelectValue />
                                 </SelectTrigger>
                                 <SelectContent>
                                     {(() => {
                                         const isCollege = data.education_level === 'college'
                                         const isShs = data.education_level === 'senior_high'
-                                        const canBeNew = isCollege 
+                                        const canBeNew = isCollege
                             ? (data.year_level === '1st Year' && currentSemester === '1st')
                             : isShs && ((data.year_level === 'Grade 11' || data.year_level === '1') && currentSemester === '1st')
                                         const canBeShiftee = isExistingStudent || isReturningStudent
                                         const isSecondSemester = currentSemester === '2nd'
+
+                                        // If year level is 1st Year or Grade 11, only show "new" option
+                                        if (data.year_level === '1st Year' || data.year_level === 'Grade 11') {
+                                            return (
+                                                <SelectItem value="new">
+                                                    👤 New Student (Automatically selected for {data.year_level})
+                                                </SelectItem>
+                                            )
+                                        }
+
                                         return (
                                             <>
                                                 <SelectItem value="new" disabled={!canBeNew || isSecondSemester}>
@@ -2262,7 +2282,12 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                             {errors.student_type && (
                                 <p className="text-red-500 text-sm mt-1">{errors.student_type}</p>
                             )}
-                            {data.enrollment_type === 'new' && (
+                            {(data.year_level === '1st Year' || data.year_level === 'Grade 11') && (
+                                <p className="text-xs text-blue-600 mt-1">
+                                    🔒 Enrollment type automatically set to "New Student" for {data.year_level} students
+                                </p>
+                            )}
+                            {data.enrollment_type === 'new' && !(data.year_level === '1st Year' || data.year_level === 'Grade 11') && (
                                 <p className="text-xs text-green-600 mt-1">
                                     ✓ Starting their college journey - System will track their progress
                                 </p>
