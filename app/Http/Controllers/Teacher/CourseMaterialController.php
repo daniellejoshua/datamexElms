@@ -77,7 +77,7 @@ class CourseMaterialController extends Controller
                 'version_number' => 1,
             ]);
 
-            return response()->json(['message' => 'Learning material added successfully! (File was already in system, so we reused it to save storage space.)']);
+            return redirect()->back()->with('success', 'Learning material added successfully! (File was already in system, so we reused it to save storage space.)');
         }
 
         // File is new, upload it
@@ -101,7 +101,7 @@ class CourseMaterialController extends Controller
             'upload_date' => now()->toDateString(),
         ]);
 
-        return response()->json(['message' => 'Learning material uploaded successfully!']);
+        return redirect()->back()->with('success', 'Learning material uploaded successfully!');
     }
 
     public function destroy(SectionSubject $sectionSubject, CourseMaterial $material)
@@ -125,7 +125,7 @@ class CourseMaterialController extends Controller
 
         $material->delete();
 
-        return response()->json(['message' => 'Learning material deleted successfully!']);
+        return redirect()->back()->with('success', 'Learning material deleted successfully!');
     }
 
     public function download(SectionSubject $sectionSubject, CourseMaterial $material)

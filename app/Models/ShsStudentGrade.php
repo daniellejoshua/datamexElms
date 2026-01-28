@@ -27,11 +27,11 @@ class ShsStudentGrade extends Model
     protected function casts(): array
     {
         return [
-            'first_quarter_grade' => 'decimal:2',
-            'second_quarter_grade' => 'decimal:2',
-            'third_quarter_grade' => 'decimal:2',
-            'fourth_quarter_grade' => 'decimal:2',
-            'final_grade' => 'decimal:2',
+            'first_quarter_grade' => 'float',
+            'second_quarter_grade' => 'float',
+            'third_quarter_grade' => 'float',
+            'fourth_quarter_grade' => 'float',
+            'final_grade' => 'float',
             'first_quarter_submitted_at' => 'datetime',
             'second_quarter_submitted_at' => 'datetime',
             'third_quarter_submitted_at' => 'datetime',

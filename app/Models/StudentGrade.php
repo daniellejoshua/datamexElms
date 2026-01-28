@@ -19,12 +19,18 @@ class StudentGrade extends Model
         'prefinal_grade',
         'final_grade',
         'semester_grade',
+        'overall_status',
         'status',
     ];
 
     protected function casts(): array
     {
         return [
+            'prelim_grade' => 'float',
+            'midterm_grade' => 'float',
+            'prefinal_grade' => 'float',
+            'final_grade' => 'float',
+            'semester_grade' => 'float',
             'prelim_submitted_at' => 'datetime',
             'midterm_submitted_at' => 'datetime',
             'prefinal_submitted_at' => 'datetime',

@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
 import { Head, useForm, router } from '@inertiajs/react';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/Components/ui/table';
@@ -11,11 +11,19 @@ export default function Show({ section, sectionSubject, enrollments, isCollegeLe
     const [editingGrades, setEditingGrades] = useState({});
     const [originalGrades, setOriginalGrades] = useState({}); // Track original values
     const [showUploadDialog, setShowUploadDialog] = useState(false);
+    const [isDownloadingTemplate, setIsDownloadingTemplate] = useState(false);
+    const [isUploading, setIsUploading] = useState(false);
+    const [uploadProgress, setUploadProgress] = useState(0);
+    const [dragActive, setDragActive] = useState(false);
+    const [selectedFile, setSelectedFile] = useState(null);
+    const [uploadErrors, setUploadErrors] = useState([]);
+    const fileInputRef = useRef(null);
 
-    // // Debug: Log the section details to help identify the issue
-    // console.log('Section Details:', {
-    //     section_name: section.section_name,
-    //     program: section.program,
+    // Import modal states
+    const [showImportModal, setShowImportModal] = useState(false);
+    const [isImporting, setIsImporting] = useState(false);
+    const [importProgress, setImportProgress] = useState(0);
+    const [importResult, setImportResult] = useState(null); // { success: boolean, message: string, errors?: array }
     //     isCollegeLevel: isCollegeLevel,
     //     type: typeof isCollegeLevel
     // });
@@ -108,7 +116,7 @@ export default function Show({ section, sectionSubject, enrollments, isCollegeLe
             }
 
             return {
-                enrollment_id: enrollment.id,
+                enrollment_id: String(enrollment.id),
                 student_id: studentNumber,
                 student_name: studentName,
                 prelim_grade: existingGrade?.prelim_grade || '',
@@ -240,17 +248,24 @@ export default function Show({ section, sectionSubject, enrollments, isCollegeLe
     // Save grades for a specific student only
     const saveIndividualGrade = (enrollmentId) => {
         const studentGrade = data.grades.find(grade => grade.enrollment_id === enrollmentId);
-        if (!studentGrade) return;
+        if (!studentGrade) {
+            console.error('Student grade not found for enrollment ID:', enrollmentId);
+            return;
+        }
+
+        console.log('Saving individual grade for student:', studentGrade.student_name, studentGrade);
 
         // Create payload with just this student's data
         const individualPayload = {
             grades: [studentGrade]
         };
 
-        post(route('teacher.grades.update', sectionSubject.id), {
-            data: individualPayload,
+        router.post(route('teacher.grades.update', sectionSubject.id), {
+            data: individualPayload
+        }, {
             preserveScroll: true,
-            onSuccess: () => {
+            onSuccess: (response) => {
+                console.log('Individual grade save successful:', response);
                 // Update original grades to current values
                 setOriginalGrades(prev => ({
                     ...prev,
@@ -275,14 +290,18 @@ export default function Show({ section, sectionSubject, enrollments, isCollegeLe
                     }
                 });
                 setEditingGrades(newEditingGrades);
+            },
+            onError: (errors) => {
+                console.error('Individual grade save failed:', errors);
             }
         });
     };
 
     // Save grades
     const handleSaveGrades = () => {
-        post(route('teacher.grades.update', sectionSubject.id), {
-            data: data,
+        router.post(route('teacher.grades.update', sectionSubject.id), {
+            data: data
+        }, {
             preserveScroll: true,
             onSuccess: (response) => {
                 setEditingGrades({});
@@ -316,24 +335,157 @@ export default function Show({ section, sectionSubject, enrollments, isCollegeLe
     };
 
     // Download template
-    const downloadTemplate = () => {
-        window.location.href = route('teacher.grades.download-template', section.id);
+    const downloadTemplate = async () => {
+        setIsDownloadingTemplate(true);
+        try {
+            const response = await fetch(route('teacher.grades.template', sectionSubject.id));
+            if (!response.ok) {
+                throw new Error('Failed to download template');
+            }
+            
+            const blob = await response.blob();
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `grade_template_${section.section_code || 'section'}_${sectionSubject.subject.subject_code || 'subject'}.xlsx`;
+            document.body.appendChild(a);
+            a.click();
+            window.URL.revokeObjectURL(url);
+            document.body.removeChild(a);
+        } catch (error) {
+            console.error('Error downloading template:', error);
+            // You could add a toast notification here
+            alert('Failed to download template. Please try again.');
+        } finally {
+            setIsDownloadingTemplate(false);
+        }
     };
 
     // Upload Excel file
-    const handleFileUpload = (event) => {
-        const file = event.target.files[0];
-        if (file) {
+    const handleFileUpload = async (file) => {
+        if (!file) return;
+
+        // Validate file type
+        const allowedTypes = ['application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'application/vnd.ms-excel', 'text/csv'];
+        if (!allowedTypes.includes(file.type)) {
+            setUploadErrors(['Please select a valid Excel file (.xlsx, .xls, or .csv)']);
+            return;
+        }
+
+        // Validate file size (5MB max)
+        if (file.size > 5 * 1024 * 1024) {
+            setUploadErrors(['File size must be less than 5MB']);
+            return;
+        }
+
+        setSelectedFile(file);
+        setUploadErrors([]);
+        setShowUploadDialog(false); // Close upload dialog
+        setShowImportModal(true); // Show import modal
+        setIsImporting(true);
+        setImportProgress(0);
+        setImportResult(null);
+
+        try {
             const formData = new FormData();
             formData.append('grades_file', file);
-            
-            router.post(route('teacher.grades.import', section.id), formData, {
-                onSuccess: () => {
-                    setShowUploadDialog(false);
+
+            // Get CSRF token
+            const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+            if (!csrfToken) {
+                throw new Error('CSRF token not found. Please refresh the page and try again.');
+            }
+            formData.append('_token', csrfToken);
+
+            console.log('CSRF Token found:', csrfToken ? 'Yes' : 'No');
+
+            // Simulate progress
+            const progressInterval = setInterval(() => {
+                setImportProgress(prev => Math.min(prev + 5, 90));
+            }, 300);
+
+            const response = await fetch(route('teacher.grades.import', sectionSubject.id), {
+                method: 'POST',
+                body: formData,
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'Accept': 'application/json',
                 },
-                onError: () => {
-                }
             });
+
+            clearInterval(progressInterval);
+            setImportProgress(100);
+
+            const result = await response.json();
+
+            if (response.ok) {
+                setImportResult({
+                    success: true,
+                    message: result.message || 'Grades imported successfully!'
+                });
+                // Reload the page after a delay to show updated grades
+                setTimeout(() => {
+                    router.reload();
+                }, 2000);
+            } else {
+                console.error('Import failed:', result);
+                setImportResult({
+                    success: false,
+                    message: result.error || 'An error occurred during import',
+                    errors: result.errors || []
+                });
+            }
+        } catch (error) {
+            console.error('Import error:', error);
+            setImportResult({
+                success: false,
+                message: error.message || 'An unexpected error occurred during import. Please try again.'
+            });
+        } finally {
+            setIsImporting(false);
+        }
+    };
+
+    // Handle file selection
+    const handleFileSelect = (event) => {
+        const file = event.target.files[0];
+        if (file) {
+            setSelectedFile(file);
+            setUploadErrors([]); // Clear any previous errors
+        }
+    };
+
+    // Drag and drop handlers
+    const handleDragOver = (e) => {
+        e.preventDefault();
+        setDragActive(true);
+    };
+
+    const handleDragLeave = (e) => {
+        e.preventDefault();
+        setDragActive(false);
+    };
+
+    const handleDrop = (e) => {
+        e.preventDefault();
+        setDragActive(false);
+        
+        const files = e.dataTransfer.files;
+        if (files.length > 0) {
+            handleFileUpload(files[0]);
+        }
+    };
+
+    // Reset upload state when dialog closes
+    const closeUploadDialog = () => {
+        setShowUploadDialog(false);
+        setSelectedFile(null);
+        setUploadErrors([]);
+        setUploadProgress(0);
+        setIsUploading(false);
+        setDragActive(false);
+        if (fileInputRef.current) {
+            fileInputRef.current.value = '';
         }
     };
 
@@ -370,15 +522,25 @@ export default function Show({ section, sectionSubject, enrollments, isCollegeLe
             <div className="p-6">
                 {/* Section Header with Actions */}
                 <div className="mb-6">
-                    <div className="flex items-center justify-end mb-4">
+                    <div className="flex items-center justify-between mb-4">
                         <div className="flex items-center gap-3">
                             <Button 
                                 variant="outline" 
                                 onClick={downloadTemplate}
-                                className="text-blue-600 border-blue-200 hover:bg-blue-50"
+                                disabled={isDownloadingTemplate}
+                                className="text-blue-600 border-blue-200 hover:bg-blue-50 disabled:opacity-50"
                             >
-                                <Download className="w-4 h-4 mr-2" />
-                                Download Template
+                                {isDownloadingTemplate ? (
+                                    <>
+                                        <div className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin mr-2"></div>
+                                        Downloading...
+                                    </>
+                                ) : (
+                                    <>
+                                        <Download className="w-4 h-4 mr-2" />
+                                        Download Template
+                                    </>
+                                )}
                             </Button>
                             
                             <Button 
@@ -466,7 +628,9 @@ export default function Show({ section, sectionSubject, enrollments, isCollegeLe
                                                             max="100"
                                                             value={gradeData.prelim_grade}
                                                             onChange={(e) => handleGradeChange(gradeData.enrollment_id, 'prelim_grade', e.target.value)}
-                                                            className="w-20 text-center text-sm"
+                                                            className={`w-20 text-center text-sm border-gray-300 focus:ring-purple-500 focus:border-purple-500 ${
+                                                                editingGrades[`${gradeData.enrollment_id}_prelim_grade`] ? 'ring-2 ring-purple-300' : ''
+                                                            } ${getGradeStatusColor(getGradeStatus(gradeData.prelim_grade))}`}
                                                         />
                                                     </TableCell>
                                                     <TableCell className="text-center py-3">
@@ -477,7 +641,9 @@ export default function Show({ section, sectionSubject, enrollments, isCollegeLe
                                                             max="100"
                                                             value={gradeData.midterm_grade}
                                                             onChange={(e) => handleGradeChange(gradeData.enrollment_id, 'midterm_grade', e.target.value)}
-                                                            className="w-20 text-center text-sm"
+                                                            className={`w-20 text-center text-sm border-gray-300 focus:ring-purple-500 focus:border-purple-500 ${
+                                                                editingGrades[`${gradeData.enrollment_id}_midterm_grade`] ? 'ring-2 ring-purple-300' : ''
+                                                            } ${getGradeStatusColor(getGradeStatus(gradeData.midterm_grade))}`}
                                                         />
                                                     </TableCell>
                                                     <TableCell className="text-center py-3">
@@ -488,7 +654,9 @@ export default function Show({ section, sectionSubject, enrollments, isCollegeLe
                                                             max="100"
                                                             value={gradeData.prefinal_grade}
                                                             onChange={(e) => handleGradeChange(gradeData.enrollment_id, 'prefinal_grade', e.target.value)}
-                                                            className="w-20 text-center text-sm"
+                                                            className={`w-20 text-center text-sm border-gray-300 focus:ring-purple-500 focus:border-purple-500 ${
+                                                                editingGrades[`${gradeData.enrollment_id}_prefinal_grade`] ? 'ring-2 ring-purple-300' : ''
+                                                            } ${getGradeStatusColor(getGradeStatus(gradeData.prefinal_grade))}`}
                                                         />
                                                     </TableCell>
                                                     <TableCell className="text-center py-3">
@@ -499,7 +667,9 @@ export default function Show({ section, sectionSubject, enrollments, isCollegeLe
                                                             max="100"
                                                             value={gradeData.final_grade}
                                                             onChange={(e) => handleGradeChange(gradeData.enrollment_id, 'final_grade', e.target.value)}
-                                                            className="w-20 text-center text-sm"
+                                                            className={`w-20 text-center text-sm border-gray-300 focus:ring-purple-500 focus:border-purple-500 ${
+                                                                editingGrades[`${gradeData.enrollment_id}_final_grade`] ? 'ring-2 ring-purple-300' : ''
+                                                            } ${getGradeStatusColor(getGradeStatus(gradeData.final_grade))}`}
                                                         />
                                                     </TableCell>
                                                 </>
@@ -512,7 +682,9 @@ export default function Show({ section, sectionSubject, enrollments, isCollegeLe
                                                             max="100"
                                                             value={gradeData.first_quarter_grade}
                                                             onChange={(e) => handleGradeChange(gradeData.enrollment_id, 'first_quarter_grade', e.target.value)}
-                                                            className="w-20 text-center text-sm"
+                                                            className={`w-20 text-center text-sm border-gray-300 focus:ring-purple-500 focus:border-purple-500 ${
+                                                                editingGrades[`${gradeData.enrollment_id}_first_quarter_grade`] ? 'ring-2 ring-purple-300' : ''
+                                                            } ${getGradeStatusColor(getGradeStatus(gradeData.first_quarter_grade))}`}
                                                         />
                                                     </TableCell>
                                                     <TableCell className="text-center py-3">
@@ -522,7 +694,9 @@ export default function Show({ section, sectionSubject, enrollments, isCollegeLe
                                                             max="100"
                                                             value={gradeData.second_quarter_grade}
                                                             onChange={(e) => handleGradeChange(gradeData.enrollment_id, 'second_quarter_grade', e.target.value)}
-                                                            className="w-20 text-center text-sm"
+                                                            className={`w-20 text-center text-sm border-gray-300 focus:ring-purple-500 focus:border-purple-500 ${
+                                                                editingGrades[`${gradeData.enrollment_id}_second_quarter_grade`] ? 'ring-2 ring-purple-300' : ''
+                                                            } ${getGradeStatusColor(getGradeStatus(gradeData.second_quarter_grade))}`}
                                                         />
                                                     </TableCell>
                                                     <TableCell className="text-center py-3">
@@ -532,7 +706,9 @@ export default function Show({ section, sectionSubject, enrollments, isCollegeLe
                                                             max="100"
                                                             value={gradeData.third_quarter_grade}
                                                             onChange={(e) => handleGradeChange(gradeData.enrollment_id, 'third_quarter_grade', e.target.value)}
-                                                            className="w-20 text-center text-sm"
+                                                            className={`w-20 text-center text-sm border-gray-300 focus:ring-purple-500 focus:border-purple-500 ${
+                                                                editingGrades[`${gradeData.enrollment_id}_third_quarter_grade`] ? 'ring-2 ring-purple-300' : ''
+                                                            } ${getGradeStatusColor(getGradeStatus(gradeData.third_quarter_grade))}`}
                                                         />
                                                     </TableCell>
                                                     <TableCell className="text-center py-3">
@@ -581,36 +757,259 @@ export default function Show({ section, sectionSubject, enrollments, isCollegeLe
             {showUploadDialog && (
                 <div className="fixed inset-0 z-50 overflow-y-auto">
                     <div className="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
-                        <div className="fixed inset-0 bg-gray-500 bg-opacity-75" onClick={() => setShowUploadDialog(false)}></div>
+                        <div className="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" onClick={closeUploadDialog}></div>
                         
-                        <div className="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
-                            <div className="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+                        <div className="inline-block align-bottom bg-white rounded-xl shadow-2xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
+                            <div className="bg-white px-6 pt-5 pb-4 sm:p-6 sm:pb-4">
                                 <div className="sm:flex sm:items-start">
                                     <div className="mt-3 text-center sm:mt-0 sm:text-left w-full">
-                                        <h3 className="text-lg leading-6 font-bold text-gray-900">
-                                            Import Grades from Excel
-                                        </h3>
-                                        <div className="mt-4">
-                                            <p className="text-sm text-gray-500 mb-4">
-                                                Upload an Excel file with student grades. Make sure to download the template first.
+                                        <div className="flex items-center justify-between mb-4">
+                                            <h3 className="text-lg leading-6 font-bold text-gray-900 flex items-center">
+                                                <FileSpreadsheet className="w-5 h-5 mr-2 text-green-600" />
+                                                Import Grades from Excel
+                                            </h3>
+                                            <Button
+                                                type="button"
+                                                variant="ghost"
+                                                size="sm"
+                                                onClick={closeUploadDialog}
+                                                className="text-gray-400 hover:text-gray-600 h-8 w-8 p-0"
+                                            >
+                                                ✕
+                                            </Button>
+                                        </div>
+                                        
+                                        <div className="mb-4">
+                                            <p className="text-sm text-gray-600 mb-4">
+                                                Upload an Excel file with student grades. Download the template first to ensure correct formatting.
                                             </p>
-                                            <input
-                                                type="file"
-                                                accept=".xlsx,.xls"
-                                                onChange={handleFileUpload}
-                                                className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-red-50 file:text-red-700 hover:file:bg-red-100"
-                                            />
+                                            
+                                            {/* File Upload Area */}
+                                            <div 
+                                                className={`border-2 border-dashed rounded-lg p-6 transition-all duration-200 ${
+                                                    dragActive 
+                                                        ? 'border-blue-500 bg-blue-50' 
+                                                        : selectedFile
+                                                            ? 'border-green-300 bg-green-50'
+                                                            : 'border-gray-300 hover:border-blue-400'
+                                                } ${isUploading ? 'pointer-events-none opacity-50' : ''}`}
+                                                onDragOver={handleDragOver}
+                                                onDragLeave={handleDragLeave}
+                                                onDrop={handleDrop}
+                                            >
+                                                <div className="text-center">
+                                                    {selectedFile ? (
+                                                        <div className="space-y-3">
+                                                            <div className="mx-auto w-12 h-12 bg-green-100 rounded-full flex items-center justify-center">
+                                                                <CheckCircle className="w-6 h-6 text-green-600" />
+                                                            </div>
+                                                            <div>
+                                                                <p className="text-sm font-medium text-gray-900">{selectedFile.name}</p>
+                                                                <p className="text-xs text-gray-500">
+                                                                    {(selectedFile.size / 1024 / 1024).toFixed(2)} MB
+                                                                </p>
+                                                            </div>
+                                                            
+                                                            {isUploading && (
+                                                                <div className="space-y-2">
+                                                                    <div className="w-full bg-gray-200 rounded-full h-2">
+                                                                        <div 
+                                                                            className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                                                                            style={{ width: `${uploadProgress}%` }}
+                                                                        ></div>
+                                                                    </div>
+                                                                    <p className="text-xs text-gray-600">Uploading... {uploadProgress}%</p>
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    ) : (
+                                                        <div className="space-y-4">
+                                                            <div className={`mx-auto w-12 h-12 rounded-full flex items-center justify-center ${
+                                                                dragActive ? 'bg-blue-100' : 'bg-gray-100'
+                                                            }`}>
+                                                                <Upload className={`w-6 h-6 ${
+                                                                    dragActive ? 'text-blue-600' : 'text-gray-400'
+                                                                }`} />
+                                                            </div>
+                                                            <div>
+                                                                <p className={`text-sm font-medium ${
+                                                                    dragActive ? 'text-blue-700' : 'text-gray-700'
+                                                                }`}>
+                                                                    {dragActive ? 'Drop your Excel file here' : 'Drag & drop your Excel file here, or click to browse'}
+                                                                </p>
+                                                                <p className="text-xs text-gray-500 mt-1">
+                                                                    Supports .xlsx, .xls, .csv files (max 5MB)
+                                                                </p>
+                                                            </div>
+                                                            <input
+                                                                ref={fileInputRef}
+                                                                type="file"
+                                                                accept=".xlsx,.xls,.csv"
+                                                                onChange={handleFileSelect}
+                                                                className="hidden"
+                                                            />
+                                                            <Button
+                                                                type="button"
+                                                                variant="outline"
+                                                                size="sm"
+                                                                onClick={() => fileInputRef.current?.click()}
+                                                                className="border-gray-300 hover:border-blue-300 hover:bg-blue-50"
+                                                            >
+                                                                Choose File
+                                                            </Button>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
+                                            
+                                            {/* Error Messages */}
+                                            {uploadErrors.length > 0 && (
+                                                <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-md">
+                                                    <div className="flex items-start">
+                                                        <XCircle className="w-5 h-5 text-red-600 mr-2 mt-0.5" />
+                                                        <div>
+                                                            <p className="text-sm font-medium text-red-800">Upload Failed</p>
+                                                            <ul className="mt-1 text-sm text-red-700 list-disc list-inside">
+                                                                {uploadErrors.map((error, index) => (
+                                                                    <li key={index}>{error}</li>
+                                                                ))}
+                                                            </ul>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            )}
+                                            
+                                            {/* Success Message */}
+                                            {uploadProgress === 100 && !uploadErrors.length && (
+                                                <div className="mt-4 p-3 bg-green-50 border border-green-200 rounded-md">
+                                                    <div className="flex items-start">
+                                                        <CheckCircle className="w-5 h-5 text-green-600 mr-2 mt-0.5" />
+                                                        <div>
+                                                            <p className="text-sm font-medium text-green-800">Upload Successful!</p>
+                                                            <p className="text-sm text-green-700">Grades have been imported successfully.</p>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            )}
                                         </div>
                                     </div>
                                 </div>
                             </div>
-                            <div className="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
-                                <Button
-                                    onClick={() => setShowUploadDialog(false)}
-                                    className="bg-gray-300 hover:bg-gray-400 text-gray-800"
-                                >
-                                    Cancel
-                                </Button>
+                            
+                            <div className="bg-gray-50 px-6 py-4 rounded-b-xl">
+                                <div className="flex items-center justify-between">
+                                    <div className="text-xs text-gray-500">
+                                        Need help? Download the template first to see the required format.
+                                    </div>
+                                    <div className="flex gap-3">
+                                        <Button
+                                            type="button"
+                                            variant="outline"
+                                            onClick={closeUploadDialog}
+                                            disabled={isUploading}
+                                            className="px-4 py-2 text-gray-700 border-gray-300 hover:bg-gray-50"
+                                        >
+                                            Cancel
+                                        </Button>
+                                        
+                                        <Button
+                                            onClick={() => selectedFile && handleFileUpload(selectedFile)}
+                                            disabled={!selectedFile || isUploading}
+                                            className="px-6 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white font-medium rounded-md"
+                                        >
+                                            <Upload className="w-4 h-4 mr-2" />
+                                            Import Grades
+                                        </Button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Import Progress Modal */}
+            {showImportModal && (
+                <div className="fixed inset-0 z-50 overflow-y-auto">
+                    <div className="flex items-center justify-center min-h-screen p-4">
+                        <div className="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity"></div>
+                        
+                        <div className="relative bg-white rounded-lg shadow-xl max-w-sm w-full mx-4">
+                            <div className="p-4">
+                                <div className="flex items-center justify-between mb-3">
+                                    <h3 className="text-lg font-semibold text-gray-900 flex items-center">
+                                        {isImporting ? (
+                                            <>
+                                                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600 mr-2"></div>
+                                                Importing Grades...
+                                            </>
+                                        ) : importResult?.success ? (
+                                            <>
+                                                <CheckCircle className="w-4 h-4 mr-2 text-green-600" />
+                                                Import Complete
+                                            </>
+                                        ) : (
+                                            <>
+                                                <XCircle className="w-4 h-4 mr-2 text-red-600" />
+                                                Import Failed
+                                            </>
+                                        )}
+                                    </h3>
+                                </div>
+                                
+                                <div className="mb-4">
+                                    {isImporting ? (
+                                        <div>
+                                            <p className="text-sm text-gray-600 mb-3">
+                                                Processing your Excel file...
+                                            </p>
+                                            
+                                            {/* Progress Bar */}
+                                            <div className="w-full bg-gray-200 rounded-full h-2 mb-1">
+                                                <div 
+                                                    className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                                                    style={{ width: `${importProgress}%` }}
+                                                ></div>
+                                            </div>
+                                            <p className="text-xs text-gray-500 text-center">
+                                                {importProgress}%
+                                            </p>
+                                        </div>
+                                    ) : importResult ? (
+                                        <div>
+                                            <p className={`text-sm mb-3 ${importResult.success ? 'text-green-700' : 'text-red-700'}`}>
+                                                {importResult.message}
+                                            </p>
+                                            
+                                            {importResult.errors && importResult.errors.length > 0 && (
+                                                <div className="p-2 bg-red-50 border border-red-200 rounded">
+                                                    <p className="text-xs font-medium text-red-800 mb-1">Errors:</p>
+                                                    <ul className="text-xs text-red-700 list-disc list-inside space-y-0.5">
+                                                        {importResult.errors.map((error, index) => (
+                                                            <li key={index}>{error}</li>
+                                                        ))}
+                                                    </ul>
+                                                </div>
+                                            )}
+                                        </div>
+                                    ) : null}
+                                </div>
+                                
+                                <div className="flex justify-end">
+                                    <Button
+                                        type="button"
+                                        onClick={() => {
+                                            setShowImportModal(false);
+                                            setImportResult(null);
+                                            setImportProgress(0);
+                                            setSelectedFile(null);
+                                        }}
+                                        className="px-3 py-1.5 text-sm bg-gray-600 hover:bg-gray-700 text-white rounded"
+                                        disabled={isImporting}
+                                    >
+                                        {isImporting ? 'Processing...' : 'Close'}
+                                    </Button>
+                                </div>
                             </div>
                         </div>
                     </div>
