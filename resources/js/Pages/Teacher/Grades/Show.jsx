@@ -24,6 +24,8 @@ export default function Show({ section, sectionSubject, enrollments, isCollegeLe
     const [isImporting, setIsImporting] = useState(false);
     const [importProgress, setImportProgress] = useState(0);
     const [importResult, setImportResult] = useState(null); // { success: boolean, message: string, errors?: array }
+    // UI state for import warnings panel
+    const [showImportWarnings, setShowImportWarnings] = useState(false);
     //     isCollegeLevel: isCollegeLevel,
     //     type: typeof isCollegeLevel
     // });
@@ -217,11 +219,20 @@ export default function Show({ section, sectionSubject, enrollments, isCollegeLe
 
     const getGradeStatusColor = (status) => {
         switch (status) {
-            case 'excellent': return 'text-green-600 bg-green-50';
-            case 'passed': return 'text-blue-600 bg-blue-50';
-            case 'failed': return 'text-red-600 bg-red-50';
-            default: return 'text-gray-600 bg-gray-50';
+            case 'excellent': return 'text-green-600';
+            case 'passed': return 'text-black';
+            case 'failed': return 'text-red-600';
+            default: return 'text-black';
         }
+    };
+
+    // Text color helper as requested: >90 green, >=75 black, <75 red
+    const getGradeTextColor = (grade) => {
+        const num = parseFloat(grade);
+        if (grade === '' || grade === null || isNaN(num)) return 'text-black';
+        if (num > 90) return 'text-green-600';
+        if (num >= 75) return 'text-black';
+        return 'text-red-600';
     };
 
     // Check if a specific student has unsaved changes
@@ -342,12 +353,28 @@ export default function Show({ section, sectionSubject, enrollments, isCollegeLe
             if (!response.ok) {
                 throw new Error('Failed to download template');
             }
-            
+
             const blob = await response.blob();
+
+            // Try to get filename from Content-Disposition header if present
+            const contentDisposition = response.headers.get('content-disposition') || '';
+            const matches = /filename\*?=(?:UTF-8'')?"?([^;"\n]+)"?/i.exec(contentDisposition);
+            let fileName = matches && matches[1] ? decodeURIComponent(matches[1]) : null;
+
+            // Fallback to structured filename matching server format
+            if (!fileName) {
+                const sanitize = (str) => (str || '').replace(/[^A-Za-z0-9\- _]/g, '').trim().replace(/\s+/g, '_') || 'section';
+                const sectionName = sanitize(section.section_name || section.section_code || 'section');
+                const subjectName = sanitize(sectionSubject.subject?.subject_name || sectionSubject.subject?.subject_code || 'subject');
+                const academicYear = sanitize(section.academic_year || 'year');
+                const semester = sanitize(`Sem${section.semester}`);
+                fileName = `grades_${sectionName}_${academicYear}_${semester}_${subjectName}.xlsx`;
+            }
+
             const url = window.URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            a.download = `grade_template_${section.section_code || 'section'}_${sectionSubject.subject.subject_code || 'subject'}.xlsx`;
+            a.download = fileName;
             document.body.appendChild(a);
             a.click();
             window.URL.revokeObjectURL(url);
@@ -421,9 +448,12 @@ export default function Show({ section, sectionSubject, enrollments, isCollegeLe
             if (response.ok) {
                 setImportResult({
                     success: true,
-                    message: result.message || 'Grades imported successfully!'
+                    message: result.message || 'Grades imported successfully!',
+                    warnings: result.warnings || []
                 });
-                // Reload the page after a delay to show updated grades
+                // Ensure the warnings panel is collapsed by default when a new result arrives
+                setShowImportWarnings(false);
+                // Reload the page after a delay to show updated grades (allow user to read warnings)
                 setTimeout(() => {
                     router.reload();
                 }, 2000);
@@ -434,6 +464,7 @@ export default function Show({ section, sectionSubject, enrollments, isCollegeLe
                     message: result.error || 'An error occurred during import',
                     errors: result.errors || []
                 });
+                setShowImportWarnings(false);
             }
         } catch (error) {
             console.error('Import error:', error);
@@ -441,6 +472,7 @@ export default function Show({ section, sectionSubject, enrollments, isCollegeLe
                 success: false,
                 message: error.message || 'An unexpected error occurred during import. Please try again.'
             });
+            setShowImportWarnings(false);
         } finally {
             setIsImporting(false);
         }
@@ -520,9 +552,18 @@ export default function Show({ section, sectionSubject, enrollments, isCollegeLe
             <Head title={`Grades - ${getSimplifiedSectionName()}`} />
 
             <div className="p-6">
+                {/* Floating toast for template download */}
+                {isDownloadingTemplate && (
+                    <div className="fixed top-6 right-6 z-50 bg-white shadow px-4 py-2 rounded flex items-center gap-2 border border-gray-200">
+                        <div className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+                        <div className="text-sm text-gray-700">Preparing template...</div>
+                    </div>
+                )}
+
                 {/* Section Header with Actions */}
                 <div className="mb-6">
                     <div className="flex items-center justify-between mb-4">
+                        <div></div>
                         <div className="flex items-center gap-3">
                             <Button 
                                 variant="outline" 
@@ -630,7 +671,7 @@ export default function Show({ section, sectionSubject, enrollments, isCollegeLe
                                                             onChange={(e) => handleGradeChange(gradeData.enrollment_id, 'prelim_grade', e.target.value)}
                                                             className={`w-20 text-center text-sm border-gray-300 focus:ring-purple-500 focus:border-purple-500 ${
                                                                 editingGrades[`${gradeData.enrollment_id}_prelim_grade`] ? 'ring-2 ring-purple-300' : ''
-                                                            } ${getGradeStatusColor(getGradeStatus(gradeData.prelim_grade))}`}
+                                                            } ${getGradeTextColor(gradeData.prelim_grade)}`}
                                                         />
                                                     </TableCell>
                                                     <TableCell className="text-center py-3">
@@ -643,7 +684,7 @@ export default function Show({ section, sectionSubject, enrollments, isCollegeLe
                                                             onChange={(e) => handleGradeChange(gradeData.enrollment_id, 'midterm_grade', e.target.value)}
                                                             className={`w-20 text-center text-sm border-gray-300 focus:ring-purple-500 focus:border-purple-500 ${
                                                                 editingGrades[`${gradeData.enrollment_id}_midterm_grade`] ? 'ring-2 ring-purple-300' : ''
-                                                            } ${getGradeStatusColor(getGradeStatus(gradeData.midterm_grade))}`}
+                                                            } ${getGradeTextColor(gradeData.midterm_grade)}`}
                                                         />
                                                     </TableCell>
                                                     <TableCell className="text-center py-3">
@@ -656,7 +697,7 @@ export default function Show({ section, sectionSubject, enrollments, isCollegeLe
                                                             onChange={(e) => handleGradeChange(gradeData.enrollment_id, 'prefinal_grade', e.target.value)}
                                                             className={`w-20 text-center text-sm border-gray-300 focus:ring-purple-500 focus:border-purple-500 ${
                                                                 editingGrades[`${gradeData.enrollment_id}_prefinal_grade`] ? 'ring-2 ring-purple-300' : ''
-                                                            } ${getGradeStatusColor(getGradeStatus(gradeData.prefinal_grade))}`}
+                                                            } ${getGradeTextColor(gradeData.prefinal_grade)}`}
                                                         />
                                                     </TableCell>
                                                     <TableCell className="text-center py-3">
@@ -669,7 +710,7 @@ export default function Show({ section, sectionSubject, enrollments, isCollegeLe
                                                             onChange={(e) => handleGradeChange(gradeData.enrollment_id, 'final_grade', e.target.value)}
                                                             className={`w-20 text-center text-sm border-gray-300 focus:ring-purple-500 focus:border-purple-500 ${
                                                                 editingGrades[`${gradeData.enrollment_id}_final_grade`] ? 'ring-2 ring-purple-300' : ''
-                                                            } ${getGradeStatusColor(getGradeStatus(gradeData.final_grade))}`}
+                                                            } ${getGradeTextColor(gradeData.final_grade)}`}
                                                         />
                                                     </TableCell>
                                                 </>
@@ -684,7 +725,7 @@ export default function Show({ section, sectionSubject, enrollments, isCollegeLe
                                                             onChange={(e) => handleGradeChange(gradeData.enrollment_id, 'first_quarter_grade', e.target.value)}
                                                             className={`w-20 text-center text-sm border-gray-300 focus:ring-purple-500 focus:border-purple-500 ${
                                                                 editingGrades[`${gradeData.enrollment_id}_first_quarter_grade`] ? 'ring-2 ring-purple-300' : ''
-                                                            } ${getGradeStatusColor(getGradeStatus(gradeData.first_quarter_grade))}`}
+                                                            } ${getGradeTextColor(gradeData.first_quarter_grade)}`}
                                                         />
                                                     </TableCell>
                                                     <TableCell className="text-center py-3">
@@ -696,7 +737,7 @@ export default function Show({ section, sectionSubject, enrollments, isCollegeLe
                                                             onChange={(e) => handleGradeChange(gradeData.enrollment_id, 'second_quarter_grade', e.target.value)}
                                                             className={`w-20 text-center text-sm border-gray-300 focus:ring-purple-500 focus:border-purple-500 ${
                                                                 editingGrades[`${gradeData.enrollment_id}_second_quarter_grade`] ? 'ring-2 ring-purple-300' : ''
-                                                            } ${getGradeStatusColor(getGradeStatus(gradeData.second_quarter_grade))}`}
+                                                            } ${getGradeTextColor(gradeData.second_quarter_grade)}`}
                                                         />
                                                     </TableCell>
                                                     <TableCell className="text-center py-3">
@@ -708,7 +749,7 @@ export default function Show({ section, sectionSubject, enrollments, isCollegeLe
                                                             onChange={(e) => handleGradeChange(gradeData.enrollment_id, 'third_quarter_grade', e.target.value)}
                                                             className={`w-20 text-center text-sm border-gray-300 focus:ring-purple-500 focus:border-purple-500 ${
                                                                 editingGrades[`${gradeData.enrollment_id}_third_quarter_grade`] ? 'ring-2 ring-purple-300' : ''
-                                                            } ${getGradeStatusColor(getGradeStatus(gradeData.third_quarter_grade))}`}
+                                                            } ${getGradeTextColor(gradeData.third_quarter_grade)}`}
                                                         />
                                                     </TableCell>
                                                     <TableCell className="text-center py-3">
@@ -720,7 +761,7 @@ export default function Show({ section, sectionSubject, enrollments, isCollegeLe
                                                             onChange={(e) => handleGradeChange(gradeData.enrollment_id, 'fourth_quarter_grade', e.target.value)}
                                                             className={`w-20 text-center border-gray-300 focus:ring-purple-500 focus:border-purple-500 ${
                                                                 editingGrades[`${gradeData.enrollment_id}_fourth_quarter_grade`] ? 'ring-2 ring-purple-300' : ''
-                                                            } ${getGradeStatusColor(getGradeStatus(gradeData.fourth_quarter_grade))}`}
+                                                            } ${getGradeTextColor(gradeData.fourth_quarter_grade)}`}
                                                         />
                                                     </TableCell>
                                                 </>
@@ -945,17 +986,17 @@ export default function Show({ section, sectionSubject, enrollments, isCollegeLe
                                             </>
                                         ) : importResult?.success ? (
                                             <>
-                                                <CheckCircle className="w-4 h-4 mr-2 text-green-600" />
-                                                Import Complete
+                                                <CheckCircle className="w-4 h-4 mr-2 text-blue-600" />
+                                                <span className="text-blue-600">Import Complete</span>
                                             </>
                                         ) : (
                                             <>
-                                                <XCircle className="w-4 h-4 mr-2 text-red-600" />
-                                                Import Failed
+                                                <XCircle className="w-4 h-4 mr-2 text-gray-500" />
+                                                <span className="text-gray-700">Import Failed</span>
                                             </>
                                         )}
                                     </h3>
-                                </div>
+                                </div> 
                                 
                                 <div className="mb-4">
                                     {isImporting ? (
@@ -977,14 +1018,46 @@ export default function Show({ section, sectionSubject, enrollments, isCollegeLe
                                         </div>
                                     ) : importResult ? (
                                         <div>
-                                            <p className={`text-sm mb-3 ${importResult.success ? 'text-green-700' : 'text-red-700'}`}>
+                                            <p className={`text-sm mb-3 ${importResult.success ? 'text-blue-700' : 'text-gray-700'}`}>
                                                 {importResult.message}
-                                            </p>
+                                            </p> 
                                             
+                                            {importResult.warnings && importResult.warnings.length > 0 && (
+                                                <div className="p-2 bg-yellow-50 border border-yellow-200 rounded mb-2">
+                                                    <div className="flex items-center justify-between">
+                                                        <div className="flex items-start gap-2">
+                                                            <AlertTriangle className="w-4 h-4 text-yellow-600 mt-0.5" />
+                                                            <div>
+                                                                <p className="text-xs font-medium text-yellow-800 mb-0">Warnings: <span className="font-semibold">{importResult.warnings.length}</span></p>
+                                                                <p className="text-xs text-yellow-700">Click to view details</p>
+                                                            </div>
+                                                        </div>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setShowImportWarnings(prev => !prev)}
+                                                            className="text-xs text-yellow-800 underline ml-4"
+                                                            aria-expanded={showImportWarnings}
+                                                        >
+                                                            {showImportWarnings ? 'Hide' : 'Show'}
+                                                        </button>
+                                                    </div>
+
+                                                    {showImportWarnings && (
+                                                        <div className="mt-2 max-h-48 overflow-auto bg-yellow-50 p-2 rounded border border-yellow-100">
+                                                            <ul className="text-xs text-yellow-700 list-disc list-inside space-y-0.5">
+                                                                {importResult.warnings.map((warning, index) => (
+                                                                    <li key={index}>{warning}</li>
+                                                                ))}
+                                                            </ul>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            )}
+
                                             {importResult.errors && importResult.errors.length > 0 && (
-                                                <div className="p-2 bg-red-50 border border-red-200 rounded">
-                                                    <p className="text-xs font-medium text-red-800 mb-1">Errors:</p>
-                                                    <ul className="text-xs text-red-700 list-disc list-inside space-y-0.5">
+                                                <div className="p-2 bg-gray-50 border border-gray-200 rounded">
+                                                    <p className="text-xs font-medium text-gray-800 mb-1">Errors:</p>
+                                                    <ul className="text-xs text-gray-700 list-disc list-inside space-y-0.5">
                                                         {importResult.errors.map((error, index) => (
                                                             <li key={index}>{error}</li>
                                                         ))}
@@ -1003,6 +1076,7 @@ export default function Show({ section, sectionSubject, enrollments, isCollegeLe
                                             setImportResult(null);
                                             setImportProgress(0);
                                             setSelectedFile(null);
+                                            setShowImportWarnings(false);
                                         }}
                                         className="px-3 py-1.5 text-sm bg-gray-600 hover:bg-gray-700 text-white rounded"
                                         disabled={isImporting}

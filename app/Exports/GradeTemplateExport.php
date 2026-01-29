@@ -18,11 +18,14 @@ class GradeTemplateExport implements FromCollection, WithColumnFormatting, WithH
 
     protected $sectionSubject;
 
-    public function __construct(Collection $enrollments, bool $isCollegeLevel, $sectionSubject = null)
+    protected $teacher;
+
+    public function __construct(Collection $enrollments, bool $isCollegeLevel, $sectionSubject = null, $teacher = null)
     {
         $this->enrollments = $enrollments;
         $this->isCollegeLevel = $isCollegeLevel;
         $this->sectionSubject = $sectionSubject;
+        $this->teacher = $teacher;
     }
 
     public function collection(): Collection
@@ -49,24 +52,48 @@ class GradeTemplateExport implements FromCollection, WithColumnFormatting, WithH
 
         // Add student data rows
         $studentRows = $this->enrollments->map(function ($enrollment) {
+            $studentNumber = (string) ($enrollment->student->student_number ?? $enrollment->student->student_id ?? '');
+            $studentName = $enrollment->student->user->name ?? '';
+
             $data = [
-                'student_id' => (string) $enrollment->student->student_number,
-                'student_name' => $enrollment->student->user->name,
+                'student_id' => $studentNumber,
+                'student_name' => $studentName,
             ];
+
+            // Try to include existing grades for this enrollment if present
+            $existing = null;
+
+            try {
+                if (isset($enrollment->id) && $enrollment->id) {
+                    if ($this->isCollegeLevel) {
+                        $existing = \App\Models\StudentGrade::where('student_enrollment_id', $enrollment->id)
+                            ->where('section_subject_id', $this->sectionSubject->id)
+                            ->when($this->teacher, fn($q) => $q->where('teacher_id', $this->teacher->id))
+                            ->first();
+                    } else {
+                        $existing = \App\Models\ShsStudentGrade::where('student_enrollment_id', $enrollment->id)
+                            ->where('section_subject_id', $this->sectionSubject->id)
+                            ->when($this->teacher, fn($q) => $q->where('teacher_id', $this->teacher->id))
+                            ->first();
+                    }
+                }
+            } catch (\Exception $e) {
+                // ignore DB issues in export - leave fields blank
+            }
 
             if ($this->isCollegeLevel) {
                 $data = array_merge($data, [
-                    'prelim' => '',
-                    'midterm' => '',
-                    'prefinals' => '',
-                    'finals' => '',
+                    'prelim' => $existing?->prelim_grade ?? '',
+                    'midterm' => $existing?->midterm_grade ?? '',
+                    'prefinals' => $existing?->prefinal_grade ?? '',
+                    'finals' => $existing?->final_grade ?? '',
                 ]);
             } else {
                 $data = array_merge($data, [
-                    '1st_quarter' => '',
-                    '2nd_quarter' => '',
-                    '3rd_quarter' => '',
-                    '4th_quarter' => '',
+                    '1st_quarter' => $existing?->first_quarter_grade ?? '',
+                    '2nd_quarter' => $existing?->second_quarter_grade ?? '',
+                    '3rd_quarter' => $existing?->third_quarter_grade ?? '',
+                    '4th_quarter' => $existing?->fourth_quarter_grade ?? '',
                 ]);
             }
 

@@ -357,7 +357,12 @@ class GradeController extends Controller
 
             \Log::info('Grade import completed successfully');
 
-            return response()->json(['message' => 'Grades imported successfully.']);
+            $warnings = session('grade_import_warnings', []);
+
+            return response()->json([
+                'message' => 'Grades imported successfully.',
+                'warnings' => $warnings,
+            ]);
         } catch (\Exception $e) {
             \Log::error('Grade import failed', [
                 'error' => $e->getMessage(),
@@ -428,7 +433,20 @@ class GradeController extends Controller
         $section = $sectionSubject->section;
         $isCollegeLevel = in_array($section->year_level, [1, 2, 3, 4]);
 
-        return Excel::download(new GradeTemplateExport($enrollments, $isCollegeLevel, $sectionSubject),
-            "grade_template_{$section->section_code}_{$sectionSubject->subject->subject_code}.xlsx");
+        // Build a friendly file name: {SectionName}_{AcademicYear}_Sem{Semester}_{SubjectName}.xlsx
+        $sanitize = function ($str) {
+            $clean = preg_replace('/[^A-Za-z0-9\- _]/', '', $str);
+            $clean = preg_replace('/\s+/', '_', trim($clean));
+            return $clean ?: 'section';
+        };
+
+        $sectionName = $sanitize($section->formatted_name ?? $section->section_name ?? $section->section_code ?? 'section');
+        $subjectName = $sanitize($sectionSubject->subject->subject_name ?? $sectionSubject->subject->subject_code ?? 'subject');
+        $academicYear = $sanitize($section->academic_year ?? 'year');
+        $semester = $sanitize('Sem'.$section->semester);
+
+        $fileName = "grades_{$sectionName}_{$academicYear}_{$semester}_{$subjectName}.xlsx";
+
+        return Excel::download(new GradeTemplateExport($enrollments, $isCollegeLevel, $sectionSubject, $teacher), $fileName);
     }
 }
