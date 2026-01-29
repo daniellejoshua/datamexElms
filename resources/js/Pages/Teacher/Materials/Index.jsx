@@ -184,34 +184,62 @@ export default function MaterialsIndex({ section, materials, sectionSubject }) {
     return (
         <AuthenticatedLayout
             header={
-                <div className="flex items-center gap-3">
-                    <Button
-                        asChild
-                        variant="ghost"
-                        size="sm"
-                        className="text-gray-600 hover:text-gray-900"
-                    >
-                        <Link href={route('teacher.sections.college')}>
-                            <ArrowLeft className="w-4 h-4 mr-1" />
-                            Back to Sections
-                        </Link>
-                    </Button>
-                    <div className="h-6 w-px bg-gray-300"></div>
-                  
-                    <div>
-                        <h2 className="text-2xl font-bold text-gray-900">{sectionSubject.subject.subject_name}</h2>
-                        <p className="text-sm text-blue-600">{getSimplifiedSectionName()} • {sectionSubject.subject.subject_code} • Learning Materials</p>
+                <div className="flex flex-col gap-2 w-full">
+                    {/* Mobile Header - Compact */}
+                    <div className="flex items-center gap-2 sm:hidden">
+                        <Button
+                            asChild
+                            variant="ghost"
+                            size="sm"
+                            className="text-gray-600 hover:text-gray-900 p-1 h-8 w-8"
+                        >
+                            <Link href={route('teacher.sections.college')} className="flex items-center justify-center">
+                                <ArrowLeft className="w-4 h-4" />
+                            </Link>
+                        </Button>
+                        <div className="flex-1 min-w-0">
+                            <h2 className="text-base font-bold text-gray-900 truncate">
+                                {sectionSubject.subject.subject_name}
+                            </h2>
+                            <p className="text-xs text-blue-600 truncate">
+                                {getSimplifiedSectionName()} • {sectionSubject.subject.subject_code} • Materials
+                            </p>
+                        </div>
+                    </div>
+
+                    {/* Tablet/Desktop Header */}
+                    <div className="hidden sm:flex sm:items-center gap-3">
+                        <Button
+                            asChild
+                            variant="ghost"
+                            size="sm"
+                            className="text-gray-600 hover:text-gray-900"
+                        >
+                            <Link href={route('teacher.sections.college')} className="flex items-center">
+                                <ArrowLeft className="w-4 h-4 mr-1 flex-shrink-0" />
+                                <span>Back to Sections</span>
+                            </Link>
+                        </Button>
+                        <div className="h-6 w-px bg-gray-300 flex-shrink-0"></div>
+                        <div className="flex-1 min-w-0">
+                            <h2 className="text-xl lg:text-2xl font-bold text-gray-900 truncate">
+                                {sectionSubject.subject.subject_name}
+                            </h2>
+                            <p className="text-sm text-blue-600 truncate">
+                                {getSimplifiedSectionName()} • {sectionSubject.subject.subject_code} • Learning Materials
+                            </p>
+                        </div>
                     </div>
                 </div>
             }
         >
             <Head title={`Materials - ${getSimplifiedSectionName()}`} />
             
-            <div className="p-6">
+            <div className="p-4 sm:p-6">
                 {/* Section Header with Search and Add Button */}
-                <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between mb-6">
+                <div className="flex flex-col lg:flex-row gap-4 lg:items-center justify-between mb-6">
                     {/* Search Input */}
-                    <div className="relative flex-1 max-w-md">
+                    <div className="relative flex-1 max-w-md w-full lg:w-auto">
                         <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                             <svg className="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
@@ -227,9 +255,9 @@ export default function MaterialsIndex({ section, materials, sectionSubject }) {
                     </div>
 
                     {/* Add Material Button */}
-                    <Button 
+                    <Button
                         onClick={() => setShowUploadDialog(true)}
-                        className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg shadow-sm hover:shadow-md transition-all duration-200"
+                        className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg shadow-sm hover:shadow-md transition-all duration-200 w-full sm:w-auto"
                     >
                         <Plus className="w-4 h-4 mr-2" />
                         Add Material
@@ -462,13 +490,13 @@ export default function MaterialsIndex({ section, materials, sectionSubject }) {
                 {/* Materials Grid */}
                 {filteredMaterials.length > 0 ? (
                     <>
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6">
                             {currentMaterials.map((material) => (
                                 <Card key={material.id} className="group border border-gray-200 hover:border-blue-300 hover:shadow-md transition-all duration-200 bg-white">
                                     <CardHeader className="pb-3">
-                                        <div className="flex items-start justify-between">
+                                        <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
                                             <div className="flex items-center gap-3 flex-1 min-w-0">
-                                                <div className="bg-blue-50 border border-blue-200 p-2 rounded-lg">
+                                                <div className="bg-blue-50 border border-blue-200 p-2 rounded-lg flex-shrink-0">
                                                     <div className="text-blue-700 text-xs font-bold">{getFileIcon(material.file_type)}</div>
                                                 </div>
                                                 <div className="flex-1 min-w-0">
@@ -480,8 +508,8 @@ export default function MaterialsIndex({ section, materials, sectionSubject }) {
                                                     </CardDescription>
                                                 </div>
                                             </div>
-                                            <Badge 
-                                                className={`${getCategoryColor(material.category)} text-xs font-medium px-2 py-1 border-0`}
+                                            <Badge
+                                                className={`${getCategoryColor(material.category)} text-xs font-medium px-2 py-1 border-0 flex-shrink-0`}
                                             >
                                                 {material.category}
                                             </Badge>
@@ -499,23 +527,23 @@ export default function MaterialsIndex({ section, materials, sectionSubject }) {
                                         )}
 
                                         {/* Material Info */}
-                                        <div className="flex items-center justify-between text-sm text-gray-600">
+                                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 sm:gap-4 text-sm text-gray-600">
                                             <div className="flex items-center gap-1">
-                                                <Calendar className="w-4 h-4 text-gray-400" />
-                                                <span>{new Date(material.upload_date).toLocaleDateString('en-US', { 
+                                                <Calendar className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                                                <span className="truncate">{new Date(material.upload_date).toLocaleDateString('en-US', { 
                                                     month: 'short', 
                                                     day: 'numeric',
                                                     year: 'numeric' 
                                                 })}</span>
                                             </div>
                                             <div className="flex items-center gap-1">
-                                                <File className="w-4 h-4 text-gray-400" />
-                                                <span className="text-gray-700">{material.formatted_file_size}</span>
+                                                <File className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                                                <span className="text-gray-700 truncate">{material.formatted_file_size}</span>
                                             </div>
                                         </div>
 
                                         {/* Action Buttons */}
-                                        <div className="flex gap-2 pt-2">
+                                        <div className="flex flex-col sm:flex-row gap-2 pt-2">
                                             <Button
                                                 size="sm"
                                                 variant="outline"
@@ -529,7 +557,7 @@ export default function MaterialsIndex({ section, materials, sectionSubject }) {
                                                 size="sm"
                                                 variant="destructive"
                                                 onClick={() => handleDelete(material.id)}
-                                                className="px-3"
+                                                className="flex-1 sm:flex-none px-3"
                                             >
                                                 <Trash2 className="w-4 h-4" />
                                             </Button>

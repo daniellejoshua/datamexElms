@@ -122,47 +122,49 @@ export default function ShsSections({ sections, filters }) {
     return (
         <AuthenticatedLayout
             header={
-                <div className="flex items-center gap-3">
-                    <div className="bg-purple-100 p-2 rounded-lg">
-                        <School className="w-6 h-6 text-purple-600" />
+                <div className="flex items-center gap-2 sm:gap-3">
+                    <div className="bg-purple-100 p-1.5 sm:p-2 rounded-lg">
+                        <School className="w-5 h-5 sm:w-6 sm:h-6 text-purple-600" />
                     </div>
                     <div>
-                        <h2 className="text-2xl font-bold text-gray-900">SHS Sections</h2>
-                        <p className="text-sm text-gray-600 mt-1">Manage your senior high school section assignments</p>
+                        <h2 className="text-xl sm:text-2xl font-bold text-gray-900">SHS Sections</h2>
+                        <p className="text-xs sm:text-sm text-gray-600 mt-1">Manage your senior high school section assignments</p>
                     </div>
                 </div>
             }
         >
             <Head title="My SHS Sections" />
             
-            <div className="p-6">
+            <div className="p-4 sm:p-6">
                 {/* Search Section */}
                 <Card className="mb-6 border-0 shadow-sm bg-gradient-to-r from-purple-50 to-pink-50">
                     <CardContent className="pt-6">
-                        <form onSubmit={handleSearch} className="flex items-center gap-3">
-                            <div className="relative flex-1">
+                        <form onSubmit={handleSearch} className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+                            <div className="relative flex-1 min-w-0">
                                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
                                 <Input
                                     type="text"
                                     placeholder="Search sections, tracks, or subjects..."
                                     value={searchTerm}
                                     onChange={(e) => setSearchTerm(e.target.value)}
-                                    className="pl-10"
+                                    className="pl-10 w-full"
                                 />
                             </div>
-                            <Button type="submit" className="bg-purple-600 hover:bg-purple-700">
-                                Search
-                            </Button>
-                            {filters?.search && (
-                                <Button 
-                                    type="button" 
-                                    variant="outline" 
-                                    onClick={clearSearch}
-                                    className="text-gray-600"
-                                >
-                                    Clear
+                            <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
+                                <Button type="submit" className="bg-purple-600 hover:bg-purple-700 w-full sm:w-auto">
+                                    Search
                                 </Button>
-                            )}
+                                {filters?.search && (
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        onClick={clearSearch}
+                                        className="text-gray-600 w-full sm:w-auto"
+                                    >
+                                        Clear
+                                    </Button>
+                                )}
+                            </div>
                         </form>
                     </CardContent>
                 </Card>
@@ -170,31 +172,32 @@ export default function ShsSections({ sections, filters }) {
                 {/* Sections Grid */}
                 {sections.data.length > 0 ? (
                     <>
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4 sm:gap-6">
                             {sections.data.map((section) => (
                                 <Card key={section.id} className="group hover:shadow-2xl transition-all duration-300 border-0 bg-gradient-to-br from-white to-blue-50 hover:from-blue-50 hover:to-indigo-100 relative overflow-hidden transform hover:-translate-y-1">
                                     {/* Animated background decoration */}
                                     <div className="absolute top-0 right-0 w-20 h-20 bg-gradient-to-br from-blue-200/30 to-indigo-300/30 rounded-bl-full transform translate-x-6 -translate-y-6 group-hover:scale-110 transition-transform duration-300"></div>
                                     
-                                    {/* Header */}
                                     <CardHeader className="pb-3 relative z-10">
-                                        <div className="flex items-start justify-between">
-                                            <div className="flex items-center gap-3">
-                                                <div className="bg-gradient-to-br from-blue-500 to-blue-600 p-2.5 rounded-xl shadow-md group-hover:shadow-lg transition-shadow">
-                                                    <School className="w-5 h-5 text-white" />
+                                        <div className="flex flex-col gap-3">
+                                            <div className="flex items-start justify-between gap-3">
+                                                <div className="flex items-center gap-3 min-w-0 flex-1">
+                                                    <div className="flex items-center justify-center w-10 h-10 sm:w-12 sm:h-12 p-2 sm:p-3 rounded-lg border border-blue-200 bg-blue-50 hover:bg-blue-100 transition-colors shadow-sm flex-shrink-0">
+                                                        <School className="w-5 h-5 sm:w-6 sm:h-6 text-blue-600" />
+                                                    </div>
+                                                    <div className="min-w-0 flex-1">
+                                                        <CardTitle className="text-base sm:text-lg font-bold text-gray-900 group-hover:text-blue-700 transition-colors truncate">
+                                                            {section.section_name}
+                                                        </CardTitle>
+                                                        <CardDescription className="text-blue-600 font-medium text-xs sm:text-sm truncate">
+                                                            {section.program.program_name}
+                                                        </CardDescription>
+                                                    </div>
                                                 </div>
-                                                <div>
-                                                    <CardTitle className="text-lg font-bold text-gray-900 group-hover:text-blue-700 transition-colors">
-                                                        {section.section_name}
-                                                    </CardTitle>
-                                                    <CardDescription className="text-blue-600 font-medium text-sm">
-                                                        {section.program.program_name}
-                                                    </CardDescription>
-                                                </div>
+                                                <Badge variant="secondary" className="bg-blue-100 text-blue-800 border-blue-200 text-xs font-semibold flex-shrink-0">
+                                                    Grade {section.year_level}
+                                                </Badge>
                                             </div>
-                                            <Badge variant="secondary" className="bg-blue-100 text-blue-800 border-blue-200 text-xs font-semibold">
-                                                Grade {section.year_level}
-                                            </Badge>
                                         </div>
                                     </CardHeader>
 
@@ -204,24 +207,24 @@ export default function ShsSections({ sections, filters }) {
                                         {section.teacher_subjects && section.teacher_subjects.length > 0 && (
                                             <div className="space-y-2">
                                                 {section.teacher_subjects.map((teacherSubject, index) => (
-                                                    <div key={teacherSubject.id} className="bg-gradient-to-r from-gray-50 to-blue-50 p-3 rounded-xl border border-blue-100">
-                                                        <div className="flex items-start justify-between">
-                                                            <div className="flex-1">
+                                                    <div key={teacherSubject.id} className="bg-gradient-to-r from-gray-50 to-blue-50 p-2 sm:p-3 rounded-xl border border-blue-100">
+                                                        <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-2 sm:gap-3">
+                                                            <div className="flex-1 min-w-0">
                                                                 <div className="flex items-center gap-2 mb-2">
-                                                                    <div className="bg-blue-500 p-1 rounded-md">
-                                                                        <BookOpen className="w-3 h-3 text-white" />
+                                                                    <div className="flex items-center justify-center w-6 h-6 sm:w-7 sm:h-7 p-0.5 rounded-md border border-blue-200 bg-blue-50 shadow-sm flex-shrink-0">
+                                                                        <BookOpen className="w-3 h-3 text-blue-600" />
                                                                     </div>
-                                                                    <span className="font-semibold text-blue-700 text-sm">
+                                                                    <span className="font-semibold text-blue-700 text-xs sm:text-sm truncate">
                                                                         {teacherSubject.subject.subject_code}
                                                                     </span>
                                                                 </div>
-                                                                <p className="text-sm text-gray-800 font-medium leading-tight mb-2">
+                                                                <p className="text-xs sm:text-sm text-gray-800 font-medium leading-tight mb-2 line-clamp-2">
                                                                     {teacherSubject.subject.subject_name}
                                                                 </p>
                                                                 {/* Schedule */}
                                                                 {(teacherSubject.schedule_days || teacherSubject.start_time) && (
                                                                     <div className="px-2 py-1 bg-gray-100 rounded-md">
-                                                                        <p className="text-xs text-gray-600 font-medium">
+                                                                        <p className="text-xs text-gray-600 font-medium truncate">
                                                                             {formatSchedule(
                                                                                 teacherSubject.schedule_days,
                                                                                 teacherSubject.start_time,
@@ -229,23 +232,23 @@ export default function ShsSections({ sections, filters }) {
                                                                             )}
                                                                         </p>
                                                                         {teacherSubject.room && (
-                                                                            <p className="text-xs text-gray-500 mt-0.5">
+                                                                            <p className="text-xs text-gray-500 mt-0.5 truncate">
                                                                                 Room: {teacherSubject.room}
                                                                             </p>
                                                                         )}
                                                                     </div>
                                                                 )}
                                                             </div>
-                                                            <div className="flex gap-1 ml-2">
-                                                                <Link 
+                                                            <div className="flex flex-row sm:flex-col gap-1 flex-shrink-0">
+                                                                <Link
                                                                     href={route('teacher.grades.show', teacherSubject.id)}
-                                                                    className="text-xs px-2 py-1 bg-blue-100 text-blue-700 rounded hover:bg-blue-200 transition-colors font-medium"
+                                                                    className="text-xs px-2 py-1 bg-blue-100 text-blue-700 rounded hover:bg-blue-200 transition-colors font-medium text-center min-w-[50px]"
                                                                 >
                                                                     Grades
                                                                 </Link>
-                                                                <Link 
-                                                                    href={route('teacher.materials.index', subject.id)}
-                                                                    className="text-xs px-2 py-1 bg-green-100 text-green-700 rounded hover:bg-green-200 transition-colors font-medium"
+                                                                <Link
+                                                                    href={route('teacher.materials.index', teacherSubject.id)}
+                                                                    className="text-xs px-2 py-1 bg-green-100 text-green-700 rounded hover:bg-green-200 transition-colors font-medium text-center min-w-[50px]"
                                                                 >
                                                                     Materials
                                                                 </Link>
