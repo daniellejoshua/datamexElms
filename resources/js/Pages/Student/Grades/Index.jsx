@@ -49,16 +49,33 @@ const isValidGrade = (grade) => {
     return grade !== null && grade !== undefined && !isNaN(grade) && grade > 0;
 };
 
+// Helper function to get grade point equivalence
+const getGradePointEquivalence = (grade) => {
+    if (!grade || grade === '—' || isNaN(grade)) return '—';
+    const num = parseFloat(grade);
+    if (num >= 96) return '1.00';
+    if (num >= 94) return '1.25';
+    if (num >= 91) return '1.50';
+    if (num >= 88) return '1.75';
+    if (num >= 85) return '2.00';
+    if (num >= 83) return '2.25';
+    if (num >= 80) return '2.50';
+    if (num >= 78) return '2.75';
+    if (num >= 75) return '3.00';
+    if (num < 75) return '5.00';
+    return '—';
+};
+
 // Helper function to get grade status
 const getGradeStatus = (grade) => {
-    if (!grade || isNaN(grade)) return 'No grade yet';
+    if (!grade || isNaN(grade)) return 'No grade';
     if (grade >= 90) return 'Excellent'
     if (grade >= 80) return 'Very Good'
     if (grade >= 75) return 'Good'
     return 'Needs Improvement'
 }
 
-const Index = ({ auth, student, currentGrades, recentGrades, stats }) => {
+const Index = ({ auth, student, currentGrades, stats }) => {
     return (
         <AuthenticatedLayout
             auth={auth}
@@ -112,8 +129,8 @@ const Index = ({ auth, student, currentGrades, recentGrades, stats }) => {
                     )}
 
                     {/* Grade Statistics Cards */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                        <Card className="border-l-4 border-l-blue-500 hover:shadow-md transition-shadow">
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+                        <Card className="border-l-4 border-l-blue-500 hover:shadow-md transition-shadow mx-2 md:mx-0">
                             <CardContent className="p-6">
                                 <div className="flex items-center justify-between">
                                     <div>
@@ -128,14 +145,23 @@ const Index = ({ auth, student, currentGrades, recentGrades, stats }) => {
                             </CardContent>
                         </Card>
 
-                        <Card className="border-l-4 border-l-green-500 hover:shadow-md transition-shadow">
+                        <Card className="border-l-4 border-l-green-500 hover:shadow-md transition-shadow mx-2 md:mx-0">
                             <CardContent className="p-6">
                                 <div className="flex items-center justify-between">
                                     <div>
                                         <p className="text-sm font-medium text-gray-600">Average Grade</p>
-                                        <p className={`text-3xl font-bold ${getGradeColor(stats.averageGrade)}`}>
-                                            {stats.averageGrade ? `${stats.averageGrade.toFixed(1)}%` : 'N/A'}
-                                        </p>
+                                        {stats.averageGrade ? (
+                                            <div className="text-center">
+                                                <p className={`text-3xl font-bold ${getGradeColor(stats.averageGrade)}`}>
+                                                    {getGradePointEquivalence(stats.averageGrade)}
+                                                </p>
+                                                <p className={`text-xs ${getGradeColor(stats.averageGrade)} mt-1`}>
+                                                    {stats.averageGrade.toFixed(1)}%
+                                                </p>
+                                            </div>
+                                        ) : (
+                                            <p className="text-3xl font-bold text-gray-500">N/A</p>
+                                        )}
                                         <p className="text-xs text-gray-500 mt-1">
                                             {getGradeStatus(stats.averageGrade)}
                                         </p>
@@ -147,7 +173,7 @@ const Index = ({ auth, student, currentGrades, recentGrades, stats }) => {
                             </CardContent>
                         </Card>
 
-                        <Card className="border-l-4 border-l-purple-500 hover:shadow-md transition-shadow">
+                        <Card className="border-l-4 border-l-purple-500 hover:shadow-md transition-shadow mx-2 md:mx-0">
                             <CardContent className="p-6">
                                 <div className="flex items-center justify-between">
                                     <div>
@@ -164,7 +190,7 @@ const Index = ({ auth, student, currentGrades, recentGrades, stats }) => {
                             </CardContent>
                         </Card>
 
-                        <Card className="border-l-4 border-l-orange-500 hover:shadow-md transition-shadow">
+                        <Card className="border-l-4 border-l-orange-500 hover:shadow-md transition-shadow mx-2 md:mx-0">
                             <CardContent className="p-6">
                                 <div className="flex items-center justify-between">
                                     <div>
@@ -191,104 +217,8 @@ const Index = ({ auth, student, currentGrades, recentGrades, stats }) => {
                         </Card>
                     </div>
 
-                    {/* Recent Grades Section */}
-                    <Card className="shadow-sm">
-                        <CardHeader className="pb-4">
-                            <div className="flex items-center justify-between">
-                                <div>
-                                    <CardTitle className="flex items-center gap-2 text-xl">
-                                        <BarChart3 className="w-5 h-5 text-blue-600" />
-                                        Recent Grades
-                                    </CardTitle>
-                                    <CardDescription className="mt-1">
-                                        Your latest grade entries and academic progress
-                                    </CardDescription>
-                                </div>
-                                <Badge variant="secondary" className="bg-blue-50 text-blue-700">
-                                    {recentGrades?.length || 0} Recent
-                                </Badge>
-                            </div>
-                        </CardHeader>
-                        <CardContent>
-                            {recentGrades && recentGrades.length > 0 ? (
-                                <div className="space-y-4">
-                                    {recentGrades.map((grade, index) => (
-                                        <div key={index} className="flex items-center justify-between p-4 bg-gradient-to-r from-gray-50 to-white border border-gray-200 rounded-lg hover:shadow-md transition-shadow">
-                                            <div className="flex items-center gap-4">
-                                                <div className={`p-3 rounded-lg shadow-sm ${
-                                                    (grade.semester_grade || grade.prelim_grade) >= 90 ? 'bg-green-100' :
-                                                    (grade.semester_grade || grade.prelim_grade) >= 80 ? 'bg-blue-100' :
-                                                    (grade.semester_grade || grade.prelim_grade) >= 75 ? 'bg-yellow-100' : 'bg-red-100'
-                                                }`}>
-                                                    <Award className={`w-6 h-6 ${
-                                                        (grade.semester_grade || grade.prelim_grade) >= 90 ? 'text-green-600' :
-                                                        (grade.semester_grade || grade.prelim_grade) >= 80 ? 'text-blue-600' :
-                                                        (grade.semester_grade || grade.prelim_grade) >= 75 ? 'text-yellow-600' : 'text-red-600'
-                                                    }`} />
-                                                </div>
-                                                <div className="flex-1">
-                                                    <h4 className="font-semibold text-gray-900 text-lg">
-                                                        {grade.sectionSubject?.subject?.subject_name || 'Subject Name'}
-                                                    </h4>
-                                                    <div className="flex items-center gap-4 mt-1">
-                                                        <p className="text-sm text-gray-600 flex items-center gap-1">
-                                                            <Calendar className="w-4 h-4" />
-                                                            {grade.grading_period}
-                                                        </p>
-                                                        <Badge variant={grade.semester_grade ? 'default' : 'secondary'} className="text-xs">
-                                                            {grade.semester_grade ? 'Final Grade' : 'Partial Grade'}
-                                                        </Badge>
-                                                    </div>
-                                                    <p className="text-xs text-gray-500 mt-1">
-                                                        {formatSectionName(grade.student_enrollment?.section)}
-                                                    </p>
-                                                </div>
-                                            </div>
-                                            <div className="text-right">
-                                                <div className={`text-3xl font-bold ${getGradeColor(grade.semester_grade || grade.prelim_grade)}`}>
-                                                    {grade.semester_grade || grade.prelim_grade || 'N/A'}
-                                                </div>
-                                                <div className="text-sm text-gray-500 mt-1">
-                                                    {getGradeStatus(grade.semester_grade || grade.prelim_grade)}
-                                                </div>
-                                                <div className="text-xs text-gray-400 mt-1">
-                                                    {new Date(grade.created_at).toLocaleDateString()}
-                                                </div>
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-                            ) : (
-                                <div className="text-center py-12">
-                                    <div className="p-6 bg-gray-100 rounded-full w-20 h-20 mx-auto mb-4 flex items-center justify-center">
-                                        <TrendingUp className="w-10 h-10 text-gray-400" />
-                                    </div>
-                                    <h3 className="text-xl font-semibold text-gray-900 mb-2">No Recent Grades</h3>
-                                    <p className="text-gray-500 mb-6 max-w-md mx-auto">
-                                        Your recent grades will appear here once they are posted by your instructors.
-                                        Check back later or contact your teachers for updates.
-                                    </p>
-                                    <div className="flex gap-3 justify-center">
-                                        <Button asChild variant="outline">
-                                            <Link href={route('student.subjects')}>
-                                                <BookOpen className="w-4 h-4 mr-2" />
-                                                View Subjects
-                                            </Link>
-                                        </Button>
-                                        <Button asChild>
-                                            <Link href={route('student.dashboard')}>
-                                                <ArrowRight className="w-4 h-4 mr-2" />
-                                                Go to Dashboard
-                                            </Link>
-                                        </Button>
-                                    </div>
-                                </div>
-                            )}
-                        </CardContent>
-                    </Card>
-
                     {/* All Current Grades Section */}
-                    <Card className="shadow-sm">
+                    <Card className="shadow-sm mx-2 md:mx-0">
                         <CardHeader className="pb-4">
                             <div className="flex items-center justify-between">
                                 <div>
@@ -400,7 +330,7 @@ const Index = ({ auth, student, currentGrades, recentGrades, stats }) => {
                                                                         averageGrade >= 75 ? 'text-yellow-600' :
                                                                         averageGrade ? 'text-red-600' : 'text-gray-400'
                                                                     }`}>
-                                                                        {averageGrade ? averageGrade.toFixed(1) : '—'}
+                                                                        {averageGrade ? getGradePointEquivalence(averageGrade) : '—'}
                                                                     </span>
                                                                 </div>
                                                             </div>
@@ -414,9 +344,21 @@ const Index = ({ auth, student, currentGrades, recentGrades, stats }) => {
                                                                         <span className="text-sm font-medium text-gray-700">Prelim</span>
                                                                     </div>
                                                                     <div className="flex items-center gap-2">
-                                                                        <span className={`text-lg font-bold ${getGradeColor(prelimGrade)}`}>
-                                                                            {displayGrade(prelimGrade)}
-                                                                        </span>
+                                                                        {isValidGrade(prelimGrade) && (
+                                                                            <div className="text-center">
+                                                                                <div className={`text-lg font-bold ${getGradeColor(prelimGrade)}`}>
+                                                                                    {getGradePointEquivalence(prelimGrade)}
+                                                                                </div>
+                                                                                <div className={`text-xs ${getGradeColor(prelimGrade)}`}>
+                                                                                    {displayGrade(prelimGrade)}
+                                                                                </div>
+                                                                            </div>
+                                                                        )}
+                                                                        {!isValidGrade(prelimGrade) && (
+                                                                            <span className={`text-lg font-bold ${getGradeColor(prelimGrade)}`}>
+                                                                                {displayGrade(prelimGrade)}
+                                                                            </span>
+                                                                        )}
                                                                         {isValidGrade(prelimGrade) && (
                                                                             <div className={`w-2 h-2 rounded-full ${
                                                                                 prelimGrade >= 90 ? 'bg-green-500' :
@@ -434,9 +376,21 @@ const Index = ({ auth, student, currentGrades, recentGrades, stats }) => {
                                                                         <span className="text-sm font-medium text-gray-700">Midterm</span>
                                                                     </div>
                                                                     <div className="flex items-center gap-2">
-                                                                        <span className={`text-lg font-bold ${getGradeColor(midtermGrade)}`}>
-                                                                            {displayGrade(midtermGrade)}
-                                                                        </span>
+                                                                        {isValidGrade(midtermGrade) && (
+                                                                            <div className="text-center">
+                                                                                <div className={`text-lg font-bold ${getGradeColor(midtermGrade)}`}>
+                                                                                    {getGradePointEquivalence(midtermGrade)}
+                                                                                </div>
+                                                                                <div className={`text-xs ${getGradeColor(midtermGrade)}`}>
+                                                                                    {displayGrade(midtermGrade)}
+                                                                                </div>
+                                                                            </div>
+                                                                        )}
+                                                                        {!isValidGrade(midtermGrade) && (
+                                                                            <span className={`text-lg font-bold ${getGradeColor(midtermGrade)}`}>
+                                                                                {displayGrade(midtermGrade)}
+                                                                            </span>
+                                                                        )}
                                                                         {isValidGrade(midtermGrade) && (
                                                                             <div className={`w-2 h-2 rounded-full ${
                                                                                 midtermGrade >= 90 ? 'bg-green-500' :
@@ -454,9 +408,21 @@ const Index = ({ auth, student, currentGrades, recentGrades, stats }) => {
                                                                         <span className="text-sm font-medium text-gray-700">Pre-finals</span>
                                                                     </div>
                                                                     <div className="flex items-center gap-2">
-                                                                        <span className={`text-lg font-bold ${getGradeColor(prefinalGrade)}`}>
-                                                                            {displayGrade(prefinalGrade)}
-                                                                        </span>
+                                                                        {isValidGrade(prefinalGrade) && (
+                                                                            <div className="text-center">
+                                                                                <div className={`text-lg font-bold ${getGradeColor(prefinalGrade)}`}>
+                                                                                    {getGradePointEquivalence(prefinalGrade)}
+                                                                                </div>
+                                                                                <div className={`text-xs ${getGradeColor(prefinalGrade)}`}>
+                                                                                    {displayGrade(prefinalGrade)}
+                                                                                </div>
+                                                                            </div>
+                                                                        )}
+                                                                        {!isValidGrade(prefinalGrade) && (
+                                                                            <span className={`text-lg font-bold ${getGradeColor(prefinalGrade)}`}>
+                                                                                {displayGrade(prefinalGrade)}
+                                                                            </span>
+                                                                        )}
                                                                         {isValidGrade(prefinalGrade) && (
                                                                             <div className={`w-2 h-2 rounded-full ${
                                                                                 prefinalGrade >= 90 ? 'bg-green-500' :
@@ -474,9 +440,21 @@ const Index = ({ auth, student, currentGrades, recentGrades, stats }) => {
                                                                         <span className="text-sm font-medium text-gray-700">Finals</span>
                                                                     </div>
                                                                     <div className="flex items-center gap-2">
-                                                                        <span className={`text-lg font-bold ${getGradeColor(finalGrade || semesterGrade)}`}>
-                                                                            {displayGrade(finalGrade || semesterGrade)}
-                                                                        </span>
+                                                                        {isValidGrade(finalGrade || semesterGrade) && (
+                                                                            <div className="text-center">
+                                                                                <div className={`text-lg font-bold ${getGradeColor(finalGrade || semesterGrade)}`}>
+                                                                                    {getGradePointEquivalence(finalGrade || semesterGrade)}
+                                                                                </div>
+                                                                                <div className={`text-xs ${getGradeColor(finalGrade || semesterGrade)}`}>
+                                                                                    {displayGrade(finalGrade || semesterGrade)}
+                                                                                </div>
+                                                                            </div>
+                                                                        )}
+                                                                        {!isValidGrade(finalGrade || semesterGrade) && (
+                                                                            <span className={`text-lg font-bold ${getGradeColor(finalGrade || semesterGrade)}`}>
+                                                                                {displayGrade(finalGrade || semesterGrade)}
+                                                                            </span>
+                                                                        )}
                                                                         {isValidGrade(finalGrade || semesterGrade) && (
                                                                             <div className={`w-2 h-2 rounded-full ${
                                                                                 (finalGrade || semesterGrade) >= 90 ? 'bg-green-500' :

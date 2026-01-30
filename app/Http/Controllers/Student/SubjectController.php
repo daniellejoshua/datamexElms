@@ -25,7 +25,16 @@ class SubjectController extends Controller
 
         $student = $user->student;
 
-        // Get all active enrollments with subject details (only those with sections)
+        // Get current academic year and semester from active enrollments
+        $currentEnrollment = $student->studentEnrollments()
+            ->where('status', 'active')
+            ->whereNotNull('section_id')
+            ->first();
+
+        $currentYear = $currentEnrollment?->academic_year ?? '2025-2026';
+        $currentSemester = $currentEnrollment?->semester ?? '1st';
+
+        // Get all active enrollments with subject details (only those with sections) - filter by current semester
         $enrollments = $student->studentEnrollments()
             ->whereNotNull('section_id')
             ->with([
@@ -54,24 +63,42 @@ class SubjectController extends Controller
                 },
             ])
             ->where('status', 'active')
+            ->where('academic_year', $currentYear)
+            ->where('semester', $currentSemester)
             ->get();
+
+        // Get subjects with grades to determine which subjects the student is actually taking (for irregular students)
+        $studentGrades = $student->studentGrades()
+            ->with(['sectionSubject.subject', 'sectionSubject.teacher.user', 'studentEnrollment.section.program'])
+            ->whereHas('studentEnrollment', function ($query) use ($student, $currentYear, $currentSemester) {
+                $query->where('student_id', $student->id)
+                    ->where('status', 'active')
+                    ->where('academic_year', $currentYear)
+                    ->where('semester', $currentSemester);
+            })
+            ->get();
+
+        // Group grades by subject to avoid duplicates
+        $subjectGradesMap = [];
+        foreach ($studentGrades as $grade) {
+            if ($grade->sectionSubject && $grade->sectionSubject->subject) {
+                $subjectCode = $grade->sectionSubject->subject->subject_code;
+                if (! isset($subjectGradesMap[$subjectCode])) {
+                    $subjectGradesMap[$subjectCode] = $grade;
+                }
+            }
+        }
 
         // Transform the data for easier frontend consumption
         $subjects = [];
-        foreach ($enrollments as $enrollment) {
-            // Skip enrollments without sections
-            if (! $enrollment->section) {
-                continue;
-            }
 
-            foreach ($enrollment->section->sectionSubjects as $sectionSubject) {
+        if ($student->student_type === 'irregular') {
+            // For irregular students: only show subjects where they have grades
+            foreach ($subjectGradesMap as $subjectCode => $grade) {
+                $sectionSubject = $grade->sectionSubject;
                 $subject = $sectionSubject->subject;
                 $teacher = $sectionSubject->teacher;
-
-                // Get student grades for this enrollment
-                $studentGrades = $enrollment->studentGrades()
-                    ->where('teacher_id', $sectionSubject->teacher_id)
-                    ->first();
+                $enrollment = $grade->studentEnrollment;
 
                 // Filter materials for this specific teacher
                 $sectionMaterials = $enrollment->section->courseMaterials
@@ -114,15 +141,84 @@ class SubjectController extends Controller
                     'room' => $sectionSubject->room,
                     'section_subject_id' => $sectionSubject->id,
                     'materials' => $sectionMaterials,
-                    'grades' => $studentGrades ? [
-                        'prelim_grade' => $studentGrades->prelim_grade,
-                        'midterm_grade' => $studentGrades->midterm_grade,
-                        'prefinal_grade' => $studentGrades->prefinal_grade,
-                        'final_grade' => $studentGrades->final_grade,
-                        'semester_grade' => $studentGrades->semester_grade,
-                        'status' => $studentGrades->overall_status,
-                    ] : null,
+                    'grades' => [
+                        'prelim_grade' => $grade->prelim_grade,
+                        'midterm_grade' => $grade->midterm_grade,
+                        'prefinal_grade' => $grade->prefinal_grade,
+                        'final_grade' => $grade->final_grade,
+                        'semester_grade' => $grade->semester_grade,
+                        'status' => $grade->overall_status,
+                    ],
                 ];
+            }
+        } else {
+            // For regular students: show all subjects in their enrolled sections
+            foreach ($enrollments as $enrollment) {
+                // Skip enrollments without sections
+                if (! $enrollment->section) {
+                    continue;
+                }
+
+                foreach ($enrollment->section->sectionSubjects as $sectionSubject) {
+                    $subject = $sectionSubject->subject;
+                    $teacher = $sectionSubject->teacher;
+
+                    // Get student grades for this enrollment
+                    $studentGrades = $enrollment->studentGrades()
+                        ->where('teacher_id', $sectionSubject->teacher_id)
+                        ->first();
+
+                    // Filter materials for this specific teacher
+                    $sectionMaterials = $enrollment->section->courseMaterials
+                        ->where('teacher_id', $sectionSubject->teacher_id)
+                        ->map(function ($material) use ($student) {
+                            // Check if student has accessed this material
+                            $hasAccessed = MaterialAccessLog::where('student_id', $student->id)
+                                ->where('material_id', $material->id)
+                                ->exists();
+
+                            return [
+                                'id' => $material->id,
+                                'title' => $material->title,
+                                'description' => $material->description,
+                                'type' => pathinfo($material->original_name, PATHINFO_EXTENSION),
+                                'size' => $material->formatted_file_size,
+                                'uploadDate' => $material->upload_date?->format('Y-m-d'),
+                                'downloadUrl' => route('student.materials.download', $material->id),
+                                'isNew' => ! $hasAccessed && $material->created_at >= now()->subDays(7), // Mark as new if not accessed and uploaded in last 7 days
+                            ];
+                        })
+                        ->values();
+
+                    $subjects[] = [
+                        'id' => $subject->id,
+                        'subject_code' => $subject->subject_code,
+                        'subject_name' => $subject->subject_name,
+                        'units' => $subject->units,
+                        'description' => $subject->description,
+                        'teacher_name' => $teacher?->user?->name ?? 'TBA',
+                        'section_name' => $enrollment->section->section_name,
+                        'program_name' => $enrollment->section->program->program_name,
+                        'program_code' => $enrollment->section->program->program_code,
+                        'year_level' => $enrollment->section->year_level,
+                        'academic_year' => $enrollment->section->academic_year,
+                        'semester' => $enrollment->section->semester,
+                        'schedule_days' => $sectionSubject->schedule_days,
+                        'start_time' => $sectionSubject->start_time ? substr($sectionSubject->start_time, 0, 5) : null,
+                        'end_time' => $sectionSubject->end_time ? substr($sectionSubject->end_time, 0, 5) : null,
+                        'room' => $sectionSubject->room,
+                        'section_subject_id' => $sectionSubject->id,
+                        'materials' => $sectionMaterials,
+                        'grades' => $studentGrades ? [
+                            'prelim_grade' => $studentGrades->prelim_grade,
+                            'midterm_grade' => $studentGrades->midterm_grade,
+                            'prefinal_grade' => $studentGrades->prefinal_grade,
+                            'final_grade' => $studentGrades->final_grade,
+                            'semester_grade' => $studentGrades->semester_grade,
+                            'status' => $studentGrades->overall_status,
+                        ] : null,
+                    ];
+                }
             }
         }
 

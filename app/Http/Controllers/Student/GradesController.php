@@ -20,14 +20,7 @@ class GradesController extends Controller
                 $query->where('status', 'active');
             })
             ->orderBy('created_at', 'desc')
-            ->paginate(20);
-
-        // Get recent grades summary
-        $recentGrades = $student->studentGrades()
-            ->with(['studentEnrollment.section.program', 'sectionSubject.subject'])
-            ->latest()
-            ->limit(10)
-            ->get();
+            ->paginate(3);
 
         // Calculate stats based on unique subjects
         $uniqueSubjects = $currentGrades->unique('section_subject_id')->count();
@@ -58,7 +51,6 @@ class GradesController extends Controller
 
         return Inertia::render('Student/Grades/Index', [
             'currentGrades' => $currentGrades,
-            'recentGrades' => $recentGrades,
             'stats' => [
                 'totalSubjects' => $uniqueSubjects,
                 'averageGrade' => $averageGrade,

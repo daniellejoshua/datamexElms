@@ -12,6 +12,7 @@ it('displays student dashboard with enrollment data', function () {
     $student = Student::factory()->create([
         'user_id' => $user->id,
         'education_level' => 'college',
+        'student_type' => 'regular',
     ]);
 
     // Create program and section with new structure
@@ -46,7 +47,8 @@ it('displays student dashboard with enrollment data', function () {
             ->has('recentGrades')
             ->has('stats')
             ->has('currentAcademicInfo')
-            ->where('stats.totalSubjects', 1)
+            ->where('stats.completedSubjects', 0)
+            ->where('stats.totalCurriculumSubjects', 0)
         );
 });
 
@@ -55,13 +57,15 @@ it('shows empty state when student has no enrollments', function () {
     $student = Student::factory()->create([
         'user_id' => $user->id,
         'education_level' => 'college',
+        'student_type' => 'regular',
     ]);
 
     test()->actingAs($user)->get(route('student.dashboard'))
         ->assertSuccessful()
         ->assertInertia(fn (Assert $page) => $page
             ->component('Student/Dashboard')
-            ->where('stats.totalSubjects', 0)
+            ->where('stats.completedSubjects', 0)
+            ->where('stats.totalCurriculumSubjects', 0)
             ->has('enrollments', 0)
         );
 });

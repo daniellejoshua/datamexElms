@@ -126,7 +126,7 @@ export default function StudentSubjectsIndex({ subjects, student, archivedEnroll
                         <Button asChild variant="ghost" size="sm">
                             <Link href={route('student.dashboard')} className="flex items-center gap-2">
                                 <ArrowLeft className="w-4 h-4" />
-                                Back to Dashboard
+                                <span className="hidden sm:inline">Back to Dashboard</span>
                             </Link>
                         </Button>
                         <div className="h-6 w-px bg-gray-300"></div>
