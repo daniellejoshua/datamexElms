@@ -51,7 +51,8 @@ const Index = ({ currentAcademicYear, currentSemester, unpaid_count = 0, unpaid_
     // Modal states
     const [selectedSection, setSelectedSection] = useState(null);
     const [showIncompleteGradesModal, setShowIncompleteGradesModal] = useState(false);
-    const [showRegularityModal, vularityModal] = useState(false);
+    const [showRegularityModal, setShowRegularityModal] = useState(false);
+    const [showOutstandingBalancesModal, setShowOutstandingBalancesModal] = useState(false);
     const [processingArchive, setProcessingArchive] = useState(false);
     const [errors, setErrors] = useState({});
 
@@ -332,6 +333,7 @@ const Index = ({ currentAcademicYear, currentSemester, unpaid_count = 0, unpaid_
                                 setShowIncompleteGradesModal(true);
                             }}
                             onShowRegularity={() => setShowRegularityModal(true)}
+                            onShowOutstandingBalances={() => setShowOutstandingBalancesModal(true)}
                         />
                     )}
 
@@ -380,12 +382,19 @@ const Index = ({ currentAcademicYear, currentSemester, unpaid_count = 0, unpaid_
                 onClose={() => setShowRegularityModal(false)}
                 students={validationData?.eligible_for_regular || []}
             />
+
+            {/* Outstanding Balances Modal */}
+            <OutstandingBalancesModal
+                isOpen={showOutstandingBalancesModal}
+                onClose={() => setShowOutstandingBalancesModal(false)}
+                students={validationData?.students_with_payment_issues || []}
+            />
         </AuthenticatedLayout>
     );
 };
 
 // Validation Summary Component
-const ValidationSummary = ({ data, currentAcademicYear, currentSemester, getSemesterDisplay, onProceed, onCancel, onShowIncompleteGrades, onShowRegularity }) => {
+const ValidationSummary = ({ data, currentAcademicYear, currentSemester, getSemesterDisplay, onProceed, onCancel, onShowIncompleteGrades, onShowRegularity, onShowOutstandingBalances }) => {
     return (
         <div className="space-y-6">
             <Card className="border-0 shadow-lg">
@@ -477,6 +486,14 @@ const ValidationSummary = ({ data, currentAcademicYear, currentSemester, getSeme
                                                     >
                                                         {warning}
                                                     </button>
+                                                ) : warning.includes('students have outstanding balances') ? (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => onShowOutstandingBalances?.()}
+                                                        className="text-amber-700 dark:text-amber-300 underline hover:text-amber-800 dark:hover:text-amber-200 cursor-pointer"
+                                                    >
+                                                        {warning}
+                                                    </button>
                                                 ) : (
                                                     warning
                                                 )}
@@ -491,55 +508,93 @@ const ValidationSummary = ({ data, currentAcademicYear, currentSemester, getSeme
                     {/* Section Details */}
                     {data.section_statistics && data.section_statistics.length > 0 && (
                         <div>
-                            <h4 className="font-semibold text-gray-900 dark:text-white mb-3 flex items-center space-x-2">
-                                <BarChart3 className="h-5 w-5" />
+                            <h4 className="font-semibold text-gray-900 dark:text-white mb-4 flex items-center space-x-2">
+                                <BarChart3 className="h-5 w-5 text-blue-600" />
                                 <span>Section Statistics</span>
+                                <Badge variant="secondary" className="text-xs">
+                                    {data.section_statistics.length} sections
+                                </Badge>
                             </h4>
-                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 max-h-96 overflow-y-auto">
-                                {data.section_statistics.map((section, index) => (
-                                    <Card
-                                        key={index}
-                                        className="border border-gray-200 dark:border-gray-700 cursor-pointer hover:shadow-md transition-shadow duration-200"
-                                        onClick={() => {
-                                            // Find the detailed section data with incomplete grades
-                                            const detailedSection = data.sections_with_incomplete_grades?.find(s => s.id === section.id);
-                                            if (detailedSection) {
-                                                onShowIncompleteGrades(detailedSection);
-                                            }
-                                        }}
-                                    >
-                                        <CardContent className="p-4">
-                                            <div className="flex justify-between items-start mb-2">
-                                                <div className="min-w-0 flex-1">
-                                                    <h5 className="font-semibold text-gray-900 dark:text-white truncate">{section.name}</h5>
-                                                    <p className="text-sm text-gray-600 dark:text-gray-400">Year {section.year_level}</p>
-                                                </div>
-                                                {section.average_grade > 0 && (
-                                                    <Badge variant="outline" className="font-mono text-xs ml-2 flex-shrink-0">
-                                                        {section.average_grade}
-                                                    </Badge>
-                                                )}
-                                            </div>
-                                            <div className="flex items-center justify-between text-sm mb-2">
-                                                <span className="text-gray-600 dark:text-gray-400">Students:</span>
-                                                <span className="font-medium text-gray-900 dark:text-white">{section.total_students}</span>
-                                            </div>
-                                            <div className="flex items-center justify-between text-sm">
-                                                <span className="text-gray-600 dark:text-gray-400">Completed:</span>
-                                                <span className="font-medium text-green-600 dark:text-green-400">{section.completed_grades}</span>
-                                            </div>
-                                            {section.incomplete_grades > 0 && (
-                                                <div className="mt-2 text-xs text-amber-600 dark:text-amber-400 flex items-center justify-between">
-                                                    <div className="flex items-center space-x-1">
-                                                        <AlertCircle className="h-3 w-3" />
-                                                        <span>{section.incomplete_grades} incomplete</span>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 max-h-96 overflow-y-auto">
+                                {data.section_statistics.map((section, index) => {
+                                    const hasIncomplete = section.incomplete_grades > 0;
+                                    const isFullyComplete = section.incomplete_grades === 0 && section.completed_grades > 0;
+
+                                    return (
+                                        <Card
+                                            key={index}
+                                            className={`border transition-all duration-200 cursor-pointer hover:shadow-lg hover:scale-[1.02] ${
+                                                hasIncomplete
+                                                    ? 'border-amber-200 dark:border-amber-800 bg-gradient-to-br from-white to-amber-50/30 dark:from-gray-800 dark:to-amber-950/20'
+                                                    : isFullyComplete
+                                                    ? 'border-green-200 dark:border-green-800 bg-gradient-to-br from-white to-green-50/30 dark:from-gray-800 dark:to-green-950/20'
+                                                    : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800'
+                                            }`}
+                                            onClick={() => {
+                                                // Find the detailed section data with incomplete grades
+                                                const detailedSection = data.sections_with_incomplete_grades?.find(s => s.id === section.id);
+                                                if (detailedSection) {
+                                                    onShowIncompleteGrades(detailedSection);
+                                                }
+                                            }}
+                                        >
+                                            <CardContent className="p-4">
+                                                {/* Header with status badge */}
+                                                <div className="flex justify-between items-start mb-3">
+                                                    <div className="min-w-0 flex-1">
+                                                        <h5 className="font-semibold text-gray-900 dark:text-white truncate text-sm">
+                                                            {section.name}
+                                                        </h5>
+                                                        <p className="text-xs text-gray-600 dark:text-gray-400">
+                                                            Year {section.year_level}
+                                                        </p>
                                                     </div>
-                                                    <ChevronRight className="h-3 w-3" />
+                                                    <div className="flex flex-col items-end space-y-1">
+                                                        {isFullyComplete && (
+                                                            <Badge variant="outline" className="text-xs bg-green-100 text-green-800 border-green-300 dark:bg-green-900 dark:text-green-200 dark:border-green-700">
+                                                                <CheckCircle className="h-3 w-3 mr-1" />
+                                                                Complete
+                                                            </Badge>
+                                                        )}
+                                                    </div>
                                                 </div>
-                                            )}
-                                        </CardContent>
-                                    </Card>
-                                ))}
+
+                                                {/* Statistics grid */}
+                                                <div className="grid grid-cols-2 gap-2 mb-2">
+                                                    <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-2 text-center">
+                                                        <div className="flex items-center justify-center mb-1">
+                                                            <Users className="h-3 w-3 text-gray-500 mr-1" />
+                                                            <span className="text-xs text-gray-600 dark:text-gray-400">Students</span>
+                                                        </div>
+                                                        <span className="text-sm font-semibold text-gray-900 dark:text-white">{section.total_students}</span>
+                                                    </div>
+                                                    <div className="bg-green-50 dark:bg-green-900/20 rounded-lg p-2 text-center">
+                                                        <div className="flex items-center justify-center mb-1">
+                                                            <CheckCircle className="h-3 w-3 text-green-600 mr-1" />
+                                                            <span className="text-xs text-gray-600 dark:text-gray-400">Done</span>
+                                                        </div>
+                                                        <span className="text-sm font-semibold text-green-600 dark:text-green-400">{section.completed_grades}</span>
+                                                    </div>
+                                                </div>
+
+                                                {/* Incomplete grades indicator */}
+                                                {hasIncomplete && (
+                                                    <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-2 mt-2">
+                                                        <div className="flex items-center justify-between">
+                                                            <div className="flex items-center space-x-1">
+                                                                <AlertTriangle className="h-3 w-3 text-amber-600" />
+                                                                <span className="text-xs font-medium text-amber-800 dark:text-amber-200">
+                                                                    {section.incomplete_grades} incomplete
+                                                                </span>
+                                                            </div>
+                                                            <ChevronRight className="h-3 w-3 text-amber-600" />
+                                                        </div>
+                                                    </div>
+                                                )}
+                                            </CardContent>
+                                        </Card>
+                                    );
+                                })}
                             </div>
                         </div>
                     )}
@@ -962,8 +1017,25 @@ const IncompleteGradesModal = ({ isOpen, onClose, section }) => {
 
 // Regularity Promotion Modal
 const RegularityModal = ({ isOpen, onClose, students }) => {
+    const [currentPage, setCurrentPage] = useState(1);
+    const itemsPerPage = 5;
+
+    const totalPages = Math.ceil((students?.length || 0) / itemsPerPage);
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    const endIndex = startIndex + itemsPerPage;
+    const currentStudents = students?.slice(startIndex, endIndex) || [];
+
+    const handlePageChange = (page) => {
+        setCurrentPage(page);
+    };
+
+    const handleClose = () => {
+        setCurrentPage(1);
+        onClose();
+    };
+
     return (
-        <Dialog open={isOpen} onOpenChange={onClose}>
+        <Dialog open={isOpen} onOpenChange={handleClose}>
             <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
                 <DialogHeader>
                     <DialogTitle className="flex items-center space-x-2">
@@ -972,15 +1044,20 @@ const RegularityModal = ({ isOpen, onClose, students }) => {
                     </DialogTitle>
                     <DialogDescription>
                         These irregular students have completed all required subjects and will be automatically promoted to regular status during archiving.
+                        {students && students.length > 0 && (
+                            <span className="block mt-1 text-sm">
+                                Showing {startIndex + 1}-{Math.min(endIndex, students.length)} of {students.length} students
+                            </span>
+                        )}
                     </DialogDescription>
                 </DialogHeader>
 
                 <div className="py-4">
                     <div className="space-y-3">
-                        {students && students.length > 0 ? (
-                            students.map((student, index) => (
+                        {currentStudents.length > 0 ? (
+                            currentStudents.map((student, index) => (
                                 <div
-                                    key={index}
+                                    key={startIndex + index}
                                     className="flex items-center justify-between p-4 bg-green-50 dark:bg-green-950/20 rounded-lg border border-green-200 dark:border-green-800"
                                 >
                                     <div className="flex items-center space-x-3">
@@ -1012,10 +1089,181 @@ const RegularityModal = ({ isOpen, onClose, students }) => {
                             </p>
                         )}
                     </div>
+
+                    {/* Pagination */}
+                    {totalPages > 1 && (
+                        <div className="flex items-center justify-between mt-6 pt-4 border-t border-gray-200 dark:border-gray-700">
+                            <div className="flex items-center space-x-2">
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => handlePageChange(currentPage - 1)}
+                                    disabled={currentPage === 1}
+                                >
+                                    Previous
+                                </Button>
+                                <div className="flex space-x-1">
+                                    {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+                                        <Button
+                                            key={page}
+                                            variant={currentPage === page ? "default" : "outline"}
+                                            size="sm"
+                                            onClick={() => handlePageChange(page)}
+                                            className="w-8 h-8 p-0"
+                                        >
+                                            {page}
+                                        </Button>
+                                    ))}
+                                </div>
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => handlePageChange(currentPage + 1)}
+                                    disabled={currentPage === totalPages}
+                                >
+                                    Next
+                                </Button>
+                            </div>
+                            <div className="text-sm text-gray-600 dark:text-gray-400">
+                                Page {currentPage} of {totalPages}
+                            </div>
+                        </div>
+                    )}
                 </div>
 
                 <DialogFooter>
-                    <Button onClick={onClose} variant="outline">
+                    <Button onClick={handleClose} variant="outline">
+                        Close
+                    </Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+    );
+};
+
+// Outstanding Balances Modal
+const OutstandingBalancesModal = ({ isOpen, onClose, students }) => {
+    const [currentPage, setCurrentPage] = useState(1);
+    const itemsPerPage = 5;
+
+    const totalPages = Math.ceil((students?.length || 0) / itemsPerPage);
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    const endIndex = startIndex + itemsPerPage;
+    const currentStudents = students?.slice(startIndex, endIndex) || [];
+
+    const handlePageChange = (page) => {
+        setCurrentPage(page);
+    };
+
+    const handleClose = () => {
+        setCurrentPage(1);
+        onClose();
+    };
+
+    return (
+        <Dialog open={isOpen} onOpenChange={handleClose}>
+            <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+                <DialogHeader>
+                    <DialogTitle className="flex items-center space-x-2">
+                        <DollarSign className="h-5 w-5 text-red-600" />
+                        <span>Students with Outstanding Balances</span>
+                    </DialogTitle>
+                    <DialogDescription>
+                        These students have outstanding payment balances that should be resolved before archiving.
+                        {students && students.length > 0 && (
+                            <span className="block mt-1 text-sm">
+                                Showing {startIndex + 1}-{Math.min(endIndex, students.length)} of {students.length} students
+                            </span>
+                        )}
+                    </DialogDescription>
+                </DialogHeader>
+
+                <div className="py-4">
+                    <div className="space-y-3">
+                        {currentStudents.length > 0 ? (
+                            currentStudents.map((student, index) => (
+                                <div
+                                    key={startIndex + index}
+                                    className="flex items-center justify-between p-4 bg-red-50 dark:bg-red-950/20 rounded-lg border border-red-200 dark:border-red-800"
+                                >
+                                    <div className="flex items-center space-x-3">
+                                        <div className="flex-shrink-0">
+                                            <AlertTriangle className="h-5 w-5 text-red-600" />
+                                        </div>
+                                        <div>
+                                            <p className="font-medium text-gray-900 dark:text-white">
+                                                {student.name}
+                                            </p>
+                                            <p className="text-sm text-gray-600 dark:text-gray-400">
+                                                Student Number: {student.student_number}
+                                            </p>
+                                            {student.year_level && (
+                                                <p className="text-sm text-gray-600 dark:text-gray-400">
+                                                    Year Level: {student.year_level}
+                                                </p>
+                                            )}
+                                            {student.balance && (
+                                                <p className="text-sm font-medium text-red-600 dark:text-red-400">
+                                                    Outstanding: ₱{student.balance.toLocaleString()}
+                                                </p>
+                                            )}
+                                        </div>
+                                    </div>
+                                    <Badge className="bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200">
+                                        Payment Issue
+                                    </Badge>
+                                </div>
+                            ))
+                        ) : (
+                            <p className="text-center text-gray-500 dark:text-gray-400 py-8">
+                                No students have outstanding balances.
+                            </p>
+                        )}
+                    </div>
+
+                    {/* Pagination */}
+                    {totalPages > 1 && (
+                        <div className="flex items-center justify-between mt-6 pt-4 border-t border-gray-200 dark:border-gray-700">
+                            <div className="flex items-center space-x-2">
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => handlePageChange(currentPage - 1)}
+                                    disabled={currentPage === 1}
+                                >
+                                    Previous
+                                </Button>
+                                <div className="flex space-x-1">
+                                    {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+                                        <Button
+                                            key={page}
+                                            variant={currentPage === page ? "default" : "outline"}
+                                            size="sm"
+                                            onClick={() => handlePageChange(page)}
+                                            className="w-8 h-8 p-0"
+                                        >
+                                            {page}
+                                        </Button>
+                                    ))}
+                                </div>
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => handlePageChange(currentPage + 1)}
+                                    disabled={currentPage === totalPages}
+                                >
+                                    Next
+                                </Button>
+                            </div>
+                            <div className="text-sm text-gray-600 dark:text-gray-400">
+                                Page {currentPage} of {totalPages}
+                            </div>
+                        </div>
+                    )}
+                </div>
+
+                <DialogFooter>
+                    <Button onClick={handleClose} variant="outline">
                         Close
                     </Button>
                 </DialogFooter>

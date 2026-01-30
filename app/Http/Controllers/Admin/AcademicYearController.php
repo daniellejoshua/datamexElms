@@ -194,9 +194,7 @@ class AcademicYearController extends Controller
                             ->first();
 
                         $incompleteTerms = [];
-                        if (! $grade) {
-                            $incompleteTerms = ['Q1', 'Q2'];
-                        } else {
+                        if ($grade) {
                             if ($grade->first_quarter_grade === null) {
                                 $incompleteTerms[] = 'Q1';
                             }
@@ -214,7 +212,7 @@ class AcademicYearController extends Controller
                                 'teacher_id' => $sectionSubject->teacher_id,
                                 'incomplete_terms' => $incompleteTerms,
                             ];
-                        } else {
+                        } elseif ($grade) {
                             $completedGradesCount++;
                             $gradeSum += $grade->final_grade ?? 0;
                             $gradeCount++;
@@ -227,9 +225,7 @@ class AcademicYearController extends Controller
 
                         $incompleteTerms = [];
 
-                        if (! $grade) {
-                            $incompleteTerms = ['prelim', 'midterm', 'prefinal', 'final'];
-                        } else {
+                        if ($grade) {
                             if ($grade->prelim_grade === null) {
                                 $incompleteTerms[] = 'prelim';
                             }
@@ -253,7 +249,7 @@ class AcademicYearController extends Controller
                                 'teacher_id' => $sectionSubject->teacher_id,
                                 'incomplete_terms' => $incompleteTerms,
                             ];
-                        } else {
+                        } elseif ($grade) {
                             $completedGradesCount++;
                             $gradeSum += $grade->final_grade ?? 0;
                             $gradeCount++;
@@ -337,6 +333,7 @@ class AcademicYearController extends Controller
                 'id' => $payment->student->id,
                 'name' => $payment->student->user->name,
                 'student_number' => $payment->student->student_number,
+                'year_level' => $payment->student->year_level,
                 'balance' => $payment->balance,
                 'total_fee' => $payment->total_fee,
                 'amount_paid' => $payment->amount_paid,
