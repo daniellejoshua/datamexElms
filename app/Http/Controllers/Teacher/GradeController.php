@@ -115,6 +115,7 @@ class GradeController extends Controller
         // 1. Check program type/name for college indicators
         // 2. Check year level format variations
         $isCollegeLevel = false;
+        $isShsLevel = false;
 
         if ($section->program) {
             // Check if program name contains college indicators
@@ -127,10 +128,20 @@ class GradeController extends Controller
                     break;
                 }
             }
+
+            // Check if program name contains SHS indicators
+            $shsIndicators = ['senior high', 'shs', 'grade 11', 'grade 12', '11', '12'];
+
+            foreach ($shsIndicators as $indicator) {
+                if (strpos($programName, $indicator) !== false) {
+                    $isShsLevel = true;
+                    break;
+                }
+            }
         }
 
         // If not determined by program, check year level
-        if (! $isCollegeLevel) {
+        if (! $isCollegeLevel && ! $isShsLevel) {
             $yearLevel = $section->year_level;
 
             // Check various year level formats
@@ -140,7 +151,13 @@ class GradeController extends Controller
                 1, 2, 3, 4,
             ];
 
+            $shsYearFormats = [
+                'Grade 11', 'Grade 12', '11', '12',
+                11, 12,
+            ];
+
             $isCollegeLevel = in_array($yearLevel, $collegeYearFormats, true);
+            $isShsLevel = in_array($yearLevel, $shsYearFormats, true);
         }
 
         return Inertia::render('Teacher/Grades/Show', [
@@ -148,6 +165,7 @@ class GradeController extends Controller
             'sectionSubject' => $sectionSubject,
             'enrollments' => $enrollments,
             'isCollegeLevel' => $isCollegeLevel,
+            'isShsLevel' => $isShsLevel,
             'teacher' => $teacher,
         ]);
     }
@@ -275,7 +293,26 @@ class GradeController extends Controller
 
                 $grade->save();
             } else {
-                // Handle SHS grades
+                // Handle SHS grades - determine if it's SHS level
+                $isShsLevel = false;
+                if ($enrollment->section->program) {
+                    $programName = strtolower($enrollment->section->program->program_name ?? '');
+                    $shsIndicators = ['senior high', 'shs', 'grade 11', 'grade 12', '11', '12'];
+
+                    foreach ($shsIndicators as $indicator) {
+                        if (strpos($programName, $indicator) !== false) {
+                            $isShsLevel = true;
+                            break;
+                        }
+                    }
+                }
+
+                if (! $isShsLevel) {
+                    $yearLevel = $enrollment->section->year_level;
+                    $shsYearFormats = ['Grade 11', 'Grade 12', '11', '12', 11, 12];
+                    $isShsLevel = in_array($yearLevel, $shsYearFormats, true);
+                }
+
                 $grade = ShsStudentGrade::firstOrNew([
                     'student_enrollment_id' => $enrollment->id,
                     'section_subject_id' => $sectionSubject->id,
@@ -288,11 +325,9 @@ class GradeController extends Controller
                 $grade->fourth_quarter_grade = $gradeData['fourth_quarter_grade'] ?? null;
                 $grade->teacher_remarks = $gradeData['teacher_remarks'] ?? null;
 
-                // Calculate final grade if all quarters are present
-                if ($grade->first_quarter_grade && $grade->second_quarter_grade &&
-                    $grade->third_quarter_grade && $grade->fourth_quarter_grade) {
-                    $grade->final_grade = ($grade->first_quarter_grade + $grade->second_quarter_grade +
-                                         $grade->third_quarter_grade + $grade->fourth_quarter_grade) / 4;
+                // Calculate final grade - SHS only uses Q1 and Q2
+                if ($grade->first_quarter_grade && $grade->second_quarter_grade) {
+                    $grade->final_grade = ($grade->first_quarter_grade + $grade->second_quarter_grade) / 2;
                     $grade->completion_status = $grade->final_grade >= 75 ? 'passed' : 'failed';
                 }
 
@@ -437,6 +472,7 @@ class GradeController extends Controller
         $sanitize = function ($str) {
             $clean = preg_replace('/[^A-Za-z0-9\- _]/', '', $str);
             $clean = preg_replace('/\s+/', '_', trim($clean));
+
             return $clean ?: 'section';
         };
 

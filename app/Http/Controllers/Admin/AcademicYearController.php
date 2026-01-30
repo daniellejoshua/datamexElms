@@ -130,6 +130,7 @@ class AcademicYearController extends Controller
             'sectionSubjects.subject',
             'sectionSubjects.teacher.user',
             'program',
+            'curriculum',
         ])
             ->where('academic_year', $validated['academic_year'])
             ->where(function ($q) use ($semesterToCheck) {
@@ -144,8 +145,31 @@ class AcademicYearController extends Controller
         $sectionsWithIncompleteGrades = [];
         $studentsWithPaymentIssues = [];
         $sectionStats = [];
+        $shsSections = []; // Track SHS sections for special handling
 
         foreach ($sections as $section) {
+            // Determine if this is an SHS section
+            $isShsSection = false;
+            if ($section->program) {
+                $programName = strtolower($section->program->program_name ?? '');
+                $shsIndicators = ['senior high', 'shs', 'grade 11', 'grade 12', '11', '12'];
+                foreach ($shsIndicators as $indicator) {
+                    if (strpos($programName, $indicator) !== false) {
+                        $isShsSection = true;
+                        break;
+                    }
+                }
+            }
+            if (! $isShsSection) {
+                $yearLevel = $section->year_level;
+                $shsYearFormats = ['Grade 11', 'Grade 12', '11', '12', 11, 12];
+                $isShsSection = in_array($yearLevel, $shsYearFormats, true);
+            }
+
+            if ($isShsSection) {
+                $shsSections[] = $section;
+            }
+
             $enrollments = $section->studentEnrollments;
             $sectionStudentCount = $enrollments->count();
             $totalStudents += $sectionStudentCount;
@@ -162,42 +186,78 @@ class AcademicYearController extends Controller
                 $enrollmentIncompleteSubjects = [];
 
                 foreach ($section->sectionSubjects as $sectionSubject) {
-                    $grade = StudentGrade::where('student_enrollment_id', $enrollment->id)
-                        ->where('section_subject_id', $sectionSubject->id)
-                        ->first();
+                    // Use appropriate grade model based on section type
+                    if ($isShsSection) {
+                        // Check SHS grades (Q1, Q2)
+                        $grade = \App\Models\ShsStudentGrade::where('student_enrollment_id', $enrollment->id)
+                            ->where('section_subject_id', $sectionSubject->id)
+                            ->first();
 
-                    $incompleteTerms = [];
+                        $incompleteTerms = [];
+                        if (! $grade) {
+                            $incompleteTerms = ['Q1', 'Q2'];
+                        } else {
+                            if ($grade->first_quarter_grade === null) {
+                                $incompleteTerms[] = 'Q1';
+                            }
+                            if ($grade->second_quarter_grade === null) {
+                                $incompleteTerms[] = 'Q2';
+                            }
+                        }
 
-                    if (! $grade) {
-                        $incompleteTerms = ['prelim', 'midterm', 'prefinal', 'final'];
+                        if (! empty($incompleteTerms)) {
+                            $incompleteGradesCount++;
+                            $enrollmentIncompleteSubjects[] = [
+                                'subject_code' => $sectionSubject->subject->subject_code ?? 'Unknown',
+                                'subject_name' => $sectionSubject->subject->subject_name ?? 'Unknown Subject',
+                                'teacher_name' => $sectionSubject->teacher?->user?->name ?? 'Unassigned',
+                                'teacher_id' => $sectionSubject->teacher_id,
+                                'incomplete_terms' => $incompleteTerms,
+                            ];
+                        } else {
+                            $completedGradesCount++;
+                            $gradeSum += $grade->final_grade ?? 0;
+                            $gradeCount++;
+                        }
                     } else {
-                        if ($grade->prelim_grade === null) {
-                            $incompleteTerms[] = 'prelim';
-                        }
-                        if ($grade->midterm_grade === null) {
-                            $incompleteTerms[] = 'midterm';
-                        }
-                        if ($grade->prefinal_grade === null) {
-                            $incompleteTerms[] = 'prefinal';
-                        }
-                        if ($grade->final_grade === null) {
-                            $incompleteTerms[] = 'final';
-                        }
-                    }
+                        // Check College grades (prelim, midterm, prefinal, final)
+                        $grade = StudentGrade::where('student_enrollment_id', $enrollment->id)
+                            ->where('section_subject_id', $sectionSubject->id)
+                            ->first();
 
-                    if (! empty($incompleteTerms)) {
-                        $incompleteGradesCount++;
-                        $enrollmentIncompleteSubjects[] = [
-                            'subject_code' => $sectionSubject->subject->subject_code ?? 'Unknown',
-                            'subject_name' => $sectionSubject->subject->subject_name ?? 'Unknown Subject',
-                            'teacher_name' => $sectionSubject->teacher?->user?->name ?? 'Unassigned',
-                            'teacher_id' => $sectionSubject->teacher_id,
-                            'incomplete_terms' => $incompleteTerms,
-                        ];
-                    } else {
-                        $completedGradesCount++;
-                        $gradeSum += $grade->final_grade ?? 0;
-                        $gradeCount++;
+                        $incompleteTerms = [];
+
+                        if (! $grade) {
+                            $incompleteTerms = ['prelim', 'midterm', 'prefinal', 'final'];
+                        } else {
+                            if ($grade->prelim_grade === null) {
+                                $incompleteTerms[] = 'prelim';
+                            }
+                            if ($grade->midterm_grade === null) {
+                                $incompleteTerms[] = 'midterm';
+                            }
+                            if ($grade->prefinal_grade === null) {
+                                $incompleteTerms[] = 'prefinal';
+                            }
+                            if ($grade->final_grade === null) {
+                                $incompleteTerms[] = 'final';
+                            }
+                        }
+
+                        if (! empty($incompleteTerms)) {
+                            $incompleteGradesCount++;
+                            $enrollmentIncompleteSubjects[] = [
+                                'subject_code' => $sectionSubject->subject->subject_code ?? 'Unknown',
+                                'subject_name' => $sectionSubject->subject->subject_name ?? 'Unknown Subject',
+                                'teacher_name' => $sectionSubject->teacher?->user?->name ?? 'Unassigned',
+                                'teacher_id' => $sectionSubject->teacher_id,
+                                'incomplete_terms' => $incompleteTerms,
+                            ];
+                        } else {
+                            $completedGradesCount++;
+                            $gradeSum += $grade->final_grade ?? 0;
+                            $gradeCount++;
+                        }
                     }
                 }
 
@@ -468,17 +528,43 @@ class AcademicYearController extends Controller
             // Only mark sections as archived instead of deleting them
             // This preserves the ability to query historical data without relying solely on archive tables
 
-            // Mark sections as archived (non-destructive)
+            // Mark sections as archived (non-destructive), but skip SHS sections transitioning to 2nd semester
             Section::where('academic_year', $validated['academic_year'])
                 ->where(function ($q) use ($semesterToCheck) {
                     $q->whereIn('semester', $semesterToCheck);
                 })
+                ->where(function ($q) {
+                    $q->whereDoesntHave('program', function ($programQuery) {
+                        $programQuery->whereRaw('LOWER(program_name) LIKE ?', ['%shs%'])
+                            ->orWhereRaw('LOWER(program_name) LIKE ?', ['%senior high%']);
+                    })
+                        ->orWhere(function ($yearLevelQuery) {
+                            $yearLevelQuery->whereRaw('LOWER(year_level) NOT LIKE ?', ['%grade 11%'])
+                                ->whereRaw('LOWER(year_level) NOT LIKE ?', ['%grade 12%'])
+                                ->whereRaw('LOWER(year_level) NOT LIKE ?', ['%11%'])
+                                ->whereRaw('LOWER(year_level) NOT LIKE ?', ['%12%']);
+                        });
+                })
                 ->update(['status' => 'archived']);
 
-            // Mark enrollments as completed (non-destructive)
+            // Mark enrollments as completed (non-destructive), but skip SHS sections transitioning to 2nd semester
             StudentEnrollment::where('academic_year', $validated['academic_year'])
                 ->where(function ($q) use ($semesterToCheck) {
                     $q->whereIn('semester', $semesterToCheck);
+                })
+                ->where(function ($q) {
+                    $q->whereDoesntHave('section.program', function ($programQuery) {
+                        $programQuery->whereRaw('LOWER(program_name) LIKE ?', ['%shs%'])
+                            ->orWhereRaw('LOWER(program_name) LIKE ?', ['%senior high%']);
+                    })
+                        ->orWhere(function ($yearLevelQuery) {
+                            $yearLevelQuery->whereDoesntHave('section', function ($sectionQuery) {
+                                $sectionQuery->whereRaw('LOWER(year_level) LIKE ?', ['%grade 11%'])
+                                    ->orWhereRaw('LOWER(year_level) LIKE ?', ['%grade 12%'])
+                                    ->orWhereRaw('LOWER(year_level) LIKE ?', ['%11%'])
+                                    ->orWhereRaw('LOWER(year_level) LIKE ?', ['%12%']);
+                            });
+                        });
                 })
                 ->where('status', 'active')
                 ->update([
@@ -549,6 +635,17 @@ class AcademicYearController extends Controller
             // Skip sections with no enrollments
             if ($enrollments->isEmpty()) {
                 continue;
+            }
+
+            // Check if this is an SHS section that should be handled differently
+            $isShsSection = $this->isShsSection($section);
+
+            // Special handling for SHS sections transitioning from 1st to 2nd semester
+            if ($isShsSection && $semester === '1st') {
+                // For SHS sections in 1st semester, update subjects to 2nd semester curriculum instead of archiving
+                $this->updateShsSectionForNextSemester($section, $academicYear);
+
+                continue; // Skip archiving this section
             }
 
             // Collect student IDs for tracking
@@ -828,6 +925,81 @@ class AcademicYearController extends Controller
 
         return Inertia::render('Admin/AcademicYear/Show', [
             'archivedSection' => $archivedSection,
+        ]);
+    }
+
+    /**
+     * Check if a section is an SHS (Senior High School) section.
+     */
+    protected function isShsSection(Section $section): bool
+    {
+        // Check if the program name contains 'SHS' or if year level indicates SHS
+        $programName = strtolower($section->program?->program_name ?? '');
+        $yearLevel = strtolower($section->year_level ?? '');
+
+        return str_contains($programName, 'shs') ||
+               str_contains($programName, 'senior high') ||
+               str_contains($yearLevel, 'grade 11') ||
+               str_contains($yearLevel, 'grade 12') ||
+               str_contains($yearLevel, '11') ||
+               str_contains($yearLevel, '12');
+    }
+
+    /**
+     * Update SHS section subjects for the next semester instead of archiving.
+     */
+    protected function updateShsSectionForNextSemester(Section $section, string $academicYear): void
+    {
+        // Update section semester to '2nd'
+        $section->update([
+            'semester' => '2nd',
+            'updated_at' => now(),
+        ]);
+
+        // Get the curriculum for this section
+        $curriculum = $section->curriculum;
+        if (! $curriculum) {
+            Log::warning("No curriculum found for SHS section {$section->section_name}, skipping subject update");
+
+            return;
+        }
+
+        // Get subjects for 2nd semester from the curriculum
+        $secondSemesterSubjects = $curriculum->curriculumSubjects()
+            ->where('semester', '2nd')
+            ->where('year_level', $section->year_level)
+            ->with('subject')
+            ->get();
+
+        if ($secondSemesterSubjects->isEmpty()) {
+            Log::warning("No 2nd semester subjects found in curriculum for SHS section {$section->section_name}");
+
+            return;
+        }
+
+        // Remove existing section subjects
+        SectionSubject::where('section_id', $section->id)->delete();
+
+        // Add new 2nd semester subjects
+        foreach ($secondSemesterSubjects as $curriculumSubject) {
+            SectionSubject::create([
+                'section_id' => $section->id,
+                'subject_id' => $curriculumSubject->subject_id,
+                'teacher_id' => null, // Will need to be assigned by admin
+                'room' => null, // Will need to be assigned
+                'schedule_days' => null, // Will need to be assigned
+                'start_time' => null, // Will need to be assigned
+                'end_time' => null, // Will need to be assigned
+                'status' => 'active',
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+        }
+
+        Log::info("Updated SHS section {$section->section_name} subjects for 2nd semester", [
+            'section_id' => $section->id,
+            'academic_year' => $academicYear,
+            'subject_count' => $secondSemesterSubjects->count(),
         ]);
     }
 }

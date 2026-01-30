@@ -55,21 +55,46 @@ const Index = ({ currentPayment, paymentHistory, stats, currentAcademicInfo, stu
     }
 
     const getPaymentStatusColor = (balance) => {
-        if (balance === 0) return 'text-green-600';
+        const isShs = student?.education_level === 'senior_high';
+        const hasVoucher = student?.has_voucher;
+
+        if (balance === 0) {
+            if (isShs && hasVoucher) return 'text-blue-600'; // Voucher status
+            return 'text-green-600'; // Paid/Fully Paid
+        }
         if (balance > 0) return 'text-red-600';
+        // For negative balance
+        if (isShs && hasVoucher) return 'text-blue-600'; // Voucher status
         return 'text-gray-600';
     };
 
     const getPaymentStatusText = (balance) => {
-        if (balance === 0) return 'Fully Paid';
+        const isShs = student?.education_level === 'senior_high';
+        const hasVoucher = student?.has_voucher;
+
+        if (balance === 0) {
+            if (isShs && hasVoucher) return 'Voucher';
+            if (isShs) return 'Paid';
+            return 'Fully Paid';
+        }
         if (balance > 0) return 'Outstanding Balance';
+        // For negative balance (overpaid), show Paid for SHS with voucher, Overpaid otherwise
+        if (isShs && hasVoucher) return 'Voucher';
         return 'Overpaid';
     };
 
     const getPaymentStatusBadge = (balance) => {
-        if (balance === 0) return 'bg-green-100 text-green-800 border-green-200';
+        const isShs = student?.education_level === 'senior_high';
+        const hasVoucher = student?.has_voucher;
+
+        if (balance === 0) {
+            if (isShs && hasVoucher) return 'bg-blue-100 text-blue-800 border-blue-200'; // Voucher badge
+            return 'bg-green-100 text-green-800 border-green-200'; // Paid/Fully Paid badge
+        }
         if (balance > 0) return 'bg-red-100 text-red-800 border-red-200';
-        return 'bg-blue-100 text-blue-800 border-blue-200';
+        // For negative balance
+        if (isShs && hasVoucher) return 'bg-blue-100 text-blue-800 border-blue-200'; // Voucher badge
+        return 'bg-gray-100 text-gray-800 border-gray-200';
     };
 
     const getSemesterDisplay = (semester) => {
@@ -227,6 +252,29 @@ const Index = ({ currentPayment, paymentHistory, stats, currentAcademicInfo, stu
                                     <p className="font-semibold text-gray-900 mt-0.5">{student?.year_level || 'N/A'}</p>
                                 </div>
                             </div>
+
+                            {student?.education_level === 'senior_high' && (
+                                <div className="flex items-start gap-2 p-2 rounded-lg hover:bg-gray-50 transition-colors">
+                                    <div className="p-1.5 bg-teal-100 rounded-lg">
+                                        <Receipt className="w-4 h-4 text-teal-600" />
+                                    </div>
+                                    <div className="flex-1">
+                                        <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Voucher</p>
+                                        <p className="font-semibold text-gray-900 mt-0.5">
+                                            {student?.has_voucher ? (
+                                                <span className="text-green-600">Active</span>
+                                            ) : (
+                                                <span className="text-gray-500">Not Available</span>
+                                            )}
+                                        </p>
+                                        {student?.voucher_id && (
+                                            <p className="text-xs text-gray-500 mt-0.5">
+                                                ID: {student.voucher_id}
+                                            </p>
+                                        )}
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     </CardContent>
                 </Card>
@@ -348,6 +396,44 @@ const Index = ({ currentPayment, paymentHistory, stats, currentAcademicInfo, stu
                                                                         </td>
                                                                     </tr>
                                                                 ))}
+                                                            </tbody>
+                                                        </table>
+                                                    </div>
+                                                ) : student?.education_level === 'senior_high' && student?.has_voucher ? (
+                                                    <div className="overflow-x-auto border rounded-lg">
+                                                        <table className="w-full">
+                                                            <thead className="bg-gray-50">
+                                                                <tr className="border-b">
+                                                                    <th className="text-left py-3 px-4 text-sm font-medium text-gray-700">Date</th>
+                                                                    <th className="text-left py-3 px-4 text-sm font-medium text-gray-700">Reference</th>
+                                                                    <th className="text-left py-3 px-4 text-sm font-medium text-gray-700">Description</th>
+                                                                    <th className="text-right py-3 px-4 text-sm font-medium text-gray-700">Amount</th>
+                                                                    <th className="text-center py-3 px-4 text-sm font-medium text-gray-700">Type</th>
+                                                                </tr>
+                                                            </thead>
+                                                            <tbody>
+                                                                <tr className="border-b hover:bg-gray-50">
+                                                                    <td className="py-3 px-4 text-sm">
+                                                                        {formatDate(student?.enrolled_date || new Date())}
+                                                                    </td>
+                                                                    <td className="py-3 px-4">
+                                                                        <span className="font-mono text-sm">{student?.voucher_id || 'VOUCHER'}</span>
+                                                                    </td>
+                                                                    <td className="py-3 px-4 text-sm">
+                                                                        <div>
+                                                                            <p className="font-medium">Voucher Enrollment</p>
+                                                                            <p className="text-xs text-gray-500">Fees covered by active voucher</p>
+                                                                        </div>
+                                                                    </td>
+                                                                    <td className="py-3 px-4 text-right font-medium text-blue-600">
+                                                                        {formatCurrency(payment.calculated_total_amount || payment.total_amount || 0)}
+                                                                    </td>
+                                                                    <td className="py-3 px-4 text-center">
+                                                                        <Badge className="bg-blue-100 text-blue-800 border-blue-200">
+                                                                            Voucher
+                                                                        </Badge>
+                                                                    </td>
+                                                                </tr>
                                                             </tbody>
                                                         </table>
                                                     </div>

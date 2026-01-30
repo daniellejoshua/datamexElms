@@ -569,6 +569,7 @@ export default function AuthenticatedLayout({ header, children }) {
                                 <DropdownMenuTrigger asChild>
                                     <Button variant="ghost" className="flex items-center space-x-2 px-2 sm:px-3 py-2 h-auto min-w-0">
                                         <Avatar className="w-6 h-6 sm:w-8 sm:h-8 flex-shrink-0">
+                                            <AvatarImage src={user.profile_picture} alt={user.name} />
                                             <AvatarFallback className="bg-red-600 text-white text-xs">
                                                 {user.name.charAt(0).toUpperCase()}
                                             </AvatarFallback>

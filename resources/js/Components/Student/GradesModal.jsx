@@ -19,6 +19,9 @@ import {
 export default function GradesModal({ isOpen, onClose, subject }) {
     if (!subject) return null;
 
+    // Determine if this is SHS or College based on year level
+    const isSHS = subject.year_level >= 11 && subject.year_level <= 12;
+
     const getGradeColor = (grade) => {
         if (!grade || grade === 'N/A') return 'text-gray-500';
         const numGrade = parseFloat(grade);
@@ -49,7 +52,11 @@ export default function GradesModal({ isOpen, onClose, subject }) {
         return 'F';
     };
 
-    const gradeItems = [
+    // Define grade items based on student type
+    const gradeItems = isSHS ? [
+        { label: 'Q1', value: subject.grades?.q1_grade, weight: '50%' },
+        { label: 'Q2', value: subject.grades?.q2_grade, weight: '50%' },
+    ] : [
         { label: 'Prelim', value: subject.grades?.prelim_grade, weight: '25%' },
         { label: 'Midterm', value: subject.grades?.midterm_grade, weight: '25%' },
         { label: 'Prefinal', value: subject.grades?.prefinal_grade, weight: '25%' },
@@ -77,7 +84,28 @@ const getGradePointEquivalence = (grade) => {
 
 
 
-    const semesterGrade = subject.grades?.semester_grade;
+    // Calculate semester grade
+    const calculateSemesterGrade = () => {
+        if (isSHS) {
+            // For SHS, calculate average of Q1 and Q2
+            const q1 = subject.grades?.q1_grade ? parseFloat(subject.grades.q1_grade) : null;
+            const q2 = subject.grades?.q2_grade ? parseFloat(subject.grades.q2_grade) : null;
+            
+            if (q1 !== null && q2 !== null) {
+                return ((q1 + q2) / 2).toFixed(2);
+            } else if (q1 !== null) {
+                return q1.toString();
+            } else if (q2 !== null) {
+                return q2.toString();
+            }
+            return null;
+        } else {
+            // For College, use semester grade
+            return subject.grades?.semester_grade;
+        }
+    };
+
+    const semesterGrade = calculateSemesterGrade();
 
     return (
         <Dialog open={isOpen} onOpenChange={onClose}>
@@ -191,38 +219,38 @@ const getGradePointEquivalence = (grade) => {
                                         Final Semester Grade
                                     </CardTitle>
                                 </CardHeader>
-                                <CardContent>
-                                    <div className="flex items-center justify-between">
-                                        <div>
-                                            <p className="text-sm text-gray-600 mb-1">Overall Performance</p>
-                                            <div className="flex items-center gap-3">
-                                                <span className={`text-4xl font-bold ${getGradeColor(semesterGrade)}`}>
-                                                    {getGradePointEquivalence(semesterGrade)|| 'N/A'}
-                                                </span>
+                                    <CardContent>
+                                        <div className="flex items-center justify-between">
+                                            <div>
+                                                <p className="text-sm text-gray-600 mb-1">Overall Performance</p>
+                                                <div className="flex items-center gap-3">
+                                                    <span className={`text-4xl font-bold ${getGradeColor(semesterGrade)}`}>
+                                                        {getGradePointEquivalence(semesterGrade)|| 'N/A'}
+                                                    </span>
+                                                    <Badge 
+                                                        variant="secondary" 
+                                                        className={`text-lg px-3 py-1 ${getGradeBg(semesterGrade)} ${getGradeColor(semesterGrade)} border-0`}
+                                                    >
+                                                        {semesterGrade}
+                                                    </Badge>
+                                                </div>
+                                            </div>
+                                            <div className="text-right">
+                                                <p className="text-sm text-gray-600 mb-1">Status</p>
                                                 <Badge 
-                                                    variant="secondary" 
-                                                    className={`text-lg px-3 py-1 ${getGradeBg(semesterGrade)} ${getGradeColor(semesterGrade)} border-0`}
+                                                    variant={subject.grades?.status === 'passed' || subject.grades?.status === 'completed' ? 'default' : 'secondary'}
+                                                    className={
+                                                        subject.grades?.status === 'passed' || subject.grades?.status === 'completed'
+                                                            ? 'bg-green-100 text-green-800 border-green-200' 
+                                                            : 'bg-gray-100 text-gray-800'
+                                                    }
                                                 >
-                                                    {semesterGrade}
+                                                    {subject.grades?.status || 'Pending'}
                                                 </Badge>
                                             </div>
                                         </div>
-                                        <div className="text-right">
-                                            <p className="text-sm text-gray-600 mb-1">Status</p>
-                                            <Badge 
-                                                variant={subject.grades?.status === 'passed' ? 'default' : 'secondary'}
-                                                className={
-                                                    subject.grades?.status === 'passed' 
-                                                        ? 'bg-green-100 text-green-800 border-green-200' 
-                                                        : 'bg-gray-100 text-gray-800'
-                                                }
-                                            >
-                                                {subject.grades?.status || 'Pending'}
-                                            </Badge>
-                                        </div>
-                                    </div>
-                                </CardContent>
-                            </Card>
+                                    </CardContent>
+                                </Card>
                         </>
                     ) : (
                         <Card>

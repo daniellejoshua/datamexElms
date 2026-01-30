@@ -147,99 +147,93 @@ export default function Dashboard({
         <AuthenticatedLayout
             auth={auth}
             header={
-                <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                        <div className="bg-gradient-to-br from-blue-500 to-blue-600 p-2 rounded-lg shadow-sm">
-                            <GraduationCap className="w-6 h-6 text-white" />
+                <div className="flex items-center px-2 py-1">
+                    <div className="flex items-center gap-2">
+                        <div className="bg-blue-100 p-1.5 rounded-md">
+                            <GraduationCap className="w-4 h-4 text-blue-600" />
                         </div>
                         <div>
-                            <h2 className="text-xl font-semibold text-gray-900">Dashboard</h2>
-                            <p className="text-sm text-gray-600">Welcome back, {student.user.first_name || student.user.name}</p>
+                            <h2 className="text-lg font-semibold text-gray-900">Student Dashboard</h2>
+                            <p className="text-xs text-gray-500 mt-0.5">Your academic overview and progress</p>
                         </div>
                     </div>
-                   
                 </div>
             }
         >
             <Head title="Student Dashboard" />
 
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="p-4 sm:p-6 lg:p-8 space-y-6">
                 {/* Academic Year & Semester Badge */}
-                <div className="flex justify-end mt-4 mb-2">
+                <div className="flex justify-end">
                     <Badge variant="secondary" className="bg-blue-100 text-blue-800 border-blue-200 px-3 py-1">
                         <CalendarDays className="w-4 h-4 mr-2" />
                         {currentAcademicInfo?.year || '2025-2026'} - {currentAcademicInfo?.semester || '1st'} Semester
                     </Badge>
                 </div>
 
-                <div className="space-y-8">
-                {/* Quick Stats */}
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-                    {/* Current Section Card */}
-             
-
-                   
-                </div>
-
-                {/* Quick Stats */}
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6 mb-6">
-                    <Card className="bg-gradient-to-br from-blue-50 to-blue-100 border-blue-200 hover:shadow-lg transition-all duration-200">
-                        <CardContent className="p-4 md:p-6">
-                            <div className="flex items-center justify-between">
-                                <div className="flex-1 min-w-0">
-                                    <p className="text-xl md:text-2xl font-bold text-blue-700 truncate">{stats.totalCurriculumSubjects || 0}</p>
-                                    <p className="text-xs md:text-sm font-medium text-blue-600">Total Subjects</p>
-                                </div>
-                                <div className="p-2 md:p-3 bg-blue-200 rounded-full flex-shrink-0 ml-2">
-                                    <BookOpen className="w-4 h-4 md:w-6 md:h-6 text-blue-700" />
-                                </div>
+                {/* Stats Overview - Responsive Grid */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 lg:gap-6">
+                    {/* Total Subjects */}
+                    <Card className="hover:shadow-md transition-shadow">
+                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                            <CardTitle className="text-sm font-medium text-muted-foreground">Total Subjects</CardTitle>
+                            <BookOpen className="h-4 w-4 text-muted-foreground" />
+                        </CardHeader>
+                        <CardContent>
+                            <div className="text-2xl font-bold text-blue-600">
+                                {stats.totalCurriculumSubjects || 0}
                             </div>
+                            <p className="text-xs text-muted-foreground mt-1">
+                                Curriculum subjects
+                            </p>
                         </CardContent>
                     </Card>
 
-                    <Card className="bg-gradient-to-br from-green-50 to-green-100 border-green-200 hover:shadow-lg transition-all duration-200">
-                        <CardContent className="p-4 md:p-6">
-                            <div className="flex items-center justify-between">
-                                <div className="flex-1 min-w-0">
-                                    <p className="text-xl md:text-2xl font-bold text-green-700 truncate">{stats.completionRate || 0}%</p>
-                                    <p className="text-xs md:text-sm font-medium text-green-600">Completion Rate</p>
-                                </div>
-                                <div className="p-2 md:p-3 bg-green-200 rounded-full flex-shrink-0 ml-2">
-                                    <Target className="w-4 h-4 md:w-6 md:h-6 text-green-700" />
-                                </div>
+                    {/* Completion Rate */}
+                    <Card className="hover:shadow-md transition-shadow">
+                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                            <CardTitle className="text-sm font-medium text-muted-foreground">Completion Rate</CardTitle>
+                            <Target className="h-4 w-4 text-muted-foreground" />
+                        </CardHeader>
+                        <CardContent>
+                            <div className="text-2xl font-bold text-green-600">
+                                {stats.completionRate || 0}%
                             </div>
+                            <p className="text-xs text-muted-foreground mt-1">
+                                Academic progress
+                            </p>
                         </CardContent>
                     </Card>
 
-                    <Card className="bg-gradient-to-br from-purple-50 to-purple-100 border-purple-200 hover:shadow-lg transition-all duration-200">
-                        <CardContent className="p-4 md:p-6">
-                            <div className="flex items-center justify-between">
-                                <div className="flex-1 min-w-0">
-                                    <p className="text-xl md:text-2xl font-bold text-purple-700 truncate">
-                                        ₱{stats.balance?.toLocaleString() || '0'}
-                                    </p>
-                                    <p className="text-xs md:text-sm font-medium text-purple-600">Outstanding Balance</p>
-                                </div>
-                                <div className="p-2 md:p-3 bg-purple-200 rounded-full flex-shrink-0 ml-2">
-                                    <CreditCard className="w-4 h-4 md:w-6 md:h-6 text-purple-700" />
-                                </div>
+                    {/* Outstanding Balance */}
+                    <Card className="hover:shadow-md transition-shadow">
+                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                            <CardTitle className="text-sm font-medium text-muted-foreground">Outstanding Balance</CardTitle>
+                            <CreditCard className="h-4 w-4 text-muted-foreground" />
+                        </CardHeader>
+                        <CardContent>
+                            <div className="text-2xl font-bold text-purple-600">
+                                ₱{stats.balance?.toLocaleString() || '0'}
                             </div>
+                            <p className="text-xs text-muted-foreground mt-1">
+                                Payment status
+                            </p>
                         </CardContent>
                     </Card>
 
-                    <Card className="bg-gradient-to-br from-orange-50 to-orange-100 border-orange-200 hover:shadow-lg transition-all duration-200">
-                        <CardContent className="p-4 md:p-6">
-                            <div className="flex items-center justify-between">
-                                <div className="flex-1 min-w-0">
-                                    <p className="text-xl md:text-2xl font-bold text-orange-700 capitalize truncate">
-                                        {student.student_type || 'Regular'}
-                                    </p>
-                                    <p className="text-xs md:text-sm font-medium text-orange-600">Student Type</p>
-                                </div>
-                                <div className="p-2 md:p-3 bg-orange-200 rounded-full flex-shrink-0 ml-2">
-                                    <User className="w-4 h-4 md:w-6 md:h-6 text-orange-700" />
-                                </div>
+                    {/* Student Type */}
+                    <Card className="hover:shadow-md transition-shadow">
+                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                            <CardTitle className="text-sm font-medium text-muted-foreground">Student Type</CardTitle>
+                            <User className="h-4 w-4 text-muted-foreground" />
+                        </CardHeader>
+                        <CardContent>
+                            <div className="text-2xl font-bold text-orange-600 capitalize">
+                                {student.student_type || 'Regular'}
                             </div>
+                            <p className="text-xs text-muted-foreground mt-1">
+                                Enrollment status
+                            </p>
                         </CardContent>
                     </Card>
                 </div>
@@ -529,7 +523,6 @@ export default function Dashboard({
                     </Card>
                 </div>
 
-            </div>
             </div>
         </AuthenticatedLayout>
     )

@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\ArchivedStudentEnrollment;
 use App\Models\CourseMaterial;
 use App\Models\MaterialAccessLog;
+use App\Models\ShsStudentGrade;
 use App\Models\Student;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
@@ -78,13 +79,40 @@ class SubjectController extends Controller
             })
             ->get();
 
+        // Get SHS grades for SHS students
+        $shsStudentGrades = collect();
+        foreach ($enrollments as $enrollment) {
+            if ($enrollment->section && in_array($enrollment->section->year_level, [11, 12])) {
+                $enrollmentShsGrades = $enrollment->shsStudentGrades()
+                    ->with(['sectionSubject.subject', 'sectionSubject.teacher.user'])
+                    ->get();
+                $shsStudentGrades = $shsStudentGrades->merge($enrollmentShsGrades);
+            }
+        }
+
         // Group grades by subject to avoid duplicates
         $subjectGradesMap = [];
         foreach ($studentGrades as $grade) {
             if ($grade->sectionSubject && $grade->sectionSubject->subject) {
                 $subjectCode = $grade->sectionSubject->subject->subject_code;
                 if (! isset($subjectGradesMap[$subjectCode])) {
-                    $subjectGradesMap[$subjectCode] = $grade;
+                    $subjectGradesMap[$subjectCode] = [
+                        'type' => 'college',
+                        'grade' => $grade,
+                    ];
+                }
+            }
+        }
+
+        // Add SHS grades to the map
+        foreach ($shsStudentGrades as $grade) {
+            if ($grade->sectionSubject && $grade->sectionSubject->subject) {
+                $subjectCode = $grade->sectionSubject->subject->subject_code;
+                if (! isset($subjectGradesMap[$subjectCode])) {
+                    $subjectGradesMap[$subjectCode] = [
+                        'type' => 'shs',
+                        'grade' => $grade,
+                    ];
                 }
             }
         }
@@ -94,7 +122,9 @@ class SubjectController extends Controller
 
         if ($student->student_type === 'irregular') {
             // For irregular students: only show subjects where they have grades
-            foreach ($subjectGradesMap as $subjectCode => $grade) {
+            foreach ($subjectGradesMap as $subjectCode => $gradeData) {
+                $grade = $gradeData['grade'];
+                $gradeType = $gradeData['type'];
                 $sectionSubject = $grade->sectionSubject;
                 $subject = $sectionSubject->subject;
                 $teacher = $sectionSubject->teacher;
@@ -122,6 +152,26 @@ class SubjectController extends Controller
                     })
                     ->values();
 
+                // Prepare grades based on type
+                $gradesData = null;
+                if ($gradeType === 'college') {
+                    $gradesData = [
+                        'prelim_grade' => $grade->prelim_grade,
+                        'midterm_grade' => $grade->midterm_grade,
+                        'prefinal_grade' => $grade->prefinal_grade,
+                        'final_grade' => $grade->final_grade,
+                        'semester_grade' => $grade->semester_grade,
+                        'status' => $grade->overall_status,
+                    ];
+                } elseif ($gradeType === 'shs') {
+                    $gradesData = [
+                        'q1_grade' => $grade->first_quarter_grade,
+                        'q2_grade' => $grade->second_quarter_grade,
+                        'final_grade' => $grade->final_grade,
+                        'status' => $grade->completion_status,
+                    ];
+                }
+
                 $subjects[] = [
                     'id' => $subject->id,
                     'subject_code' => $subject->subject_code,
@@ -141,14 +191,7 @@ class SubjectController extends Controller
                     'room' => $sectionSubject->room,
                     'section_subject_id' => $sectionSubject->id,
                     'materials' => $sectionMaterials,
-                    'grades' => [
-                        'prelim_grade' => $grade->prelim_grade,
-                        'midterm_grade' => $grade->midterm_grade,
-                        'prefinal_grade' => $grade->prefinal_grade,
-                        'final_grade' => $grade->final_grade,
-                        'semester_grade' => $grade->semester_grade,
-                        'status' => $grade->overall_status,
-                    ],
+                    'grades' => $gradesData,
                 ];
             }
         } else {
@@ -163,10 +206,44 @@ class SubjectController extends Controller
                     $subject = $sectionSubject->subject;
                     $teacher = $sectionSubject->teacher;
 
-                    // Get student grades for this enrollment
+                    // Get student grades for this enrollment (College)
                     $studentGrades = $enrollment->studentGrades()
                         ->where('teacher_id', $sectionSubject->teacher_id)
                         ->first();
+
+                    // Get SHS grades for this enrollment (SHS)
+                    $shsStudentGrades = $enrollment->shsStudentGrades()
+                        ->where('teacher_id', $sectionSubject->teacher_id)
+                        ->first();
+
+                    // Determine which grades to use based on year level
+                    $gradesData = null;
+                    $gradeType = null;
+                    if ($enrollment->section->year_level >= 11 && $enrollment->section->year_level <= 12) {
+                        // SHS student
+                        if ($shsStudentGrades) {
+                            $gradesData = [
+                                'q1_grade' => $shsStudentGrades->first_quarter_grade,
+                                'q2_grade' => $shsStudentGrades->second_quarter_grade,
+                                'final_grade' => $shsStudentGrades->final_grade,
+                                'status' => $shsStudentGrades->completion_status,
+                            ];
+                            $gradeType = 'shs';
+                        }
+                    } else {
+                        // College student
+                        if ($studentGrades) {
+                            $gradesData = [
+                                'prelim_grade' => $studentGrades->prelim_grade,
+                                'midterm_grade' => $studentGrades->midterm_grade,
+                                'prefinal_grade' => $studentGrades->prefinal_grade,
+                                'final_grade' => $studentGrades->final_grade,
+                                'semester_grade' => $studentGrades->semester_grade,
+                                'status' => $studentGrades->overall_status,
+                            ];
+                            $gradeType = 'college';
+                        }
+                    }
 
                     // Filter materials for this specific teacher
                     $sectionMaterials = $enrollment->section->courseMaterials
@@ -209,14 +286,7 @@ class SubjectController extends Controller
                         'room' => $sectionSubject->room,
                         'section_subject_id' => $sectionSubject->id,
                         'materials' => $sectionMaterials,
-                        'grades' => $studentGrades ? [
-                            'prelim_grade' => $studentGrades->prelim_grade,
-                            'midterm_grade' => $studentGrades->midterm_grade,
-                            'prefinal_grade' => $studentGrades->prefinal_grade,
-                            'final_grade' => $studentGrades->final_grade,
-                            'semester_grade' => $studentGrades->semester_grade,
-                            'status' => $studentGrades->overall_status,
-                        ] : null,
+                        'grades' => $gradesData,
                     ];
                 }
             }

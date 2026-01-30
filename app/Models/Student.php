@@ -112,6 +112,11 @@ class Student extends Model
         return $this->hasManyThrough(ShsStudentGrade::class, StudentEnrollment::class);
     }
 
+    public function shsStudentGrades(): HasManyThrough
+    {
+        return $this->hasManyThrough(ShsStudentGrade::class, StudentEnrollment::class);
+    }
+
     public function semesterPayments(): HasMany
     {
         return $this->hasMany(StudentSemesterPayment::class);

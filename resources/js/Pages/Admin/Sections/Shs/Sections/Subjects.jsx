@@ -286,17 +286,6 @@ const Subjects = ({ section, subjects, teachers }) => {
                         <div className="text-sm text-gray-600 dark:text-gray-400">
                             {section.section_subjects?.length || 0} subject{section.section_subjects?.length !== 1 ? 's' : ''} assigned
                         </div>
-                        <button
-                            onClick={() => setShowAssignForm(!showAssignForm)}
-                            disabled={isReadOnly}
-                            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors duration-200 w-full sm:w-auto ${
-                                isReadOnly 
-                                    ? 'bg-gray-400 cursor-not-allowed text-gray-600' 
-                                    : 'bg-blue-600 hover:bg-blue-700 text-white'
-                            }`}
-                        >
-                            {showAssignForm ? 'Cancel Assignment' : '+ Assign Subject'}
-                        </button>
                     </div>
 
                     {/* Assignment Form */}

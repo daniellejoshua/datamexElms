@@ -56,9 +56,9 @@ it('can import SHS grades successfully', function () {
         'status' => 'active',
     ]);
 
-    // Create a simple CSV content
-    $csvContent = "Student ID,Student Name,1st Quarter,2nd Quarter,3rd Quarter,4th Quarter\n";
-    $csvContent .= "{$enrollment->student->student_number},{$enrollment->student->user->name},85,90,88,92\n";
+    // Create a simple CSV content for SHS
+    $csvContent = "Student ID,Student Name,Q1,Q2\n";
+    $csvContent .= "{$enrollment->student->student_number},{$enrollment->student->user->name},85,90\n";
 
     // Create a temporary file
     $tempFile = tempnam(sys_get_temp_dir(), 'grade_import').'.csv';
@@ -77,9 +77,9 @@ it('can import SHS grades successfully', function () {
     expect($grade)->not->toBeNull();
     expect($grade->first_quarter_grade)->toBe(85.0);
     expect($grade->second_quarter_grade)->toBe(90.0);
-    expect($grade->third_quarter_grade)->toBe(88.0);
-    expect($grade->fourth_quarter_grade)->toBe(92.0);
-    expect($grade->final_grade)->toBe(88.75);
+    expect($grade->third_quarter_grade)->toBeNull(); // SHS doesn't use Q3
+    expect($grade->fourth_quarter_grade)->toBeNull(); // SHS doesn't use Q4
+    expect($grade->final_grade)->toBe(87.5); // Average of 85 and 90
     expect($grade->completion_status)->toBe('passed');
 
     // Clean up

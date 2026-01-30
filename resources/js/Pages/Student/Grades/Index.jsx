@@ -1,8 +1,9 @@
 import React from 'react';
-import { Head, router } from '@inertiajs/react';
+import { Head, router, Link } from '@inertiajs/react';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import {
     TrendingUp,
@@ -129,7 +130,7 @@ const Index = ({ auth, student, currentGrades, stats }) => {
                     )}
 
                     {/* Grade Statistics Cards */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8 mt-6">
                         <Card className="border-l-4 border-l-blue-500 hover:shadow-md transition-shadow mx-2 md:mx-0">
                             <CardContent className="p-6">
                                 <div className="flex items-center justify-between">
@@ -151,20 +152,46 @@ const Index = ({ auth, student, currentGrades, stats }) => {
                                     <div>
                                         <p className="text-sm font-medium text-gray-600">Average Grade</p>
                                         {stats.averageGrade ? (
-                                            <div className="text-center">
-                                                <p className={`text-3xl font-bold ${getGradeColor(stats.averageGrade)}`}>
-                                                    {getGradePointEquivalence(stats.averageGrade)}
-                                                </p>
-                                                <p className={`text-xs ${getGradeColor(stats.averageGrade)} mt-1`}>
-                                                    {stats.averageGrade.toFixed(1)}%
-                                                </p>
+                                            <div className="flex flex-col items-start gap-2">
+                                                <div className="flex items-center gap-3">
+                                                    <div className={`text-4xl font-bold ${getGradeColor(stats.averageGrade)}`}>
+                                                        {getGradePointEquivalence(stats.averageGrade)}
+                                                    </div>
+                                                    <div className="flex flex-col items-center">
+                                                        <div className={`text-lg font-semibold ${getGradeColor(stats.averageGrade)}`}>
+                                                            {stats.averageGrade.toFixed(1)}%
+                                                        </div>
+                                                        <div className="w-12 h-1.5 bg-gray-200 rounded-full overflow-hidden">
+                                                            <div
+                                                                className={`h-full rounded-full transition-all duration-500 ${
+                                                                    stats.averageGrade >= 90 ? 'bg-green-500' :
+                                                                    stats.averageGrade >= 80 ? 'bg-blue-500' :
+                                                                    stats.averageGrade >= 75 ? 'bg-yellow-500' : 'bg-red-500'
+                                                                }`}
+                                                                style={{ width: `${Math.min(stats.averageGrade, 100)}%` }}
+                                                            ></div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                <div className="flex items-center gap-2">
+                                                    <Badge variant="secondary" className={`${
+                                                        stats.averageGrade >= 90 ? 'bg-green-100 text-green-800 border-green-300' :
+                                                        stats.averageGrade >= 80 ? 'bg-blue-100 text-blue-800 border-blue-300' :
+                                                        stats.averageGrade >= 75 ? 'bg-yellow-100 text-yellow-800 border-yellow-300' :
+                                                        'bg-red-100 text-red-800 border-red-300'
+                                                    } font-medium px-3 py-1`}>
+                                                        {getGradeStatus(stats.averageGrade)}
+                                                    </Badge>
+                                                </div>
                                             </div>
                                         ) : (
-                                            <p className="text-3xl font-bold text-gray-500">N/A</p>
+                                            <div className="flex flex-col items-start gap-2">
+                                                <div className="text-4xl font-bold text-gray-400">—</div>
+                                                <Badge variant="secondary" className="bg-gray-100 text-gray-600 border-gray-300 font-medium px-3 py-1">
+                                                    No grades yet
+                                                </Badge>
+                                            </div>
                                         )}
-                                        <p className="text-xs text-gray-500 mt-1">
-                                            {getGradeStatus(stats.averageGrade)}
-                                        </p>
                                     </div>
                                     <div className="p-3 bg-green-100 rounded-full">
                                         <TrendingUp className="w-6 h-6 text-green-600" />
@@ -243,7 +270,7 @@ const Index = ({ auth, student, currentGrades, stats }) => {
                             </div>
                         </CardHeader>
                         <CardContent>
-                            {currentGrades && currentGrades.data && currentGrades.data.length > 0 ? (
+                            {currentGrades && currentGrades.length > 0 ? (
                                 <div className="space-y-4">
                                     {/* Summary Cards for Mobile */}
                                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:hidden">
@@ -274,12 +301,12 @@ const Index = ({ auth, student, currentGrades, stats }) => {
                                         {(() => {
                                             // Group grades by subject
                                             const gradesBySubject = {};
-                                            currentGrades.data.forEach(grade => {
-                                                const subjectId = grade.section_subject?.subject?.id;
+                                            currentGrades.forEach(grade => {
+                                                const subjectId = grade.sectionSubject?.subject?.id;
                                                 if (subjectId && !gradesBySubject[subjectId]) {
                                                     gradesBySubject[subjectId] = {
-                                                        subject: grade.section_subject?.subject,
-                                                        section: grade.student_enrollment?.section,
+                                                        subject: grade.sectionSubject?.subject,
+                                                        section: grade.studentEnrollment?.section,
                                                         grades: []
                                                     };
                                                 }
@@ -293,15 +320,29 @@ const Index = ({ auth, student, currentGrades, stats }) => {
 
                                                 // Find grades for each period - each subject has one grade record with all periods
                                                 const grade = grades[0]; // There should be one grade record per subject
-                                                const prelimGrade = grade?.prelim_grade ? parseFloat(grade.prelim_grade) : null;
-                                                const midtermGrade = grade?.midterm_grade ? parseFloat(grade.midterm_grade) : null;
-                                                const prefinalGrade = grade?.prefinal_grade ? parseFloat(grade.prefinal_grade) : null;
-                                                const finalGrade = grade?.final_grade ? parseFloat(grade.final_grade) : null;
-                                                const semesterGrade = grade?.semester_grade ? parseFloat(grade.semester_grade) : null;
+                                                const isSHS = section?.year_level >= 11 && section?.year_level <= 12;
+                                                
+                                                let prelimGrade = null, midtermGrade = null, prefinalGrade = null, finalGrade = null, semesterGrade = null;
+                                                let q1Grade = null, q2Grade = null, shsFinalGrade = null;
+                                                
+                                                if (isSHS) {
+                                                    q1Grade = grade?.q1_grade ? parseFloat(grade.q1_grade) : null;
+                                                    q2Grade = grade?.q2_grade ? parseFloat(grade.q2_grade) : null;
+                                                    // Calculate SHS final grade as average of Q1 and Q2
+                                                    shsFinalGrade = (q1Grade !== null && q2Grade !== null) ? ((q1Grade + q2Grade) / 2) : 
+                                                                   (q1Grade !== null ? q1Grade : (q2Grade !== null ? q2Grade : null));
+                                                } else {
+                                                    prelimGrade = grade?.prelim_grade ? parseFloat(grade.prelim_grade) : null;
+                                                    midtermGrade = grade?.midterm_grade ? parseFloat(grade.midterm_grade) : null;
+                                                    prefinalGrade = grade?.prefinal_grade ? parseFloat(grade.prefinal_grade) : null;
+                                                    finalGrade = grade?.final_grade ? parseFloat(grade.final_grade) : null;
+                                                    semesterGrade = grade?.semester_grade ? parseFloat(grade.semester_grade) : null;
+                                                }
 
                                                 // Filter out invalid grades (NaN, null, undefined)
-                                                const validGrades = [prelimGrade, midtermGrade, prefinalGrade, finalGrade, semesterGrade]
-                                                    .filter(g => g !== null && g !== undefined && !isNaN(g) && g > 0);
+                                                const validGrades = isSHS 
+                                                    ? [q1Grade, q2Grade, shsFinalGrade].filter(g => g !== null && g !== undefined && !isNaN(g) && g > 0)
+                                                    : [prelimGrade, midtermGrade, prefinalGrade, finalGrade, semesterGrade].filter(g => g !== null && g !== undefined && !isNaN(g) && g > 0);
 
                                                 // Calculate average grade for card color
                                                 const averageGrade = validGrades.length > 0 ? validGrades.reduce((a, b) => a + b, 0) / validGrades.length : null;
@@ -337,133 +378,257 @@ const Index = ({ auth, student, currentGrades, stats }) => {
                                                         </CardHeader>
                                                         <CardContent className="pt-0">
                                                             <div className="space-y-3">
-                                                                {/* Prelim Grade */}
-                                                                <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                                                                    <div className="flex items-center gap-2">
-                                                                        <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-                                                                        <span className="text-sm font-medium text-gray-700">Prelim</span>
-                                                                    </div>
-                                                                    <div className="flex items-center gap-2">
-                                                                        {isValidGrade(prelimGrade) && (
-                                                                            <div className="text-center">
-                                                                                <div className={`text-lg font-bold ${getGradeColor(prelimGrade)}`}>
-                                                                                    {getGradePointEquivalence(prelimGrade)}
+                                                                {isSHS ? (
+                                                                    <>
+                                                                        {/* Q1 Grade */}
+                                                                        <div className="relative">
+                                                                            <div className="flex items-center justify-between p-4 bg-gradient-to-r from-blue-50 to-blue-100 rounded-xl border border-blue-200">
+                                                                                <div className="flex items-center gap-3">
+                                                                                    <div className="w-3 h-3 bg-blue-500 rounded-full shadow-sm"></div>
+                                                                                    <div>
+                                                                                        <span className="text-sm font-semibold text-blue-900">1st Quarter</span>
+                                                                                    </div>
                                                                                 </div>
-                                                                                <div className={`text-xs ${getGradeColor(prelimGrade)}`}>
-                                                                                    {displayGrade(prelimGrade)}
+                                                                                <div className="text-right">
+                                                                                    {isValidGrade(q1Grade) ? (
+                                                                                        <div className="flex flex-col items-end gap-1">
+                                                                                            <div className="flex items-center gap-2">
+                                                                                                <Badge variant="secondary" className="bg-blue-100 text-blue-800 border-blue-300 font-bold px-2 py-1">
+                                                                                                    {getGradePointEquivalence(q1Grade)}
+                                                                                                </Badge>
+                                                                                                <span className={`text-xl font-bold ${getGradeColor(q1Grade)}`}>
+                                                                                                    {displayGrade(q1Grade)}
+                                                                                                </span>
+                                                                                            </div>
+                                                                                            <div className="w-16 h-1.5 bg-blue-200 rounded-full overflow-hidden">
+                                                                                                <div
+                                                                                                    className={`h-full rounded-full transition-all duration-500 ${
+                                                                                                        q1Grade >= 90 ? 'bg-green-500' :
+                                                                                                        q1Grade >= 80 ? 'bg-blue-500' :
+                                                                                                        q1Grade >= 75 ? 'bg-yellow-500' : 'bg-red-500'
+                                                                                                    }`}
+                                                                                                    style={{ width: `${Math.min(q1Grade, 100)}%` }}
+                                                                                                ></div>
+                                                                                            </div>
+                                                                                        </div>
+                                                                                    ) : (
+                                                                                        <div className="flex flex-col items-end gap-1">
+                                                                                            <span className="text-xl font-bold text-gray-400">—</span>
+                                                                                            <div className="w-16 h-1.5 bg-gray-200 rounded-full"></div>
+                                                                                        </div>
+                                                                                    )}
                                                                                 </div>
                                                                             </div>
-                                                                        )}
-                                                                        {!isValidGrade(prelimGrade) && (
-                                                                            <span className={`text-lg font-bold ${getGradeColor(prelimGrade)}`}>
-                                                                                {displayGrade(prelimGrade)}
-                                                                            </span>
-                                                                        )}
-                                                                        {isValidGrade(prelimGrade) && (
-                                                                            <div className={`w-2 h-2 rounded-full ${
-                                                                                prelimGrade >= 90 ? 'bg-green-500' :
-                                                                                prelimGrade >= 80 ? 'bg-blue-500' :
-                                                                                prelimGrade >= 75 ? 'bg-yellow-500' : 'bg-red-500'
-                                                                            }`}></div>
-                                                                        )}
-                                                                    </div>
-                                                                </div>
+                                                                        </div>
 
-                                                                {/* Midterm Grade */}
-                                                                <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                                                                    <div className="flex items-center gap-2">
-                                                                        <div className="w-2 h-2 bg-purple-500 rounded-full"></div>
-                                                                        <span className="text-sm font-medium text-gray-700">Midterm</span>
-                                                                    </div>
-                                                                    <div className="flex items-center gap-2">
-                                                                        {isValidGrade(midtermGrade) && (
-                                                                            <div className="text-center">
-                                                                                <div className={`text-lg font-bold ${getGradeColor(midtermGrade)}`}>
-                                                                                    {getGradePointEquivalence(midtermGrade)}
+                                                                        {/* Q2 Grade */}
+                                                                        <div className="relative">
+                                                                            <div className="flex items-center justify-between p-4 bg-gradient-to-r from-purple-50 to-purple-100 rounded-xl border border-purple-200">
+                                                                                <div className="flex items-center gap-3">
+                                                                                    <div className="w-3 h-3 bg-purple-500 rounded-full shadow-sm"></div>
+                                                                                    <div>
+                                                                                        <span className="text-sm font-semibold text-purple-900">2nd Quarter</span>
+                                                                                    </div>
                                                                                 </div>
-                                                                                <div className={`text-xs ${getGradeColor(midtermGrade)}`}>
-                                                                                    {displayGrade(midtermGrade)}
+                                                                                <div className="text-right">
+                                                                                    {isValidGrade(q2Grade) ? (
+                                                                                        <div className="flex flex-col items-end gap-1">
+                                                                                            <div className="flex items-center gap-2">
+                                                                                                <Badge variant="secondary" className="bg-purple-100 text-purple-800 border-purple-300 font-bold px-2 py-1">
+                                                                                                    {getGradePointEquivalence(q2Grade)}
+                                                                                                </Badge>
+                                                                                                <span className={`text-xl font-bold ${getGradeColor(q2Grade)}`}>
+                                                                                                    {displayGrade(q2Grade)}
+                                                                                                </span>
+                                                                                            </div>
+                                                                                            <div className="w-16 h-1.5 bg-purple-200 rounded-full overflow-hidden">
+                                                                                                <div
+                                                                                                    className={`h-full rounded-full transition-all duration-500 ${
+                                                                                                        q2Grade >= 90 ? 'bg-green-500' :
+                                                                                                        q2Grade >= 80 ? 'bg-blue-500' :
+                                                                                                        q2Grade >= 75 ? 'bg-yellow-500' : 'bg-red-500'
+                                                                                                    }`}
+                                                                                                    style={{ width: `${Math.min(q2Grade, 100)}%` }}
+                                                                                                ></div>
+                                                                                            </div>
+                                                                                        </div>
+                                                                                    ) : (
+                                                                                        <div className="flex flex-col items-end gap-1">
+                                                                                            <span className="text-xl font-bold text-gray-400">—</span>
+                                                                                            <div className="w-16 h-1.5 bg-gray-200 rounded-full"></div>
+                                                                                        </div>
+                                                                                    )}
                                                                                 </div>
                                                                             </div>
-                                                                        )}
-                                                                        {!isValidGrade(midtermGrade) && (
-                                                                            <span className={`text-lg font-bold ${getGradeColor(midtermGrade)}`}>
-                                                                                {displayGrade(midtermGrade)}
-                                                                            </span>
-                                                                        )}
-                                                                        {isValidGrade(midtermGrade) && (
-                                                                            <div className={`w-2 h-2 rounded-full ${
-                                                                                midtermGrade >= 90 ? 'bg-green-500' :
-                                                                                midtermGrade >= 80 ? 'bg-blue-500' :
-                                                                                midtermGrade >= 75 ? 'bg-yellow-500' : 'bg-red-500'
-                                                                            }`}></div>
-                                                                        )}
-                                                                    </div>
-                                                                </div>
+                                                                        </div>
+                                                                    </>
+                                                                ) : (
+                                                                    <>
+                                                                        {/* Prelim Grade */}
+                                                                        <div className="relative">
+                                                                            <div className="flex items-center justify-between p-4 bg-gradient-to-r from-emerald-50 to-emerald-100 rounded-xl border border-emerald-200">
+                                                                                <div className="flex items-center gap-3">
+                                                                                    <div className="w-3 h-3 bg-emerald-500 rounded-full shadow-sm"></div>
+                                                                                    <div>
+                                                                                        <span className="text-sm font-semibold text-emerald-900">Prelim</span>
+                                                                                    </div>
+                                                                                </div>
+                                                                                <div className="text-right">
+                                                                                    {isValidGrade(prelimGrade) ? (
+                                                                                        <div className="flex flex-col items-end gap-1">
+                                                                                            <div className="flex items-center gap-2">
+                                                                                                <Badge variant="secondary" className="bg-emerald-100 text-emerald-800 border-emerald-300 font-bold px-2 py-1">
+                                                                                                    {getGradePointEquivalence(prelimGrade)}
+                                                                                                </Badge>
+                                                                                                <span className={`text-xl font-bold ${getGradeColor(prelimGrade)}`}>
+                                                                                                    {displayGrade(prelimGrade)}
+                                                                                                </span>
+                                                                                            </div>
+                                                                                            <div className="w-16 h-1.5 bg-emerald-200 rounded-full overflow-hidden">
+                                                                                                <div
+                                                                                                    className={`h-full rounded-full transition-all duration-500 ${
+                                                                                                        prelimGrade >= 90 ? 'bg-green-500' :
+                                                                                                        prelimGrade >= 80 ? 'bg-blue-500' :
+                                                                                                        prelimGrade >= 75 ? 'bg-yellow-500' : 'bg-red-500'
+                                                                                                    }`}
+                                                                                                    style={{ width: `${Math.min(prelimGrade, 100)}%` }}
+                                                                                                ></div>
+                                                                                            </div>
+                                                                                        </div>
+                                                                                    ) : (
+                                                                                        <div className="flex flex-col items-end gap-1">
+                                                                                            <span className="text-xl font-bold text-gray-400">—</span>
+                                                                                            <div className="w-16 h-1.5 bg-gray-200 rounded-full"></div>
+                                                                                        </div>
+                                                                                    )}
+                                                                                </div>
+                                                                            </div>
+                                                                        </div>
 
-                                                                {/* Pre-finals Grade */}
-                                                                <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                                                                    <div className="flex items-center gap-2">
-                                                                        <div className="w-2 h-2 bg-orange-500 rounded-full"></div>
-                                                                        <span className="text-sm font-medium text-gray-700">Pre-finals</span>
-                                                                    </div>
-                                                                    <div className="flex items-center gap-2">
-                                                                        {isValidGrade(prefinalGrade) && (
-                                                                            <div className="text-center">
-                                                                                <div className={`text-lg font-bold ${getGradeColor(prefinalGrade)}`}>
-                                                                                    {getGradePointEquivalence(prefinalGrade)}
+                                                                        {/* Midterm Grade */}
+                                                                        <div className="relative">
+                                                                            <div className="flex items-center justify-between p-4 bg-gradient-to-r from-amber-50 to-amber-100 rounded-xl border border-amber-200">
+                                                                                <div className="flex items-center gap-3">
+                                                                                    <div className="w-3 h-3 bg-amber-500 rounded-full shadow-sm"></div>
+                                                                                    <div>
+                                                                                        <span className="text-sm font-semibold text-amber-900">Midterm</span>
+                                                                                    </div>
                                                                                 </div>
-                                                                                <div className={`text-xs ${getGradeColor(prefinalGrade)}`}>
-                                                                                    {displayGrade(prefinalGrade)}
+                                                                                <div className="text-right">
+                                                                                    {isValidGrade(midtermGrade) ? (
+                                                                                        <div className="flex flex-col items-end gap-1">
+                                                                                            <div className="flex items-center gap-2">
+                                                                                                <Badge variant="secondary" className="bg-amber-100 text-amber-800 border-amber-300 font-bold px-2 py-1">
+                                                                                                    {getGradePointEquivalence(midtermGrade)}
+                                                                                                </Badge>
+                                                                                                <span className={`text-xl font-bold ${getGradeColor(midtermGrade)}`}>
+                                                                                                    {displayGrade(midtermGrade)}
+                                                                                                </span>
+                                                                                            </div>
+                                                                                            <div className="w-16 h-1.5 bg-amber-200 rounded-full overflow-hidden">
+                                                                                                <div
+                                                                                                    className={`h-full rounded-full transition-all duration-500 ${
+                                                                                                        midtermGrade >= 90 ? 'bg-green-500' :
+                                                                                                        midtermGrade >= 80 ? 'bg-blue-500' :
+                                                                                                        midtermGrade >= 75 ? 'bg-yellow-500' : 'bg-red-500'
+                                                                                                    }`}
+                                                                                                    style={{ width: `${Math.min(midtermGrade, 100)}%` }}
+                                                                                                ></div>
+                                                                                            </div>
+                                                                                        </div>
+                                                                                    ) : (
+                                                                                        <div className="flex flex-col items-end gap-1">
+                                                                                            <span className="text-xl font-bold text-gray-400">—</span>
+                                                                                            <div className="w-16 h-1.5 bg-gray-200 rounded-full"></div>
+                                                                                        </div>
+                                                                                    )}
                                                                                 </div>
                                                                             </div>
-                                                                        )}
-                                                                        {!isValidGrade(prefinalGrade) && (
-                                                                            <span className={`text-lg font-bold ${getGradeColor(prefinalGrade)}`}>
-                                                                                {displayGrade(prefinalGrade)}
-                                                                            </span>
-                                                                        )}
-                                                                        {isValidGrade(prefinalGrade) && (
-                                                                            <div className={`w-2 h-2 rounded-full ${
-                                                                                prefinalGrade >= 90 ? 'bg-green-500' :
-                                                                                prefinalGrade >= 80 ? 'bg-blue-500' :
-                                                                                prefinalGrade >= 75 ? 'bg-yellow-500' : 'bg-red-500'
-                                                                            }`}></div>
-                                                                        )}
-                                                                    </div>
-                                                                </div>
+                                                                        </div>
 
-                                                                {/* Finals Grade */}
-                                                                <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                                                                    <div className="flex items-center gap-2">
-                                                                        <div className="w-2 h-2 bg-red-500 rounded-full"></div>
-                                                                        <span className="text-sm font-medium text-gray-700">Finals</span>
-                                                                    </div>
-                                                                    <div className="flex items-center gap-2">
-                                                                        {isValidGrade(finalGrade || semesterGrade) && (
-                                                                            <div className="text-center">
-                                                                                <div className={`text-lg font-bold ${getGradeColor(finalGrade || semesterGrade)}`}>
-                                                                                    {getGradePointEquivalence(finalGrade || semesterGrade)}
+                                                                        {/* Pre-finals Grade */}
+                                                                        <div className="relative">
+                                                                            <div className="flex items-center justify-between p-4 bg-gradient-to-r from-orange-50 to-orange-100 rounded-xl border border-orange-200">
+                                                                                <div className="flex items-center gap-3">
+                                                                                    <div className="w-3 h-3 bg-orange-500 rounded-full shadow-sm"></div>
+                                                                                    <div>
+                                                                                        <span className="text-sm font-semibold text-orange-900">Pre-finals</span>
+                                                                                    </div>
                                                                                 </div>
-                                                                                <div className={`text-xs ${getGradeColor(finalGrade || semesterGrade)}`}>
-                                                                                    {displayGrade(finalGrade || semesterGrade)}
+                                                                                <div className="text-right">
+                                                                                    {isValidGrade(prefinalGrade) ? (
+                                                                                        <div className="flex flex-col items-end gap-1">
+                                                                                            <div className="flex items-center gap-2">
+                                                                                                <Badge variant="secondary" className="bg-orange-100 text-orange-800 border-orange-300 font-bold px-2 py-1">
+                                                                                                    {getGradePointEquivalence(prefinalGrade)}
+                                                                                                </Badge>
+                                                                                                <span className={`text-xl font-bold ${getGradeColor(prefinalGrade)}`}>
+                                                                                                    {displayGrade(prefinalGrade)}
+                                                                                                </span>
+                                                                                            </div>
+                                                                                            <div className="w-16 h-1.5 bg-orange-200 rounded-full overflow-hidden">
+                                                                                                <div
+                                                                                                    className={`h-full rounded-full transition-all duration-500 ${
+                                                                                                        prefinalGrade >= 90 ? 'bg-green-500' :
+                                                                                                        prefinalGrade >= 80 ? 'bg-blue-500' :
+                                                                                                        prefinalGrade >= 75 ? 'bg-yellow-500' : 'bg-red-500'
+                                                                                                    }`}
+                                                                                                    style={{ width: `${Math.min(prefinalGrade, 100)}%` }}
+                                                                                                ></div>
+                                                                                            </div>
+                                                                                        </div>
+                                                                                    ) : (
+                                                                                        <div className="flex flex-col items-end gap-1">
+                                                                                            <span className="text-xl font-bold text-gray-400">—</span>
+                                                                                            <div className="w-16 h-1.5 bg-gray-200 rounded-full"></div>
+                                                                                        </div>
+                                                                                    )}
                                                                                 </div>
                                                                             </div>
-                                                                        )}
-                                                                        {!isValidGrade(finalGrade || semesterGrade) && (
-                                                                            <span className={`text-lg font-bold ${getGradeColor(finalGrade || semesterGrade)}`}>
-                                                                                {displayGrade(finalGrade || semesterGrade)}
-                                                                            </span>
-                                                                        )}
-                                                                        {isValidGrade(finalGrade || semesterGrade) && (
-                                                                            <div className={`w-2 h-2 rounded-full ${
-                                                                                (finalGrade || semesterGrade) >= 90 ? 'bg-green-500' :
-                                                                                (finalGrade || semesterGrade) >= 80 ? 'bg-blue-500' :
-                                                                                (finalGrade || semesterGrade) >= 75 ? 'bg-yellow-500' : 'bg-red-500'
-                                                                            }`}></div>
-                                                                        )}
-                                                                    </div>
-                                                                </div>
+                                                                        </div>
+
+                                                                        {/* Finals Grade */}
+                                                                        <div className="relative">
+                                                                            <div className="flex items-center justify-between p-4 bg-gradient-to-r from-red-50 to-red-100 rounded-xl border border-red-200">
+                                                                                <div className="flex items-center gap-3">
+                                                                                    <div className="w-3 h-3 bg-red-500 rounded-full shadow-sm"></div>
+                                                                                    <div>
+                                                                                        <span className="text-sm font-semibold text-red-900">Finals</span>
+                                                                                    </div>
+                                                                                </div>
+                                                                                <div className="text-right">
+                                                                                    {isValidGrade(finalGrade || semesterGrade) ? (
+                                                                                        <div className="flex flex-col items-end gap-1">
+                                                                                            <div className="flex items-center gap-2">
+                                                                                                <Badge variant="secondary" className="bg-red-100 text-red-800 border-red-300 font-bold px-2 py-1">
+                                                                                                    {getGradePointEquivalence(finalGrade || semesterGrade)}
+                                                                                                </Badge>
+                                                                                                <span className={`text-xl font-bold ${getGradeColor(finalGrade || semesterGrade)}`}>
+                                                                                                    {displayGrade(finalGrade || semesterGrade)}
+                                                                                                </span>
+                                                                                            </div>
+                                                                                            <div className="w-16 h-1.5 bg-red-200 rounded-full overflow-hidden">
+                                                                                                <div
+                                                                                                    className={`h-full rounded-full transition-all duration-500 ${
+                                                                                                        (finalGrade || semesterGrade) >= 90 ? 'bg-green-500' :
+                                                                                                        (finalGrade || semesterGrade) >= 80 ? 'bg-blue-500' :
+                                                                                                        (finalGrade || semesterGrade) >= 75 ? 'bg-yellow-500' : 'bg-red-500'
+                                                                                                    }`}
+                                                                                                    style={{ width: `${Math.min(finalGrade || semesterGrade, 100)}%` }}
+                                                                                                ></div>
+                                                                                            </div>
+                                                                                        </div>
+                                                                                    ) : (
+                                                                                        <div className="flex flex-col items-end gap-1">
+                                                                                            <span className="text-xl font-bold text-gray-400">—</span>
+                                                                                            <div className="w-16 h-1.5 bg-gray-200 rounded-full"></div>
+                                                                                        </div>
+                                                                                    )}
+                                                                                </div>
+                                                                            </div>
+                                                                        </div>
+                                                                    </>
+                                                                )}
                                                             </div>
 
                                                         </CardContent>
@@ -473,8 +638,8 @@ const Index = ({ auth, student, currentGrades, stats }) => {
                                         })()}
                                     </div>
 
-                                    {/* Pagination */}
-                                    {currentGrades.links && currentGrades.links.length > 3 && (
+                                    {/* Pagination - Removed for now */}
+                                    {/* {currentGrades.links && currentGrades.links.length > 3 && (
                                         <div className="mt-6 flex justify-center">
                                             <div className="flex space-x-1">
                                                 {currentGrades.links.map((link, index) => (
@@ -499,7 +664,7 @@ const Index = ({ auth, student, currentGrades, stats }) => {
                                                 ))}
                                             </div>
                                         </div>
-                                    )}
+                                    )} */}
                                 </div>
                             ) : (
                                 <div className="text-center py-16">

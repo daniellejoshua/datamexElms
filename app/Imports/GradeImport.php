@@ -21,6 +21,7 @@ class GradeImport implements ToCollection, WithHeadingRow
 
     /** @var array<string> */
     public array $warnings = [];
+
     public function __construct(\App\Models\SectionSubject $sectionSubject, Teacher $teacher)
     {
         $this->sectionSubject = $sectionSubject;
@@ -38,7 +39,7 @@ class GradeImport implements ToCollection, WithHeadingRow
         if ($firstRow) {
             // Look for explicit section_subject_id key OR a validation marker in any value
             $firstRowArray = $firstRow->toArray();
-            $valuesConcat = implode(' ', array_map(fn($v) => (string) $v, $firstRowArray));
+            $valuesConcat = implode(' ', array_map(fn ($v) => (string) $v, $firstRowArray));
 
             if (isset($firstRow['section_subject_id']) || stripos($valuesConcat, 'DO NOT MODIFY') !== false || stripos($valuesConcat, 'Template validation') !== false || isset($firstRow['validation'])) {
                 $hasValidationRow = true;
@@ -96,6 +97,7 @@ class GradeImport implements ToCollection, WithHeadingRow
             $rowNumber = $index + ($hasValidationRow ? 3 : 2);
             if ($studentId === '' || strlen($studentName) < 2 || strlen($studentId) < 3) {
                 $this->warnings[] = "Row {$rowNumber} (Cell A{$rowNumber}, B{$rowNumber}): Student ID '{$studentId}' - '{$studentName}' appears invalid or too short; skipped.";
+
                 continue;
             }
 
@@ -184,7 +186,7 @@ class GradeImport implements ToCollection, WithHeadingRow
                             $grade->prelim_submitted_at = now();
                         }
                     }
-                } elseif ($prelimRaw !== null && trim((string)$prelimRaw) !== '') {
+                } elseif ($prelimRaw !== null && trim((string) $prelimRaw) !== '') {
                     $this->warnings[] = "Row {$rowNumber} (Student ID: '{$studentId}' - {$studentName}; Cell C{$rowNumber}): Prelim value '{$prelimRaw}' is not numeric and was ignored.";
                 }
 
@@ -198,7 +200,7 @@ class GradeImport implements ToCollection, WithHeadingRow
                             $grade->midterm_submitted_at = now();
                         }
                     }
-                } elseif ($midtermRaw !== null && trim((string)$midtermRaw) !== '') {
+                } elseif ($midtermRaw !== null && trim((string) $midtermRaw) !== '') {
                     $this->warnings[] = "Row {$rowNumber} (Student ID: '{$studentId}' - {$studentName}; Cell D{$rowNumber}): Midterm value '{$midtermRaw}' is not numeric and was ignored.";
                 }
 
@@ -212,7 +214,7 @@ class GradeImport implements ToCollection, WithHeadingRow
                             $grade->prefinal_submitted_at = now();
                         }
                     }
-                } elseif ($prefinalRaw !== null && trim((string)$prefinalRaw) !== '') {
+                } elseif ($prefinalRaw !== null && trim((string) $prefinalRaw) !== '') {
                     $this->warnings[] = "Row {$rowNumber} (Student ID: '{$studentId}' - {$studentName}; Cell E{$rowNumber}): PreFinals value '{$prefinalRaw}' is not numeric and was ignored.";
                 }
 
@@ -226,7 +228,7 @@ class GradeImport implements ToCollection, WithHeadingRow
                             $grade->final_submitted_at = now();
                         }
                     }
-                } elseif ($finalRaw !== null && trim((string)$finalRaw) !== '') {
+                } elseif ($finalRaw !== null && trim((string) $finalRaw) !== '') {
                     $this->warnings[] = "Row {$rowNumber} (Student ID: '{$studentId}' - {$studentName}; Cell F{$rowNumber}): Finals value '{$finalRaw}' is not numeric and was ignored.";
                 }
 
@@ -256,7 +258,7 @@ class GradeImport implements ToCollection, WithHeadingRow
                         'errors' => $grade->errors ?? 'No errors',
                         'attributes' => $grade->getAttributes(),
                     ]);
-                    throw new \Exception('Failed to save college grade: ' . json_encode($grade->errors));
+                    throw new \Exception('Failed to save college grade: '.json_encode($grade->errors));
                 }
             } else {
                 // Handle SHS grades
@@ -275,10 +277,18 @@ class GradeImport implements ToCollection, WithHeadingRow
                 ]);
 
                 // Only set quarter grades when the source cell contains a numeric value
-                $q1Raw = $row['1st_quarter'] ?? $row['1st Quarter'] ?? $row['first_quarter'] ?? $row['First Quarter'] ?? null;
-                $q2Raw = $row['2nd_quarter'] ?? $row['2nd Quarter'] ?? $row['second_quarter'] ?? $row['Second Quarter'] ?? null;
-                $q3Raw = $row['3rd_quarter'] ?? $row['3rd Quarter'] ?? $row['third_quarter'] ?? $row['Third Quarter'] ?? null;
-                $q4Raw = $row['4th_quarter'] ?? $row['4th Quarter'] ?? $row['fourth_quarter'] ?? $row['Fourth Quarter'] ?? null;
+                $q1Raw = $row['1st_quarter'] ?? $row['1st Quarter'] ?? $row['first_quarter'] ?? $row['First Quarter'] ?? $row['q1'] ?? $row['Q1'] ?? null;
+                $q2Raw = $row['2nd_quarter'] ?? $row['2nd Quarter'] ?? $row['second_quarter'] ?? $row['Second Quarter'] ?? $row['q2'] ?? $row['Q2'] ?? null;
+
+                if (! $this->isCollegeLevel) {
+                    // For SHS, only process Q1 and Q2
+                    $q3Raw = null;
+                    $q4Raw = null;
+                } else {
+                    // For College, Q3 and Q4 don't exist, but keep for backward compatibility
+                    $q3Raw = $row['3rd_quarter'] ?? $row['3rd Quarter'] ?? $row['third_quarter'] ?? $row['Third Quarter'] ?? null;
+                    $q4Raw = $row['4th_quarter'] ?? $row['4th Quarter'] ?? $row['fourth_quarter'] ?? $row['Fourth Quarter'] ?? null;
+                }
 
                 if ($this->hasNumericValue($q1Raw)) {
                     $parsed = $this->parseGrade($q1Raw);
@@ -290,7 +300,7 @@ class GradeImport implements ToCollection, WithHeadingRow
                             $grade->first_quarter_submitted_at = now();
                         }
                     }
-                } elseif ($q1Raw !== null && trim((string)$q1Raw) !== '') {
+                } elseif ($q1Raw !== null && trim((string) $q1Raw) !== '') {
                     $this->warnings[] = "Row {$rowNumber} (Student ID: '{$studentId}' - {$studentName}; Cell C{$rowNumber}): 1st Quarter value '{$q1Raw}' is not numeric and was ignored.";
                 }
 
@@ -304,7 +314,7 @@ class GradeImport implements ToCollection, WithHeadingRow
                             $grade->second_quarter_submitted_at = now();
                         }
                     }
-                } elseif ($q2Raw !== null && trim((string)$q2Raw) !== '') {
+                } elseif ($q2Raw !== null && trim((string) $q2Raw) !== '') {
                     $this->warnings[] = "Row {$rowNumber} (Student ID: '{$studentId}' - {$studentName}; Cell D{$rowNumber}): 2nd Quarter value '{$q2Raw}' is not numeric and was ignored.";
                 }
 
@@ -318,7 +328,7 @@ class GradeImport implements ToCollection, WithHeadingRow
                             $grade->third_quarter_submitted_at = now();
                         }
                     }
-                } elseif ($q3Raw !== null && trim((string)$q3Raw) !== '') {
+                } elseif ($q3Raw !== null && trim((string) $q3Raw) !== '') {
                     $this->warnings[] = "Row {$rowNumber} (Student ID: '{$studentId}' - {$studentName}; Cell E{$rowNumber}): 3rd Quarter value '{$q3Raw}' is not numeric and was ignored.";
                 }
 
@@ -332,16 +342,25 @@ class GradeImport implements ToCollection, WithHeadingRow
                             $grade->fourth_quarter_submitted_at = now();
                         }
                     }
-                } elseif ($q4Raw !== null && trim((string)$q4Raw) !== '') {
+                } elseif ($q4Raw !== null && trim((string) $q4Raw) !== '') {
                     $this->warnings[] = "Row {$rowNumber} (Student ID: '{$studentId}' - {$studentName}; Cell F{$rowNumber}): 4th Quarter value '{$q4Raw}' is not numeric and was ignored.";
                 }
 
-                // Calculate final grade when all quarters are non-null (allow zero)
-                if ($grade->first_quarter_grade !== null && $grade->second_quarter_grade !== null &&
-                    $grade->third_quarter_grade !== null && $grade->fourth_quarter_grade !== null) {
-                    $grade->final_grade = ($grade->first_quarter_grade + $grade->second_quarter_grade +
-                                         $grade->third_quarter_grade + $grade->fourth_quarter_grade) / 4;
-                    $grade->completion_status = $grade->final_grade >= 75 ? 'passed' : 'failed';
+                // Calculate final grade when required quarters are non-null (allow zero)
+                if (! $this->isCollegeLevel) {
+                    // For SHS, only require Q1 and Q2
+                    if ($grade->first_quarter_grade !== null && $grade->second_quarter_grade !== null) {
+                        $grade->final_grade = ($grade->first_quarter_grade + $grade->second_quarter_grade) / 2;
+                        $grade->completion_status = $grade->final_grade >= 75 ? 'passed' : 'failed';
+                    }
+                } else {
+                    // For College, require all 4 quarters (though this shouldn't happen in practice)
+                    if ($grade->first_quarter_grade !== null && $grade->second_quarter_grade !== null &&
+                        $grade->third_quarter_grade !== null && $grade->fourth_quarter_grade !== null) {
+                        $grade->final_grade = ($grade->first_quarter_grade + $grade->second_quarter_grade +
+                                             $grade->third_quarter_grade + $grade->fourth_quarter_grade) / 4;
+                        $grade->completion_status = $grade->final_grade >= 75 ? 'passed' : 'failed';
+                    }
                 }
 
                 $saved = $grade->save();
@@ -364,7 +383,7 @@ class GradeImport implements ToCollection, WithHeadingRow
                         'errors' => $grade->errors ?? 'No errors',
                         'attributes' => $grade->getAttributes(),
                     ]);
-                    throw new \Exception('Failed to save SHS grade: ' . json_encode($grade->errors));
+                    throw new \Exception('Failed to save SHS grade: '.json_encode($grade->errors));
                 }
             }
         }
@@ -402,10 +421,14 @@ class GradeImport implements ToCollection, WithHeadingRow
 
     private function hasNumericValue($value): bool
     {
-        if ($value === null) return false;
+        if ($value === null) {
+            return false;
+        }
 
         $trim = trim((string) $value);
-        if ($trim === '') return false;
+        if ($trim === '') {
+            return false;
+        }
 
         return is_numeric($trim);
     }

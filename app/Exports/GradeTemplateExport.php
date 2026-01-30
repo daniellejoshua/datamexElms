@@ -68,12 +68,12 @@ class GradeTemplateExport implements FromCollection, WithColumnFormatting, WithH
                     if ($this->isCollegeLevel) {
                         $existing = \App\Models\StudentGrade::where('student_enrollment_id', $enrollment->id)
                             ->where('section_subject_id', $this->sectionSubject->id)
-                            ->when($this->teacher, fn($q) => $q->where('teacher_id', $this->teacher->id))
+                            ->when($this->teacher, fn ($q) => $q->where('teacher_id', $this->teacher->id))
                             ->first();
                     } else {
                         $existing = \App\Models\ShsStudentGrade::where('student_enrollment_id', $enrollment->id)
                             ->where('section_subject_id', $this->sectionSubject->id)
-                            ->when($this->teacher, fn($q) => $q->where('teacher_id', $this->teacher->id))
+                            ->when($this->teacher, fn ($q) => $q->where('teacher_id', $this->teacher->id))
                             ->first();
                     }
                 }
@@ -92,8 +92,6 @@ class GradeTemplateExport implements FromCollection, WithColumnFormatting, WithH
                 $data = array_merge($data, [
                     '1st_quarter' => $existing?->first_quarter_grade ?? '',
                     '2nd_quarter' => $existing?->second_quarter_grade ?? '',
-                    '3rd_quarter' => $existing?->third_quarter_grade ?? '',
-                    '4th_quarter' => $existing?->fourth_quarter_grade ?? '',
                 ]);
             }
 
@@ -119,10 +117,8 @@ class GradeTemplateExport implements FromCollection, WithColumnFormatting, WithH
             ]);
         } else {
             $headings = array_merge($headings, [
-                '1st Quarter',
-                '2nd Quarter',
-                '3rd Quarter',
-                '4th Quarter',
+                'Q1',
+                'Q2',
             ]);
         }
 
@@ -142,10 +138,8 @@ class GradeTemplateExport implements FromCollection, WithColumnFormatting, WithH
             $sheet->getColumnDimension('E')->setWidth(12); // PreFinals
             $sheet->getColumnDimension('F')->setWidth(8);  // Finals
         } else {
-            $sheet->getColumnDimension('C')->setWidth(12); // 1st Quarter
-            $sheet->getColumnDimension('D')->setWidth(12); // 2nd Quarter
-            $sheet->getColumnDimension('E')->setWidth(12); // 3rd Quarter
-            $sheet->getColumnDimension('F')->setWidth(12); // 4th Quarter
+            $sheet->getColumnDimension('C')->setWidth(12); // Q1
+            $sheet->getColumnDimension('D')->setWidth(12); // Q2
         }
 
         // First, unlock all cells by default

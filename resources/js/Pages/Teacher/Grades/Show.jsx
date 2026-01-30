@@ -6,7 +6,7 @@ import { Button } from '@/Components/ui/button';
 import { Input } from '@/Components/ui/input';
 import { Download, Upload, Save, Search, FileSpreadsheet, CheckCircle, XCircle, AlertTriangle, ArrowLeft } from 'lucide-react';
 
-export default function Show({ section, sectionSubject, enrollments, isCollegeLevel, teacher }) {
+export default function Show({ section, sectionSubject, enrollments, isCollegeLevel, isShsLevel, teacher }) {
     const [searchTerm, setSearchTerm] = useState('');
     const [editingGrades, setEditingGrades] = useState({});
     const [originalGrades, setOriginalGrades] = useState({}); // Track original values
@@ -166,7 +166,16 @@ export default function Show({ section, sectionSubject, enrollments, isCollegeLe
             if (prelim && midterm && prefinal && final) {
                 return ((prelim + midterm + prefinal + final) / 4).toFixed(2);
             }
+        } else if (isShsLevel) {
+            // SHS only uses Q1 and Q2
+            const q1 = parseFloat(gradeData.first_quarter_grade) || 0;
+            const q2 = parseFloat(gradeData.second_quarter_grade) || 0;
+            
+            if (q1 && q2) {
+                return ((q1 + q2) / 2).toFixed(2);
+            }
         } else {
+            // Other non-college, non-SHS levels use Q1-Q4
             const q1 = parseFloat(gradeData.first_quarter_grade) || 0;
             const q2 = parseFloat(gradeData.second_quarter_grade) || 0;
             const q3 = parseFloat(gradeData.third_quarter_grade) || 0;
@@ -638,6 +647,11 @@ export default function Show({ section, sectionSubject, enrollments, isCollegeLe
                                                 <TableHead className="text-center font-semibold text-gray-900 py-3">Prefinals</TableHead>
                                                 <TableHead className="text-center font-semibold text-gray-900 py-3">Finals</TableHead>
                                             </>
+                                        ) : isShsLevel ? (
+                                            <>
+                                                <TableHead className="text-center font-semibold text-gray-900 py-3">Q1</TableHead>
+                                                <TableHead className="text-center font-semibold text-gray-900 py-3">Q2</TableHead>
+                                            </>
                                         ) : (
                                             <>
                                                 <TableHead className="text-center font-semibold text-gray-900 py-3">Q1</TableHead>
@@ -711,6 +725,33 @@ export default function Show({ section, sectionSubject, enrollments, isCollegeLe
                                                             className={`w-20 text-center text-sm border-gray-300 focus:ring-purple-500 focus:border-purple-500 ${
                                                                 editingGrades[`${gradeData.enrollment_id}_final_grade`] ? 'ring-2 ring-purple-300' : ''
                                                             } ${getGradeTextColor(gradeData.final_grade)}`}
+                                                        />
+                                                    </TableCell>
+                                                </>
+                                            ) : isShsLevel ? (
+                                                <>
+                                                    <TableCell className="text-center py-3">
+                                                        <Input
+                                                            type="number"
+                                                            min="0"
+                                                            max="100"
+                                                            value={gradeData.first_quarter_grade}
+                                                            onChange={(e) => handleGradeChange(gradeData.enrollment_id, 'first_quarter_grade', e.target.value)}
+                                                            className={`w-20 text-center text-sm border-gray-300 focus:ring-purple-500 focus:border-purple-500 ${
+                                                                editingGrades[`${gradeData.enrollment_id}_first_quarter_grade`] ? 'ring-2 ring-purple-300' : ''
+                                                            } ${getGradeTextColor(gradeData.first_quarter_grade)}`}
+                                                        />
+                                                    </TableCell>
+                                                    <TableCell className="text-center py-3">
+                                                        <Input
+                                                            type="number"
+                                                            min="0"
+                                                            max="100"
+                                                            value={gradeData.second_quarter_grade}
+                                                            onChange={(e) => handleGradeChange(gradeData.enrollment_id, 'second_quarter_grade', e.target.value)}
+                                                            className={`w-20 text-center text-sm border-gray-300 focus:ring-purple-500 focus:border-purple-500 ${
+                                                                editingGrades[`${gradeData.enrollment_id}_second_quarter_grade`] ? 'ring-2 ring-purple-300' : ''
+                                                            } ${getGradeTextColor(gradeData.second_quarter_grade)}`}
                                                         />
                                                     </TableCell>
                                                 </>

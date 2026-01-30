@@ -44,6 +44,11 @@ class ShsStudentGrade extends Model
         return $this->belongsTo(StudentEnrollment::class);
     }
 
+    public function sectionSubject(): BelongsTo
+    {
+        return $this->belongsTo(SectionSubject::class);
+    }
+
     public function teacher(): BelongsTo
     {
         return $this->belongsTo(Teacher::class);
@@ -74,7 +79,10 @@ class ShsStudentGrade extends Model
     protected static function booted(): void
     {
         static::saving(function (ShsStudentGrade $grade) {
-            $grade->final_grade = $grade->calculateFinalGrade();
+            // Only auto-calculate if final_grade hasn't been set manually
+            if ($grade->final_grade === null) {
+                $grade->final_grade = $grade->calculateFinalGrade();
+            }
         });
     }
 }
