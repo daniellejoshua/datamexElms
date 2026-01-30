@@ -57,12 +57,13 @@ const Index = ({ currentPayment, paymentHistory, stats, currentAcademicInfo, stu
     const getPaymentStatusColor = (balance) => {
         const isShs = student?.education_level === 'senior_high';
         const hasVoucher = student?.has_voucher;
+        const numericBalance = Number(balance);
 
-        if (balance === 0) {
+        if (numericBalance === 0) {
             if (isShs && hasVoucher) return 'text-blue-600'; // Voucher status
             return 'text-green-600'; // Paid/Fully Paid
         }
-        if (balance > 0) return 'text-red-600';
+        if (numericBalance > 0) return 'text-red-600';
         // For negative balance
         if (isShs && hasVoucher) return 'text-blue-600'; // Voucher status
         return 'text-gray-600';
@@ -71,13 +72,14 @@ const Index = ({ currentPayment, paymentHistory, stats, currentAcademicInfo, stu
     const getPaymentStatusText = (balance) => {
         const isShs = student?.education_level === 'senior_high';
         const hasVoucher = student?.has_voucher;
+        const numericBalance = Number(balance);
 
-        if (balance === 0) {
+        if (numericBalance === 0) {
             if (isShs && hasVoucher) return 'Voucher';
             if (isShs) return 'Paid';
             return 'Fully Paid';
         }
-        if (balance > 0) return 'Outstanding Balance';
+        if (numericBalance > 0) return 'Outstanding Balance';
         // For negative balance (overpaid), show Paid for SHS with voucher, Overpaid otherwise
         if (isShs && hasVoucher) return 'Voucher';
         return 'Overpaid';
@@ -86,12 +88,13 @@ const Index = ({ currentPayment, paymentHistory, stats, currentAcademicInfo, stu
     const getPaymentStatusBadge = (balance) => {
         const isShs = student?.education_level === 'senior_high';
         const hasVoucher = student?.has_voucher;
+        const numericBalance = Number(balance);
 
-        if (balance === 0) {
+        if (numericBalance === 0) {
             if (isShs && hasVoucher) return 'bg-blue-100 text-blue-800 border-blue-200'; // Voucher badge
             return 'bg-green-100 text-green-800 border-green-200'; // Paid/Fully Paid badge
         }
-        if (balance > 0) return 'bg-red-100 text-red-800 border-red-200';
+        if (numericBalance > 0) return 'bg-red-100 text-red-800 border-red-200';
         // For negative balance
         if (isShs && hasVoucher) return 'bg-blue-100 text-blue-800 border-blue-200'; // Voucher badge
         return 'bg-gray-100 text-gray-800 border-gray-200';

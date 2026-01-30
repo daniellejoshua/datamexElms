@@ -4,14 +4,14 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { DollarSign, Search, Eye, GraduationCap, CreditCard, Users, AlertTriangle } from 'lucide-react'
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion'
 import { useState, useEffect } from 'react'
 import { toast } from 'sonner'
+import { DollarSign, Eye, Search, Users, AlertTriangle, CreditCard, User, FileText, GraduationCap, Mail, Phone, Calendar, Receipt } from 'lucide-react'
 
 export default function ShsPaymentsIndex({ payments, stats, filters, currentAcademicYear, currentSemester, academicYears, auth }) {
-    const [searchTerm, setSearchTerm] = useState('')
+    const [searchTerm, setSearchTerm] = useState(filters?.search || '')
     const [academicYear, setAcademicYear] = useState(filters?.academic_year || currentAcademicYear)
-    const [semester, setSemester] = useState(filters?.semester || currentSemester)
     const [studentType, setStudentType] = useState(filters?.student_type || 'all')
     const [showPaymentModal, setShowPaymentModal] = useState(false)
     const [selectedPayment, setSelectedPayment] = useState(null)
@@ -30,8 +30,8 @@ export default function ShsPaymentsIndex({ payments, stats, filters, currentAcad
 
         router.get(route('registrar.payments.shs.index'), {
             academic_year: academicYear,
-            semester: semester,
             student_type: studentType,
+            search: searchTerm,
             ...(currentPage && { page: currentPage }),
         }, {
             preserveState: true,
@@ -46,8 +46,8 @@ export default function ShsPaymentsIndex({ payments, stats, filters, currentAcad
         router.get(route('registrar.payments.shs.index'), {
             page: page,
             academic_year: academicYear,
-            semester: semester,
             student_type: studentType,
+            search: searchTerm,
         }, {
             preserveScroll: true,
         });
@@ -56,7 +56,16 @@ export default function ShsPaymentsIndex({ payments, stats, filters, currentAcad
     // Auto-apply filters when they change
     useEffect(() => {
         handleFilterChange()
-    }, [academicYear, semester, studentType])
+    }, [academicYear, studentType])
+
+    // Debounced search effect
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            handleFilterChange()
+        }, 500) // 500ms delay
+
+        return () => clearTimeout(timer)
+    }, [searchTerm])
 
     const getAvailableQuarters = (payment) => {
         // For yearly payments, check if payment is fully paid
@@ -94,28 +103,102 @@ export default function ShsPaymentsIndex({ payments, stats, filters, currentAcad
         })
     }
 
-    const filteredPayments = Array.isArray(payments?.data) ? payments.data.filter(payment =>
-        !searchTerm ||
-        payment?.student?.user?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        payment?.student?.student_number?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        payment?.payment_type?.toLowerCase().includes(searchTerm.toLowerCase())
-    ) : []
+    const paymentsData = Array.isArray(payments?.data) ? payments.data : []
 
     const getStatusColor = (status) => {
         const colors = {
-            'pending': 'bg-yellow-100 text-yellow-800',
-            'partial': 'bg-blue-100 text-blue-800',
-            'paid': 'bg-green-100 text-green-800',
-            'overdue': 'bg-red-100 text-red-800'
+            'pending': 'bg-yellow-100 text-yellow-800 border-yellow-200',
+            'partial': 'bg-blue-100 text-blue-800 border-blue-200',
+            'paid': 'bg-green-100 text-green-800 border-green-200',
+            'completed': 'bg-green-100 text-green-800 border-green-200',
+            'overdue': 'bg-red-100 text-red-800 border-red-200'
         }
-        return colors[status] || 'bg-gray-100 text-gray-800'
+        return colors[status] || 'bg-gray-100 text-gray-800 border-gray-200'
     }
 
     const formatCurrency = (amount) => {
-        return new Intl.NumberFormat('en-PH', { 
-            style: 'currency', 
-            currency: 'PHP' 
-        }).format(amount)
+        const numAmount = Number(amount);
+        if (isNaN(numAmount)) {
+            return '₱0.00';
+        }
+        return new Intl.NumberFormat('en-PH', {
+            style: 'currency',
+            currency: 'PHP',
+        }).format(numAmount)
+    }
+
+    const formatDate = (date) => {
+        return new Date(date).toLocaleDateString('en-US', {
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric'
+        })
+    }
+
+    const getPaymentStatusColor = (balance, student) => {
+        const isShs = student?.education_level === 'senior_high';
+        const hasVoucher = student?.has_voucher;
+
+        const numericBalance = Number(balance);
+        if (numericBalance === 0) {
+            if (isShs && hasVoucher) return 'text-blue-600'; // Voucher status
+            return 'text-green-600'; // Paid/Fully Paid
+        }
+        if (numericBalance > 0) return 'text-red-600';
+        // For negative balance
+        if (isShs && hasVoucher) return 'text-blue-600'; // Voucher status
+        return 'text-gray-600';
+    };
+
+    const getPaymentStatusText = (balance, student) => {
+        const isShs = student?.education_level === 'senior_high';
+        const hasVoucher = student?.has_voucher;
+
+        const numericBalance = Number(balance);
+        if (numericBalance === 0) {
+            if (isShs && hasVoucher) return 'Voucher';
+            if (isShs) return 'Paid';
+            return 'Fully Paid';
+        }
+        if (numericBalance > 0) return 'Outstanding Balance';
+        // For negative balance (overpaid), show Paid for SHS with voucher, Overpaid otherwise
+        if (isShs && hasVoucher) return 'Voucher';
+        return 'Overpaid';
+    };
+
+    const getPaymentStatusBadge = (balance, student) => {
+        const isShs = student?.education_level === 'senior_high';
+        const hasVoucher = student?.has_voucher;
+
+        const numericBalance = Number(balance);
+        if (numericBalance === 0) {
+            if (isShs && hasVoucher) return 'bg-blue-100 text-blue-800 border-blue-200'; // Voucher badge
+            return 'bg-green-100 text-green-800 border-green-200'; // Paid/Fully Paid badge
+        }
+        if (numericBalance > 0) return 'bg-red-100 text-red-800 border-red-200';
+        // For negative balance
+        if (isShs && hasVoucher) return 'bg-blue-100 text-blue-800 border-blue-200'; // Voucher badge
+        return 'bg-gray-100 text-gray-800 border-gray-200';
+    };
+
+    const formatSectionName = (section) => {
+        // Return a simplified formatted section name like: PROGRAMCODE-YearLevelIdentifier (e.g., "BSIT-3D", "ABM-12A")
+        if (!section) return 'No Section'
+
+        const programCode = section.program?.program_code || '';
+        const yearLevel = section.year_level || '';
+        const identifierMatch = (section.section_name || '').match(/([A-Za-z]+)$/);
+        const identifier = identifierMatch ? identifierMatch[1].toUpperCase() : '';
+
+        if (programCode && yearLevel && identifier) {
+            return `${programCode}-${yearLevel}${identifier}`;
+        } else if (programCode && identifier) {
+            return `${programCode}-${identifier}`;
+        } else if (identifier) {
+            return `${yearLevel}${identifier}`.trim();
+        }
+
+        return section.section_name || 'No Section'
     }
 
     return (
@@ -224,17 +307,6 @@ export default function ShsPaymentsIndex({ payments, stats, filters, currentAcad
                                     </select>
                                 </div>
                                 <div className="flex-1">
-                                    <label className="text-xs font-medium text-gray-700 mb-1 block">Semester</label>
-                                    <select 
-                                        className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm"
-                                        value={semester}
-                                        onChange={(e) => setSemester(e.target.value)}
-                                    >
-                                        <option value="1st">1st Semester</option>
-                                        <option value="2nd">2nd Semester</option>
-                                    </select>
-                                </div>
-                                <div className="flex-1">
                                     <label className="text-xs font-medium text-gray-700 mb-1 block">Student Type</label>
                                     <select 
                                         className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm"
@@ -247,7 +319,7 @@ export default function ShsPaymentsIndex({ payments, stats, filters, currentAcad
                                     </select>
                                 </div>
                             </div>
-                            {(academicYear !== currentAcademicYear || semester !== currentSemester || studentType !== 'all') && (
+                            {(academicYear !== currentAcademicYear || studentType !== 'all') && (
                                 <div className="flex items-center gap-2 text-sm text-blue-600">
                                     <span>Showing filtered results</span>
                                     <Button 
@@ -255,7 +327,6 @@ export default function ShsPaymentsIndex({ payments, stats, filters, currentAcad
                                         size="sm"
                                         onClick={() => {
                                             setAcademicYear(currentAcademicYear)
-                                            setSemester(currentSemester)
                                             setStudentType('all')
                                             router.get(route('registrar.payments.shs.index'))
                                         }}
@@ -268,20 +339,16 @@ export default function ShsPaymentsIndex({ payments, stats, filters, currentAcad
                     </CardContent>
                 </Card>
 
-                {/* Payments Table */}
+                {/* Payment Records */}
                 <Card className="mx-4 md:mx-6 lg:mx-8">
                     <CardHeader>
-                        <div className="flex justify-between items-center">
-                            <div>
-                                <CardTitle className="flex items-center">
-                                    <DollarSign className="w-5 h-5 mr-2" />
-                                    SHS Payments ({filteredPayments.length})
-                                </CardTitle>
-                                <CardDescription>
-                                    Manage Senior High School student payment records
-                                </CardDescription>
-                            </div>
-                        </div>
+                        <CardTitle className="flex items-center gap-2">
+                            <CreditCard className="w-5 h-5" />
+                            SHS Payment Records ({payments.total || 0})
+                        </CardTitle>
+                        <CardDescription>
+                            View payment details organized by student
+                        </CardDescription>
                     </CardHeader>
                     <CardContent>
                         <div className="overflow-x-auto">
@@ -291,98 +358,72 @@ export default function ShsPaymentsIndex({ payments, stats, filters, currentAcad
                                         <th className="text-left py-3 px-4">Student</th>
                                         <th className="text-left py-3 px-4">Section</th>
                                         <th className="text-left py-3 px-4">Amount Due</th>
+                                        <th className="text-left py-3 px-4">Total Paid</th>
                                         <th className="text-left py-3 px-4">Balance</th>
                                         <th className="text-left py-3 px-4">Status</th>
                                         <th className="text-right py-3 px-4">Actions</th>
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {filteredPayments.map((payment) => (
+                                    {paymentsData.map((payment) => (
                                         <tr key={payment.id} className="border-b hover:bg-gray-50">
                                             <td className="py-3 px-4">
                                                 <div>
-                                                    <div className="font-medium text-gray-900">
-                                                        {payment.student?.user?.name}
-                                                    </div>
-                                                    <div className="text-sm text-gray-500">
-                                                        {payment.student?.student_number}
-                                                    </div>
+                                                    <div className="font-medium text-gray-900">{payment.student?.user?.name}</div>
+                                                    <div className="text-sm text-gray-500">{payment.student?.student_number}</div>
+                                                    <div className="text-sm text-gray-500">{payment.student?.program?.name}</div>
                                                 </div>
                                             </td>
-                                            <td className="py-3 px-4 text-sm text-gray-600">
-                                                {payment.student?.enrollments && payment.student.enrollments.length > 0
-                                                    ? formatSectionName(payment.student.enrollments[0].section)
-                                                    : 'No Section'
-                                                }
-                                            </td>
-                                            <td className="py-3 px-4 font-medium">
-                                                {formatCurrency(payment.total_semester_fee)}
-                                            </td>
                                             <td className="py-3 px-4">
-                                                <span className={`font-medium ${
-                                                    payment.student?.has_voucher && payment.student?.voucher_status === 'active'
-                                                        ? 'text-blue-600'
-                                                        : payment.balance > 0 ? 'text-red-600' : 'text-green-600'
-                                                }`}>
-                                                    {payment.student?.has_voucher && payment.student?.voucher_status === 'active'
-                                                        ? '₱0.00' // Show 0 for voucher students
-                                                        : formatCurrency(payment.balance)
-                                                    }
-                                                </span>
-                                            </td>
-                                            <td className="py-3 px-4">
-                                                <Badge 
-                                                    variant="secondary"
-                                                    className={
-                                                        payment.student?.has_voucher && payment.student?.voucher_status === 'active'
-                                                            ? 'bg-blue-100 text-blue-800'
-                                                            : getStatusColor(payment.status)
-                                                    }
-                                                >
-                                                    {payment.student?.has_voucher && payment.student?.voucher_status === 'active'
-                                                        ? 'Voucher Active'
-                                                        : payment.status?.charAt(0).toUpperCase() + payment.status?.slice(1)
-                                                    }
-                                                </Badge>
-                                            </td>
-                                            <td className="py-3 px-4">
-                                                <div className="flex justify-end gap-2">
-                                                    {!(payment.student?.has_voucher && payment.student?.voucher_status === 'active') && (
-                                                        <Button
-                                                            size="sm"
-                                                            onClick={() => handleRecordPayment(payment)}
-                                                            className="bg-green-600 hover:bg-green-700"
-                                                            disabled={getAvailableQuarters(payment).length === 0}
-                                                        >
-                                                            <CreditCard className="w-3 h-3 mr-1" />
-                                                            {getAvailableQuarters(payment).length === 0 ? 'Fully Paid' : 'Record Payment'}
-                                                        </Button>
+                                                <div>
+                                                    {payment.student?.student_type === 'irregular' ? (
+                                                        <div className="text-center">
+                                                            <span className="inline-block px-2 py-1 text-xs rounded-full bg-orange-100 text-orange-700">Irregular</span>
+                                                        </div>
+                                                    ) : (
+                                                        <div className="text-sm text-gray-500">{payment.student?.enrollments && payment.student.enrollments.length > 0 ? formatSectionName(payment.student.enrollments[0].section) : 'No Section'}</div>
                                                     )}
-                                                    <Link
-                                                        href={route('registrar.payments.shs.show', payment.student.id)}
-                                                    >
-                                                        <Button size="sm" variant="outline">
-                                                            <Eye className="w-3 h-3 mr-1" />
-                                                            View
-                                                        </Button>
-                                                    </Link>
                                                 </div>
+                                            </td>
+                                            <td className="py-3 px-4">{formatCurrency(payment.student?.has_voucher && payment.student?.voucher_status === 'active' ? 0 : payment.total_semester_fee)}</td>
+                                            <td className="py-3 px-4 text-green-600">{formatCurrency(payment.total_paid || 0)}</td>
+                                            <td className="py-3 px-4 text-orange-600">{formatCurrency(payment.student?.has_voucher && payment.student?.voucher_status === 'active' ? 0 : payment.balance || 0)}</td>
+                                            <td className="py-3 px-4">
+                                                {payment.student?.has_voucher && payment.student?.voucher_status === 'active' ? (
+                                                    <Badge className="bg-blue-100 text-blue-800 border-blue-200 text-sm px-3 py-1">
+                                                        Voucher
+                                                    </Badge>
+                                                ) : null}
+                                            </td>
+                                            <td className="py-3 px-4 text-right">
+                                                {!(payment.student?.has_voucher && payment.student?.voucher_status === 'active') && (
+                                                    <Button onClick={() => handleRecordPayment(payment)} className="bg-green-600 hover:bg-green-700 mr-2" disabled={getAvailableQuarters(payment).length === 0}>
+                                                        <CreditCard className="w-4 h-4 mr-2" />
+                                                        {getAvailableQuarters(payment).length === 0 ? 'Fully Paid' : 'Record Payment'}
+                                                    </Button>
+                                                )}
+                                                <Link href={route('registrar.payments.shs.show', payment.student.id)}>
+                                                    <Button variant="outline">
+                                                        <Eye className="w-4 h-4 mr-2" />
+                                                        View Details
+                                                    </Button>
+                                                </Link>
                                             </td>
                                         </tr>
                                     ))}
                                 </tbody>
                             </table>
-
-                            {filteredPayments.length === 0 && (
-                                <div className="text-center py-8">
-                                    <GraduationCap className="mx-auto h-12 w-12 text-gray-400" />
-                                    <h3 className="mt-2 text-sm font-medium text-gray-900">No SHS payments found</h3>
-                                    <p className="mt-1 text-sm text-gray-500">
-                                        {searchTerm ? 'Try adjusting your search criteria.' : 'No SHS payment records available.'}
-                                    </p>
-                                </div>
-                            )}
                         </div>
+
+                        {paymentsData.length === 0 && (
+                            <div className="text-center py-12">
+                                <DollarSign className="w-12 h-12 mx-auto mb-4 text-gray-300" />
+                                <h3 className="text-lg font-medium text-gray-900 mb-2">No SHS payments found</h3>
+                                <p className="text-gray-500">
+                                    {searchTerm ? 'Try adjusting your search criteria.' : 'No SHS payment records available.'}
+                                </p>
+                            </div>
+                        )}
 
                         {/* Pagination */}
                         {payments.links && payments.links.length > 3 && (

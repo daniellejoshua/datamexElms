@@ -1204,20 +1204,42 @@ class RegistrarController extends Controller
                     $shsPayment->save();
                 } else {
                     // Create transaction record even for zero payment (enrollment record)
+                    // For voucher students, show the yearly fee amount that was covered
+                    $transactionAmount = 0;
+                    $transactionNotes = 'SHS student enrollment (voucher student)';
+                    $transactionDescription = 'Enrollment for '.$validated['year_level'];
+
+                    if ($validated['education_level'] === 'senior_high' &&
+                        ($studentData['has_voucher'] ?? false) &&
+                        ($studentData['voucher_status'] ?? null) === 'active') {
+                        $transactionAmount = $yearlyFee; // Show the yearly fee that was covered by voucher
+                        $transactionNotes = 'Fees covered by active voucher - enrollment recorded';
+                        $transactionDescription = 'Voucher Enrollment for '.$validated['year_level'];
+                    }
+
                     PaymentTransaction::create([
                         'student_id' => $student->id,
                         'payable_type' => ShsStudentPayment::class,
                         'payable_id' => $shsPayment->id,
-                        'amount' => 0,
+                        'amount' => $transactionAmount,
                         'payment_type' => 'enrollment_fee',
-                        'payment_method' => 'cash',
-                        'reference_number' => 'REG-'.now()->format('YmdHis').'-'.$student->id,
-                        'description' => 'Enrollment for '.$validated['year_level'],
+                        'payment_method' => 'voucher',
+                        'reference_number' => $studentData['voucher_id'] ?? 'REG-'.now()->format('YmdHis').'-'.$student->id,
+                        'description' => $transactionDescription,
                         'payment_date' => now(),
                         'status' => 'completed',
                         'processed_by' => Auth::id(),
-                        'notes' => 'SHS student enrollment (voucher student)',
+                        'notes' => $transactionNotes,
                     ]);
+
+                    // For voucher students, mark the payment as fully paid since voucher covers the fee
+                    if ($validated['education_level'] === 'senior_high' &&
+                        ($studentData['has_voucher'] ?? false) &&
+                        ($studentData['voucher_status'] ?? null) === 'active') {
+                        $shsPayment->total_paid = $yearlyFee;
+                        $shsPayment->balance = 0;
+                        $shsPayment->save();
+                    }
                 }
             } else {
                 // For college students, create StudentSemesterPayment record

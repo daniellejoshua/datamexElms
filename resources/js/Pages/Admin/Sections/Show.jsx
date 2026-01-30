@@ -22,7 +22,8 @@ import {
     Search,
     FileText,
     ChevronLeft,
-    ChevronRight
+    ChevronRight,
+    UserPlus
 } from 'lucide-react';
 
 const Show = ({ section, sectionSubjects, availableStudents }) => {
@@ -349,14 +350,24 @@ const Show = ({ section, sectionSubjects, availableStudents }) => {
                                         />
                                     </div>
 
-                                    {/* PDF Export Button */}
-                                    <div className="flex-shrink-0">
+                                    {/* Action Buttons */}
+                                    <div className="flex flex-col sm:flex-row gap-2 flex-shrink-0">
+                                        <Button
+                                            asChild
+                                            className="bg-green-600 hover:bg-green-700 text-white w-full sm:w-auto"
+                                        >
+                                            <Link href={route('admin.sections.students', section.id)}>
+                                                <UserPlus className="w-4 h-4 mr-2" />
+                                                Manage Students
+                                            </Link>
+                                        </Button>
                                         <Button
                                             onClick={() => window.open(route('admin.sections.students-pdf', section.id), '_blank')}
-                                            className="bg-blue-600 hover:bg-blue-700 text-white w-full lg:w-auto"
+                                            variant="outline"
+                                            className="w-full sm:w-auto"
                                         >
                                             <FileText className="w-4 h-4 mr-2" />
-                                            Import Students
+                                            Export PDF
                                         </Button>
                                     </div>
                                 </div>

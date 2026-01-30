@@ -70,7 +70,7 @@ export default function ShsPaymentShow({ student, payments, auth }) {
 
             <div className="space-y-6">
                 {/* Student Information Card */}
-                <Card>
+                <Card className="mx-6 mt-6">
                     <CardHeader className="bg-gradient-to-r from-blue-50 to-indigo-50 py-4">
                         <div className="flex items-center gap-3">
                             <div className="p-1.5 bg-blue-500 rounded-lg">
@@ -82,8 +82,8 @@ export default function ShsPaymentShow({ student, payments, auth }) {
                             </div>
                         </div>
                     </CardHeader>
-                    <CardContent className="pt-4">
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                    <CardContent className="pt-2">
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2">
                             <div className="flex items-start gap-2 p-2 rounded-lg hover:bg-gray-50 transition-colors">
                                 <div className="p-1.5 bg-blue-100 rounded-lg">
                                     <User className="w-4 h-4 text-blue-600" />
@@ -148,12 +148,15 @@ export default function ShsPaymentShow({ student, payments, auth }) {
 
                             {student.has_voucher && (
                                 <div className="flex items-start gap-2 p-2 rounded-lg hover:bg-gray-50 transition-colors">
-                                    <div className="p-1.5 bg-blue-100 rounded-lg">
-                                        <FileText className="w-4 h-4 text-blue-600" />
+                                    <div className="p-1.5 bg-green-100 rounded-lg">
+                                        <FileText className="w-4 h-4 text-green-600" />
                                     </div>
                                     <div className="flex-1">
-                                        <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Voucher ID</p>
-                                        <p className="font-mono font-semibold text-gray-900 mt-0.5">{student.voucher_id}</p>
+                                        <div className="flex items-center gap-3">
+                                            <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Voucher</p>
+                                            <p className="text-sm font-semibold text-green-600">Active</p>
+                                        </div>
+                                        <p className="text-xs text-gray-500 mt-1">ID: {student.voucher_id}</p>
                                         {student.voucher_status !== 'active' && (
                                             <p className="text-xs text-red-600 mt-1">
                                                 Status: {student.voucher_status}
@@ -170,14 +173,14 @@ export default function ShsPaymentShow({ student, payments, auth }) {
                 </Card>
 
                 {/* Payment Records */}
-                <Card>
+                <Card className="mx-6">
                     <CardHeader>
                         <CardTitle className="flex items-center gap-2">
                             <CreditCard className="w-5 h-5" />
-                            Payment Records by Semester
+                            Payment Records by Academic Year
                         </CardTitle>
                         <CardDescription>
-                            View payment details organized by academic year and semester
+                            View payment details organized by academic year
                         </CardDescription>
                     </CardHeader>
                     <CardContent>
@@ -192,24 +195,28 @@ export default function ShsPaymentShow({ student, payments, auth }) {
                                                 </div>
                                                 <div className="text-left">
                                                     <p className="font-semibold text-gray-900">
-                                                        {payment.academic_year} - {payment.semester} Semester
+                                                        {payment.academic_year} Academic Year
                                                     </p>
                                                     <p className="text-sm text-gray-500">
                                                         Total: {formatCurrency(payment.total_semester_fee)} • Paid: {formatCurrency(payment.total_paid)}
                                                     </p>
                                                 </div>
                                             </div>
-                                            <Badge className={`${getStatusColor(payment.status)} text-sm px-3 py-1`}>
-                                                {payment.status?.toUpperCase()}
-                                            </Badge>
+                                            <div className="flex items-center gap-2">
+                                                {student.has_voucher && student.voucher_status === 'active' ? (
+                                                    <Badge className="bg-blue-100 text-blue-800 text-sm px-3 py-1">Voucher</Badge>
+                                                ) : (
+                                                    <Badge className={`${getStatusColor(payment.status)} text-sm px-3 py-1`}>{payment.status?.toUpperCase()}</Badge>
+                                                )}
+                                            </div>
                                         </div>
                                     </AccordionTrigger>
-                                    <AccordionContent className="pt-4">
-                                        <div className="space-y-6">
+                                    <AccordionContent className="pt-2">
+                                        <div className="space-y-4">
                                             {/* Payment Summary */}
-                                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-2">
                                                 <div>
-                                                    <p className="text-sm text-gray-500">Total Yearly Fee</p>
+                                                    <p className="text-sm text-gray-500">Total Fee</p>
                                                     <p className="text-lg font-bold">{formatCurrency(payment.total_semester_fee)}</p>
                                                 </div>
                                                 <div>
@@ -221,16 +228,18 @@ export default function ShsPaymentShow({ student, payments, auth }) {
                                                     <p className="text-lg font-bold text-orange-600">{formatCurrency(payment.balance)}</p>
                                                 </div>
                                                 <div>
-                                                    <p className="text-sm text-gray-500">Payment Type</p>
-                                                    <p className="text-lg font-medium capitalize">
-                                                        {student.has_voucher && student.voucher_status === 'active' ? 'Voucher' : 'Yearly'}
-                                                    </p>
+                                                    <p className="text-sm text-gray-500">Payment Plan</p>
+                                                    {student.has_voucher && student.voucher_status === 'active' ? (
+                                                        <Badge className="bg-blue-100 text-blue-800 text-sm px-3 py-1">Voucher</Badge>
+                                                    ) : (
+                                                        <p className="text-lg font-medium capitalize">{payment.payment_plan}</p>
+                                                    )}
                                                 </div>
                                             </div>
 
                                             {/* Transaction History */}
-                                            <div>
-                                                <div className="flex items-center gap-2 mb-4">
+                                            <div className="mx-4">
+                                                <div className="flex items-center gap-2 mb-3">
                                                     <div className="p-1.5 bg-blue-100 rounded">
                                                         <CreditCard className="w-4 h-4 text-blue-600" />
                                                     </div>
@@ -246,45 +255,47 @@ export default function ShsPaymentShow({ student, payments, auth }) {
                                                         <table className="w-full">
                                                             <thead className="bg-gray-50">
                                                                 <tr className="border-b">
-                                                                    <th className="text-left py-3 px-4 text-sm font-medium text-gray-700">Date</th>
-                                                                    <th className="text-left py-3 px-4 text-sm font-medium text-gray-700">OR Number</th>
-                                                                    <th className="text-left py-3 px-4 text-sm font-medium text-gray-700">Description</th>
-                                                                    <th className="text-right py-3 px-4 text-sm font-medium text-gray-700">Amount</th>
-                                                                    <th className="text-center py-3 px-4 text-sm font-medium text-gray-700">Status</th>
+                                                                    <th className="text-left py-2 px-3 text-sm font-medium text-gray-700">Date</th>
+                                                                    <th className="text-left py-2 px-3 text-sm font-medium text-gray-700">Reference</th>
+                                                                    <th className="text-left py-2 px-3 text-sm font-medium text-gray-700">Description</th>
+                                                                    <th className="text-right py-2 px-3 text-sm font-medium text-gray-700">Amount</th>
+                                                                    <th className="text-center py-2 px-3 text-sm font-medium text-gray-700">Type</th>
                                                                 </tr>
                                                             </thead>
                                                             <tbody>
                                                                 {payment.payment_transactions.map(transaction => (
                                                                     <tr key={transaction.id} className="border-b hover:bg-gray-50">
-                                                                        <td className="py-3 px-4 text-sm">
+                                                                        <td className="py-2 px-3 text-sm">
                                                                             {formatDate(transaction.payment_date)}
                                                                         </td>
-                                                                        <td className="py-3 px-4">
+                                                                        <td className="py-2 px-3">
                                                                             <span className="font-mono text-sm">{transaction.reference_number}</span>
                                                                         </td>
-                                                                        <td className="py-3 px-4 text-sm">
+                                                                        <td className="py-2 px-3 text-sm">
                                                                             <div>
-                                                                                <p className="font-medium">{transaction.description}</p>
+                                                                                <p className="font-medium">{(transaction.type === 'voucher' || (transaction.description && transaction.description.toLowerCase().includes('voucher')) || (student.has_voucher && student.voucher_status === 'active')) ? 'Enrollment' : transaction.description}</p>
+                                                                                {(transaction.type === 'voucher' || (transaction.description && transaction.description.toLowerCase().includes('voucher')) || (student.has_voucher && student.voucher_status === 'active')) && (
+                                                                                    <p className="text-xs text-gray-500">Fees covered by active voucher</p>
+                                                                                )}
                                                                                 {transaction.notes && (
                                                                                     <p className="text-xs text-gray-500">{transaction.notes}</p>
                                                                                 )}
                                                                             </div>
                                                                         </td>
-                                                                        <td className="py-3 px-4 text-right font-medium text-green-600">
-                                                                            {formatCurrency(transaction.amount)}
+                                                                        <td className="py-2 px-3 text-right font-medium text-blue-600">
+                                                                            { (transaction.type === 'voucher' || (transaction.description && transaction.description.toLowerCase().includes('voucher')) || (student.has_voucher && student.voucher_status === 'active')) ? formatCurrency(0) : formatCurrency(transaction.amount) }
                                                                         </td>
-                                                                        <td className="py-3 px-4 text-center">
-                                                                            <Badge 
-                                                                                variant="secondary"
-                                                                                className={
-                                                                                    transaction.status === 'completed' 
-                                                                                        ? 'bg-green-100 text-green-800' 
+                                                                        <td className="py-2 px-3 text-center">
+                                                                            <Badge variant="secondary" className={
+                                                                                (transaction.type === 'voucher' || (transaction.description && transaction.description.toLowerCase().includes('voucher')) || (student.has_voucher && student.voucher_status === 'active'))
+                                                                                    ? 'bg-blue-100 text-blue-800'
+                                                                                    : transaction.status === 'completed'
+                                                                                        ? 'bg-green-100 text-green-800'
                                                                                         : transaction.status === 'pending'
-                                                                                        ? 'bg-yellow-100 text-yellow-800'
-                                                                                        : 'bg-gray-100 text-gray-800'
-                                                                                }
-                                                                            >
-                                                                                {transaction.status}
+                                                                                            ? 'bg-yellow-100 text-yellow-800'
+                                                                                            : 'bg-gray-100 text-gray-800'
+                                                                            }>
+                                                                                {(transaction.type === 'voucher' || (transaction.description && transaction.description.toLowerCase().includes('voucher')) || (student.has_voucher && student.voucher_status === 'active')) ? 'Voucher' : (transaction.status || 'N/A')}
                                                                             </Badge>
                                                                         </td>
                                                                     </tr>

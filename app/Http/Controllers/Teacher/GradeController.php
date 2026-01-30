@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Teacher;
 use App\Exports\GradeTemplateExport;
 use App\Http\Controllers\Controller;
 use App\Imports\GradeImport;
+use App\Models\SchoolSetting;
 use App\Models\Section;
 use App\Models\SectionSubject;
 use App\Models\ShsStudentGrade;
@@ -90,6 +91,9 @@ class GradeController extends Controller
                 ], [
                     'enrollment_type' => 'irregular',
                     'enrollment_date' => now(),
+                    'enrolled_by' => $teacher->id,
+                    'academic_year' => SchoolSetting::getCurrentAcademicYear(),
+                    'semester' => SchoolSetting::getCurrentSemester(),
                 ]);
 
                 // Load grades for this enrollment
@@ -220,6 +224,9 @@ class GradeController extends Controller
                 ], [
                     'enrollment_type' => 'irregular',
                     'enrollment_date' => now(),
+                    'enrolled_by' => $teacher->id,
+                    'academic_year' => SchoolSetting::getCurrentAcademicYear(),
+                    'semester' => SchoolSetting::getCurrentSemester(),
                 ]);
 
                 $studentId = $subjectEnrollment->student_id;

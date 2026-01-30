@@ -2,6 +2,7 @@
 
 namespace App\Imports;
 
+use App\Models\SchoolSetting;
 use App\Models\ShsStudentGrade;
 use App\Models\StudentEnrollment;
 use App\Models\StudentGrade;
@@ -133,6 +134,9 @@ class GradeImport implements ToCollection, WithHeadingRow
                     ], [
                         'enrollment_type' => 'irregular',
                         'enrollment_date' => now(),
+                        'enrolled_by' => $this->teacher->id,
+                        'academic_year' => SchoolSetting::getCurrentAcademicYear(),
+                        'semester' => SchoolSetting::getCurrentSemester(),
                     ]);
                 }
             }

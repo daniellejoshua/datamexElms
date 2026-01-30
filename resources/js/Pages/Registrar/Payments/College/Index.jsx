@@ -4,6 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { DollarSign, Users, AlertTriangle, Clock, Search, Plus, Eye, CreditCard, X } from 'lucide-react'
 import { useState, useEffect } from 'react'
 import { toast } from 'sonner'
@@ -167,6 +168,7 @@ export default function CollegePaymentsIndex({ payments, stats, filters, current
             'pending': 'bg-yellow-100 text-yellow-800',
             'partial': 'bg-blue-100 text-blue-800',
             'paid': 'bg-green-100 text-green-800',
+            'completed': 'bg-green-100 text-green-800',
             'overdue': 'bg-red-100 text-red-800'
         }
         return colors[status] || 'bg-gray-100 text-gray-800'
@@ -351,7 +353,18 @@ export default function CollegePaymentsIndex({ payments, stats, filters, current
                                     <tr className="border-b">
                                         <th className="text-left py-3 px-4">Student</th>
                                         <th className="text-left py-3 px-4">Section</th>
-                                        <th className="text-left py-3 px-4">Last Payment Term</th>
+                                        <th className="text-left py-3 px-4">
+                                            <TooltipProvider>
+                                                <Tooltip>
+                                                    <TooltipTrigger asChild>
+                                                        <span className="cursor-help">LPT</span>
+                                                    </TooltipTrigger>
+                                                    <TooltipContent>
+                                                        <p>Last Payment Term</p>
+                                                    </TooltipContent>
+                                                </Tooltip>
+                                            </TooltipProvider>
+                                        </th>
                                         <th className="text-left py-3 px-4">Amount Due</th>
                                         <th className="text-left py-3 px-4">Balance</th>
                                         <th className="text-left py-3 px-4">Status</th>
@@ -381,19 +394,11 @@ export default function CollegePaymentsIndex({ payments, stats, filters, current
                                                             <span className="inline-block px-2 py-1 text-xs rounded-full bg-orange-100 text-orange-700">
                                                                 Irregular
                                                             </span>
-                                                            <div className="text-sm text-gray-500 mt-1">
-                                                                {payment.academic_year} - {payment.semester}
-                                                            </div>
                                                         </div>
                                                     ) : (
-                                                        <>
-                                                            <div className="font-medium">
-                                                                {formatSectionName(payment.section)}
-                                                            </div>
-                                                            <div className="text-sm text-gray-500">
-                                                                {payment.academic_year} - {payment.semester}
-                                                            </div>
-                                                        </>
+                                                        <div className="text-sm text-gray-500">
+                                                            {formatSectionName(payment.section)}
+                                                        </div>
                                                     )}
                                                 </div>
                                             </td>

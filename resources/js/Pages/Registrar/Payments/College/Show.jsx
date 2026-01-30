@@ -100,7 +100,7 @@ export default function CollegePaymentShow({ student, payments, auth }) {
 
             <div className="space-y-6">
                 {/* Student Information Card */}
-                <Card>
+                <Card className="mx-6 mt-6">
                     <CardHeader className="bg-gradient-to-r from-blue-50 to-indigo-50 py-4">
                         <div className="flex items-center gap-3">
                             <div className="p-1.5 bg-blue-500 rounded-lg">
@@ -112,8 +112,8 @@ export default function CollegePaymentShow({ student, payments, auth }) {
                             </div>
                         </div>
                     </CardHeader>
-                    <CardContent className="pt-4">
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                    <CardContent className="pt-2">
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2">
                             <div className="flex items-start gap-2 p-2 rounded-lg hover:bg-gray-50 transition-colors">
                                 <div className="p-1.5 bg-blue-100 rounded-lg">
                                     <User className="w-4 h-4 text-blue-600" />
@@ -183,7 +183,7 @@ export default function CollegePaymentShow({ student, payments, auth }) {
                 </Card>
 
                 {/* Payment Records */}
-                <Card>
+                <Card className="mx-6">
                     <CardHeader>
                         <CardTitle className="flex items-center gap-2">
                             <CreditCard className="w-5 h-5" />
@@ -198,7 +198,7 @@ export default function CollegePaymentShow({ student, payments, auth }) {
                             {payments.map(payment => (
                                 <AccordionItem key={payment.id} value={`payment-${payment.id}`}>
                                     <AccordionTrigger className="hover:no-underline">
-                                        <div className="flex items-center justify-between w-full mr-4">
+                                        <div className="flex items-center justify-between w-full mr-2">
                                             <div className="flex items-center gap-3">
                                                 <div className="p-2 bg-green-100 rounded-lg">
                                                     <CreditCard className="w-4 h-4 text-green-600" />
@@ -217,10 +217,10 @@ export default function CollegePaymentShow({ student, payments, auth }) {
                                             </Badge>
                                         </div>
                                     </AccordionTrigger>
-                                    <AccordionContent className="pt-4">
-                                        <div className="space-y-6">
+                                    <AccordionContent className="pt-2">
+                                        <div className="space-y-4">
                                             {/* Payment Summary */}
-                                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-2">
                                                 <div>
                                                     <p className="text-sm text-gray-500">Total Fee</p>
                                                     <p className="text-lg font-bold">{formatCurrency(payment.total_semester_fee)}</p>
@@ -254,8 +254,8 @@ export default function CollegePaymentShow({ student, payments, auth }) {
                                             )}
 
                                             {/* Transaction History */}
-                                            <div>
-                                                <div className="flex items-center gap-2 mb-4">
+                                            <div className="mx-4">
+                                                <div className="flex items-center gap-2 mb-3">
                                                     <div className="p-1.5 bg-blue-100 rounded">
                                                         <CreditCard className="w-4 h-4 text-blue-600" />
                                                     </div>
@@ -271,23 +271,23 @@ export default function CollegePaymentShow({ student, payments, auth }) {
                                                         <table className="w-full">
                                                             <thead className="bg-gray-50">
                                                                 <tr className="border-b">
-                                                                    <th className="text-left py-3 px-4 text-sm font-medium text-gray-700">Date</th>
-                                                                    <th className="text-left py-3 px-4 text-sm font-medium text-gray-700">OR Number</th>
-                                                                    <th className="text-left py-3 px-4 text-sm font-medium text-gray-700">Description</th>
-                                                                    <th className="text-right py-3 px-4 text-sm font-medium text-gray-700">Amount</th>
-                                                                    <th className="text-center py-3 px-4 text-sm font-medium text-gray-700">Status</th>
+                                                                    <th className="text-left py-2 px-3 text-sm font-medium text-gray-700">Date</th>
+                                                                    <th className="text-left py-2 px-3 text-sm font-medium text-gray-700">OR Number</th>
+                                                                    <th className="text-left py-2 px-3 text-sm font-medium text-gray-700">Description</th>
+                                                                    <th className="text-right py-2 px-3 text-sm font-medium text-gray-700">Amount</th>
+                                                                    <th className="text-center py-2 px-3 text-sm font-medium text-gray-700">Status</th>
                                                                 </tr>
                                                             </thead>
                                                             <tbody>
                                                                 {payment.payment_transactions.map(transaction => (
                                                                     <tr key={transaction.id} className="border-b hover:bg-gray-50">
-                                                                        <td className="py-3 px-4 text-sm">
+                                                                        <td className="py-2 px-3 text-sm">
                                                                             {formatDate(transaction.payment_date)}
                                                                         </td>
-                                                                        <td className="py-3 px-4">
+                                                                        <td className="py-2 px-3">
                                                                             <span className="font-mono text-sm">{transaction.reference_number}</span>
                                                                         </td>
-                                                                        <td className="py-3 px-4 text-sm">
+                                                                        <td className="py-2 px-3 text-sm">
                                                                             <div>
                                                                                 <p className="font-medium">{transaction.description}</p>
                                                                                 {transaction.notes && (
@@ -295,10 +295,10 @@ export default function CollegePaymentShow({ student, payments, auth }) {
                                                                                 )}
                                                                             </div>
                                                                         </td>
-                                                                        <td className="py-3 px-4 text-right font-medium text-green-600">
+                                                                        <td className="py-2 px-3 text-right font-medium text-green-600">
                                                                             {formatCurrency(transaction.amount)}
                                                                         </td>
-                                                                        <td className="py-3 px-4 text-center">
+                                                                        <td className="py-2 px-3 text-center">
                                                                             <Badge className={getStatusColor(transaction.status)}>
                                                                                 {transaction.status}
                                                                             </Badge>

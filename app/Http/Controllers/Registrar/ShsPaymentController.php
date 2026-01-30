@@ -26,6 +26,7 @@ class ShsPaymentController extends Controller
         $filterAcademicYear = request('academic_year', $currentAcademicYear);
         $filterSemester = request('semester', $currentSemester);
         $filterStudentType = request('student_type', 'all');
+        $searchTerm = request('search', '');
 
         $query = ShsStudentPayment::with(['student' => function ($query) use ($filterAcademicYear, $filterSemester) {
             $query->select(['id', 'user_id', 'student_number', 'first_name', 'last_name', 'year_level', 'track', 'strand', 'has_voucher', 'voucher_status', 'voucher_id', 'program_id'])
@@ -33,10 +34,12 @@ class ShsPaymentController extends Controller
                 ->with(['enrollments' => function ($enrollmentQuery) use ($filterAcademicYear, $filterSemester) {
                     $enrollmentQuery->where('academic_year', $filterAcademicYear)
                         ->where('semester', $filterSemester)
-                        ->where('status', 'enrolled')
-                        ->with('section:id,section_name');
+                        ->where('status', 'active')
+                        ->with('section:id,section_name,year_level,program_id')
+                        ->with('section.program:id,program_code');
                 }]);
         }])
+            ->with('paymentTransactions')
             ->whereHas('student', function ($q) use ($filterStudentType) {
                 $q->where('education_level', 'senior_high');
                 if ($filterStudentType !== 'all') {
@@ -48,6 +51,16 @@ class ShsPaymentController extends Controller
                 $query->where('semester', $filterSemester)
                     ->orWhere('semester', 'annual');
             });
+
+        // Add search functionality
+        if (! empty($searchTerm)) {
+            $query->whereHas('student', function ($studentQuery) use ($searchTerm) {
+                $studentQuery->whereHas('user', function ($userQuery) use ($searchTerm) {
+                    $userQuery->where('name', 'like', '%'.$searchTerm.'%');
+                })
+                    ->orWhere('student_number', 'like', '%'.$searchTerm.'%');
+            });
+        }
 
         $payments = $query->paginate(15);
 
@@ -115,6 +128,7 @@ class ShsPaymentController extends Controller
                 'academic_year' => $filterAcademicYear,
                 'semester' => $filterSemester,
                 'student_type' => $filterStudentType,
+                'search' => $searchTerm,
             ],
             'currentAcademicYear' => $currentAcademicYear,
             'currentSemester' => $currentSemester,
@@ -128,7 +142,7 @@ class ShsPaymentController extends Controller
     public function show(Student $student): Response
     {
         $student->load(['user', 'program', 'enrollments' => function ($query) {
-            $query->where('status', 'enrolled')
+            $query->where('status', 'active')
                 ->with('section:id,section_name')
                 ->orderBy('academic_year', 'desc')
                 ->orderBy('semester', 'desc');
