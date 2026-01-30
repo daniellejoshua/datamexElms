@@ -184,52 +184,27 @@ export default function MaterialsIndex({ section, materials, sectionSubject }) {
     return (
         <AuthenticatedLayout
             header={
-                <div className="flex flex-col gap-2 w-full">
-                    {/* Mobile Header - Compact */}
-                    <div className="flex items-center gap-2 sm:hidden">
-                        <Button
-                            asChild
-                            variant="ghost"
-                            size="sm"
-                            className="text-gray-600 hover:text-gray-900 p-1 h-8 w-8"
-                        >
-                            <Link href={route('teacher.sections.college')} className="flex items-center justify-center">
-                                <ArrowLeft className="w-4 h-4" />
-                            </Link>
-                        </Button>
-                        <div className="flex-1 min-w-0">
-                            <h2 className="text-base font-bold text-gray-900 truncate">
-                                {sectionSubject.subject.subject_name}
-                            </h2>
-                            <p className="text-xs text-blue-600 truncate">
-                                {getSimplifiedSectionName()} • {sectionSubject.subject.subject_code} • Materials
-                            </p>
+                <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                        <div className="bg-blue-100 p-1.5 rounded-md">
+                            <BookOpen className="w-4 h-4 text-blue-600" />
+                        </div>
+                        <div>
+                            <h2 className="text-lg font-semibold text-gray-900">{sectionSubject.subject.subject_name}</h2>
+                            <p className="text-xs text-gray-500 mt-0.5">{getSimplifiedSectionName()} • {sectionSubject.subject.subject_code} • Learning Materials</p>
                         </div>
                     </div>
-
-                    {/* Tablet/Desktop Header */}
-                    <div className="hidden sm:flex sm:items-center gap-3">
-                        <Button
-                            asChild
-                            variant="ghost"
-                            size="sm"
-                            className="text-gray-600 hover:text-gray-900"
-                        >
-                            <Link href={route('teacher.sections.college')} className="flex items-center">
-                                <ArrowLeft className="w-4 h-4 mr-1 flex-shrink-0" />
-                                <span>Back to Sections</span>
-                            </Link>
-                        </Button>
-                        <div className="h-6 w-px bg-gray-300 flex-shrink-0"></div>
-                        <div className="flex-1 min-w-0">
-                            <h2 className="text-xl lg:text-2xl font-bold text-gray-900 truncate">
-                                {sectionSubject.subject.subject_name}
-                            </h2>
-                            <p className="text-sm text-blue-600 truncate">
-                                {getSimplifiedSectionName()} • {sectionSubject.subject.subject_code} • Learning Materials
-                            </p>
-                        </div>
-                    </div>
+                    <Button
+                        asChild
+                        variant="ghost"
+                        size="sm"
+                        className="text-gray-600 hover:text-gray-900"
+                    >
+                        <Link href={route('teacher.sections.college')} className="flex items-center">
+                            <ArrowLeft className="w-4 h-4 mr-1 flex-shrink-0" />
+                            <span>Back to Sections</span>
+                        </Link>
+                    </Button>
                 </div>
             }
         >

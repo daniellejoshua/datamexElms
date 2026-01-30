@@ -1,11 +1,13 @@
 import React from 'react';
-import { Head, Link } from '@inertiajs/react';
+import { Head, Link, usePage } from '@inertiajs/react';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Archive, Calendar, Users, BookOpen, Eye } from 'lucide-react';
 
 const Index = ({ archivedSections }) => {
+    const { auth } = usePage().props;
+    const teacherId = auth.user.teacher?.id;
     const getSemesterDisplay = (semester) => {
         const semesters = {
             'first': '1st Semester',
@@ -26,17 +28,23 @@ const Index = ({ archivedSections }) => {
         );
     };
 
+    const getTeacherSubjects = (section) => {
+        const courseData = section.course_data || [];
+        return courseData.filter(course => course.teacher_id === teacherId);
+    };
+
     return (
         <AuthenticatedLayout
             header={
                 <div className="flex items-center justify-between">
-                    <div>
-                        <h2 className="text-2xl font-bold leading-tight text-gray-900 dark:text-gray-100">
-                            Archived Sections
-                        </h2>
-                        <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
-                            View past semester grades and student performance
-                        </p>
+                    <div className="flex items-center gap-2">
+                        <div className="bg-blue-100 p-1.5 rounded-md">
+                            <Archive className="w-4 h-4 text-blue-600" />
+                        </div>
+                        <div>
+                            <h2 className="text-lg font-semibold text-gray-900">Archived Sections</h2>
+                            <p className="text-xs text-gray-500 mt-0.5">View past semester grades and student performance</p>
+                        </div>
                     </div>
                 </div>
             }
@@ -65,13 +73,27 @@ const Index = ({ archivedSections }) => {
                                         <div className="flex items-start justify-between">
                                             <div className="flex-1">
                                                 <CardTitle className="text-xl flex items-center gap-2">
-                                                    {section.program?.program_code || 'N/A'} - {section.section_name}
+                                                    {section.program?.program_code || 'N/A'} {section.year_level}-{section.section_name}
                                                     {getEducationLevelBadge(section.program)}
                                                 </CardTitle>
-                                                <CardDescription className="mt-2 flex items-center gap-2">
-                                                    <Calendar className="h-4 w-4" />
-                                                    {section.academic_year} • {getSemesterDisplay(section.semester)}
-                                                </CardDescription>
+                                                <div className="mt-2 space-y-1">
+                                                    <CardDescription className="flex items-center gap-2">
+                                                        <Calendar className="h-4 w-4" />
+                                                        {section.academic_year} • {getSemesterDisplay(section.semester)}
+                                                    </CardDescription>
+                                                    {getTeacherSubjects(section).length > 0 && (
+                                                        <div className="flex items-start gap-2">
+                                                            <BookOpen className="h-4 w-4 mt-0.5 text-gray-500" />
+                                                            <div className="flex flex-wrap gap-1">
+                                                                {getTeacherSubjects(section).map((subject, index) => (
+                                                                    <Badge key={index} variant="outline" className="text-xs">
+                                                                        {subject.course_code}
+                                                                    </Badge>
+                                                                ))}
+                                                            </div>
+                                                        </div>
+                                                    )}
+                                                </div>
                                             </div>
                                         </div>
                                     </CardHeader>
@@ -86,7 +108,7 @@ const Index = ({ archivedSections }) => {
                                                     {section.total_enrolled_students}
                                                 </span>
                                             </div>
-                                            
+
                                             <div className="flex items-center justify-between text-sm">
                                                 <span className="text-gray-600 dark:text-gray-400">
                                                     Completed
@@ -95,16 +117,7 @@ const Index = ({ archivedSections }) => {
                                                     {section.completed_students}
                                                 </span>
                                             </div>
-                                            
-                                            <div className="flex items-center justify-between text-sm">
-                                                <span className="text-gray-600 dark:text-gray-400">
-                                                    Dropped
-                                                </span>
-                                                <span className="font-semibold text-yellow-600 dark:text-yellow-400">
-                                                    {section.dropped_students || 0}
-                                                </span>
-                                            </div>
-                                            
+
                                             {section.section_average_grade && (
                                                 <div className="flex items-center justify-between text-sm pt-2 border-t border-gray-200 dark:border-gray-700">
                                                     <span className="text-gray-600 dark:text-gray-400">
@@ -116,7 +129,7 @@ const Index = ({ archivedSections }) => {
                                                 </div>
                                             )}
                                         </div>
-                                        
+
                                         <Link
                                             href={`/teacher/archived-sections/${section.id}`}
                                             className="mt-4 w-full inline-flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors"

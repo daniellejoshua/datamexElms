@@ -128,13 +128,15 @@ export default function CollegeSections({ sections, filters }) {
     return (
         <AuthenticatedLayout
             header={
-                <div className="flex items-center gap-2 sm:gap-3">
-                    <div className="bg-blue-100 p-1.5 sm:p-2 rounded-lg">
-                        <GraduationCap className="w-5 h-5 sm:w-6 sm:h-6 text-blue-600" />
-                    </div>
-                    <div>
-                        <h2 className="text-xl sm:text-2xl font-bold text-gray-900">College Sections</h2>
-                        <p className="text-xs sm:text-sm text-gray-600 mt-1">View and manage your assigned sections</p>
+                <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                        <div className="bg-blue-100 p-1.5 rounded-md">
+                            <GraduationCap className="w-4 h-4 text-blue-600" />
+                        </div>
+                        <div>
+                            <h2 className="text-lg font-semibold text-gray-900">College Sections</h2>
+                            <p className="text-xs text-gray-500 mt-0.5">View and manage your assigned sections</p>
+                        </div>
                     </div>
                 </div>
             }

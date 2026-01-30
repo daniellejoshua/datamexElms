@@ -1,17 +1,24 @@
 import React, { useState, useMemo } from 'react';
-import { Head, Link, router } from '@inertiajs/react';
+import { Head, Link, router, usePage } from '@inertiajs/react';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { ArrowLeft, Users, CheckCircle, Edit2, Save, X, AlertCircle, Search } from 'lucide-react';
+import { ArrowLeft, Users, CheckCircle, Edit2, Save, X, AlertCircle, Search, Archive, BookOpen } from 'lucide-react';
 import { toast } from 'sonner';
 
 const Show = ({ archivedSection, enrollments }) => {
     const [editingGrades, setEditingGrades] = useState({});
     const [gradeValues, setGradeValues] = useState({});
     const [searchTerm, setSearchTerm] = useState('');
+    const { auth } = usePage().props;
+    const teacherId = auth.user.teacher?.id;
+
+    const getTeacherSubjects = (section) => {
+        const courseData = section.course_data || [];
+        return courseData.filter(course => course.teacher_id === teacherId);
+    };
 
     // Filter enrollments based on search term
     const filteredEnrollments = useMemo(() => {
@@ -37,17 +44,37 @@ const Show = ({ archivedSection, enrollments }) => {
         return semesters[semester] || semester;
     };
 
+    const isShsLevel = () => {
+        if (!archivedSection?.program) return false;
+        const programName = archivedSection.program.program_name?.toLowerCase() || '';
+        const shsIndicators = ['senior high', 'shs', 'grade 11', 'grade 12', '11', '12'];
+        return shsIndicators.some(indicator => programName.includes(indicator));
+    };
+
     const startEditing = (enrollmentId, grades) => {
         setEditingGrades(prev => ({ ...prev, [enrollmentId]: true }));
-        setGradeValues(prev => ({
-            ...prev,
-            [enrollmentId]: {
-                prelim: grades?.prelim || '',
-                midterm: grades?.midterm || '',
-                prefinals: grades?.prefinals || '',
-                finals: grades?.finals || ''
-            }
-        }));
+        
+        if (isShsLevel()) {
+            setGradeValues(prev => ({
+                ...prev,
+                [enrollmentId]: {
+                    first_quarter: grades?.first_quarter || '',
+                    second_quarter: grades?.second_quarter || '',
+                    third_quarter: grades?.third_quarter || '',
+                    fourth_quarter: grades?.fourth_quarter || ''
+                }
+            }));
+        } else {
+            setGradeValues(prev => ({
+                ...prev,
+                [enrollmentId]: {
+                    prelim: grades?.prelim || '',
+                    midterm: grades?.midterm || '',
+                    prefinals: grades?.prefinals || '',
+                    finals: grades?.finals || ''
+                }
+            }));
+        }
     };
 
     const cancelEditing = (enrollmentId) => {
@@ -103,22 +130,32 @@ const Show = ({ archivedSection, enrollments }) => {
         <AuthenticatedLayout
             header={
                 <div className="flex items-center justify-between">
-                    <div>
-                        <div className="flex items-center gap-4 mb-2">
-                            <Link
-                                href="/teacher/archived-sections"
-                                className="inline-flex items-center text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100"
-                            >
-                                <ArrowLeft className="h-4 w-4 mr-1" />
-                                Back to Archived Sections
-                            </Link>
+                    <div className="flex items-center gap-2">
+                        <Link
+                            href="/teacher/archived-sections"
+                            className="inline-flex items-center text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 p-1.5 rounded-md hover:bg-gray-100 dark:hover:bg-gray-800"
+                        >
+                            <ArrowLeft className="h-4 w-4" />
+                        </Link>
+                        <div className="bg-blue-100 p-1.5 rounded-md">
+                            <Archive className="w-4 h-4 text-blue-600" />
                         </div>
-                        <h2 className="text-2xl font-bold leading-tight text-gray-900 dark:text-gray-100">
-                            {archivedSection.program?.program_code || 'N/A'} - {archivedSection.section_name}
-                        </h2>
-                        <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
-                            {archivedSection.academic_year} • {getSemesterDisplay(archivedSection.semester)}
-                        </p>
+                        <div>
+                            <h2 className="text-lg font-semibold text-gray-900">{archivedSection.program?.program_code || 'N/A'} - {archivedSection.section_name}</h2>
+                            <p className="text-xs text-gray-500 mt-0.5">{archivedSection.academic_year} • {getSemesterDisplay(archivedSection.semester)}</p>
+                            {getTeacherSubjects(archivedSection).length > 0 && (
+                                <div className="flex items-center gap-2 mt-1">
+                                    <BookOpen className="h-3 w-3 text-gray-400" />
+                                    <div className="flex flex-wrap gap-1">
+                                        {getTeacherSubjects(archivedSection).map((subject, index) => (
+                                            <Badge key={index} variant="outline" className="text-xs px-1.5 py-0.5">
+                                                {subject.course_code}
+                                            </Badge>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+                        </div>
                     </div>
                 </div>
             }
@@ -161,18 +198,37 @@ const Show = ({ archivedSection, enrollments }) => {
                                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
                                                 Student
                                             </th>
-                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                                                Prelim
-                                            </th>
-                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                                                Midterm
-                                            </th>
-                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                                                Prefinals
-                                            </th>
-                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                                                Finals
-                                            </th>
+                                            {isShsLevel() ? (
+                                                <>
+                                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                                                        Q1
+                                                    </th>
+                                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                                                        Q2
+                                                    </th>
+                                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                                                        Q3
+                                                    </th>
+                                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                                                        Q4
+                                                    </th>
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                                                        Prelim
+                                                    </th>
+                                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                                                        Midterm
+                                                    </th>
+                                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                                                        Prefinals
+                                                    </th>
+                                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                                                        Finals
+                                                    </th>
+                                                </>
+                                            )}
                                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
                                                 Final Grade
                                             </th>
@@ -202,26 +258,49 @@ const Show = ({ archivedSection, enrollments }) => {
                                                             </div>
                                                         </div>
                                                     </td>
-                                                    {['prelim', 'midterm', 'prefinals', 'finals'].map((gradeType) => (
-                                                        <td key={gradeType} className="px-6 py-4 whitespace-nowrap">
-                                                            {isEditing ? (
-                                                                <Input
-                                                                    type="number"
-                                                                    min="0"
-                                                                    max="100"
-                                                                    step="0.01"
-                                                                    value={editValues[gradeType] || ''}
-                                                                    onChange={(e) => updateGrade(enrollment.id, gradeType, e.target.value)}
-                                                                    className="w-20"
-                                                                    placeholder="0-100"
-                                                                />
-                                                            ) : (
-                                                                <span className="text-sm text-gray-900 dark:text-gray-100">
-                                                                    {grades[gradeType] || '-'}
-                                                                </span>
-                                                            )}
-                                                        </td>
-                                                    ))}
+                                                    {isShsLevel() ? (
+                                                        ['first_quarter', 'second_quarter', 'third_quarter', 'fourth_quarter'].map((gradeType) => (
+                                                            <td key={gradeType} className="px-6 py-4 whitespace-nowrap">
+                                                                {isEditing ? (
+                                                                    <Input
+                                                                        type="number"
+                                                                        min="0"
+                                                                        max="100"
+                                                                        step="0.01"
+                                                                        value={editValues[gradeType] || ''}
+                                                                        onChange={(e) => updateGrade(enrollment.id, gradeType, e.target.value)}
+                                                                        className="w-20"
+                                                                        placeholder="0-100"
+                                                                    />
+                                                                ) : (
+                                                                    <span className="text-sm text-gray-900 dark:text-gray-100">
+                                                                        {grades[gradeType] || '-'}
+                                                                    </span>
+                                                                )}
+                                                            </td>
+                                                        ))
+                                                    ) : (
+                                                        ['prelim', 'midterm', 'prefinals', 'finals'].map((gradeType) => (
+                                                            <td key={gradeType} className="px-6 py-4 whitespace-nowrap">
+                                                                {isEditing ? (
+                                                                    <Input
+                                                                        type="number"
+                                                                        min="0"
+                                                                        max="100"
+                                                                        step="0.01"
+                                                                        value={editValues[gradeType] || ''}
+                                                                        onChange={(e) => updateGrade(enrollment.id, gradeType, e.target.value)}
+                                                                        className="w-20"
+                                                                        placeholder="0-100"
+                                                                    />
+                                                                ) : (
+                                                                    <span className="text-sm text-gray-900 dark:text-gray-100">
+                                                                        {grades[gradeType] || '-'}
+                                                                    </span>
+                                                                )}
+                                                            </td>
+                                                        ))
+                                                    )}
                                                     <td className="px-6 py-4 whitespace-nowrap">
                                                         <span className="text-sm font-semibold text-gray-900 dark:text-gray-100">
                                                             {enrollment.final_semester_grade || '-'}

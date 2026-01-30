@@ -4,7 +4,7 @@ import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/Components/ui/table';
 import { Button } from '@/Components/ui/button';
 import { Input } from '@/Components/ui/input';
-import { Download, Upload, Save, Search, FileSpreadsheet, CheckCircle, XCircle, AlertTriangle, ArrowLeft } from 'lucide-react';
+import { Download, Upload, Save, Search, FileSpreadsheet, CheckCircle, XCircle, AlertTriangle, ArrowLeft, BookOpen } from 'lucide-react';
 
 export default function Show({ section, sectionSubject, enrollments, isCollegeLevel, isShsLevel, teacher }) {
     const [searchTerm, setSearchTerm] = useState('');
@@ -534,27 +534,26 @@ export default function Show({ section, sectionSubject, enrollments, isCollegeLe
         <AuthenticatedLayout
             header={
                 <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                        <button
-                            onClick={() => router.visit(route('teacher.sections.college'), { 
-                                method: 'get',
-                                preserveState: false,
-                                preserveScroll: false 
-                            })}
-                            className="flex items-center justify-center w-10 h-10 rounded-md text-gray-600 hover:text-gray-900 hover:bg-gray-100 transition-colors"
-                        >
-                            <ArrowLeft className="w-4 h-4" />
-                        </button>
-                        <div className="h-6 w-px bg-gray-300"></div>
+                    <div className="flex items-center gap-2">
+                        <div className="bg-blue-100 p-1.5 rounded-md">
+                            <BookOpen className="w-4 h-4 text-blue-600" />
+                        </div>
                         <div>
-                            <h2 className="text-2xl font-bold text-gray-900">
-                                {sectionSubject?.subject?.subject_name || 'Grade Management'}
-                            </h2>
-                            <p className="text-sm text-blue-600 font-medium mt-1">
-                               {getSimplifiedSectionName()} • {section.academic_year} - Semester {section.semester}
-                            </p>
+                            <h2 className="text-lg font-semibold text-gray-900">{sectionSubject?.subject?.subject_name || 'Grade Management'}</h2>
+                            <p className="text-xs text-gray-500 mt-0.5">{getSimplifiedSectionName()} • {section.academic_year} - Semester {section.semester}</p>
                         </div>
                     </div>
+                    <button
+                        onClick={() => router.visit(route('teacher.sections.college'), {
+                            method: 'get',
+                            preserveState: false,
+                            preserveScroll: false
+                        })}
+                        className="inline-flex items-center text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100"
+                    >
+                        <ArrowLeft className="h-4 w-4 mr-1" />
+                        Back to Sections
+                    </button>
                 </div>
             }
         >

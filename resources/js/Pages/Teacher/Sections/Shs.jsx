@@ -126,13 +126,15 @@ export default function ShsSections({ sections, filters }) {
     return (
         <AuthenticatedLayout
             header={
-                <div className="flex items-center gap-2 sm:gap-3">
-                    <div className="bg-purple-100 p-1.5 sm:p-2 rounded-lg">
-                        <School className="w-5 h-5 sm:w-6 sm:h-6 text-purple-600" />
-                    </div>
-                    <div>
-                        <h2 className="text-xl sm:text-2xl font-bold text-gray-900">SHS Sections</h2>
-                        <p className="text-xs sm:text-sm text-gray-600 mt-1">Manage your senior high school section assignments</p>
+                <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                        <div className="bg-purple-100 p-1.5 rounded-md">
+                            <School className="w-4 h-4 text-purple-600" />
+                        </div>
+                        <div>
+                            <h2 className="text-lg font-semibold text-gray-900">SHS Sections</h2>
+                            <p className="text-xs text-gray-500 mt-0.5">Manage your senior high school section assignments</p>
+                        </div>
                     </div>
                 </div>
             }
