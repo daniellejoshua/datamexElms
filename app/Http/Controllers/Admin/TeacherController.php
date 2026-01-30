@@ -230,6 +230,8 @@ class TeacherController extends Controller
             ->join('students', 'student_enrollments.student_id', '=', 'students.id')
             ->join('sections', 'student_enrollments.section_id', '=', 'sections.id')
             ->join('subjects', 'section_subjects.subject_id', '=', 'subjects.id')
+            ->where('students.status', 'active')
+            ->where('student_enrollments.status', 'active')
             ->whereRaw('(student_grades.prelim_grade IS NULL OR student_grades.midterm_grade IS NULL OR student_grades.prefinal_grade IS NULL OR student_grades.final_grade IS NULL)')
             ->select(
                 'students.first_name',
@@ -282,6 +284,8 @@ class TeacherController extends Controller
             ->join('sections', 'student_enrollments.section_id', '=', 'sections.id')
             ->join('subjects', 'section_subjects.subject_id', '=', 'subjects.id')
             ->leftJoin('programs', 'sections.program_id', '=', 'programs.id')
+            ->where('students.status', 'active')
+            ->where('student_enrollments.status', 'active')
             ->whereRaw('(shs_student_grades.first_quarter_grade IS NULL OR shs_student_grades.second_quarter_grade IS NULL OR shs_student_grades.final_grade IS NULL)')
             ->select(
                 'students.first_name',

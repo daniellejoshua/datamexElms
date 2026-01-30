@@ -20,6 +20,10 @@ class DashboardController extends Controller
         // Get the current authenticated teacher
         $teacher = Teacher::where('user_id', Auth::id())->firstOrFail();
 
+        // Get current academic year and semester
+        $currentAcademicYear = \App\Models\SchoolSetting::getCurrentAcademicYear();
+        $currentSemester = \App\Models\SchoolSetting::getCurrentSemester();
+
         // Get teacher's sections with related data
         $teacherSections = SectionSubject::with([
             'section.program',
@@ -27,15 +31,17 @@ class DashboardController extends Controller
         ])
             ->where('teacher_id', $teacher->id)
             ->where('status', 'active')
+            ->whereHas('section', function ($query) use ($currentAcademicYear, $currentSemester) {
+                $query->where('academic_year', $currentAcademicYear)
+                      ->where('semester', $currentSemester);
+            })
             ->get();
 
         // Calculate statistics
-        $totalSections = $teacherSections->count();
-        $totalStudents = $teacherSections->sum(function ($sectionSubject) {
-            return \App\Models\StudentSubjectEnrollment::where('section_subject_id', $sectionSubject->id)
+        $totalSections = $teacherSections->pluck('section_id')->unique()->count();
+        $totalStudents = $teacherSections->pluck('section_id')->unique()->sum(function ($sectionId) {
+            return \App\Models\StudentEnrollment::where('section_id', $sectionId)
                 ->where('status', 'active')
-                ->where('academic_year', $sectionSubject->section->academic_year)
-                ->where('semester', $sectionSubject->section->semester)
                 ->count();
         });
         $totalSubjects = $teacherSections->pluck('subject_id')->unique()->count();
@@ -50,10 +56,10 @@ class DashboardController extends Controller
         $recentActivities = $this->getRecentActivities($teacher);
 
         // Prepare section overview data
-        $sectionOverview = $teacherSections->map(function ($sectionSubject) {
-            $section = $sectionSubject->section;
-            // Count students enrolled in this specific subject
-            $studentCount = \App\Models\StudentSubjectEnrollment::where('section_subject_id', $sectionSubject->id)
+        $sectionOverview = $teacherSections->groupBy('section_id')->map(function ($sectionSubjects, $sectionId) {
+            $section = $sectionSubjects->first()->section;
+            // Count unique students enrolled in this section for this academic year and semester
+            $studentCount = \App\Models\StudentEnrollment::where('section_id', $sectionId)
                 ->where('status', 'active')
                 ->where('academic_year', $section->academic_year)
                 ->where('semester', $section->semester)
@@ -64,15 +70,19 @@ class DashboardController extends Controller
                 'section_name' => $section->section_name,
                 'program_name' => $section->program->program_name,
                 'year_level' => $section->year_level,
-                'subject_name' => $sectionSubject->subject->subject_name,
-                'subject_code' => $sectionSubject->subject->subject_code,
+                'subjects' => $sectionSubjects->map(function ($ss) {
+                    return [
+                        'subject_name' => $ss->subject->subject_name,
+                        'subject_code' => $ss->subject->subject_code,
+                        'room' => $ss->room,
+                        'schedule' => $this->formatSchedule($ss),
+                    ];
+                }),
                 'enrolled_students_count' => $studentCount,
-                'room' => $sectionSubject->room,
-                'schedule' => $this->formatSchedule($sectionSubject),
                 'academic_year' => $section->academic_year,
                 'semester' => $section->semester,
             ];
-        });
+        })->values();
 
         return Inertia::render('Teacher/Dashboard', [
             'teacher' => [
@@ -82,6 +92,8 @@ class DashboardController extends Controller
                 'department' => $teacher->department,
                 'specialization' => $teacher->specialization,
             ],
+            'currentAcademicYear' => \App\Models\SchoolSetting::getCurrentAcademicYear(),
+            'currentSemester' => \App\Models\SchoolSetting::getCurrentSemester(),
             'stats' => [
                 'totalSections' => $totalSections,
                 'totalStudents' => $totalStudents,
