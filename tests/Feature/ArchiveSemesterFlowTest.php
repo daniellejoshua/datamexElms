@@ -6,6 +6,7 @@ use App\Models\Section;
 use App\Models\Student;
 use App\Models\StudentEnrollment;
 use App\Models\StudentGrade;
+use App\Models\Teacher;
 use App\Models\User;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -127,4 +128,103 @@ it('archives semester, creates archived records, updates progression and allows 
 
     $enNewExists = DB::table('student_enrollments')->where('id', $enNew->id)->where('student_id', $student->id)->exists();
     expect($enNewExists)->toBeTrue();
+});
+
+it('archives SHS 1st semester data when transitioning to 2nd semester', function () {
+    // Create admin head teacher user
+    $admin = User::factory()->create(['role' => 'head_teacher', 'password' => bcrypt('secret')]);
+
+    // Create a teacher
+    $teacherUser = User::factory()->create(['role' => 'teacher']);
+    $teacher = \App\Models\Teacher::factory()->create(['user_id' => $teacherUser->id]);
+
+    // Set current academic period to 1st semester
+    SchoolSetting::set('current_academic_year', '2025-2026');
+    SchoolSetting::set('current_semester', '1st');
+
+    // Create SHS program
+    $program = Program::factory()->create([
+        'program_name' => 'Senior High School',
+        'program_code' => 'SHS',
+        'education_level' => 'senior_high',
+    ]);
+
+    // Create SHS section for 1st semester
+    $section = Section::create([
+        'program_id' => $program->id,
+        'section_name' => 'Grade 11 - A',
+        'year_level' => 11, // Grade 11
+        'academic_year' => '2025-2026',
+        'semester' => '1st',
+        'status' => 'active',
+    ]);
+
+    // Create a student
+    $user = User::factory()->create(['role' => 'student']);
+    $student = Student::create([
+        'user_id' => $user->id,
+        'program_id' => $program->id,
+        'student_number' => '2025-SHS-0001',
+        'first_name' => 'SHS',
+        'last_name' => 'Student',
+        'year_level' => 'Grade 11',
+        'current_year_level' => 11,
+        'education_level' => 'senior_high',
+        'status' => 'active',
+        'enrolled_date' => now(),
+    ]);
+
+    // Create enrollment for 1st semester
+    $enrollment = StudentEnrollment::create([
+        'student_id' => $student->id,
+        'section_id' => $section->id,
+        'enrollment_date' => now(),
+        'status' => 'active',
+        'academic_year' => '2025-2026',
+        'semester' => '1st',
+        'enrolled_by' => $admin->id,
+    ]);
+
+    // Create a grade for the student
+    $grade = StudentGrade::create([
+        'student_enrollment_id' => $enrollment->id,
+        'teacher_id' => $teacher->id,
+        'final_grade' => 85.5,
+        'overall_status' => 'passed',
+    ]);
+
+    // Verify initial state
+    expect($section->semester)->toBe('1st');
+    $initialGradeCount = StudentGrade::count();
+
+    // Simulate archiving 1st semester (which should trigger SHS transition)
+    Auth::login($admin);
+
+    $controller = new \App\Http\Controllers\Admin\AcademicYearController;
+    $reflection = new ReflectionClass($controller);
+    $method = $reflection->getMethod('updateShsSectionForNextSemester');
+    $method->setAccessible(true);
+
+    $method->invoke($controller, $section, '2025-2026');
+
+    // Verify section was updated to 2nd semester
+    $section->refresh();
+    expect($section->semester)->toBe('2nd');
+
+    // Verify 1st semester data was archived
+    $archivedSection = \App\Models\ArchivedSection::where('original_section_id', $section->id)
+        ->where('semester', 'first')
+        ->first();
+    expect($archivedSection)->not->toBeNull();
+    expect($archivedSection->academic_year)->toBe('2025-2026');
+
+    // Verify student enrollment was archived
+    $archivedEnrollment = \App\Models\ArchivedStudentEnrollment::where('student_id', $student->id)
+        ->where('semester', 'first')
+        ->first();
+    expect($archivedEnrollment)->not->toBeNull();
+    expect($archivedEnrollment->final_semester_grade)->toBe('85.50');
+
+    // Verify original grade still exists (not deleted)
+    expect(StudentGrade::count())->toBe($initialGradeCount);
 });

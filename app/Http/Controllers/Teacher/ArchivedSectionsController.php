@@ -18,6 +18,21 @@ class ArchivedSectionsController extends Controller
     {
         $teacher = $request->user()->teacher;
 
+        if (! $teacher) {
+            // Return empty paginator if no teacher found
+            $emptyPaginator = new \Illuminate\Pagination\LengthAwarePaginator(
+                [],
+                0,
+                12,
+                1,
+                ['path' => $request->url(), 'query' => $request->query()]
+            );
+
+            return Inertia::render('Teacher/ArchivedSections/Index', [
+                'archivedSectionGroups' => $emptyPaginator->toArray(),
+            ]);
+        }
+
         // Get ALL archived sections and filter in PHP since JSON_SEARCH has issues with integer values
         // This preserves ALL historical archived sections - nothing is deleted
         $archivedSections = ArchivedSection::with(['archivedEnrollments', 'program', 'curriculum'])
@@ -37,14 +52,48 @@ class ArchivedSectionsController extends Controller
             })
             ->values();
 
-        // Paginate the filtered collection
-        $currentPage = $request->get('page', 1);
-        $perPage = 20;
-        $total = $archivedSections->count();
-        $paginatedSections = $archivedSections->forPage($currentPage, $perPage);
+        // Group sections by academic year and semester
+        $groupedSections = $archivedSections->groupBy(function ($section) {
+            return $section->academic_year.'|'.$section->semester;
+        })->map(function ($sections, $key) {
+            [$academicYear, $semester] = explode('|', $key, 2);
 
-        $archivedSectionsPaginated = new \Illuminate\Pagination\LengthAwarePaginator(
-            $paginatedSections,
+            // Calculate totals for this academic year/semester
+            $totalSections = $sections->count();
+            $totalStudents = $sections->sum('total_enrolled_students');
+            $totalCompleted = $sections->sum('completed_students');
+            $totalDropped = $sections->sum('dropped_students');
+            $averageGrade = $sections->avg('section_average_grade');
+
+            // Get education level breakdown
+            $educationLevels = $sections->groupBy(function ($section) {
+                return $section->program?->education_level ?? 'unknown';
+            })->map->count();
+
+            return [
+                'academic_year' => $academicYear,
+                'semester' => $semester,
+                'total_sections' => $totalSections,
+                'total_students' => $totalStudents,
+                'total_completed' => $totalCompleted,
+                'total_dropped' => $totalDropped,
+                'average_grade' => $averageGrade ? round($averageGrade, 2) : null,
+                'education_levels' => $educationLevels,
+                'sections' => $sections->toArray(),
+            ];
+        })->values();
+
+        // Paginate the grouped data
+        $currentPage = $request->get('page', 1);
+        $perPage = 12; // Show fewer groups per page since they contain more info
+        $total = $groupedSections->count();
+        $paginatedGroups = $groupedSections->forPage($currentPage, $perPage);
+
+        // Convert to simple array for better serialization
+        $groupedSectionsArray = $groupedSections->toArray();
+
+        $groupedSectionsPaginated = new \Illuminate\Pagination\LengthAwarePaginator(
+            $groupedSectionsArray,
             $total,
             $perPage,
             $currentPage,
@@ -52,7 +101,42 @@ class ArchivedSectionsController extends Controller
         );
 
         return Inertia::render('Teacher/ArchivedSections/Index', [
-            'archivedSections' => $archivedSectionsPaginated,
+            'archivedSectionGroups' => $groupedSectionsPaginated,
+        ]);
+    }
+
+    public function showByPeriod(Request $request): Response
+    {
+        $teacher = $request->user()->teacher;
+        $academicYear = $request->query('academic_year');
+        $semester = $request->query('semester');
+
+        if (! $academicYear || ! $semester) {
+            abort(400, 'Academic year and semester are required.');
+        }
+
+        // Get archived sections for this specific period where teacher taught subjects
+        $archivedSections = ArchivedSection::with(['archivedEnrollments', 'program', 'curriculum'])
+            ->where('academic_year', $academicYear)
+            ->where('semester', $semester)
+            ->get()
+            ->filter(function ($section) use ($teacher) {
+                // Filter sections where teacher taught at least one subject
+                $courseData = $section->course_data ?? [];
+                foreach ($courseData as $course) {
+                    if (isset($course['teacher_id']) && $course['teacher_id'] == $teacher->id) {
+                        return true;
+                    }
+                }
+
+                return false;
+            })
+            ->values();
+
+        return Inertia::render('Teacher/ArchivedSections/ShowByPeriod', [
+            'archivedSections' => $archivedSections->toArray(),
+            'academicYear' => $academicYear,
+            'semester' => $semester,
         ]);
     }
 
@@ -117,6 +201,81 @@ class ArchivedSectionsController extends Controller
 
         return Inertia::render('Teacher/ArchivedSections/Show', [
             'archivedSection' => $archivedSection,
+            'enrollments' => $enrollmentsWithStatus,
+        ]);
+    }
+
+    public function showSubjectGrades(Request $request, ArchivedSection $archivedSection, $subjectId): Response
+    {
+        $teacher = $request->user()->teacher;
+
+        // Verify teacher taught at least one subject in this section
+        $courseData = $archivedSection->course_data ?? [];
+        $taughtSection = false;
+        $subject = null;
+        foreach ($courseData as $course) {
+            if (isset($course['teacher_id']) && $course['teacher_id'] == $teacher->id) {
+                $taughtSection = true;
+                // Find the specific subject
+                if ((isset($course['id']) && $course['id'] == $subjectId) ||
+                    (isset($course['subject_code']) && $course['subject_code'] == $subjectId)) {
+                    $subject = $course;
+                }
+            }
+        }
+
+        if (! $taughtSection) {
+            abort(403, 'You do not have access to this archived section.');
+        }
+
+        if (! $subject) {
+            abort(404, 'Subject not found or you do not teach this subject.');
+        }
+
+        $archivedSection->load(['archivedEnrollments', 'program', 'curriculum']);
+
+        // Filter out dropped students and process remaining enrollments to check grade status
+        $enrollmentsWithStatus = $archivedSection->archivedEnrollments
+            ->filter(function ($enrollment) {
+                return $enrollment->final_status !== 'dropped';
+            })
+            ->map(function ($enrollment) {
+                $finalGrades = $enrollment->final_grades ?? [];
+
+                // Check if all 4 grades exist (prelim, midterm, prefinals, finals)
+                $requiredGrades = ['prelim', 'midterm', 'prefinals', 'finals'];
+                $missingGrades = [];
+
+                foreach ($requiredGrades as $grade) {
+                    if (empty($finalGrades[$grade])) {
+                        $missingGrades[] = ucfirst($grade);
+                    }
+                }
+
+                // Determine status
+                if (count($missingGrades) > 0) {
+                    $gradeStatus = 'Missing Grades';
+                    $missingGradesList = $missingGrades;
+                } else {
+                    $gradeStatus = 'Complete';
+                    $missingGradesList = [];
+                }
+
+                return [
+                    'id' => $enrollment->id,
+                    'student_id' => $enrollment->student_id,
+                    'student_data' => $enrollment->student_data,
+                    'final_grades' => $finalGrades,
+                    'final_semester_grade' => $enrollment->final_semester_grade,
+                    'final_status' => $enrollment->final_status,
+                    'grade_status' => $gradeStatus,
+                    'missing_grades' => $missingGradesList,
+                ];
+            });
+
+        return Inertia::render('Teacher/ArchivedSections/SubjectGrades', [
+            'archivedSection' => $archivedSection,
+            'subject' => $subject,
             'enrollments' => $enrollmentsWithStatus,
         ]);
     }

@@ -944,9 +944,13 @@ class AcademicYearController extends Controller
 
     /**
      * Update SHS section subjects for the next semester instead of archiving.
+     * This preserves 1st semester grades for teachers and students to view.
      */
     protected function updateShsSectionForNextSemester(Section $section, string $academicYear): void
     {
+        // First, archive the 1st semester data before replacing it
+        $this->archiveShsFirstSemester($section, $academicYear);
+
         // Update section semester to '2nd'
         $section->update([
             'semester' => '2nd',
@@ -997,6 +1001,111 @@ class AcademicYearController extends Controller
             'section_id' => $section->id,
             'academic_year' => $academicYear,
             'subject_count' => $secondSemesterSubjects->count(),
+        ]);
+    }
+
+    /**
+     * Archive SHS 1st semester data before transitioning to 2nd semester.
+     * This preserves grades for teachers to edit and students to view.
+     */
+    protected function archiveShsFirstSemester(Section $section, string $academicYear): void
+    {
+        $enrollments = $section->studentEnrollments;
+
+        // Skip if no enrollments
+        if ($enrollments->isEmpty()) {
+            return;
+        }
+
+        // Calculate section statistics
+        $completedCount = $enrollments->where('status', 'active')->count();
+        $droppedCount = $enrollments->where('status', 'dropped')->count();
+
+        // Calculate average grade
+        $averageGrade = null;
+        $gradeSum = 0;
+        $gradeCount = 0;
+
+        foreach ($enrollments as $enrollment) {
+            $grade = StudentGrade::where('student_enrollment_id', $enrollment->id)->first();
+            if ($grade && $grade->final_grade) {
+                $gradeSum += $grade->final_grade;
+                $gradeCount++;
+            }
+        }
+
+        if ($gradeCount > 0) {
+            $averageGrade = round($gradeSum / $gradeCount, 2);
+        }
+
+        // Create archived section record for 1st semester
+        $archivedSection = ArchivedSection::create([
+            'original_section_id' => $section->id,
+            'program_id' => $section->program_id,
+            'curriculum_id' => $section->curriculum_id,
+            'year_level' => $section->year_level,
+            'section_name' => $section->section_name,
+            'academic_year' => $academicYear,
+            'semester' => 'first', // Always archiving 1st semester
+            'room' => ($section->sectionSubjects->first()?->room) ?? null,
+            'status' => 'completed',
+            'course_data' => $section->sectionSubjects->map(function ($sectionSubject) {
+                return [
+                    'id' => $sectionSubject->subject->id,
+                    'course_code' => $sectionSubject->subject->subject_code,
+                    'subject_name' => $sectionSubject->subject->subject_name,
+                    'credits' => $sectionSubject->subject->units,
+                    'teacher_id' => $sectionSubject->teacher_id,
+                    'teacher_name' => $sectionSubject->teacher ? $sectionSubject->teacher->user->name : 'N/A',
+                    'room' => $sectionSubject->room,
+                    'schedule_days' => $sectionSubject->schedule_days,
+                    'start_time' => $sectionSubject->start_time ? substr($sectionSubject->start_time, 0, 5) : null,
+                    'end_time' => $sectionSubject->end_time ? substr($sectionSubject->end_time, 0, 5) : null,
+                ];
+            })->toArray(),
+            'total_enrolled_students' => $enrollments->count(),
+            'completed_students' => $completedCount,
+            'dropped_students' => $droppedCount,
+            'section_average_grade' => $averageGrade,
+            'archived_at' => now(),
+            'archived_by' => Auth::id(),
+            'archive_notes' => 'Auto-archived during SHS 1st to 2nd semester transition',
+        ]);
+
+        // Archive each student enrollment for 1st semester
+        foreach ($enrollments as $enrollment) {
+            $finalGrade = StudentGrade::where('student_enrollment_id', $enrollment->id)->first();
+
+            ArchivedStudentEnrollment::create([
+                'archived_section_id' => $archivedSection->id,
+                'student_id' => $enrollment->student_id,
+                'original_enrollment_id' => $enrollment->id,
+                'academic_year' => $academicYear,
+                'semester' => 'first',
+                'enrolled_date' => $enrollment->enrollment_date,
+                'completion_date' => now()->toDateString(),
+                'final_status' => $enrollment->status === 'active' ? 'completed' : $enrollment->status,
+                'final_grades' => $finalGrade ? [
+                    'midterm' => $finalGrade->midterm_grade,
+                    'final' => $finalGrade->final_grade,
+                    'overall' => $finalGrade->final_grade,
+                ] : null,
+                'final_semester_grade' => $finalGrade?->final_grade,
+                'letter_grade' => $this->calculateLetterGrade($finalGrade?->final_grade),
+                'student_data' => [
+                    'name' => $enrollment->student->user->name,
+                    'student_number' => $enrollment->student->student_number,
+                    'email' => $enrollment->student->user->email,
+                    'year_level_at_completion' => $enrollment->student->year_level,
+                ],
+            ]);
+        }
+
+        Log::info("Archived SHS 1st semester data for section {$section->section_name}", [
+            'section_id' => $section->id,
+            'archived_section_id' => $archivedSection->id,
+            'student_count' => $enrollments->count(),
+            'academic_year' => $academicYear,
         ]);
     }
 }

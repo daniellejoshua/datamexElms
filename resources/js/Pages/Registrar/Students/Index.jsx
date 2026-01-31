@@ -39,6 +39,25 @@ const truncateText = (text, maxLength = 25) => {
     return text.substring(0, maxLength - 3) + '...';
 };
 
+// Helper function to get ordinal suffix (1st, 2nd, 3rd, etc.)
+const getOrdinalSuffix = (num) => {
+    if (!num || isNaN(num)) return '';
+    const number = parseInt(num);
+    const lastDigit = number % 10;
+    const lastTwoDigits = number % 100;
+
+    if (lastTwoDigits >= 11 && lastTwoDigits <= 13) {
+        return 'th';
+    }
+
+    switch (lastDigit) {
+        case 1: return 'st';
+        case 2: return 'nd';
+        case 3: return 'rd';
+        default: return 'th';
+    }
+};
+
 export default function StudentsIndex({ students, programs, filters, auth, on_hold_count, current_academic_period }) {
     const [searchTerm, setSearchTerm] = useState('')
     const [educationLevel, setEducationLevel] = useState(filters?.education_level || 'all')
@@ -522,39 +541,20 @@ export default function StudentsIndex({ students, programs, filters, auth, on_ho
                                                     </span>
                                                 </td>
                                                 <td className="py-3 px-4">
-                                                    {student.archived_enrollments?.length > 0 ? (
-                                                        <div>
-                                                            <div className="font-medium text-blue-600">
-                                                                {formatSectionName(student.current_section, student.is_currently_enrolled)}
-                                                            </div>
-                                                            {student.current_section && (
-                                                                <div className="text-xs text-gray-500">
-                                                                    {student.current_section.academic_year} - {student.current_section.semester}
-                                                                </div>
-                                                            )}
-                                                            <div className="text-xs text-purple-600 mt-1">
-                                                                {student.archived_enrollments.length} archived grade{student.archived_enrollments.length > 1 ? 's' : ''}
-                                                            </div>
+                                                    <div>
+                                                        <div className="font-medium text-blue-600">
+                                                            {formatSectionName(student.current_section, student.is_currently_enrolled)}
                                                         </div>
-                                                    ) : (
-                                                        <div>
-                                                            <div className="font-medium text-blue-600">
-                                                                {formatSectionName(student.current_section, student.is_currently_enrolled)}
-                                                            </div>
-                                                            {student.current_section && (
-                                                                <div className="text-xs text-gray-500">
-                                                                    {student.current_section.academic_year} - {student.current_section.semester}
-                                                                </div>
-                                                            )}
-                                                        </div>
-                                                    )}
+                                                    </div>
                                                 </td>
                                                 <td className="py-3 px-4">
                                                     <Badge variant="outline" className="font-medium">
-                                                        {student.education_level === 'college' 
-                                                            ? `${student.current_year_level || student.year_level} Year`
-                                                            : student.year_level.startsWith('Grade ') 
-                                                                ? student.year_level 
+                                                        {student.education_level === 'college'
+                                                            ? student.year_level.startsWith('1st') || student.year_level.startsWith('2nd') || student.year_level.startsWith('3rd') || student.year_level.startsWith('4th')
+                                                                ? student.year_level
+                                                                : `${student.year_level} Year`
+                                                            : student.year_level.startsWith('Grade ')
+                                                                ? student.year_level
                                                                 : `Grade ${student.year_level}`
                                                         }
                                                     </Badge>
@@ -720,11 +720,13 @@ export default function StudentsIndex({ students, programs, filters, auth, on_ho
                     {selectedStudent && (
                         <div className="space-y-6">
                             {/* Quick Stats Bar */}
-                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 p-4 bg-gradient-to-r from-blue-50 to-purple-50 rounded-lg border">
+                            <div className="grid grid-cols-2 md:grid-cols-3 gap-4 p-4 bg-gradient-to-r from-blue-50 to-purple-50 rounded-lg border">
                                 <div className="text-center">
                                     <div className="text-2xl font-bold text-blue-600">
                                         {selectedStudent.education_level === 'college'
-                                            ? `${selectedStudent.current_year_level || selectedStudent.year_level}Y`
+                                            ? selectedStudent.year_level.startsWith('1st') || selectedStudent.year_level.startsWith('2nd') || selectedStudent.year_level.startsWith('3rd') || selectedStudent.year_level.startsWith('4th')
+                                                ? selectedStudent.year_level
+                                                : `${selectedStudent.year_level} Year`
                                             : selectedStudent.year_level.startsWith('Grade ')
                                                 ? selectedStudent.year_level
                                                 : `Grade ${selectedStudent.year_level}`
@@ -743,12 +745,6 @@ export default function StudentsIndex({ students, programs, filters, auth, on_ho
                                         {selectedStudent.is_currently_enrolled ? '✓' : '✗'}
                                     </div>
                                     <div className="text-xs text-gray-600 uppercase tracking-wide">Enrolled</div>
-                                </div>
-                                <div className="text-center">
-                                    <div className="text-2xl font-bold text-orange-600">
-                                        {selectedStudent.archived_enrollments?.length || 0}
-                                    </div>
-                                    <div className="text-xs text-gray-600 uppercase tracking-wide">Past Semesters</div>
                                 </div>
                             </div>
 
@@ -958,7 +954,7 @@ export default function StudentsIndex({ students, programs, filters, auth, on_ho
                                                             <span className="text-sm font-medium text-gray-600">Year Level</span>
                                                             <div className="font-semibold text-gray-900">
                                                                 {selectedStudent.education_level === 'college'
-                                                                    ? `${selectedStudent.current_year_level || selectedStudent.year_level} Year`
+                                                                    ? `${selectedStudent.year_level} Year`
                                                                     : selectedStudent.year_level.startsWith('Grade ') 
                                                                         ? selectedStudent.year_level 
                                                                         : `Grade ${selectedStudent.year_level}`
@@ -1063,7 +1059,7 @@ export default function StudentsIndex({ students, programs, filters, auth, on_ho
                                                         </div>
                                                         <div className="font-semibold text-purple-900">
                                                             {selectedStudent.education_level === 'college'
-                                                                ? `${selectedStudent.current_year_level || selectedStudent.year_level} Year`
+                                                                ? `${selectedStudent.year_level} Year`
                                                                 : selectedStudent.year_level.startsWith('Grade ') 
                                                                     ? selectedStudent.year_level 
                                                                     : `Grade ${selectedStudent.year_level}`
@@ -1191,17 +1187,9 @@ export default function StudentsIndex({ students, programs, filters, auth, on_ho
                                     <CardTitle className="text-lg flex items-center gap-2 text-purple-700">
                                         <GraduationCap className="w-5 h-5" />
                                         Academic History
-                                        {selectedStudent.archived_enrollments?.length > 0 && (
-                                            <Badge variant="secondary" className="ml-2">
-                                                {selectedStudent.archived_enrollments.length} Semester{selectedStudent.archived_enrollments.length !== 1 ? 's' : ''}
-                                            </Badge>
-                                        )}
                                     </CardTitle>
                                     <p className="text-sm text-gray-600">
-                                        {selectedStudent.archived_enrollments?.length > 0
-                                            ? 'View complete academic history with curriculum progress'
-                                            : 'View academic history and enrollment timeline'
-                                        }
+                                        View academic history and curriculum progress
                                     </p>
                                 </CardHeader>
                                 <CardContent>
@@ -1212,16 +1200,10 @@ export default function StudentsIndex({ students, programs, filters, auth, on_ho
                                             </div>
                                             <div>
                                                 <h4 className="font-semibold text-purple-900 mb-1">
-                                                    {selectedStudent.archived_enrollments?.length > 0
-                                                        ? 'Complete Academic History'
-                                                        : 'Academic History'
-                                                    }
+                                                    Academic History
                                                 </h4>
                                                 <p className="text-sm text-purple-700">
-                                                    {selectedStudent.archived_enrollments?.length > 0
-                                                        ? 'View curriculum progress, completed subjects, and enrollment timeline'
-                                                        : 'View enrollment timeline and academic information'
-                                                    }
+                                                    View curriculum progress and completed subjects
                                                 </p>
                                             </div>
                                         </div>

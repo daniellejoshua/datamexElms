@@ -135,7 +135,9 @@ Route::middleware(['auth', 'verified', 'role:teacher'])->prefix('teacher')->name
 
     // Archived Grades
     Route::get('/archived-sections', [\App\Http\Controllers\Teacher\ArchivedSectionsController::class, 'index'])->name('archived-sections');
+    Route::get('/archived-sections/period', [\App\Http\Controllers\Teacher\ArchivedSectionsController::class, 'showByPeriod'])->name('archived-sections.period');
     Route::get('/archived-sections/{archivedSection}', [\App\Http\Controllers\Teacher\ArchivedSectionsController::class, 'show'])->name('archived-sections.show');
+    Route::get('/archived-sections/{archivedSection}/subject/{subjectId}/grades', [\App\Http\Controllers\Teacher\ArchivedSectionsController::class, 'showSubjectGrades'])->name('archived-sections.subject-grades');
     Route::post('/archived-sections/{archivedSection}/grades', [\App\Http\Controllers\Teacher\ArchivedSectionsController::class, 'updateGrades'])->name('archived-sections.update-grades');
 });
 
