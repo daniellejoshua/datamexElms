@@ -539,10 +539,14 @@ const Index = ({ currentPayment, paymentHistory, stats, currentAcademicInfo, stu
                                             <div className="p-1.5 bg-blue-100 rounded">
                                                 <DollarSign className="w-4 h-4 text-blue-600" />
                                             </div>
-                                            <h3 className="font-semibold text-blue-800">Base Semester Fee</h3>
+                                            <h3 className="font-semibold text-blue-800">
+                                                {student.education_level === 'senior_high' ? 'Base Year Level Fee' : 'Base Semester Fee'}
+                                            </h3>
                                         </div>
                                         <div className="space-y-2">
-                                            <p className="text-sm text-blue-700">Regular semester tuition</p>
+                                            <p className="text-sm text-blue-700">
+                                                {student.education_level === 'senior_high' ? 'Regular year level tuition' : 'Regular semester tuition'}
+                                            </p>
                                             <p className="text-lg font-bold text-blue-800">
                                                 +{formatCurrency(calculationData.details?.base_fee || 0)}
                                             </p>
@@ -555,7 +559,9 @@ const Index = ({ currentPayment, paymentHistory, stats, currentAcademicInfo, stu
                                             <div className="p-1.5 bg-green-100 rounded">
                                                 <GraduationCap className="w-4 h-4 text-green-600" />
                                             </div>
-                                            <h3 className="font-semibold text-green-800">Already Credited Subjects on This Semester</h3>
+                                            <h3 className="font-semibold text-green-800">
+                                                Already Credited Subjects on This {student.education_level === 'senior_high' ? 'Year Level' : 'Semester'}
+                                            </h3>
                                         </div>
                                         <div className="space-y-2">
                                             <p className="text-sm text-green-700">

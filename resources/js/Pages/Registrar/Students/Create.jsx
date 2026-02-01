@@ -8,7 +8,7 @@ import { Label } from '@/components/ui/label'
 import { NumberInput } from '@/components/ui/number-input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
-import { UserPlus, ArrowLeft, GraduationCap, BookOpen, AlertTriangle, DollarSign, Info, Plus, X, CheckCircle2, Lock } from 'lucide-react'
+import { UserPlus, ArrowLeft, GraduationCap, BookOpen, AlertTriangle, DollarSign, Info, Plus, X, CheckCircle2, Lock, Save } from 'lucide-react'
 import { useState, useEffect, useRef } from 'react'
 import { toast } from 'sonner'
 
@@ -451,6 +451,12 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
     const [createGuideChecked, setCreateGuideChecked] = useState(false)
     const lastErrorRef = useRef('')
     
+    // Computed value for automatic transferee logic
+    const shouldBeTransferee = !isExistingStudent && !isReturningStudent && data.program_id && data.year_level && (
+        (data.education_level === 'college' && ['2nd Year', '3rd Year', '4th Year'].includes(data.year_level)) ||
+        (data.education_level === 'senior_high' && ['Grade 12', '2'].includes(data.year_level))
+    )
+    
     // Form locking state - lock in 2nd semester mode unless student is checked/found
     const [formUnlocked, setFormUnlocked] = useState(currentSemester !== '2nd')
     
@@ -473,12 +479,12 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
     const [creditedSubjects, setCreditedSubjects] = useState([])
     const [subjectsToCatchUp, setSubjectsToCatchUp] = useState([])
     const [showCreditModal, setShowCreditModal] = useState(false)
+    const [creditModalStep, setCreditModalStep] = useState(1) // 1: School/Program, 2: Subject Grading, 3: Status Determination
     const [curriculumComparison, setCurriculumComparison] = useState(null)
     const [loadingCurriculumComparison, setLoadingCurriculumComparison] = useState(false)
     const [subjectSearchQuery, setSubjectSearchQuery] = useState('')
     const [feeAdjustments, setFeeAdjustments] = useState({ creditedPassed: [], pastSubjectsToCatchUp: [], creditedFailed: [], isIrregular: undefined })
-
-
+    const [invalidGrades, setInvalidGrades] = useState({}) // Track invalid grades by subject_id
 
 
 
@@ -688,16 +694,36 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
             }
         }
     }, [data.year_level, data.enrollment_type, data.education_level, currentSemester])
+
+    // Auto-set enrollment type for non-existing students in higher year levels
+    useEffect(() => {
+        if (data.program_id && data.year_level && data.education_level && !isExistingStudent && !isReturningStudent) {
+            const isCollege = data.education_level === 'college'
+            const isShs = data.education_level === 'senior_high'
+            
+            // Check if student is in higher year levels that would require them to be transferees
+            const isHigherLevel = isCollege 
+                ? ['2nd Year', '3rd Year', '4th Year'].includes(data.year_level)  // Removed '5th Year'
+                : ['Grade 12', '2'].includes(data.year_level)
+            
+            if (isHigherLevel && data.enrollment_type !== 'transferee') {
+                setData('enrollment_type', 'transferee')
+                toast.info(`Automatically set to Transferee - ${data.year_level} students must be transferees if not existing students`)
+            }
+        }
+    }, [data.program_id, data.year_level, data.education_level, isExistingStudent, isReturningStudent, data.enrollment_type])
     
     // Handle shiftee/transferee selection
     useEffect(() => {
         if (data.enrollment_type === 'shiftee') {
             setIsShiftee(true)
             setIsTransferee(false)
+            setData(prev => ({ ...prev, enrollment_fee: prev.enrollment_fee })) // Keep existing fee for shiftee
         } else if (data.enrollment_type === 'transferee') {
             setIsTransferee(true)
             setIsShiftee(false)
-            setShowCreditModal(true)
+            setData(prev => ({ ...prev, enrollment_fee: '' })) // Clear fee for transferee - to be calculated
+            // Removed: setShowCreditModal(true) - will be triggered from confirmation modal instead
         } else {
             setIsTransferee(false)
             // Don't reset shiftee here if it's set by course shift detection
@@ -1321,13 +1347,12 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
             return
         }
         
-        // Show summary modal instead of direct submission
+        // Show summary modal for confirmation
         setShowSummaryModal(true)
     }
 
     const handleConfirmRegistration = () => {
-        // Reset modal state before submission
-        setShowSummaryModal(false)
+        // Reset error modal state before submission
         setShowErrorModal(false)
         setErrorMessage('')
         
@@ -1411,6 +1436,12 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
             console.log('  passing subjects (>=75):', passingCreditedSubjects.length)
             console.log('  credited_subjects:', passingCreditedSubjects)
             console.log('👤 Regular student - No credit transfer data')
+        }
+        
+        // For transferees with subjects to catch up, automatically set as irregular
+        if (data.enrollment_type === 'transferee' && (subjectsToCatchUp.length > 0 || feeAdjustments.isIrregular)) {
+            submitData.student_type = 'irregular'
+            console.log('📚 TRANSFEREE with subjects to catch up - Setting as IRREGULAR student')
         }
         
         console.log('Form submitting with data:', submitData)
@@ -2076,6 +2107,19 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                                 </div>
                             </>
                         )}
+
+                        {/* Show message when no program and year level are selected */}
+                        {(!data.program_id || !data.year_level) && (
+                            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+                                <div className="flex items-center gap-2">
+                                    <Info className="w-5 h-5 text-blue-600" />
+                                    <p className="text-sm text-blue-800 font-medium">
+                                        Choose a program and year level first
+                                    </p>
+                                </div>
+                            </div>
+                        )}
+
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                             <div className="relative">
                                 <Label htmlFor="program_id" className="text-sm font-medium">Program *</Label>
@@ -2214,53 +2258,81 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
 
                         <div>
                             <Label htmlFor="enrollment_type" className="text-sm font-medium">Enrollment Type *</Label>
-                            <Select
-                                value={data.enrollment_type ?? ''}
-                                onValueChange={(value) => setData('enrollment_type', value)}
-                                disabled={!formUnlocked || (data.year_level === '1st Year' || data.year_level === 'Grade 11')}
-                            >
-                                <SelectTrigger className={`h-10 ${errors.student_type ? 'border-red-500' : 'border-gray-300 focus:border-green-500'} ${(data.year_level === '1st Year' || data.year_level === 'Grade 11') ? 'bg-gray-50 cursor-not-allowed' : ''}`}>
-                                    <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    {(() => {
-                                        const isCollege = data.education_level === 'college'
-                                        const isShs = data.education_level === 'senior_high'
-                                        const canBeNew = isCollege
-                            ? (data.year_level === '1st Year' && currentSemester === '1st')
-                            : isShs && ((data.year_level === 'Grade 11' || data.year_level === '1') && currentSemester === '1st')
-                                        const canBeShiftee = isExistingStudent || isReturningStudent
-                                        const isSecondSemester = currentSemester === '2nd'
+                            {isExistingStudent ? (
+                                // For existing students, show the dropdown
+                                <Select
+                                    value={data.enrollment_type ?? ''}
+                                    onValueChange={(value) => setData('enrollment_type', value)}
+                                    disabled={!formUnlocked || (data.year_level === '1st Year' || data.year_level === 'Grade 11') || (!data.program_id || !data.year_level) || shouldBeTransferee}
+                                >
+                                    <SelectTrigger className={`h-10 ${errors.student_type ? 'border-red-500' : 'border-gray-300 focus:border-green-500'} ${(data.year_level === '1st Year' || data.year_level === 'Grade 11') || (!data.program_id || !data.year_level) || shouldBeTransferee ? 'bg-gray-50 cursor-not-allowed' : ''}`}>
+                                        <SelectValue placeholder="Select enrollment type">
+                                            {data.enrollment_type === 'new' && (data.year_level === '1st Year' || data.year_level === 'Grade 11') && `👤 New Student (Automatically selected for ${data.year_level})`}
+                                            {data.enrollment_type === 'transferee' && shouldBeTransferee && `📚 Transferee (Automatically selected for ${data.year_level})`}
+                                        </SelectValue>
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {(() => {
+                                            const isCollege = data.education_level === 'college'
+                                            const isShs = data.education_level === 'senior_high'
+                                            const canBeNew = isCollege
+                                ? (data.year_level === '1st Year' && currentSemester === '1st')
+                                : isShs && ((data.year_level === 'Grade 11' || data.year_level === '1') && currentSemester === '1st')
+                                            const canBeShiftee = isExistingStudent || isReturningStudent
+                                            const isSecondSemester = currentSemester === '2nd'
 
-                                        // If year level is 1st Year or Grade 11, only show "new" option
-                                        if (data.year_level === '1st Year' || data.year_level === 'Grade 11') {
+                                            // If year level is 1st Year or Grade 11, only show "new" option
+                                            if (data.year_level === '1st Year' || data.year_level === 'Grade 11') {
+                                                return (
+                                                    <SelectItem value="new">
+                                                        👤 New Student (Automatically selected for {data.year_level})
+                                                    </SelectItem>
+                                                )
+                                            }
+
+                                            // If should be transferee automatically, only show transferee option
+                                            if (shouldBeTransferee) {
+                                                return (
+                                                    <SelectItem value="transferee">
+                                                        📚 Transferee (Automatically selected for {data.year_level} - not existing student)
+                                                    </SelectItem>
+                                                )
+                                            }
+
                                             return (
-                                                <SelectItem value="new">
-                                                    👤 New Student (Automatically selected for {data.year_level})
-                                                </SelectItem>
-                                            )
-                                        }
-
-                                        return (
-                                            <>
-                                                <SelectItem value="new" disabled={!canBeNew || isSecondSemester}>
-                                                    👤 New Student
-                                                    {(!canBeNew || isSecondSemester) && (
-                                                        <span className="text-xs text-gray-400 ml-2">
-                                                            {!canBeNew ? '(Only for 1st Year, 1st Semester)' : '(Not available in 2nd semester)'}
-                                                        </span>
+                                                <>
+                                                    {/* Only show new student for 1st year students */}
+                                                    {(data.year_level === '1st Year' || data.year_level === 'Grade 11') && (
+                                                        <SelectItem value="new" disabled={!canBeNew || isSecondSemester}>
+                                                            👤 New Student
+                                                            {(!canBeNew || isSecondSemester) && (
+                                                                <span className="text-xs text-gray-400 ml-2">
+                                                                    {!canBeNew ? '(Only for 1st Year, 1st Semester)' : '(Not available in 2nd semester)'}
+                                                                </span>
+                                                            )}
+                                                        </SelectItem>
                                                     )}
-                                                </SelectItem>
-                                                <SelectItem value="returning" disabled={isSecondSemester && !isExistingStudent}>
-                                                    🔄 Returning Student (Regular Re-enrollment)
-                                                    {isSecondSemester && !isExistingStudent && (
-                                                        <span className="text-xs text-gray-400 ml-2">
-                                                            (Only for students enrolled in 1st semester)
-                                                        </span>
+                                                    
+                                                    {/* Show transferee for students above 1st year */}
+                                                    {(data.year_level !== '1st Year' && data.year_level !== 'Grade 11') && (
+                                                        <SelectItem value="transferee">
+                                                            📚 Transferee (From Another School)
+                                                        </SelectItem>
                                                     )}
-                                                </SelectItem>
-                                                {data.education_level === 'college' && !isSecondSemester && (
-                                                    <>
+                                                    
+                                                    {/* Only show returning student if auto-detected */}
+                                                    {isReturningStudent && (
+                                                        <SelectItem value="returning" disabled={isSecondSemester && !isExistingStudent}>
+                                                            🔄 Returning Student (Regular Re-enrollment)
+                                                            {isSecondSemester && !isExistingStudent && (
+                                                                <span className="text-xs text-gray-400 ml-2">
+                                                                    (Only for students enrolled in 1st semester)
+                                                                </span>
+                                                            )}
+                                                        </SelectItem>
+                                                    )}
+                                                    
+                                                    {data.education_level === 'college' && !isSecondSemester && (
                                                         <SelectItem value="shiftee" disabled={!canBeShiftee}>
                                                             📋 Course Shiftee (Changing Program)
                                                             {!canBeShiftee && (
@@ -2269,16 +2341,26 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                                                                 </span>
                                                             )}
                                                         </SelectItem>
-                                                        <SelectItem value="transferee">
-                                                            📚 Transferee (From Another School)
-                                                        </SelectItem>
-                                                    </>
-                                                )}
-                                            </>
-                                        )
-                                    })()}
-                                </SelectContent>
-                            </Select>
+                                                    )}
+                                                </>
+                                            )
+                                        })()}
+                                    </SelectContent>
+                                </Select>
+                            ) : (
+                                // For non-existing students, show just text
+                                <div className="h-10 px-3 py-2 bg-gray-50 border border-gray-300 rounded-md flex items-center text-sm text-gray-700">
+                                    {data.enrollment_type === 'new' && (data.year_level === '1st Year' || data.year_level === 'Grade 11') && (
+                                        <>👤 New Student (Automatically selected for {data.year_level})</>
+                                    )}
+                                    {data.enrollment_type === 'transferee' && shouldBeTransferee && (
+                                        <>📚 Transferee (Automatically selected for {data.year_level})</>
+                                    )}
+                                    {!data.enrollment_type && (
+                                        <>Select year level to see enrollment type</>
+                                    )}
+                                </div>
+                            )}
                             {errors.student_type && (
                                 <p className="text-red-500 text-sm mt-1">{errors.student_type}</p>
                             )}
@@ -2305,6 +2387,11 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                             {data.enrollment_type === 'shiftee' && (
                                 <p className="text-xs text-purple-600 mt-1">
                                     Course shift detected - Use "Compare Subjects & Credits" to review transferred credits
+                                </p>
+                            )}
+                            {shouldBeTransferee && (
+                                <p className="text-xs text-purple-600 mt-1">
+                                    🔒 Enrollment type automatically set to "Transferee" for {data.year_level} students (not existing)
                                 </p>
                             )}
                         </div>
@@ -2413,7 +2500,16 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                                     <DollarSign className="w-4 h-4" />
                                     Enrollment Fee
                                 </Label>
-                                {data.student_type === 'irregular' ? (
+                                {data.enrollment_type === 'transferee' ? (
+                                    <div className="p-3 bg-blue-50 border border-blue-200 rounded-md">
+                                        <p className="text-sm text-blue-800 font-medium">
+                                            To be calculated
+                                        </p>
+                                        <p className="text-xs text-blue-600 mt-1">
+                                            Transferee enrollment fee will be calculated after determining the catch-up subjects they need to take before prelim payment.
+                                        </p>
+                                    </div>
+                                ) : data.student_type === 'irregular' ? (
                                     <div className="p-3 bg-gray-50 border border-gray-200 rounded-md">
                                         <p className="text-sm text-gray-600">
                                             Irregular students' enrollment fee will be calculated after determining the catch-up subjects they need to take before prelim payment.
@@ -2515,7 +2611,42 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                     >
                         Cancel
                     </Button>
-                    <Button type="submit" disabled={processing || !formUnlocked}>
+
+                    {/* Credit Subjects Button for Transferees */}
+                    {data.enrollment_type === 'transferee' && (
+                        <Button
+                            type="button"
+                            variant="outline"
+                            onClick={() => setShowCreditModal(true)}
+                            disabled={processing}
+                            className="bg-purple-50 border-purple-200 text-purple-700 hover:bg-purple-100"
+                        >
+                            <BookOpen className="w-4 h-4 mr-2" />
+                            Credit Subjects
+                            {creditedSubjects && creditedSubjects.length > 0 && (
+                                <span className="ml-2 bg-purple-200 text-purple-800 px-2 py-0.5 rounded-full text-xs">
+                                    {creditedSubjects.length}
+                                </span>
+                            )}
+                        </Button>
+                    )}
+
+                    {/* Warning for incomplete credit subjects */}
+                    {data.enrollment_type === 'transferee' && (!previousSchool || !feeAdjustments) && (
+                        <div className="flex items-center gap-2 text-amber-600 text-sm">
+                            <AlertTriangle className="w-4 h-4" />
+                            {!previousSchool ? 'Enter previous school information' : 'Complete credit evaluation and determine student status first'}
+                        </div>
+                    )}
+
+                    <Button
+                        type="submit"
+                        disabled={
+                            processing ||
+                            !formUnlocked ||
+                            (data.enrollment_type === 'transferee' && !feeAdjustments)
+                        }
+                    >
                         <UserPlus className="w-4 h-4 mr-2" />
                         {processing ? 'Processing...' : isExistingStudent ? 'Update Student' : 'Register Student'}
                     </Button>
@@ -3239,7 +3370,11 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                             <div>
                                 <span className="text-sm font-medium text-gray-600">Status</span>
                                 <p className="text-sm font-semibold">
-                                    {data.student_type === 'regular' ? '✓ Regular' : '⚠ Irregular'}
+                                    {data.enrollment_type === 'transferee' && (subjectsToCatchUp.length > 0 || feeAdjustments.isIrregular)
+                                        ? '⚠ Irregular (Has subjects to catch up)'
+                                        : data.student_type === 'regular' 
+                                        ? '✓ Regular' 
+                                        : '⚠ Irregular'}
                                 </p>
                             </div>
                             <div>
@@ -3253,7 +3388,11 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                             <div className="grid grid-cols-2 gap-4">
                                 <div>
                                     <span className="text-sm font-medium text-gray-600">Enrollment Fee</span>
-                                    <p className="text-sm font-semibold">₱{data.enrollment_fee || '0.00'}</p>
+                                    <p className="text-sm font-semibold">
+                                        {data.enrollment_type === 'transferee' && (subjectsToCatchUp.length > 0 || feeAdjustments.isIrregular) || data.student_type !== 'regular'
+                                            ? 'To be calculated'
+                                            : `₱${data.enrollment_fee || '0.00'}`}
+                                    </p>
                                 </div>
                                 <div>
                                     <span className="text-sm font-medium text-gray-600">Payment Amount</span>
@@ -3263,8 +3402,10 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                             {calculatedBalance !== 0 && (
                                 <div className="mt-2 pt-2 border-t border-orange-200">
                                     <span className="text-sm font-medium text-gray-600">Balance</span>
-                                    <p className={`text-sm font-semibold ${calculatedBalance > 0 ? 'text-red-600' : 'text-green-600'}`}>
-                                        ₱{Math.abs(calculatedBalance).toFixed(2)} {calculatedBalance > 0 ? 'Due' : 'Overpayment'}
+                                    <p className={`text-sm font-semibold ${data.enrollment_type === 'transferee' && (subjectsToCatchUp.length > 0 || feeAdjustments.isIrregular) || data.student_type !== 'regular' ? '' : (calculatedBalance > 0 ? 'text-red-600' : 'text-green-600')}`}>
+                                        {data.enrollment_type === 'transferee' && (subjectsToCatchUp.length > 0 || feeAdjustments.isIrregular) || data.student_type !== 'regular'
+                                            ? 'To be calculated'
+                                            : `₱${Math.abs(calculatedBalance).toFixed(2)} ${calculatedBalance > 0 ? 'Due' : 'Overpayment'}`}
                                     </p>
                                 </div>
                             )}
@@ -3281,6 +3422,7 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                         >
                             Cancel
                         </Button>
+                        
                         <Button
                             onClick={handleConfirmRegistration}
                             disabled={processing}
@@ -3293,92 +3435,539 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                 </DialogContent>
             </Dialog>
 
-            {/* Course Shifting / Transferee Credit Modal */}
             <Dialog open={showCreditModal} onOpenChange={setShowCreditModal}>
-                <DialogContent className="max-w-7xl max-h-[90vh] overflow-y-auto">
-                    <DialogHeader>
-                        <DialogTitle className="flex items-center gap-2">
-                            {isShiftee ? '🔄 Course Shifting' : '📚 Transferee'} - Subject Credit Evaluation
+                <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
+                    <DialogHeader className="flex-shrink-0 pb-3 border-b">
+                        <DialogTitle className="flex items-center gap-2 text-lg">
+                            <div className="p-1.5 bg-blue-100 rounded-md">
+                                {isShiftee ? '🔄' : '📚'}
+                            </div>
+                            <div>
+                                <div className="font-semibold">{isShiftee ? 'Course Shifting' : 'Transferee'} - Credit Evaluation</div>
+                                <div className="text-xs font-normal text-gray-600">
+                                    Step {creditModalStep} of 3: {
+                                        creditModalStep === 1 ? (isShiftee ? 'Select Program' : 'Enter School Information') :
+                                        creditModalStep === 2 ? 'Grade Subjects' :
+                                        'Determine Status'
+                                    }
+                                </div>
+                            </div>
                         </DialogTitle>
-                        <DialogDescription>
-                            {isShiftee 
-                                ? 'Compare curriculum between programs and identify subjects that need to be caught up or can be credited.'
-                                : 'Enter subjects completed at previous school to determine credits and subjects to catch up.'}
-                        </DialogDescription>
                     </DialogHeader>
 
-                    <div className="space-y-6 py-4">
-                        {/* Previous Program/School Selection */}
-                        {isShiftee && (
-                            <div className="grid grid-cols-2 gap-4">
-                                <div>
-                                    <Label className="text-sm font-medium">Program to Shift To *</Label>
-                                    <Select
-                                        value={previousProgram?.id?.toString() || ''}
-                                        onValueChange={(value) => {
-                                            const program = collegePrograms.find(p => p.id === parseInt(value))
-                                            setPreviousProgram(program)
-                                        }}
-                                    >
-                                        <SelectTrigger className="h-10">
-                                            <SelectValue placeholder="Select program to shift to" />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            {collegePrograms
-                                                .filter(p => p.id !== parseInt(data.program_id))
-                                                .map(program => (
-                                                    <SelectItem key={program.id} value={program.id.toString()}>
-                                                        {program.program_code} - {program.program_name}
-                                                    </SelectItem>
-                                                ))}
-                                        </SelectContent>
-                                    </Select>
-                                    <p className="text-xs text-gray-500 mt-1">Select the program you're shifting to</p>
+                    <div className="flex-1 overflow-y-auto py-4">
+                        {/* Step Content */}
+                        {creditModalStep === 1 && (
+                            <div className="space-y-6">
+                                {/* Step 1: Previous Program/School Selection */}
+                                {isShiftee && (
+                                    <div className="bg-white border border-blue-200 rounded-lg p-6">
+                                        <div className="flex items-center gap-2 mb-4">
+                                            <div className="p-1.5 bg-blue-100 rounded-md">
+                                                <BookOpen className="w-4 h-4 text-blue-600" />
+                                            </div>
+                                            <h3 className="font-semibold text-gray-900 text-base">Select Program to Shift To</h3>
+                                        </div>
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                            <div className="space-y-2">
+                                                <Label className="text-sm font-semibold text-gray-700">Program to Shift To *</Label>
+                                                <Select
+                                                    value={previousProgram?.id?.toString() || ''}
+                                                    onValueChange={(value) => {
+                                                        const program = collegePrograms.find(p => p.id === parseInt(value))
+                                                        setPreviousProgram(program)
+                                                    }}
+                                                >
+                                                    <SelectTrigger className="h-12 border-2 border-gray-200 focus:border-blue-500">
+                                                        <SelectValue placeholder="Select program to shift to" />
+                                                    </SelectTrigger>
+                                                    <SelectContent>
+                                                        {collegePrograms
+                                                            .filter(p => p.id !== parseInt(data.program_id))
+                                                            .map(program => (
+                                                                <SelectItem key={program.id} value={program.id.toString()}>
+                                                                    <div className="flex flex-col">
+                                                                        <span className="font-medium">{program.program_code}</span>
+                                                                        <span className="text-xs text-gray-500">{program.program_name}</span>
+                                                                    </div>
+                                                                </SelectItem>
+                                                            ))}
+                                                    </SelectContent>
+                                                </Select>
+                                                <p className="text-xs text-gray-500">Select the program you're shifting to</p>
+                                            </div>
+                                            <div className="space-y-2">
+                                                <Label className="text-sm font-semibold text-gray-700">Current Year Level</Label>
+                                                <Input
+                                                    type="text"
+                                                    value={data.year_level}
+                                                    readOnly
+                                                    className="h-12 bg-gray-50 border-2 border-gray-200"
+                                                />
+                                                <p className="text-xs text-gray-500">Your current year level in the new program</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {isTransferee && (
+                                    <div className="bg-white border border-blue-200 rounded-lg p-6">
+                                        <div className="flex items-center gap-2 mb-4">
+                                            <div className="p-1.5 bg-blue-100 rounded-md">
+                                                <BookOpen className="w-4 h-4 text-blue-600" />
+                                            </div>
+                                            <h3 className="font-semibold text-gray-900 text-base">Previous School Information</h3>
+                                        </div>
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                            <div className="space-y-2">
+                                                <Label className="text-sm font-semibold text-gray-700">Previous School Name *</Label>
+                                                <Input
+                                                    type="text"
+                                                    value={previousSchool}
+                                                    onChange={(e) => setPreviousSchool(e.target.value)}
+                                                    placeholder="e.g., University of the Philippines"
+                                                    className="h-12 border-2 border-gray-200 focus:border-blue-500"
+                                                />
+                                                <p className="text-xs text-gray-500">Full name of your previous school/university</p>
+                                            </div>
+                                            <div className="space-y-2">
+                                                <Label className="text-sm font-semibold text-gray-700">Current Year Level</Label>
+                                                <Input
+                                                    type="text"
+                                                    value={data.year_level}
+                                                    readOnly
+                                                    className="h-12 bg-gray-50 border-2 border-gray-200"
+                                                />
+                                                <p className="text-xs text-gray-500">Your current year level in this school</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        )}
+
+                        {creditModalStep === 2 && curriculumComparison && (
+                            <div className="space-y-6">
+                                {/* Step 2: Subject Grading */}
+                                <div className="bg-blue-50 border border-blue-200 rounded-lg p-6">
+                                    <div className="flex items-center gap-3 mb-4">
+                                        <div className="p-2 bg-blue-100 rounded-lg">
+                                            <CheckCircle2 className="w-5 h-5 text-blue-600" />
+                                        </div>
+                                        <div className="flex-1">
+                                            <h3 className="font-semibold text-gray-900 text-base">Grade Subjects</h3>
+                                            <p className="text-xs text-gray-600">
+                                                {curriculumComparison.new_program?.name} • {data.year_level} • {curriculumComparison.new_program?.curriculum?.subjects?.length || 0} subjects
+                                            </p>
+                                        </div>
+                                        <Badge variant="outline" className="bg-blue-100 text-blue-700 border-blue-300 px-2 py-1 text-xs">
+                                            {creditedSubjects.length} selected
+                                        </Badge>
+                                    </div>
                                 </div>
-                                <div>
-                                    <Label className="text-sm font-medium">Current Year Level *</Label>
-                                    <Input
-                                        type="text"
-                                        value={data.year_level}
-                                        readOnly
-                                        className="bg-gray-50 h-10"
-                                    />
-                                    <p className="text-xs text-gray-500 mt-1">Your current year level in the new program</p>
+
+                                {/* Subject List */}
+                                <div className="bg-white border border-gray-200 rounded-lg p-6">
+                                    <div className="flex items-center justify-between mb-4">
+                                        <h4 className="font-semibold text-gray-900">Available Subjects</h4>
+                                        <div className="flex gap-2">
+                                            <Input
+                                                type="text"
+                                                placeholder="Search subjects..."
+                                                value={subjectSearchQuery}
+                                                onChange={(e) => setSubjectSearchQuery(e.target.value)}
+                                                className="w-48 h-8 text-sm"
+                                            />
+                                        </div>
+                                    </div>
+
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-h-96 overflow-y-auto">
+                                        {curriculumComparison.new_program?.curriculum?.subjects
+                                            ?.filter(subject =>
+                                                subject.subject_name.toLowerCase().includes(subjectSearchQuery.toLowerCase()) ||
+                                                subject.subject_code.toLowerCase().includes(subjectSearchQuery.toLowerCase())
+                                            )
+                                            .map((subject, index) => {
+                                                const isSelected = creditedSubjects.some(cs => cs.subject_id === subject.subject_id)
+                                                const selectedSubject = creditedSubjects.find(cs => cs.subject_id === subject.subject_id)
+
+                                                return (
+                                                    <div
+                                                        key={index}
+                                                        onClick={(e) => {
+                                                            // Don't toggle if clicking on the input field
+                                                            if (e.target.tagName === 'INPUT' && e.target.type === 'number') return
+
+                                                            if (isSelected) {
+                                                                setCreditedSubjects(prev => prev.filter(cs => cs.subject_id !== subject.subject_id))
+                                                                // Clear invalid grade state when deselecting
+                                                                setInvalidGrades(prev => {
+                                                                    const newState = { ...prev }
+                                                                    delete newState[subject.subject_id]
+                                                                    return newState
+                                                                })
+                                                            } else {
+                                                                setCreditedSubjects(prev => [...prev, {
+                                                                    subject_id: subject.subject_id,
+                                                                    subject_code: subject.subject_code,
+                                                                    subject_name: subject.subject_name,
+                                                                    year_level: subject.year_level,
+                                                                    semester: subject.semester,
+                                                                    units: subject.units,
+                                                                    grade: ''
+                                                                }])
+                                                            }
+                                                        }}
+                                                        className={`relative rounded-lg p-4 border-2 cursor-pointer transition-all duration-200 ${
+                                                            isSelected
+                                                                ? 'bg-blue-50 border-blue-400 shadow-md hover:bg-blue-100'
+                                                                : 'bg-white border-gray-200 hover:border-blue-300 hover:shadow-sm'
+                                                        }`}
+                                                    >
+                                                        {/* Selection indicator */}
+                                                        <div className={`absolute top-2 right-2 w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all duration-200 ${
+                                                            isSelected
+                                                                ? 'bg-blue-500 border-blue-500'
+                                                                : 'border-gray-300'
+                                                        }`}>
+                                                            {isSelected && <CheckCircle2 className="w-3 h-3 text-white" />}
+                                                        </div>
+
+                                                        <div className="pr-8">
+                                                            <div className="font-semibold text-gray-900 text-sm mb-1">{subject.subject_code}</div>
+                                                            <div className="text-gray-600 text-sm mb-2 line-clamp-2">{subject.subject_name}</div>
+
+                                                            <div className="flex flex-wrap gap-1 mb-3">
+                                                                <Badge variant="secondary" className="text-xs px-1.5 py-0.5">
+                                                                    Y{subject.year_level}
+                                                                </Badge>
+                                                                <Badge variant="secondary" className="text-xs px-1.5 py-0.5">
+                                                                    {subject.semester}
+                                                                </Badge>
+                                                                <Badge variant="outline" className="text-xs px-1.5 py-0.5">
+                                                                    {subject.units} units
+                                                                </Badge>
+                                                            </div>
+
+                                                            {isSelected && (
+                                                                <div className="pt-2 border-t border-blue-200">
+                                                                    {isTransferee ? (
+                                                                        <div className="space-y-2">
+                                                                            <div className="text-xs text-gray-600 font-medium">Select GPA:</div>
+                                                                            <div className="flex flex-wrap gap-1">
+                                                                                {['1.00', '1.25', '1.50', '1.75', '2.00', '2.25', '2.50', '2.75', '3.00', '5.00'].map((gpa) => (
+                                                                                    <button
+                                                                                        key={gpa}
+                                                                                        onClick={(e) => {
+                                                                                            e.stopPropagation() // Prevent card click from triggering
+                                                                                            // Update credited subjects
+                                                                                            setCreditedSubjects(prev =>
+                                                                                                prev.map(cs =>
+                                                                                                    cs.subject_id === subject.subject_id
+                                                                                                        ? { ...cs, grade: gpa }
+                                                                                                        : cs
+                                                                                                )
+                                                                                            )
+                                                                                            // Clear any invalid grade state
+                                                                                            setInvalidGrades(prev => {
+                                                                                                const newState = { ...prev }
+                                                                                                delete newState[subject.subject_id]
+                                                                                                return newState
+                                                                                            })
+                                                                                        }}
+                                                                                        className={`px-2 py-1 text-xs font-medium rounded border transition-colors ${
+                                                                                            selectedSubject.grade === gpa
+                                                                                                ? parseFloat(gpa) <= 3.00
+                                                                                                    ? 'bg-blue-500 text-white border-blue-500'
+                                                                                                    : 'bg-red-500 text-white border-red-500'
+                                                                                                : parseFloat(gpa) <= 3.00
+                                                                                                ? 'bg-white text-gray-700 border-gray-300 hover:bg-blue-50 hover:border-blue-300'
+                                                                                                : 'bg-red-100 text-red-700 border-red-300 hover:bg-red-200'
+                                                                                        }`}
+                                                                                    >
+                                                                                        {gpa}
+                                                                                    </button>
+                                                                                ))}
+                                                                            </div>
+                                                                            {selectedSubject.grade && (
+                                                                                <div className="text-xs text-blue-600 font-medium">
+                                                                                    Selected: {selectedSubject.grade} GPA
+                                                                                </div>
+                                                                            )}
+                                                                        </div>
+                                                                    ) : (
+                                                                        <div className="flex items-center gap-2">
+                                                                            <Input
+                                                                                type="number"
+                                                                                placeholder="Grade"
+                                                                                value={selectedSubject.grade || ''}
+                                                                                onChange={(e) => {
+                                                                                    const grade = e.target.value
+                                                                                    const numericGrade = parseFloat(grade)
+                                                                                    
+                                                                                    // Validate grade range (1-100)
+                                                                                    const isValid = grade === '' || (!isNaN(numericGrade) && numericGrade >= 1 && numericGrade <= 100)
+                                                                                    
+                                                                                    // Update invalid grades state
+                                                                                    setInvalidGrades(prev => ({
+                                                                                        ...prev,
+                                                                                        [subject.subject_id]: !isValid
+                                                                                    }))
+                                                                                    
+                                                                                    // Show toast error for invalid grades
+                                                                                    if (!isValid && grade !== '') {
+                                                                                        toast.error('Grade must be between 1 and 100')
+                                                                                    }
+                                                                                    
+                                                                                    // Update credited subjects
+                                                                                    setCreditedSubjects(prev =>
+                                                                                        prev.map(cs =>
+                                                                                            cs.subject_id === subject.subject_id
+                                                                                                ? { ...cs, grade }
+                                                                                                : cs
+                                                                                        )
+                                                                                    )
+                                                                                }}
+                                                                                className={`flex-1 h-8 text-sm ${
+                                                                                    invalidGrades[subject.subject_id]
+                                                                                        ? 'border-red-500 focus:border-red-500 bg-red-50'
+                                                                                        : 'border-blue-300 focus:border-blue-500'
+                                                                                }`}
+                                                                                min="1"
+                                                                                max="100"
+                                                                            />
+                                                                            <span className="text-xs text-gray-500 font-medium">%</span>
+                                                                        </div>
+                                                                    )}
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                )
+                                            })}
+                                    </div>
                                 </div>
                             </div>
                         )}
 
-                        {isTransferee && (
+                        {creditModalStep === 3 && feeAdjustments && (
                             <div className="space-y-6">
-                                <div className="grid grid-cols-2 gap-4">
-                                    <div>
-                                        <Label className="text-sm font-medium">Previous School *</Label>
-                                        <Input
-                                            type="text"
-                                            value={previousSchool}
-                                            onChange={(e) => setPreviousSchool(e.target.value)}
-                                            placeholder="Enter previous school name"
-                                            className="h-10"
-                                        />
-                                        <p className="text-xs text-gray-500 mt-1">Name of your previous school/university</p>
-                                    </div>
-                                    <div>
-                                        <Label className="text-sm font-medium">Current Year Level *</Label>
-                                        <Input
-                                            type="text"
-                                            value={data.year_level}
-                                            readOnly
-                                            className="bg-gray-50 h-10"
-                                        />
-                                        <p className="text-xs text-gray-500 mt-1">Your current year level in this school</p>
+                                {/* Step 3: Status Determination Results */}
+                                <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border-2 border-blue-200 rounded-xl p-6 shadow-sm">
+                                    <div className="flex items-center gap-4 mb-4">
+                                        <div className="p-3 bg-blue-100 rounded-xl">
+                                            <CheckCircle2 className="w-6 h-6 text-blue-600" />
+                                        </div>
+                                        <div className="flex-1">
+                                            <h3 className="font-bold text-gray-900 text-lg">Credit Evaluation Results</h3>
+                                            <p className="text-sm text-gray-600">
+                                                Review the credit evaluation results and student status determination
+                                            </p>
+                                        </div>
+                                        <div className={`px-4 py-2 rounded-lg font-bold text-sm ${
+                                            feeAdjustments.isIrregular 
+                                                ? 'bg-yellow-100 text-yellow-800 border-2 border-yellow-300' 
+                                                : 'bg-green-100 text-green-800 border-2 border-green-300'
+                                        }`}>
+                                            {feeAdjustments.isIrregular ? 'Irregular Student' : 'Regular Student'}
+                                        </div>
                                     </div>
                                 </div>
 
-                                {/* Load Curriculum Button */}
-                                {previousSchool && !curriculumComparison && (
-                                    <div className="flex justify-center">
-                                        <Button
-                                            onClick={async () => {
+                                {/* Results Grid - 2 columns for better space usage */}
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    {/* Credited Subjects (Passed) */}
+                                    {feeAdjustments.creditedPassed?.length > 0 && (
+                                        <div className="bg-green-50 border-2 border-green-300 rounded-xl p-6 shadow-sm">
+                                            <div className="flex items-center justify-between mb-4">
+                                                <div className="flex items-center gap-3">
+                                                    <div className="p-2 bg-green-100 rounded-lg">
+                                                        <CheckCircle2 className="w-5 h-5 text-green-600" />
+                                                    </div>
+                                                    <h4 className="font-bold text-green-900">Credited Subjects ({isTransferee ? 'GPA ≤ 3.00' : 'Grade ≥ 75'})</h4>
+                                                </div>
+                                                <Badge variant="outline" className="bg-green-100 text-green-700 border-green-300 px-3 py-1">
+                                                    {feeAdjustments.creditedPassed.length} subject{feeAdjustments.creditedPassed.length !== 1 ? 's' : ''}
+                                                </Badge>
+                                            </div>
+                                            <div className="space-y-3 max-h-64 overflow-y-auto">
+                                                {feeAdjustments.creditedPassed.map((subj, idx) => (
+                                                    <div key={idx} className="flex items-center justify-between bg-white rounded-lg p-3 border border-green-200 shadow-sm">
+                                                        <div className="flex-1 min-w-0">
+                                                            <div className="font-semibold text-green-900 text-sm truncate">{subj.subject_code}</div>
+                                                            <div className="text-gray-600 text-xs truncate">{subj.subject_name}</div>
+                                                        </div>
+                                                        <div className="flex items-center gap-2 ml-2">
+                                                            <div className="flex gap-1">
+                                                                <Badge variant="secondary" className="text-xs px-1 py-0">
+                                                                    Y{subj.year_level}
+                                                                </Badge>
+                                                                <Badge variant="secondary" className="text-xs px-1 py-0">
+                                                                    {subj.semester}
+                                                                </Badge>
+                                                            </div>
+                                                            <Badge variant="outline" className="bg-green-100 text-green-700 border-green-300 font-semibold text-xs">
+                                                                {subj.grade}
+                                                            </Badge>
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* Past Subjects to Catch Up */}
+                                    {feeAdjustments.pastSubjectsToCatchUp?.length > 0 && (
+                                        <div className="bg-orange-50 border-2 border-orange-300 rounded-xl p-6 shadow-sm">
+                                            <div className="flex items-center justify-between mb-4">
+                                                <div className="flex items-center gap-3">
+                                                    <div className="p-2 bg-orange-100 rounded-lg">
+                                                        <AlertTriangle className="w-5 h-5 text-orange-600" />
+                                                    </div>
+                                                    <h4 className="font-bold text-orange-900">Past Subjects to Catch Up</h4>
+                                                </div>
+                                                <Badge variant="outline" className="bg-orange-100 text-orange-700 border-orange-300 px-3 py-1">
+                                                    {feeAdjustments.pastSubjectsToCatchUp.length} subject{feeAdjustments.pastSubjectsToCatchUp.length !== 1 ? 's' : ''}
+                                                </Badge>
+                                            </div>
+                                            <div className="bg-white rounded-lg p-3 mb-4 border border-orange-200">
+                                                <p className="text-sm text-orange-800">
+                                                    These subjects were completed in previous years/semesters but were not passed or credited.
+                                                </p>
+                                            </div>
+                                            <div className="space-y-3 max-h-64 overflow-y-auto">
+                                                {feeAdjustments.pastSubjectsToCatchUp.map((subj, idx) => (
+                                                    <div key={idx} className="flex items-center justify-between bg-white rounded-lg p-3 border border-orange-200 shadow-sm">
+                                                        <div className="flex-1 min-w-0">
+                                                            <div className="font-semibold text-orange-900 text-sm truncate">{subj.subject_code}</div>
+                                                            <div className="text-gray-600 text-xs truncate">{subj.subject_name}</div>
+                                                        </div>
+                                                        <div className="flex items-center gap-2 ml-2">
+                                                            <div className="flex gap-1">
+                                                                <Badge variant="secondary" className="text-xs px-1 py-0">
+                                                                    Y{subj.year_level}
+                                                                </Badge>
+                                                                <Badge variant="secondary" className="text-xs px-1 py-0">
+                                                                    {subj.semester}
+                                                                </Badge>
+                                                            </div>
+                                                            <Badge variant="outline" className="bg-orange-100 text-orange-700 border-orange-300 text-xs">
+                                                                {subj.units} unit{subj.units !== 1 ? 's' : ''}
+                                                            </Badge>
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* Failed Subjects */}
+                                    {feeAdjustments.creditedFailed?.length > 0 && (
+                                        <div className="bg-red-50 border-2 border-red-300 rounded-xl p-6 shadow-sm">
+                                            <div className="flex items-center justify-between mb-4">
+                                                <div className="flex items-center gap-3">
+                                                    <div className="p-2 bg-red-100 rounded-lg">
+                                                        <AlertTriangle className="w-5 h-5 text-red-600" />
+                                                    </div>
+                                                    <h4 className="font-bold text-red-900">Failed Subjects ({isTransferee ? 'GPA > 3.00' : 'Grade < 75'})</h4>
+                                                </div>
+                                                <Badge variant="outline" className="bg-red-100 text-red-700 border-red-300 px-3 py-1">
+                                                    {feeAdjustments.creditedFailed.length} subject{feeAdjustments.creditedFailed.length !== 1 ? 's' : ''}
+                                                </Badge>
+                                            </div>
+                                            <div className="bg-white rounded-lg p-3 mb-4 border border-red-200">
+                                                <p className="text-sm text-red-800">
+                                                    These subjects were attempted but not passed ({isTransferee ? 'GPA above 3.00' : 'grade below 75'}).
+                                                </p>
+                                            </div>
+                                            <div className="space-y-3 max-h-64 overflow-y-auto">
+                                                {feeAdjustments.creditedFailed.map((subj, idx) => (
+                                                    <div key={idx} className="flex items-center justify-between bg-white rounded-lg p-3 border border-red-200 shadow-sm">
+                                                        <div className="flex-1 min-w-0">
+                                                            <div className="font-semibold text-red-900 text-sm truncate">{subj.subject_code}</div>
+                                                            <div className="text-gray-600 text-xs truncate">{subj.subject_name}</div>
+                                                        </div>
+                                                        <div className="flex items-center gap-2 ml-2">
+                                                            <div className="flex gap-1">
+                                                                <Badge variant="secondary" className="text-xs px-1 py-0">
+                                                                    Y{subj.year_level}
+                                                                </Badge>
+                                                                <Badge variant="secondary" className="text-xs px-1 py-0">
+                                                                    {subj.semester}
+                                                                </Badge>
+                                                            </div>
+                                                            <Badge variant="outline" className="bg-red-100 text-red-700 border-red-300 font-semibold text-xs">
+                                                                Failed: {subj.grade}
+                                                            </Badge>
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* Student Status */}
+                                <div className={`border-2 rounded-xl p-6 shadow-sm ${feeAdjustments.isIrregular ? 'bg-yellow-50 border-yellow-300' : 'bg-green-50 border-green-300'}`}>
+                                    <div className="flex items-center gap-4">
+                                        <div className={`p-3 rounded-xl ${feeAdjustments.isIrregular ? 'bg-yellow-200' : 'bg-green-200'}`}>
+                                            <GraduationCap className={`w-8 h-8 ${feeAdjustments.isIrregular ? 'text-yellow-700' : 'text-green-700'}`} />
+                                        </div>
+                                        <div className="flex-1">
+                                            <h4 className={`font-bold text-lg ${feeAdjustments.isIrregular ? 'text-yellow-900' : 'text-green-900'}`}>
+                                                Student Status: {feeAdjustments.isIrregular ? 'Irregular' : 'Regular'}
+                                            </h4>
+                                            <p className={`text-sm mt-1 ${feeAdjustments.isIrregular ? 'text-yellow-700' : 'text-green-700'}`}>
+                                                {feeAdjustments.isIrregular
+                                                    ? `Student has ${feeAdjustments.pastSubjectsToCatchUp?.length || 0} subject(s) to catch up${feeAdjustments.creditedFailed?.length > 0 ? ` and ${feeAdjustments.creditedFailed.length} failed subject(s)` : ''}. Enrollment fee will be calculated after subject scheduling.`
+                                                    : 'Student meets all requirements for regular enrollment. No additional subjects needed.'}
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+
+                    <DialogFooter className="flex gap-4 pt-6 border-t border-gray-200">
+                        <Button
+                            variant="outline"
+                            onClick={() => {
+                                setShowCreditModal(false)
+                                setData('student_type', 'regular')
+                            }}
+                            className="px-6 py-3 text-base font-medium rounded-xl border-2 hover:bg-gray-50 transition-colors"
+                        >
+                            Cancel
+                        </Button>
+
+                        {/* Step Navigation */}
+                        <div className="flex gap-2">
+                            {creditModalStep > 1 && (
+                                <Button
+                                    variant="outline"
+                                    onClick={() => setCreditModalStep(prev => prev - 1)}
+                                    className="px-4 py-3 text-sm font-medium rounded-xl border-2 hover:bg-gray-50 transition-colors"
+                                >
+                                    Previous
+                                </Button>
+                            )}
+
+                            {creditModalStep < 3 && (
+                                <Button
+                                    onClick={() => {
+                                        // Step 1 validation
+                                        if (creditModalStep === 1) {
+                                            if (isShiftee && !previousProgram) {
+                                                toast.error('Please select a program to shift to')
+                                                return
+                                            }
+                                            if (isTransferee && !previousSchool.trim()) {
+                                                toast.error('Please enter the previous school name')
+                                                return
+                                            }
+                                            // Auto-load curriculum for step 2
+                                            if (isShiftee && previousProgram && data.program_id && data.year_level) {
                                                 const yearLevelMap = {
                                                     '1st Year': 1,
                                                     '2nd Year': 2,
@@ -3388,465 +3977,116 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                                                     'Grade 12': 2,
                                                 }
                                                 const numericYear = yearLevelMap[data.year_level] || 1
-                                                await compareCurricula(null, parseInt(data.program_id), numericYear, [])
-                                            }}
-                                            disabled={loadingCurriculumComparison}
-                                            className="bg-blue-600 text-white hover:bg-blue-700"
-                                        >
-                                            {loadingCurriculumComparison ? (
-                                                <>
-                                                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></div>
-                                                    Loading...
-                                                </>
-                                            ) : (
-                                                'Load Curriculum Subjects'
-                                            )}
-                                        </Button>
-                                    </div>
-                                )}
-
-                                {/* Subject Credit Evaluation Form */}
-                                {curriculumComparison && (
-                                    <div className="space-y-4">
-                                        {/* Header Card */}
-                                        <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-lg p-4">
-                                            <div className="flex items-center gap-3 mb-2">
-                                                <div className="bg-blue-600 text-white p-2 rounded-lg">
-                                                    <BookOpen className="w-5 h-5" />
-                                                </div>
-                                                <div className="flex-1">
-                                                    <h3 className="font-bold text-blue-900">Subject Credit Evaluation</h3>
-                                                    <p className="text-sm text-blue-700">
-                                                        {curriculumComparison.new_program?.name} • {data.year_level}
-                                                    </p>
-                                                </div>
-                                            </div>
-                                            <div className="bg-white rounded p-3 mt-3">
-                                                <p className="text-xs text-gray-600 leading-relaxed">
-                                                    <strong>Instructions:</strong> Click on subjects that the student has already completed at <strong>{previousSchool}</strong>. 
-                                                    Enter their grades to determine if they receive credit or need to retake the subject.
-                                                </p>
-                                            </div>
-                                        </div>
-
-                                        {/* Search Bar */}
-                                        <div className="relative">
-                                            <Input
-                                                type="text"
-                                                placeholder="Search subjects by code or name..."
-                                                value={subjectSearchQuery}
-                                                onChange={(e) => setSubjectSearchQuery(e.target.value)}
-                                                className="pl-10"
-                                            />
-                                            <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">
-                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                                                </svg>
-                                            </div>
-                                        </div>
-
-                                        {/* Subjects List */}
-                                        <div className="border-2 border-gray-200 rounded-lg overflow-hidden">
-                                            <div className="bg-gray-100 px-4 py-3 border-b border-gray-300">
-                                                <div className="flex items-center justify-between">
-                                                    <h4 className="font-semibold text-gray-800">Curriculum Subjects</h4>
-                                                    <Badge variant="outline" className="bg-white">
-                                                        {curriculumComparison.new_program?.curriculum?.subjects?.filter(s => {
-                                                            if (!subjectSearchQuery) return true
-                                                            const query = subjectSearchQuery.toLowerCase()
-                                                            return s.subject_code.toLowerCase().includes(query) || 
-                                                                   s.subject_name.toLowerCase().includes(query)
-                                                        }).length || 0} subjects
-                                                    </Badge>
-                                                </div>
-                                            </div>
-                                            <div className="max-h-96 overflow-y-auto bg-white">
-                                                {curriculumComparison.new_program?.curriculum?.subjects
-                                                    ?.filter(s => {
-                                                        if (!subjectSearchQuery) return true
-                                                        const query = subjectSearchQuery.toLowerCase()
-                                                        return s.subject_code.toLowerCase().includes(query) || 
-                                                               s.subject_name.toLowerCase().includes(query)
-                                                    })
-                                                    .map((subject) => {
-                                                        const creditedSubject = creditedSubjects.find(cs => cs.subject_id === subject.subject_id)
-                                                        const isChecked = !!creditedSubject
-
-                                                        return (
-                                                            <div 
-                                                                key={subject.subject_id} 
-                                                                onClick={(e) => {
-                                                                    // Don't toggle if clicking on the input field
-                                                                    if (e.target.tagName === 'INPUT' && e.target.type === 'number') return
-                                                                    
-                                                                    if (isChecked) {
-                                                                        const updated = creditedSubjects.filter(cs => cs.subject_id !== subject.subject_id)
-                                                                        setCreditedSubjects(updated)
-                                                                        console.log('Unchecked subject:', subject.subject_code, 'Remaining:', updated.length)
-                                                                    } else {
-                                                                        const newSubject = {
-                                                                            subject_id: subject.subject_id,
-                                                                            subject_code: subject.subject_code,
-                                                                            subject_name: subject.subject_name,
-                                                                            year_level: subject.year_level,
-                                                                            semester: subject.semester,
-                                                                            units: subject.units,
-                                                                            grade: ''
-                                                                        }
-                                                                        const updated = [...creditedSubjects, newSubject]
-                                                                        setCreditedSubjects(updated)
-                                                                        console.log('Checked subject:', subject.subject_code, 'Total checked:', updated.length)
-                                                                    }
-                                                                }}
-                                                                className={`flex items-center gap-3 p-4 border-b cursor-pointer transition-colors ${
-                                                                    isChecked ? 'bg-blue-50' : 'hover:bg-gray-50'
-                                                                }`}
-                                                            >
-                                                                <input
-                                                                    type="checkbox"
-                                                                    checked={isChecked}
-                                                                    readOnly
-                                                                    className="w-5 h-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500 pointer-events-none"
-                                                                />
-                                                                <div className="flex-1">
-                                                                    <div className="font-semibold text-sm text-gray-900">{subject.subject_code}</div>
-                                                                    <div className="text-xs text-gray-600">{subject.subject_name}</div>
-                                                                </div>
-                                                                <div className="flex items-center gap-2">
-                                                                    <Badge variant="outline" className="text-xs whitespace-nowrap">
-                                                                        {subject.units} {subject.units === 1 ? 'unit' : 'units'}
-                                                                    </Badge>
-                                                                    <Badge variant="outline" className="text-xs whitespace-nowrap">
-                                                                        Y{subject.year_level} • {subject.semester}
-                                                                    </Badge>
-                                                                </div>
-                                                                {isChecked && (
-                                                                    <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
-                                                                        <Label className="text-xs text-gray-600 whitespace-nowrap">Grade:</Label>
-                                                                        <Input
-                                                                            type="number"
-                                                                            min="0"
-                                                                            max="100"
-                                                                            step="0.01"
-                                                                            placeholder="0-100"
-                                                                            value={creditedSubject?.grade || ''}
-                                                                            onChange={(e) => {
-                                                                                const updated = creditedSubjects.map(cs =>
-                                                                                    cs.subject_id === subject.subject_id
-                                                                                        ? { ...cs, grade: e.target.value }
-                                                                                        : cs
-                                                                                )
-                                                                                setCreditedSubjects(updated)
-                                                                            }}
-                                                                            className="w-20 h-8 text-center"
-                                                                        />
-                                                                    </div>
-                                                                )}
-                                                            </div>
-                                                        )
-                                                    })}
-                                            </div>
-                                        </div>
-
-                                        {/* Save Credits Button */}
-                                        {creditedSubjects.length > 0 && (!feeAdjustments || feeAdjustments.isIrregular === undefined) && (
-                                            <div className="flex justify-center pt-2">
-                                                <Button
-                                                    onClick={() => {
-                                                        const yearLevelMap = {
-                                                            '1st Year': 1,
-                                                            '2nd Year': 2,
-                                                            '3rd Year': 3,
-                                                            '4th Year': 4,
-                                                            'Grade 11': 1,
-                                                            'Grade 12': 2,
-                                                        }
-                                                        const numericYear = yearLevelMap[data.year_level] || 1
-                                                        const allSubjects = curriculumComparison.new_program?.curriculum?.subjects || []
-                                                        
-                                                        // Helper to determine if subject is from past
-                                                        const isPastSubject = (s) => {
-                                                            if (s.year_level < numericYear) return true
-                                                            if (s.year_level === numericYear) {
-                                                                if (currentSemester === '2nd' && s.semester === 'first') return true
-                                                            }
-                                                            return false
-                                                        }
-                                                        
-                                                        // Separate credited subjects by grade
-                                                        const creditedPassed = []  // Grade >= 75
-                                                        const creditedFailed = []  // Grade < 75
-                                                        
-                                                        creditedSubjects.forEach(cs => {
-                                                            const grade = parseFloat(cs.grade)
-                                                            if (!isNaN(grade)) {
-                                                                if (grade >= 75) {
-                                                                    creditedPassed.push(cs)
-                                                                } else {
-                                                                    creditedFailed.push(cs)
-                                                                }
-                                                            }
-                                                        })
-                                                        
-                                                        const passedIds = creditedPassed.map(cs => cs.subject_id)
-                                                        
-                                                        // Past subjects that need catching up (not passed)
-                                                        const pastSubjectsToCatchUp = allSubjects.filter(s => 
-                                                            isPastSubject(s) && !passedIds.includes(s.subject_id)
-                                                        )
-                                                        
-                                                        // Student is IRREGULAR if they have ANY past subjects to catch up OR failed subjects
-                                                        const isIrregular = pastSubjectsToCatchUp.length > 0 || creditedFailed.length > 0
-                                                        
-                                                        // Combine failed subjects and past subjects to catch up
-                                                        const allSubjectsToCatchUp = [
-                                                            ...creditedFailed.map(subject => ({
-                                                                ...subject,
-                                                                catch_up_reason: 'failed'
-                                                            })),
-                                                            ...pastSubjectsToCatchUp.map(subject => ({
-                                                                ...subject,
-                                                                catch_up_reason: 'past_subject'
-                                                            }))
-                                                        ]
-                                                        
-                                                        setSubjectsToCatchUp(allSubjectsToCatchUp)
-                                                        
-                                                        setFeeAdjustments({
-                                                            creditedPassed,
-                                                            creditedFailed,
-                                                            pastSubjectsToCatchUp,
-                                                            isIrregular
-                                                        })
-                                                        
-                                                        // Update student_type to regular or irregular based on determination
-                                                        // Set enrollment fee to 0 for irregular students (to be calculated later)
-                                                        setData(prev => ({
-                                                            ...prev,
-                                                            student_type: isIrregular ? 'irregular' : 'regular',
-                                                            enrollment_fee: isIrregular ? '0' : prev.enrollment_fee,
-                                                            payment_amount: isIrregular ? '0' : prev.payment_amount
-                                                        }))
-                                                        
-                                                        toast.success('Credits saved successfully! Status: ' + (isIrregular ? 'Irregular' : 'Regular'))
-                                                        
-                                                        // Scroll to summary after a brief delay
-                                                        setTimeout(() => {
-                                                            const summaryElement = document.getElementById('status-summary-section')
-                                                            if (summaryElement) {
-                                                                summaryElement.scrollIntoView({ behavior: 'smooth', block: 'start' })
-                                                            }
-                                                        }, 100)
-                                                    }}
-                                                    disabled={creditedSubjects.some(cs => !cs.grade || cs.grade === '')}
-                                                    size="lg"
-                                                    className="bg-blue-600 text-white hover:bg-blue-700"
-                                                >
-                                                    <BookOpen className="w-5 h-5 mr-2" />
-                                                    Save Credits & Determine Status
-                                                </Button>
-                                            </div>
-                                        )}
-
-                                        {/* Status Summary */}
-                                        {feeAdjustments && feeAdjustments.isIrregular !== undefined && (
-                                            <div id="status-summary-section" className="space-y-4">
-                                                {/* Credited Subjects (Passed) */}
-                                                {feeAdjustments.creditedPassed?.length > 0 && (
-                                                    <div className="bg-green-50 border-2 border-green-300 rounded-lg p-4">
-                                                        <div className="flex items-center justify-between mb-3">
-                                                            <h4 className="font-bold text-green-900 flex items-center gap-2">
-                                                                <BookOpen className="w-5 h-5" />
-                                                                Credited Subjects (Grade ≥ 75)
-                                                            </h4>
-                                                            <Badge variant="outline" className="bg-green-100 text-green-700 border-green-300">
-                                                                {feeAdjustments.creditedPassed.length} subjects
-                                                            </Badge>
-                                                        </div>
-                                                        <div className="space-y-2">
-                                                            {feeAdjustments.creditedPassed.map((subj, idx) => (
-                                                                <div key={idx} className="flex items-center justify-between bg-white rounded p-2 text-sm">
-                                                                    <span className="font-medium text-green-900">{subj.subject_code}</span>
-                                                                    <span className="text-gray-600 flex-1 mx-2">{subj.subject_name}</span>
-                                                                    <Badge variant="outline" className="text-xs">
-                                                                        Y{subj.year_level} • {subj.semester}
-                                                                    </Badge>
-                                                                    <Badge variant="outline" className="bg-green-100 text-green-700 border-green-300">
-                                                                        {subj.grade}
-                                                                    </Badge>
-                                                                </div>
-                                                            ))}
-                                                        </div>
-                                                    </div>
-                                                )}
-
-                                                {/* Past Subjects to Catch Up */}
-                                                {feeAdjustments.pastSubjectsToCatchUp?.length > 0 && (
-                                                    <div className="bg-orange-50 border-2 border-orange-300 rounded-lg p-4">
-                                                        <div className="flex items-center justify-between mb-3">
-                                                            <h4 className="font-bold text-orange-900 flex items-center gap-2">
-                                                                <AlertTriangle className="w-5 h-5" />
-                                                                Past Subjects to Catch Up
-                                                            </h4>
-                                                            <Badge variant="outline" className="bg-orange-100 text-orange-700 border-orange-300">
-                                                                {feeAdjustments.pastSubjectsToCatchUp.length} subjects
-                                                            </Badge>
-                                                        </div>
-                                                        <div className="space-y-2">
-                                                            {feeAdjustments.pastSubjectsToCatchUp.map((subj, idx) => (
-                                                                <div key={idx} className="flex items-center justify-between bg-white rounded p-2 text-sm">
-                                                                    <span className="font-medium text-orange-900">{subj.subject_code}</span>
-                                                                    <span className="text-gray-600 flex-1 mx-2">{subj.subject_name}</span>
-                                                                    <Badge variant="outline" className="text-xs">
-                                                                        Y{subj.year_level} • {subj.semester}
-                                                                    </Badge>
-                                                                    <Badge variant="outline" className="bg-orange-100 text-orange-700 border-orange-300">
-                                                                        {subj.units} units
-                                                                    </Badge>
-                                                                </div>
-                                                            ))}
-                                                        </div>
-                                                    </div>
-                                                )}
-
-                                                {/* Failed Subjects */}
-                                                {feeAdjustments.creditedFailed?.length > 0 && (
-                                                    <div className="bg-red-50 border-2 border-red-300 rounded-lg p-4">
-                                                        <div className="flex items-center justify-between mb-3">
-                                                            <h4 className="font-bold text-red-900 flex items-center gap-2">
-                                                                <AlertTriangle className="w-5 h-5" />
-                                                                Failed Subjects (Grade &lt; 75)
-                                                            </h4>
-                                                            <Badge variant="outline" className="bg-red-100 text-red-700 border-red-300">
-                                                                {feeAdjustments.creditedFailed.length} subjects
-                                                            </Badge>
-                                                        </div>
-                                                        <div className="space-y-2">
-                                                            {feeAdjustments.creditedFailed.map((subj, idx) => (
-                                                                <div key={idx} className="flex items-center justify-between bg-white rounded p-2 text-sm">
-                                                                    <span className="font-medium text-red-900">{subj.subject_code}</span>
-                                                                    <span className="text-gray-600 flex-1 mx-2">{subj.subject_name}</span>
-                                                                    <Badge variant="outline" className="text-xs">
-                                                                        Y{subj.year_level} • {subj.semester}
-                                                                    </Badge>
-                                                                    <Badge variant="outline" className="bg-red-100 text-red-700 border-red-300">
-                                                                        Failed: {subj.grade}
-                                                                    </Badge>
-                                                                </div>
-                                                            ))}
-                                                        </div>
-                                                    </div>
-                                                )}
-
-                                                {/* Student Status */}
-                                                <div className={`border-2 rounded-lg p-4 ${feeAdjustments.isIrregular ? 'bg-yellow-50 border-yellow-300' : 'bg-green-50 border-green-300'}`}>
-                                                    <div className="flex items-center gap-3">
-                                                        <div className={`p-2 rounded-lg ${feeAdjustments.isIrregular ? 'bg-yellow-200' : 'bg-green-200'}`}>
-                                                            <GraduationCap className={`w-6 h-6 ${feeAdjustments.isIrregular ? 'text-yellow-700' : 'text-green-700'}`} />
-                                                        </div>
-                                                        <div className="flex-1">
-                                                            <h4 className={`font-bold ${feeAdjustments.isIrregular ? 'text-yellow-900' : 'text-green-900'}`}>
-                                                                Student Status: {feeAdjustments.isIrregular ? 'Irregular' : 'Regular'}
-                                                            </h4>
-                                                            <p className={`text-sm ${feeAdjustments.isIrregular ? 'text-yellow-700' : 'text-green-700'}`}>
-                                                                {feeAdjustments.isIrregular
-                                                                    ? `Student has ${feeAdjustments.pastSubjectsToCatchUp?.length || 0} subject(s) to catch up${feeAdjustments.creditedFailed?.length > 0 ? ` and ${feeAdjustments.creditedFailed.length} failed subject(s)` : ''}`
-                                                                    : 'Student is classified as regular'}
-                                                            </p>
-                                                        </div>
-                                                    </div>
-                                                </div>
-
-                                                {/* Fee Notice */}
-                                                <div className="bg-blue-50 border-2 border-blue-200 rounded-lg p-4">
-                                                    <div className="flex items-center gap-3">
-                                                        <div className="p-2 rounded-lg bg-blue-200">
-                                                            <DollarSign className="w-6 h-6 text-blue-700" />
-                                                        </div>
-                                                        <div className="flex-1">
-                                                            <h4 className="font-bold text-blue-900">
-                                                                Enrollment Fee: To Be Calculated
-                                                            </h4>
-                                                            <p className="text-sm text-blue-700">
-                                                                Fee calculation will be done before prelim payment once subject schedule is confirmed
-                                                            </p>
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        )}
-                                    </div>
-                                )}
-                            </div>
-                        )}
-
-                        {/* Action Buttons */}
-                        {((isShiftee && previousProgram && data.program_id) || (isTransferee && previousSchool)) && (
-                            <div className="flex justify-end">
-                                <Button
-                                    onClick={async () => {
-                                        if (isShiftee && previousProgram && data.program_id && data.year_level) {
-                                            // Get numeric year level
-                                            const yearLevelMap = {
-                                                '1st Year': 1,
-                                                '2nd Year': 2,
-                                                '3rd Year': 3,
-                                                '4th Year': 4,
-                                                'Grade 11': 1,
-                                                'Grade 12': 2,
+                                                compareCurricula(parseInt(data.program_id), previousProgram.id, numericYear, courseShiftData?.student_id)
+                                            } else if (isTransferee && data.program_id && data.year_level) {
+                                                const yearLevelMap = {
+                                                    '1st Year': 1,
+                                                    '2nd Year': 2,
+                                                    '3rd Year': 3,
+                                                    '4th Year': 4,
+                                                    'Grade 11': 1,
+                                                    'Grade 12': 2,
+                                                }
+                                                const numericYear = yearLevelMap[data.year_level] || 1
+                                                compareCurricula(null, parseInt(data.program_id), numericYear, [])
                                             }
-                                            const numericYear = yearLevelMap[data.year_level] || 1
-                                            
-                                            await compareCurricula(parseInt(data.program_id), previousProgram.id, numericYear, courseShiftData?.student_id)
-                                        } else if (isTransferee && data.program_id && data.year_level) {
-                                            // For transferees, we'd need to show a form to collect external subjects first
-                                            // For now, just compare with empty credited subjects
-                                            const yearLevelMap = {
-                                                '1st Year': 1,
-                                                '2nd Year': 2,
-                                                '3rd Year': 3,
-                                                '4th Year': 4,
-                                                'Grade 11': 1,
-                                                'Grade 12': 2,
-                                            }
-                                            const numericYear = yearLevelMap[data.year_level] || 1
-                                            
-                                            // TODO: Implement external subject collection UI
-                                            await compareCurricula(null, parseInt(data.program_id), numericYear, creditedSubjects)
                                         }
+                                        
+                                        // Step 2 validation
+                                        if (creditModalStep === 2) {
+                                            if (creditedSubjects.length === 0) {
+                                                toast.error('Please select at least one subject')
+                                                return
+                                            }
+                                            if (creditedSubjects.some(cs => !cs.grade || cs.grade === '')) {
+                                                toast.error('Please enter grades for all selected subjects')
+                                                return
+                                            }
+                                            // Only validate invalid grades for non-transferees (transferees use buttons with valid values only)
+                                            if (!isTransferee && Object.values(invalidGrades).some(isInvalid => isInvalid)) {
+                                                toast.error('Please fix invalid grades (must be between 1 and 100)')
+                                                return
+                                            }
+                                            // Auto-calculate status for step 3
+                                            const yearLevelMap = {
+                                                '1st Year': 1,
+                                                '2nd Year': 2,
+                                                '3rd Year': 3,
+                                                '4th Year': 4,
+                                                'Grade 11': 1,
+                                                'Grade 12': 2,
+                                            }
+                                            const numericYear = yearLevelMap[data.year_level] || 1
+                                            const allSubjects = curriculumComparison.new_program?.curriculum?.subjects || []
+                                            
+                                            const creditedPassed = []
+                                            const creditedFailed = []
+                                            
+                                            creditedSubjects.forEach(cs => {
+                                                const grade = parseFloat(cs.grade)
+                                                if (!isNaN(grade)) {
+                                                    // For transferees, GPA <= 3.0 is passing (3.0 = 75%, below 3.0 = higher %); for others, percentage >= 75 is passing
+                                                    const isPassing = isTransferee ? (grade <= 3.0) : (grade >= 75)
+                                                    if (isPassing) {
+                                                        creditedPassed.push(cs)
+                                                    } else {
+                                                        creditedFailed.push(cs)
+                                                    }
+                                                }
+                                            })
+                                            
+                                            const passedIds = creditedPassed.map(cs => cs.subject_id)
+                                            
+                                            const isPastSubject = (s) => {
+                                                if (s.year_level < numericYear) return true
+                                                if (s.year_level === numericYear) {
+                                                    if (currentSemester === '2nd' && s.semester === 'first') return true
+                                                }
+                                                return false
+                                            }
+                                            
+                                            const pastSubjectsToCatchUp = allSubjects.filter(s => 
+                                                isPastSubject(s) && !passedIds.includes(s.subject_id)
+                                            )
+                                            
+                                            const isIrregular = pastSubjectsToCatchUp.length > 0 || creditedFailed.length > 0
+                                            
+                                            setFeeAdjustments({
+                                                creditedPassed,
+                                                creditedFailed,
+                                                pastSubjectsToCatchUp,
+                                                isIrregular
+                                            })
+                                            
+                                            setData(prev => ({
+                                                ...prev,
+                                                student_type: isIrregular ? 'irregular' : 'regular',
+                                                enrollment_fee: isIrregular ? '0' : prev.enrollment_fee,
+                                                payment_amount: isIrregular ? '0' : prev.payment_amount
+                                            }))
+                                        }
+                                        
+                                        setCreditModalStep(prev => prev + 1)
                                     }}
-                                    disabled={loadingCurriculumComparison}
-                                    variant="outline"
+                                    className="px-6 py-3 text-sm font-semibold rounded-xl bg-blue-600 hover:bg-blue-700 text-white shadow-lg hover:shadow-xl transition-all duration-200"
                                 >
-                                    {loadingCurriculumComparison ? 'Loading...' : 'Compare Curricula'}
+                                    {creditModalStep === 2 ? 'Determine Status' : 'Next'}
                                 </Button>
-                            </div>
-                        )}
-                    </div>
+                            )}
 
-                    <DialogFooter className="flex gap-3">
-                        <Button
-                            variant="outline"
-                            onClick={() => {
-                                setShowCreditModal(false)
-                                setData('student_type', 'regular')
-                            }}
-                        >
-                            Cancel
-                        </Button>
-                        <Button
-                            onClick={() => {
-                                console.log('Saving credited subjects:', creditedSubjects)
-                                console.log('Current state - isTransferee:', isTransferee, 'isShiftee:', isShiftee)
-                                // Just save the credited subjects - no fee adjustments
-                                setShowCreditModal(false)
-                                toast.success(`Marked ${creditedSubjects.length} subjects as completed`)
-                            }}
-                            disabled={!curriculumComparison || (isShiftee && !previousProgram) || (isTransferee && !previousSchool)}
-                            className="bg-blue-600 hover:bg-blue-700"
-                        >
-                            Save Credits & Continue
-                        </Button>
+                            {creditModalStep === 3 && (
+                                <Button
+                                    onClick={() => {
+                                        setShowCreditModal(false)
+                                        toast.success('Credit evaluation completed successfully!')
+                                    }}
+                                    className="px-8 py-3 text-base font-semibold rounded-xl bg-green-600 hover:bg-green-700 text-white shadow-lg hover:shadow-xl transition-all duration-200"
+                                >
+                                    <Save className="w-5 h-5 mr-2" />
+                                    Complete & Save
+                                </Button>
+                            )}
+                        </div>
                     </DialogFooter>
                 </DialogContent>
             </Dialog>

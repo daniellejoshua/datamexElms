@@ -413,7 +413,9 @@ export default function ProgramsIndex({ programs, auth, filters = {} }) {
                                         <div className="flex items-center text-sm">
                                             <DollarSign className="w-4 h-4 text-blue-600 mr-3 flex-shrink-0" />
                                             <div className="flex-1">
-                                                <span className="text-gray-700 font-medium">Semester Fees (per semester)</span>
+                                                <span className="text-gray-700 font-medium">
+                                                    {program.education_level === 'senior_high' ? 'Year Level Fees (per year level)' : 'Semester Fees (per semester)'}
+                                                </span>
                                                 <div className="mt-1 space-y-1">
                                                     {program.program_fees
                                                         ?.filter(fee => fee.fee_type === 'regular')
@@ -421,7 +423,9 @@ export default function ProgramsIndex({ programs, auth, filters = {} }) {
                                                         ?.slice(0, 2) // Show only first 2 years for brevity
                                                         ?.map(fee => (
                                                         <div key={fee.id} className="flex justify-between text-xs">
-                                                            <span>Year {fee.year_level}:</span>
+                                                            <span>
+                                                                {program.education_level === 'senior_high' ? `Grade ${fee.year_level + 10}` : `Year ${fee.year_level}`}:
+                                                            </span>
                                                             <span className="font-semibold text-green-600">
                                                                 {formatCurrency(fee.semester_fee)}
                                                             </span>
@@ -429,7 +433,7 @@ export default function ProgramsIndex({ programs, auth, filters = {} }) {
                                                     ))}
                                                     {program.program_fees?.filter(fee => fee.fee_type === 'regular').length > 2 && (
                                                         <div className="text-xs text-gray-500">
-                                                            +{program.program_fees.filter(fee => fee.fee_type === 'regular').length - 2} more years
+                                                            +{program.program_fees.filter(fee => fee.fee_type === 'regular').length - 2} more {program.education_level === 'senior_high' ? 'grades' : 'years'}
                                                         </div>
                                                     )}
                                                 </div>
@@ -654,7 +658,7 @@ export default function ProgramsIndex({ programs, auth, filters = {} }) {
                                                     placeholder="0.00"
                                                 />
                                             </div>
-                                            <span className="text-xs text-gray-500">per semester</span>
+                                            <span className="text-xs text-gray-500">{data.education_level === 'senior_high' ? 'per year level' : 'per semester'}</span>
                                         </div>
                                     );
                                 })}

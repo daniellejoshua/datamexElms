@@ -55,6 +55,29 @@ export default function ProgramsEdit({ program, auth }) {
         setData('program_fees', updatedFees);
     };
 
+    // Format number with commas for display
+    const formatCurrency = (value) => {
+        if (!value || value === 0) return '';
+        return new Intl.NumberFormat('en-US').format(value);
+    };
+
+    // Parse formatted string back to number
+    const parseFormattedCurrency = (formattedValue) => {
+        return formattedValue.replace(/,/g, '');
+    };
+
+    // Handle fee input change with formatting
+    const handleFeeChange = (yearLevel, inputValue) => {
+        // Remove any non-numeric characters except decimal point
+        const cleanValue = inputValue.replace(/[^0-9.]/g, '');
+        
+        // Parse to number
+        const numericValue = cleanValue === '' ? 0 : parseFloat(cleanValue) || 0;
+        
+        // Update the fee with the numeric value
+        updateFee(yearLevel, numericValue.toString());
+    };
+
     const handleSubmit = async (e) => {
         e.preventDefault();
         setFeeErrors({});
@@ -78,7 +101,7 @@ export default function ProgramsEdit({ program, auth }) {
                         <Button asChild variant="ghost" size="sm" className="mr-2">
                             <Link href={route('registrar.programs.show', program.id)}>
                                 <ArrowLeft className="w-4 h-4 mr-1" />
-                                Back to Program
+                                <span className="hidden sm:inline">Back to Program</span>
                             </Link>
                         </Button>
                         <div className="bg-blue-100 p-1.5 rounded-md">
@@ -97,7 +120,7 @@ export default function ProgramsEdit({ program, auth }) {
             <div className="max-w-4xl mx-auto space-y-6">
                 <form onSubmit={handleSubmit} className="space-y-6">
                     {/* Basic Information */}
-                    <Card>
+                    <Card className="mt-6">
                         <CardHeader>
                             <CardTitle>Basic Information</CardTitle>
                             <CardDescription>
@@ -198,16 +221,14 @@ export default function ProgramsEdit({ program, auth }) {
                                                     ₱
                                                 </span>
                                                 <Input
-                                                    type="number"
-                                                    step="0.01"
-                                                    min="0"
-                                                    value={amount || ''}
-                                                    onChange={(e) => updateFee(year, e.target.value)}
+                                                    type="text"
+                                                    value={formatCurrency(amount)}
+                                                    onChange={(e) => handleFeeChange(year, e.target.value)}
                                                     className="pl-6 h-8 text-sm"
-                                                    placeholder="0.00"
+                                                    placeholder="0"
                                                 />
                                             </div>
-                                            <span className="text-xs text-gray-500">{data.education_level === 'senior_high' ? 'per year' : 'per semester'}</span>
+                                            <span className="text-xs text-gray-500">{data.education_level === 'senior_high' ? 'per year level' : 'per semester'}</span>
                                         </div>
                                     );
                                 })}
