@@ -8,7 +8,7 @@ import { Label } from '@/components/ui/label'
 import { NumberInput } from '@/components/ui/number-input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
-import { UserPlus, ArrowLeft, GraduationCap, BookOpen, AlertTriangle, DollarSign, Info, Plus, X, CheckCircle2, Lock, Save } from 'lucide-react'
+import { UserPlus, ArrowLeft, GraduationCap, BookOpen, AlertTriangle, DollarSign, Info, Plus, X, CheckCircle2, Lock, Save, RotateCcw, FileText } from 'lucide-react'
 import { useState, useEffect, useRef } from 'react'
 import { toast } from 'sonner'
 
@@ -2177,7 +2177,7 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                                             return (
                                                 <div className="mt-1">
                                                     <p className="text-xs text-blue-600">
-                                                        📖 Active Curriculum: {selectedCurriculum.curriculum_name} ({selectedCurriculum.curriculum_code})
+                                                        Active Curriculum: {selectedCurriculum.curriculum_name} ({selectedCurriculum.curriculum_code})
                                                     </p>
                                                     <p className="text-xs text-blue-500">All new students will be assigned to this curriculum</p>
                                                 </div>
@@ -2267,8 +2267,18 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                                 >
                                     <SelectTrigger className={`h-10 ${errors.student_type ? 'border-red-500' : 'border-gray-300 focus:border-green-500'} ${(data.year_level === '1st Year' || data.year_level === 'Grade 11') || (!data.program_id || !data.year_level) || shouldBeTransferee ? 'bg-gray-50 cursor-not-allowed' : ''}`}>
                                         <SelectValue placeholder="Select enrollment type">
-                                            {data.enrollment_type === 'new' && (data.year_level === '1st Year' || data.year_level === 'Grade 11') && `👤 New Student (Automatically selected for ${data.year_level})`}
-                                            {data.enrollment_type === 'transferee' && shouldBeTransferee && `📚 Transferee (Automatically selected for ${data.year_level})`}
+                                            {data.enrollment_type === 'new' && (data.year_level === '1st Year' || data.year_level === 'Grade 11') && (
+                                                <>
+                                                    <UserPlus className="inline w-4 h-4 mr-2" />
+                                                    New Student (Automatically selected for {data.year_level})
+                                                </>
+                                            )}
+                                            {data.enrollment_type === 'transferee' && shouldBeTransferee && (
+                                                <>
+                                                    <BookOpen className="inline w-4 h-4 mr-2" />
+                                                    Transferee (Automatically selected for {data.year_level})
+                                                </>
+                                            )}
                                         </SelectValue>
                                     </SelectTrigger>
                                     <SelectContent>
@@ -2285,7 +2295,8 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                                             if (data.year_level === '1st Year' || data.year_level === 'Grade 11') {
                                                 return (
                                                     <SelectItem value="new">
-                                                        👤 New Student (Automatically selected for {data.year_level})
+                                                        <UserPlus className="inline w-4 h-4 mr-2" />
+                                                        New Student (Automatically selected for {data.year_level})
                                                     </SelectItem>
                                                 )
                                             }
@@ -2294,7 +2305,8 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                                             if (shouldBeTransferee) {
                                                 return (
                                                     <SelectItem value="transferee">
-                                                        📚 Transferee (Automatically selected for {data.year_level} - not existing student)
+                                                        <BookOpen className="inline w-4 h-4 mr-2" />
+                                                        Transferee (Automatically selected for {data.year_level} - not existing student)
                                                     </SelectItem>
                                                 )
                                             }
@@ -2304,7 +2316,8 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                                                     {/* Only show new student for 1st year students */}
                                                     {(data.year_level === '1st Year' || data.year_level === 'Grade 11') && (
                                                         <SelectItem value="new" disabled={!canBeNew || isSecondSemester}>
-                                                            👤 New Student
+                                                            <UserPlus className="inline w-4 h-4 mr-2" />
+                                                            New Student
                                                             {(!canBeNew || isSecondSemester) && (
                                                                 <span className="text-xs text-gray-400 ml-2">
                                                                     {!canBeNew ? '(Only for 1st Year, 1st Semester)' : '(Not available in 2nd semester)'}
@@ -2316,14 +2329,16 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                                                     {/* Show transferee for students above 1st year */}
                                                     {(data.year_level !== '1st Year' && data.year_level !== 'Grade 11') && (
                                                         <SelectItem value="transferee">
-                                                            📚 Transferee (From Another School)
+                                                            <BookOpen className="inline w-4 h-4 mr-2" />
+                                                            Transferee (From Another School)
                                                         </SelectItem>
                                                     )}
                                                     
                                                     {/* Only show returning student if auto-detected */}
                                                     {isReturningStudent && (
                                                         <SelectItem value="returning" disabled={isSecondSemester && !isExistingStudent}>
-                                                            🔄 Returning Student (Regular Re-enrollment)
+                                                            <RotateCcw className="inline w-4 h-4 mr-2" />
+                                                            Returning Student (Regular Re-enrollment)
                                                             {isSecondSemester && !isExistingStudent && (
                                                                 <span className="text-xs text-gray-400 ml-2">
                                                                     (Only for students enrolled in 1st semester)
@@ -2334,7 +2349,8 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                                                     
                                                     {data.education_level === 'college' && !isSecondSemester && (
                                                         <SelectItem value="shiftee" disabled={!canBeShiftee}>
-                                                            📋 Course Shiftee (Changing Program)
+                                                            <FileText className="inline w-4 h-4 mr-2" />
+                                                            Course Shiftee (Changing Program)
                                                             {!canBeShiftee && (
                                                                 <span className="text-xs text-gray-400 ml-2">
                                                                     (Only for existing students)
@@ -2351,10 +2367,16 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                                 // For non-existing students, show just text
                                 <div className="h-10 px-3 py-2 bg-gray-50 border border-gray-300 rounded-md flex items-center text-sm text-gray-700">
                                     {data.enrollment_type === 'new' && (data.year_level === '1st Year' || data.year_level === 'Grade 11') && (
-                                        <>👤 New Student (Automatically selected for {data.year_level})</>
+                                        <>
+                                            <UserPlus className="inline w-4 h-4 mr-2" />
+                                            New Student (Automatically selected for {data.year_level})
+                                        </>
                                     )}
                                     {data.enrollment_type === 'transferee' && shouldBeTransferee && (
-                                        <>📚 Transferee (Automatically selected for {data.year_level})</>
+                                        <>
+                                            <BookOpen className="inline w-4 h-4 mr-2" />
+                                            Transferee (Automatically selected for {data.year_level})
+                                        </>
                                     )}
                                     {!data.enrollment_type && (
                                         <>Select year level to see enrollment type</>
@@ -2366,7 +2388,7 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                             )}
                             {(data.year_level === '1st Year' || data.year_level === 'Grade 11') && (
                                 <p className="text-xs text-blue-600 mt-1">
-                                    🔒 Enrollment type automatically set to "New Student" for {data.year_level} students
+                                    Enrollment type automatically set to "New Student" for {data.year_level} students
                                 </p>
                             )}
                             {data.enrollment_type === 'new' && !(data.year_level === '1st Year' || data.year_level === 'Grade 11') && (
@@ -2381,7 +2403,7 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                             )}
                             {data.enrollment_type === 'transferee' && (
                                 <p className="text-xs text-blue-600 mt-1">
-                                    📚 After registration, use "Transferee - Subject Credit Evaluation" to add credited subjects from previous school
+                                     After registration, use "Transferee - Subject Credit Evaluation" to add credited subjects from previous school
                                 </p>
                             )}
                             {data.enrollment_type === 'shiftee' && (
@@ -2391,7 +2413,7 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                             )}
                             {shouldBeTransferee && (
                                 <p className="text-xs text-purple-600 mt-1">
-                                    🔒 Enrollment type automatically set to "Transferee" for {data.year_level} students (not existing)
+                                     Enrollment type automatically set to "Transferee" for {data.year_level} students (not existing)
                                 </p>
                             )}
                         </div>
@@ -2644,7 +2666,7 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                         disabled={
                             processing ||
                             !formUnlocked ||
-                            (data.enrollment_type === 'transferee' && !feeAdjustments)
+                            (data.enrollment_type === 'transferee' && (!feeAdjustments || feeAdjustments.isIrregular === undefined))
                         }
                     >
                         <UserPlus className="w-4 h-4 mr-2" />
