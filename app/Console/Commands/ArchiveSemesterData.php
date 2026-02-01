@@ -145,6 +145,7 @@ class ArchiveSemesterData extends Command
 
                         // Transform grades to expected format for archived records
                         $finalGrades = [];
+                        $finalSemesterGrade = null;
                         if ($enrollment->studentGrades->count() > 0) {
                             $grade = $enrollment->studentGrades->first();
                             $finalGrades = [
@@ -153,6 +154,7 @@ class ArchiveSemesterData extends Command
                                 'prefinals' => $grade->prefinal_grade,
                                 'finals' => $grade->final_grade,
                             ];
+                            $finalSemesterGrade = $grade->semester_grade;
                         }
 
                         ArchivedStudentEnrollment::create([
@@ -165,8 +167,8 @@ class ArchiveSemesterData extends Command
                             'completion_date' => $completionDate,
                             'final_status' => $finalStatus,
                             'final_grades' => $finalGrades,
-                            'final_semester_grade' => $enrollment->semester_grade,
-                            'letter_grade' => $enrollment->letter_grade,
+                            'final_semester_grade' => $finalSemesterGrade,
+                            'letter_grade' => null, // TODO: Calculate letter grade from semester grade
                             'student_data' => $enrollment->student->toArray(),
                         ]);
 

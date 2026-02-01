@@ -28,9 +28,14 @@ class StudentSemesterPayment extends Model
         'final_payment_date',
         'irregular_subject_fee',
         'irregular_subjects_count',
+        'credit_transfer_deduction',
+        'credit_transfer_subjects_count',
         'total_semester_fee',
         'total_paid',
         'balance',
+        'calculated_total_amount',
+        'irregular_balance_breakdown',
+        'is_balance_calculated',
         'payment_plan',
         'status',
     ];
@@ -58,6 +63,10 @@ class StudentSemesterPayment extends Model
             'prefinal_payment_date' => 'date',
             'final_payment_date' => 'date',
             'irregular_subjects_count' => 'integer',
+            'credit_transfer_subjects_count' => 'integer',
+            'calculated_total_amount' => 'decimal:2',
+            'irregular_balance_breakdown' => 'array',
+            'is_balance_calculated' => 'boolean',
         ];
     }
 

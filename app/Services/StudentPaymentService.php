@@ -342,6 +342,23 @@ class StudentPaymentService
         // Ensure balance is not negative
         $calculatedBalance = max($calculatedBalance, 0);
 
+        // Store the calculated balance in the payment record for future reference
+        $payment->update([
+            'calculated_total_amount' => $calculatedBalance,
+            'irregular_balance_breakdown' => [
+                'past_year_subjects_count' => $pastYearSubjectsCount,
+                'past_year_subjects_fee' => $pastYearSubjectsFee,
+                'past_year_subjects' => $pastYearSubjects,
+                'base_fee' => $baseFee,
+                'credited_subjects_count' => $creditedSubjectsCount,
+                'credited_subjects_deduction' => $creditedSubjectsDeduction,
+                'credited_subjects' => $creditedSubjects,
+                'current_year_level' => $currentYearLevel,
+                'breakdown' => "({$pastYearSubjectsCount} past subjects × ₱300) + ₱".number_format($baseFee, 2)." - ({$creditedSubjectsCount} credits × ₱300)",
+            ],
+            'is_balance_calculated' => true,
+        ]);
+
         return [
             'past_year_subjects_count' => $pastYearSubjectsCount,
             'past_year_subjects_fee' => $pastYearSubjectsFee,

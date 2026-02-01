@@ -7,7 +7,6 @@ use App\Models\SchoolSetting;
 use App\Models\StudentSemesterPayment;
 use App\Services\StudentPaymentService;
 use Illuminate\Http\Request;
-use Illuminate\Http\Response;
 
 class PaymentsController extends Controller
 {
@@ -34,16 +33,24 @@ class PaymentsController extends Controller
         // Calculate proper total amounts for irregular students
         $paymentHistory->transform(function ($payment) use ($student) {
             if ($student->student_type === 'irregular') {
-                try {
-                    $paymentService = app(StudentPaymentService::class);
-                    $calculation = $paymentService->calculateIrregularBalance($payment);
-                    $payment->calculated_total_amount = $calculation['calculated_balance'] ?? $payment->total_amount;
-                } catch (\Exception $e) {
-                    $payment->calculated_total_amount = $payment->total_amount;
+                // Check if balance has already been calculated and stored
+                if ($payment->is_balance_calculated && $payment->calculated_total_amount) {
+                    // Use stored calculated amount
+                    $payment->calculated_total_amount = $payment->calculated_total_amount;
+                } else {
+                    // Calculate balance and store it
+                    try {
+                        $paymentService = app(StudentPaymentService::class);
+                        $calculation = $paymentService->calculateIrregularBalance($payment);
+                        $payment->calculated_total_amount = $calculation['calculated_balance'] ?? $payment->total_semester_fee;
+                    } catch (\Exception $e) {
+                        $payment->calculated_total_amount = $payment->total_semester_fee;
+                    }
                 }
             } else {
-                $payment->calculated_total_amount = $payment->total_amount;
+                $payment->calculated_total_amount = $payment->total_semester_fee;
             }
+
             return $payment;
         });
 
@@ -82,6 +89,28 @@ class PaymentsController extends Controller
         }
 
         try {
+            // Check if balance has already been calculated and stored
+            if ($payment->is_balance_calculated && $payment->irregular_balance_breakdown) {
+                $breakdown = $payment->irregular_balance_breakdown;
+
+                return response()->json([
+                    'success' => true,
+                    'calculated_balance' => $payment->calculated_total_amount,
+                    'breakdown' => $breakdown['breakdown'] ?? '',
+                    'details' => [
+                        'past_year_subjects' => $breakdown['past_year_subjects'] ?? [],
+                        'past_year_subjects_count' => $breakdown['past_year_subjects_count'] ?? 0,
+                        'past_year_subjects_fee' => $breakdown['past_year_subjects_fee'] ?? 0,
+                        'base_fee' => $breakdown['base_fee'] ?? 0,
+                        'credited_subjects' => $breakdown['credited_subjects'] ?? [],
+                        'credited_subjects_count' => $breakdown['credited_subjects_count'] ?? 0,
+                        'credited_subjects_deduction' => $breakdown['credited_subjects_deduction'] ?? 0,
+                        'current_year_level' => $breakdown['current_year_level'] ?? 0,
+                    ],
+                ]);
+            }
+
+            // Calculate balance if not stored
             $paymentService = app(StudentPaymentService::class);
             $calculation = $paymentService->calculateIrregularBalance($payment);
 
