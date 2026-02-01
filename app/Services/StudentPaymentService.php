@@ -275,6 +275,7 @@ class StudentPaymentService
         }
 
         // Get all subject enrollments for this student in the current academic period
+        // Include both active (current) and completed (archived) enrollments
         $subjectEnrollments = \App\Models\StudentSubjectEnrollment::with([
             'sectionSubject.subject',
             'sectionSubject.section',
@@ -282,7 +283,7 @@ class StudentPaymentService
             ->where('student_id', $student->id)
             ->where('academic_year', $academicYear)
             ->where('semester', $semester)
-            ->where('status', 'active')
+            ->whereIn('status', ['active', 'completed'])
             ->get();
 
         // Count subjects from past year levels (+300 each)
