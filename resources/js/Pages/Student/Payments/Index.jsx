@@ -340,19 +340,17 @@ const Index = ({ currentPayment, paymentHistory, stats, currentAcademicInfo, stu
                                                     </Badge>
                                                 </div>
                                             </div>
-                                            {/* Balance Calculation Button for Irregular Students */}
-                                            {student.student_type === 'irregular' && (
-                                                <div className="flex justify-center">
-                                                    <Button
-                                                        onClick={() => handleShowCalculation(payment)}
-                                                        variant="outline"
-                                                        className="bg-orange-50 border-orange-200 text-orange-700 hover:bg-orange-100"
-                                                    >
-                                                        <Calculator className="w-4 h-4 mr-2" />
-                                                        View Balance Calculation
-                                                    </Button>
-                                                </div>
-                                            )}
+                                            {/* Balance Calculation Button */}
+                                            <div className="flex justify-center">
+                                                <Button
+                                                    onClick={() => handleShowCalculation(payment)}
+                                                    variant="outline"
+                                                    className="bg-orange-50 border-orange-200 text-orange-700 hover:bg-orange-100"
+                                                >
+                                                    <Calculator className="w-4 h-4 mr-2" />
+                                                    View Balance Calculation
+                                                </Button>
+                                            </div>
                                             <div>
                                                 <div className="flex items-center gap-2 mb-4">
                                                     <div className="p-1.5 bg-blue-100 rounded">

@@ -80,14 +80,6 @@ class PaymentsController extends Controller
             ], 403);
         }
 
-        // Check if student is irregular
-        if ($payment->student->student_type !== 'irregular') {
-            return response()->json([
-                'success' => false,
-                'message' => 'This calculation is only for irregular students.',
-            ], 400);
-        }
-
         try {
             // Check if balance has already been calculated and stored
             if ($payment->is_balance_calculated && $payment->irregular_balance_breakdown) {

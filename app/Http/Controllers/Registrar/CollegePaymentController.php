@@ -309,14 +309,6 @@ class CollegePaymentController extends Controller
      */
     public function calculateIrregularBalance(StudentSemesterPayment $payment)
     {
-        // Check if student is irregular
-        if ($payment->student->student_type !== 'irregular') {
-            return response()->json([
-                'success' => false,
-                'message' => 'This calculation is only for irregular students.',
-            ], 400);
-        }
-
         try {
             $paymentService = app(\App\Services\StudentPaymentService::class);
             $calculation = $paymentService->calculateIrregularBalance($payment);
