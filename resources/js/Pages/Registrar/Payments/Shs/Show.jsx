@@ -277,7 +277,7 @@ export default function ShsPaymentShow({ student, payments, auth }) {
                                                                                 {(transaction.type === 'voucher' || (transaction.description && transaction.description.toLowerCase().includes('voucher')) || (student.has_voucher && student.voucher_status === 'active')) && (
                                                                                     <p className="text-xs text-gray-500">Fees covered by active voucher</p>
                                                                                 )}
-                                                                                {transaction.notes && (
+                                                                                {transaction.notes && !(transaction.type === 'voucher' || (transaction.description && transaction.description.toLowerCase().includes('voucher')) || (student.has_voucher && student.voucher_status === 'active')) && (
                                                                                     <p className="text-xs text-gray-500">{transaction.notes}</p>
                                                                                 )}
                                                                             </div>

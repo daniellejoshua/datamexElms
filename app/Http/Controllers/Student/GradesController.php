@@ -15,8 +15,8 @@ class GradesController extends Controller
         $student = $request->user()->student;
 
         // Get current payment status for the student
-        $currentAcademicYear = \App\Helpers\AcademicHelper::getCurrentAcademicYear();
-        $currentSemester = \App\Helpers\AcademicHelper::getCurrentSemester();
+        $currentAcademicYear = \App\Models\SchoolSetting::getCurrentAcademicYear();
+        $currentSemester = \App\Models\SchoolSetting::getCurrentSemester();
 
         $paymentStatus = StudentSemesterPayment::where('student_id', $student->id)
             ->where('academic_year', $currentAcademicYear)

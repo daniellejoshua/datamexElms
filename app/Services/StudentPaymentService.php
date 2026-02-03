@@ -38,8 +38,21 @@ class StudentPaymentService
         $isIrregular = $subjectEnrollments->where('enrollment_type', 'irregular')->count() > 0;
         $irregularSubjectsCount = $subjectEnrollments->where('enrollment_type', 'irregular')->count();
 
-        // Base rates (these could come from a settings table)
-        $baseSemesterFee = $customRates['base_semester_fee'] ?? 12000.00;
+        // Get base fee from program_fees table
+        $currentYearLevel = $student->current_year_level ?? $student->year_level;
+        if (is_string($currentYearLevel)) {
+            // Extract number from string like "1st Year" -> 1
+            preg_match('/\d+/', $currentYearLevel, $matches);
+            $currentYearLevel = isset($matches[0]) ? (int) $matches[0] : 1;
+        }
+
+        $programFee = \App\Models\ProgramFee::where('program_id', $student->program_id)
+            ->where('year_level', $currentYearLevel)
+            ->where('education_level', $student->education_level)
+            ->where('fee_type', 'regular')
+            ->first();
+
+        $baseSemesterFee = $customRates['base_semester_fee'] ?? $programFee->semester_fee ?? $student->program->semester_fee ?? 12000.00;
         $enrollmentFeePercentage = $customRates['enrollment_fee_percentage'] ?? 0.25; // 25% as downpayment
         $irregularSubjectFee = $customRates['irregular_subject_fee'] ?? 300.00;
 

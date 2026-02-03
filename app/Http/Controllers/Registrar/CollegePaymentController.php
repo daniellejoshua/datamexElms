@@ -172,10 +172,8 @@ class CollegePaymentController extends Controller
     {
         $validated = $request->validate([
             'student_id' => 'required|exists:students,id',
-            'payment_type' => 'required|string',
             'academic_year' => 'required|string',
             'semester' => 'required|string',
-            'total_due' => 'required|numeric|min:0',
             'due_date' => 'required|date',
             'description' => 'nullable|string',
             'payment_items' => 'required|array|min:1',
@@ -190,14 +188,17 @@ class CollegePaymentController extends Controller
             return back()->withErrors(['student_id' => 'Student must be enrolled in college.']);
         }
 
+        // Calculate total due from payment items instead of manual input
+        $totalDue = collect($validated['payment_items'])->sum('amount');
+
         $payment = StudentSemesterPayment::create([
             'student_id' => $validated['student_id'],
             'academic_year' => $validated['academic_year'],
             'semester' => $validated['semester'],
-            'enrollment_fee' => $validated['payment_type'] === 'enrollment' ? $validated['total_due'] : 0,
-            'total_semester_fee' => $validated['total_due'],
+            'enrollment_fee' => 0, // Will be set based on payment items
+            'total_semester_fee' => $totalDue,
             'total_paid' => 0,
-            'balance' => $validated['total_due'],
+            'balance' => $totalDue,
             'status' => 'pending',
             'payment_plan' => 'full',
         ]);

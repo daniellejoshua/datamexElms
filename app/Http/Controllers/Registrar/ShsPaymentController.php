@@ -47,10 +47,7 @@ class ShsPaymentController extends Controller
                 }
             })
             ->where('academic_year', $filterAcademicYear)
-            ->where(function ($query) use ($filterSemester) {
-                $query->where('semester', $filterSemester)
-                    ->orWhere('semester', 'annual');
-            });
+            ->where('semester', 'annual'); // SHS payments are always annual
 
         // Add search functionality
         if (! empty($searchTerm)) {
@@ -96,13 +93,13 @@ class ShsPaymentController extends Controller
                 if ($filterStudentType !== 'all') {
                     $query->where('student_type', $filterStudentType);
                 }
-            })->where('academic_year', $filterAcademicYear)->where('semester', $filterSemester)->where('balance', '>', 0)->count(),
+            })->where('academic_year', $filterAcademicYear)->where('semester', 'annual')->where('balance', '>', 0)->count(),
             'total_outstanding_balance' => ShsStudentPayment::whereHas('student', function ($query) use ($filterStudentType) {
                 $query->where('education_level', 'senior_high');
                 if ($filterStudentType !== 'all') {
                     $query->where('student_type', $filterStudentType);
                 }
-            })->where('academic_year', $filterAcademicYear)->where('semester', $filterSemester)->sum('balance'),
+            })->where('academic_year', $filterAcademicYear)->where('semester', 'annual')->sum('balance'),
         ];
 
         // Generate academic years list
@@ -157,6 +154,16 @@ class ShsPaymentController extends Controller
             ->orderBy('created_at', 'desc')
             ->get();
 
+        // Apply voucher logic for students with active vouchers
+        $payments->transform(function ($payment) use ($student) {
+            if ($student->has_voucher && $student->voucher_status === 'active') {
+                $payment->total_semester_fee = 0;
+                $payment->balance = 0; // Set balance to 0 for voucher students
+            }
+
+            return $payment;
+        });
+
         return Inertia::render('Registrar/Payments/Shs/Show', [
             'student' => $student,
             'payments' => $payments,
@@ -170,9 +177,7 @@ class ShsPaymentController extends Controller
     {
         $validated = $request->validate([
             'student_id' => 'required|exists:students,id',
-            'payment_type' => 'required|string',
             'academic_year' => 'required|string',
-            'semester' => 'required|string',
             'total_due' => 'required|numeric|min:0',
             'due_date' => 'required|date',
             'description' => 'nullable|string',
@@ -188,14 +193,24 @@ class ShsPaymentController extends Controller
             return back()->withErrors(['student_id' => 'Student must be enrolled in SHS.']);
         }
 
+        // Check if payment record already exists for this academic year
+        $existingPayment = ShsStudentPayment::where('student_id', $student->id)
+            ->where('academic_year', $validated['academic_year'])
+            ->first();
+
+        if ($existingPayment) {
+            return back()->withErrors(['academic_year' => 'Payment record already exists for this academic year.']);
+        }
+
+        // For SHS, always use 'annual' semester
         $payment = ShsStudentPayment::create([
             'student_id' => $validated['student_id'],
             'academic_year' => $validated['academic_year'],
-            'semester' => $validated['semester'],
-            'first_quarter_amount' => $validated['payment_type'] === 'first_quarter' ? $validated['total_due'] : 0,
-            'second_quarter_amount' => $validated['payment_type'] === 'second_quarter' ? $validated['total_due'] : 0,
-            'third_quarter_amount' => $validated['payment_type'] === 'third_quarter' ? $validated['total_due'] : 0,
-            'fourth_quarter_amount' => $validated['payment_type'] === 'fourth_quarter' ? $validated['total_due'] : 0,
+            'semester' => 'annual',
+            'first_quarter_amount' => 0,
+            'second_quarter_amount' => 0,
+            'third_quarter_amount' => 0,
+            'fourth_quarter_amount' => 0,
             'total_semester_fee' => $validated['total_due'],
             'total_paid' => 0,
             'balance' => $validated['total_due'],

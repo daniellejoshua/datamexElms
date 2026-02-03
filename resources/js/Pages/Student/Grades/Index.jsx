@@ -90,11 +90,11 @@ const getVisibleGrades = (paymentStatus) => {
 
     // Otherwise, show grades based on payment status
     return {
-        prelim: paymentStatus.prelim_paid === 1,
-        midterm: paymentStatus.midterm_paid === 1,
-        prefinal: paymentStatus.prefinal_paid === 1,
-        final: paymentStatus.final_paid === 1,
-        semester: paymentStatus.prelim_paid === 1 && paymentStatus.midterm_paid === 1 && paymentStatus.prefinal_paid === 1 && paymentStatus.final_paid === 1, // Show semester grade only if all periods are paid
+        prelim: paymentStatus.prelim_paid == true,
+        midterm: paymentStatus.midterm_paid == true,
+        prefinal: paymentStatus.prefinal_paid == true,
+        final: paymentStatus.final_paid == true,
+        semester: paymentStatus.prelim_paid == true && paymentStatus.midterm_paid == true && paymentStatus.prefinal_paid == true && paymentStatus.final_paid == true, // Show semester grade only if all periods are paid
     };
 };
 
@@ -490,7 +490,7 @@ const Index = ({ auth, student, currentGrades, paymentStatus, stats }) => {
                                                                 ) : (
                                                                     <>
                                                                         {/* Prelim Grade */}
-                                                                        {(!visibleGrades || visibleGrades.prelim) && (
+                                                                        {visibleGrades?.prelim && (
                                                                             <div className="relative">
                                                                                 <div className="flex items-center justify-between p-4 bg-gradient-to-r from-emerald-50 to-emerald-100 rounded-xl border border-emerald-200">
                                                                                     <div className="flex items-center gap-3">
@@ -533,7 +533,7 @@ const Index = ({ auth, student, currentGrades, paymentStatus, stats }) => {
                                                                         )}
 
                                                                         {/* Midterm Grade */}
-                                                                        {(!visibleGrades || visibleGrades.midterm) && (
+                                                                        {visibleGrades?.midterm && (
                                                                             <div className="relative">
                                                                                 <div className="flex items-center justify-between p-4 bg-gradient-to-r from-amber-50 to-amber-100 rounded-xl border border-amber-200">
                                                                                     <div className="flex items-center gap-3">
@@ -576,7 +576,7 @@ const Index = ({ auth, student, currentGrades, paymentStatus, stats }) => {
                                                                         )}
 
                                                                         {/* Pre-finals Grade */}
-                                                                        {(!visibleGrades || visibleGrades.prefinal) && (
+                                                                        {visibleGrades?.prefinal && (
                                                                             <div className="relative">
                                                                                 <div className="flex items-center justify-between p-4 bg-gradient-to-r from-orange-50 to-orange-100 rounded-xl border border-orange-200">
                                                                                     <div className="flex items-center gap-3">
@@ -619,7 +619,7 @@ const Index = ({ auth, student, currentGrades, paymentStatus, stats }) => {
                                                                         )}
 
                                                                         {/* Finals Grade */}
-                                                                        {(!visibleGrades || visibleGrades.final) && (
+                                                                        {visibleGrades?.final && (
                                                                             <div className="relative">
                                                                                 <div className="flex items-center justify-between p-4 bg-gradient-to-r from-red-50 to-red-100 rounded-xl border border-red-200">
                                                                                     <div className="flex items-center gap-3">
@@ -662,7 +662,7 @@ const Index = ({ auth, student, currentGrades, paymentStatus, stats }) => {
                                                                         )}
 
                                                                         {/* Semester Grade */}
-                                                                        {(!visibleGrades || visibleGrades.semester) && (
+                                                                        {visibleGrades?.semester && (
                                                                             <div className="relative">
                                                                                 <div className="flex items-center justify-between p-4 bg-gradient-to-r from-indigo-50 to-indigo-100 rounded-xl border border-indigo-200">
                                                                                     <div className="flex items-center gap-3">
