@@ -154,6 +154,42 @@ class RegistrarController extends Controller
                         ->where('enrollment_date', '>=', now()->subDays(7))
                         ->count(),
                 ],
+                'year_level_distribution' => [
+                    'college' => Student::whereHas('program', function ($query) {
+                        $query->where('education_level', 'college');
+                    })->whereHas('studentEnrollments', function ($query) use ($currentAcademicYear, $currentSemester) {
+                        $query->where('academic_year', $currentAcademicYear)
+                            ->where('semester', $currentSemester)
+                            ->where('status', 'active');
+                    })->selectRaw('current_year_level, COUNT(*) as count')
+                        ->groupBy('current_year_level')
+                        ->orderBy('current_year_level')
+                        ->get()
+                        ->map(function ($item) {
+                            return [
+                                'year_level' => $item->current_year_level,
+                                'label' => $this->getYearLevelLabel($item->current_year_level),
+                                'count' => $item->count,
+                            ];
+                        }),
+                    'shs' => Student::whereHas('program', function ($query) {
+                        $query->where('education_level', 'senior_high');
+                    })->whereHas('studentEnrollments', function ($query) use ($currentAcademicYear, $currentSemester) {
+                        $query->where('academic_year', $currentAcademicYear)
+                            ->where('semester', $currentSemester)
+                            ->where('status', 'active');
+                    })->selectRaw('current_year_level, COUNT(*) as count')
+                        ->groupBy('current_year_level')
+                        ->orderBy('current_year_level')
+                        ->get()
+                        ->map(function ($item) {
+                            return [
+                                'year_level' => $item->current_year_level,
+                                'label' => $item->current_year_level === 11 ? 'Grade 11' : 'Grade 12',
+                                'count' => $item->count,
+                            ];
+                        }),
+                ],
             ];
         });
 
@@ -283,6 +319,42 @@ class RegistrarController extends Controller
                     ->where('enrollment_date', '>=', now()->subDays(7))
                     ->count(),
             ],
+            'year_level_distribution' => [
+                'college' => Student::whereHas('program', function ($query) {
+                    $query->where('education_level', 'college');
+                })->whereHas('studentEnrollments', function ($query) use ($currentAcademicYear, $currentSemester) {
+                    $query->where('academic_year', $currentAcademicYear)
+                        ->where('semester', $currentSemester)
+                        ->where('status', 'active');
+                })->selectRaw('current_year_level, COUNT(*) as count')
+                    ->groupBy('current_year_level')
+                    ->orderBy('current_year_level')
+                    ->get()
+                    ->map(function ($item) {
+                        return [
+                            'year_level' => $item->current_year_level,
+                            'label' => $this->getYearLevelLabel($item->current_year_level),
+                            'count' => $item->count,
+                        ];
+                    }),
+                'shs' => Student::whereHas('program', function ($query) {
+                    $query->where('education_level', 'senior_high');
+                })->whereHas('studentEnrollments', function ($query) use ($currentAcademicYear, $currentSemester) {
+                    $query->where('academic_year', $currentAcademicYear)
+                        ->where('semester', $currentSemester)
+                        ->where('status', 'active');
+                })->selectRaw('current_year_level, COUNT(*) as count')
+                    ->groupBy('current_year_level')
+                    ->orderBy('current_year_level')
+                    ->get()
+                    ->map(function ($item) {
+                        return [
+                            'year_level' => $item->current_year_level,
+                            'label' => $item->current_year_level === 11 ? 'Grade 11' : 'Grade 12',
+                            'count' => $item->count,
+                        ];
+                    }),
+            ],
         ];
 
         return Inertia::render('Registrar/Dashboard', [
@@ -333,31 +405,68 @@ class RegistrarController extends Controller
                 'label' => $this->getYearLevelLabel($yearLevel),
                 'total_enrolled' => $totalEnrolled,
                 'periods' => [],
+                'is_shs' => in_array($yearLevel, [11, 12]),
             ];
 
-            foreach ($paymentPeriods as $periodKey => $periodLabel) {
-                // Count students who have paid for this period
-                $paidCount = Student::where('current_year_level', $yearLevel)
+            // For SHS students (Grade 11 & 12), show voucher status instead of payment periods
+            if (in_array($yearLevel, [11, 12])) {
+                // Count students with vouchers
+                $withVoucherCount = Student::where('current_year_level', $yearLevel)
+                    ->where('has_voucher', true)
                     ->whereHas('studentEnrollments', function ($query) use ($currentAcademicYear, $currentSemester) {
                         $query->where('academic_year', $currentAcademicYear)
                             ->where('semester', $currentSemester)
                             ->where('status', 'active');
                     })
-                    ->whereHas('paymentTransactions', function ($query) use ($periodKey) {
-                        $query->where('payment_type', $periodKey)
-                            ->where('status', 'completed');
+                    ->count();
+
+                // Count students without vouchers
+                $withoutVoucherCount = Student::where('current_year_level', $yearLevel)
+                    ->where(function ($query) {
+                        $query->where('has_voucher', false)
+                            ->orWhereNull('has_voucher');
+                    })
+                    ->whereHas('studentEnrollments', function ($query) use ($currentAcademicYear, $currentSemester) {
+                        $query->where('academic_year', $currentAcademicYear)
+                            ->where('semester', $currentSemester)
+                            ->where('status', 'active');
                     })
                     ->count();
 
-                $unpaidCount = $totalEnrolled - $paidCount;
-
+                // Add voucher status data
                 $yearLevelData['periods'][] = [
-                    'period' => $periodKey,
-                    'label' => $periodLabel,
-                    'paid_count' => $paidCount,
-                    'unpaid_count' => $unpaidCount,
+                    'period' => 'voucher_status',
+                    'label' => 'Voucher Status',
+                    'paid_count' => $withVoucherCount,
+                    'unpaid_count' => $withoutVoucherCount,
                     'total_count' => $totalEnrolled,
                 ];
+            } else {
+                // For college students, show payment periods
+                foreach ($paymentPeriods as $periodKey => $periodLabel) {
+                    // Count students who have paid for this period
+                    $paidCount = Student::where('current_year_level', $yearLevel)
+                        ->whereHas('studentEnrollments', function ($query) use ($currentAcademicYear, $currentSemester) {
+                            $query->where('academic_year', $currentAcademicYear)
+                                ->where('semester', $currentSemester)
+                                ->where('status', 'active');
+                        })
+                        ->whereHas('paymentTransactions', function ($query) use ($periodKey) {
+                            $query->where('payment_type', $periodKey)
+                                ->where('status', 'completed');
+                        })
+                        ->count();
+
+                    $unpaidCount = $totalEnrolled - $paidCount;
+
+                    $yearLevelData['periods'][] = [
+                        'period' => $periodKey,
+                        'label' => $periodLabel,
+                        'paid_count' => $paidCount,
+                        'unpaid_count' => $unpaidCount,
+                        'total_count' => $totalEnrolled,
+                    ];
+                }
             }
 
             $collectionData[] = $yearLevelData;
@@ -615,9 +724,6 @@ class RegistrarController extends Controller
             'fee_adjustments.credits' => ['nullable', 'numeric'],
             'fee_adjustments.catchup' => ['nullable', 'numeric'],
             'fee_adjustments.total' => ['nullable', 'numeric'],
-
-            // Duplicate override flag
-            'duplicate_override' => ['nullable', 'boolean'],
         ]);
 
         // Check if it's 2nd semester - prevent course shifters and transferees
@@ -672,24 +778,6 @@ class RegistrarController extends Controller
             return back()->withErrors([
                 'enrollment_fee' => 'Enrollment fee is required for regular students.',
             ])->withInput();
-        }
-
-        // Check for duplicates if not overridden
-        if (empty($validated['duplicate_override']) && empty($validated['student_number'])) {
-            // Check for potential duplicates by email + name + birthdate
-            $duplicateExists = Student::whereHas('user', function ($query) use ($validated) {
-                $query->where('email', $validated['email']);
-            })
-                ->where('first_name', 'LIKE', $validated['first_name'])
-                ->where('last_name', 'LIKE', $validated['last_name'])
-                ->where('birth_date', $validated['birth_date'])
-                ->exists();
-
-            if ($duplicateExists) {
-                return back()->withErrors([
-                    'email' => 'A student with the same email, name, and birthdate already exists. If this is a different person, please confirm the duplicate override.',
-                ])->withInput();
-            }
         }
 
         // Check if this is an existing student being updated
@@ -2182,6 +2270,51 @@ class RegistrarController extends Controller
             }
         }
 
+        // Get enrolled subjects without grades (for current semester)
+        $currentAcademicYear = \App\Models\SchoolSetting::getCurrentAcademicYear();
+        $currentSemester = \App\Models\SchoolSetting::getCurrentSemester();
+
+        $enrolledSubjects = \App\Models\StudentEnrollment::where('student_id', $student->id)
+            ->where('status', 'active')
+            ->whereHas('section', function ($query) use ($currentAcademicYear, $currentSemester) {
+                $query->where('academic_year', $currentAcademicYear)
+                    ->where('semester', $currentSemester);
+            })
+            ->with(['section.sectionSubjects.subject'])
+            ->get();
+
+        foreach ($enrolledSubjects as $enrollment) {
+            if ($enrollment->section && $enrollment->section->sectionSubjects) {
+                foreach ($enrollment->section->sectionSubjects as $sectionSubject) {
+                    if ($sectionSubject->subject) {
+                        $subject = $sectionSubject->subject;
+
+                        // Skip if we already have this subject in subjectGradesMap
+                        if (isset($subjectGradesMap[$subject->subject_code])) {
+                            continue;
+                        }
+
+                        // This is an enrolled subject without grades
+                        // Determine missing grades based on education level
+                        $isSHS = $student->current_year_level >= 11 && $student->current_year_level <= 12;
+                        $missingGrades = $isSHS ? ['Q1', 'Q2'] : ['Prelim', 'Midterm', 'Prefinal', 'Final'];
+
+                        $gradeInfo = [
+                            'subject_id' => $subject->id,
+                            'subject_code' => $subject->subject_code,
+                            'subject_name' => $subject->subject_name,
+                            'type' => 'enrolled',
+                            'teacher_name' => $sectionSubject->teacher ? $sectionSubject->teacher->user->name : null,
+                            'missing_grades' => $missingGrades,
+                            'is_complete' => false,
+                        ];
+
+                        $subjectGradesMap[$subject->subject_code] = $gradeInfo;
+                    }
+                }
+            }
+        }
+
         // Convert map to array
         $subjectGrades = array_values($subjectGradesMap);
 
@@ -2221,5 +2354,106 @@ class RegistrarController extends Controller
 
         // Default to base fee
         return $baseFee;
+    }
+
+    /**
+     * Get student payment details for a specific period and year level.
+     */
+    public function getPaymentDetails(Request $request): \Illuminate\Http\JsonResponse
+    {
+        $request->validate([
+            'year_level' => 'required|integer',
+            'period' => 'required|string',
+            'status' => 'required|string|in:paid,unpaid',
+            'page' => 'integer|min:1',
+            'per_page' => 'integer|min:1|max:100',
+            'search' => 'string|nullable',
+        ]);
+
+        $yearLevel = $request->year_level;
+        $period = $request->period;
+        $status = $request->status;
+        $page = $request->get('page', 1);
+        $perPage = $request->get('per_page', 50);
+        $search = $request->get('search', '');
+
+        $currentAcademicYear = SchoolSetting::getCurrentAcademicYear();
+        $currentSemester = SchoolSetting::getCurrentSemester();
+
+        $query = Student::with(['user', 'program'])
+            ->where('current_year_level', $yearLevel)
+            ->whereHas('studentEnrollments', function ($query) use ($currentAcademicYear, $currentSemester) {
+                $query->where('academic_year', $currentAcademicYear)
+                    ->where('semester', $currentSemester)
+                    ->where('status', 'active');
+            });
+
+        // Handle SHS voucher queries
+        if (in_array($yearLevel, [11, 12]) && $period === 'voucher_status') {
+            if ($status === 'paid') {
+                // "paid" means students with voucher
+                $query->where('has_voucher', true);
+            } else {
+                // "unpaid" means students without voucher
+                $query->where(function ($query) {
+                    $query->where('has_voucher', false)
+                        ->orWhereNull('has_voucher');
+                });
+            }
+        } else {
+            // Handle college payment queries
+            if ($status === 'paid') {
+                $query->whereHas('paymentTransactions', function ($query) use ($period) {
+                    $query->where('payment_type', $period)
+                        ->where('status', 'completed');
+                });
+            } else {
+                $query->whereDoesntHave('paymentTransactions', function ($query) use ($period) {
+                    $query->where('payment_type', $period)
+                        ->where('status', 'completed');
+                });
+            }
+        }
+
+        // Add search functionality
+        if (!empty($search)) {
+            $query->where(function ($q) use ($search) {
+                $q->where('student_number', 'like', "%{$search}%")
+                    ->orWhereHas('user', function ($userQuery) use ($search) {
+                        $userQuery->where('name', 'like', "%{$search}%");
+                    })
+                    ->orWhereHas('program', function ($programQuery) use ($search) {
+                        $programQuery->where('program_code', 'like', "%{$search}%");
+                    });
+            });
+        }
+
+        // Get total count before pagination
+        $total = $query->count();
+
+        // Apply pagination
+        $students = $query->skip(($page - 1) * $perPage)
+            ->take($perPage)
+            ->get()
+            ->map(function ($student) {
+                return [
+                    'id' => $student->id,
+                    'student_number' => $student->student_number,
+                    'full_name' => $student->user->name,
+                    'program_code' => $student->program->program_code,
+                    'year_level' => $student->current_year_level,
+                    'student_type' => $student->student_type,
+                ];
+            });
+
+        return response()->json([
+            'students' => $students,
+            'total' => $total,
+            'current_page' => $page,
+            'per_page' => $perPage,
+            'last_page' => ceil($total / $perPage),
+            'from' => ($page - 1) * $perPage + 1,
+            'to' => min($page * $perPage, $total),
+        ]);
     }
 }

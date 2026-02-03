@@ -58,19 +58,34 @@ export default function GradesModal({ isOpen, onClose, subject, paymentStatus })
             return { prelim: false, midterm: false, prefinal: false, final: false, semester: false };
         }
 
-        // If balance is 0, show all grades
+        // If balance is 0, show all grades including semester grade
         if (paymentStatus.balance === 0) {
             return { prelim: true, midterm: true, prefinal: true, final: true, semester: true };
         }
 
-        // Otherwise, show grades based on payment status
-        return {
-            prelim: paymentStatus.prelim_paid === 1,
-            midterm: paymentStatus.midterm_paid === 1,
-            prefinal: paymentStatus.prefinal_paid === 1,
-            final: paymentStatus.final_paid === 1,
-            semester: paymentStatus.prelim_paid === 1 && paymentStatus.midterm_paid === 1 && paymentStatus.prefinal_paid === 1 && paymentStatus.final_paid === 1, // Show semester grade only if all periods are paid
-        };
+        // Payment-based logic
+        const prelimPaid = paymentStatus.prelim_paid === true;
+        const midtermPaid = paymentStatus.midterm_paid === true;
+        const prefinalPaid = paymentStatus.prefinal_paid === true;
+        const finalPaid = paymentStatus.final_paid === true;
+
+        // If finals are paid: show all grades
+        if (finalPaid) {
+            return { prelim: true, midterm: true, prefinal: true, final: true, semester: true };
+        }
+
+        // If prefinals are paid but not prelim: show prelim, midterm, and prefinals
+        if (prefinalPaid && !prelimPaid) {
+            return { prelim: true, midterm: true, prefinal: true, final: false, semester: true };
+        }
+
+        // If prelim is paid: show only prelim
+        if (prelimPaid) {
+            return { prelim: true, midterm: false, prefinal: false, final: false, semester: false };
+        }
+
+        // Default: no grades visible
+        return { prelim: false, midterm: false, prefinal: false, final: false, semester: false };
     };
 
     // Define grade items based on student type

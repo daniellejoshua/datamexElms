@@ -206,6 +206,51 @@ class AcademicHistoryController extends Controller
             }
         }
 
+        // Get enrolled subjects without grades (for current semester)
+        $currentAcademicYear = \App\Models\SchoolSetting::getCurrentAcademicYear();
+        $currentSemester = \App\Models\SchoolSetting::getCurrentSemester();
+
+        $enrolledSubjects = \App\Models\StudentEnrollment::where('student_id', $student->id)
+            ->where('status', 'active')
+            ->whereHas('section', function ($query) use ($currentAcademicYear, $currentSemester) {
+                $query->where('academic_year', $currentAcademicYear)
+                    ->where('semester', $currentSemester);
+            })
+            ->with(['section.sectionSubjects.subject'])
+            ->get();
+
+        foreach ($enrolledSubjects as $enrollment) {
+            if ($enrollment->section && $enrollment->section->sectionSubjects) {
+                foreach ($enrollment->section->sectionSubjects as $sectionSubject) {
+                    if ($sectionSubject->subject) {
+                        $subject = $sectionSubject->subject;
+
+                        // Skip if we already have this subject in subjectGradesMap
+                        if (isset($subjectGradesMap[$subject->subject_code])) {
+                            continue;
+                        }
+
+                        // This is an enrolled subject without grades
+                        // Determine missing grades based on education level
+                        $isSHS = $student->current_year_level >= 11 && $student->current_year_level <= 12;
+                        $missingGrades = $isSHS ? ['Q1', 'Q2'] : ['Prelim', 'Midterm', 'Prefinal', 'Final'];
+
+                        $gradeInfo = [
+                            'subject_id' => $subject->id,
+                            'subject_code' => $subject->subject_code,
+                            'subject_name' => $subject->subject_name,
+                            'type' => 'enrolled',
+                            'teacher_name' => $sectionSubject->teacher ? $sectionSubject->teacher->user->name : null,
+                            'missing_grades' => $missingGrades,
+                            'is_complete' => false,
+                        ];
+
+                        $subjectGradesMap[$subject->subject_code] = $gradeInfo;
+                    }
+                }
+            }
+        }
+
         // Calculate completion statistics properly
         // Only count curriculum subjects that have been completed
         $totalSubjects = count($curriculumSubjects);
@@ -265,35 +310,6 @@ class AcademicHistoryController extends Controller
             return $grade['type'] === 'credited';
         });
 
-        // Paginate credited subjects (8 per page)
-        $perPage = 8;
-        $currentPage = request()->get('credited_page', 1);
-        $totalCredited = count($creditedSubjectsOnly);
-        $offset = ($currentPage - 1) * $perPage;
-        $paginatedCreditedSubjects = array_slice($creditedSubjectsOnly, $offset, $perPage);
-
-        // Create pagination metadata
-        $creditedPagination = [
-            'current_page' => $currentPage,
-            'data' => $paginatedCreditedSubjects,
-            'from' => $totalCredited > 0 ? $offset + 1 : null,
-            'last_page' => ceil($totalCredited / $perPage),
-            'per_page' => $perPage,
-            'to' => min($offset + $perPage, $totalCredited),
-            'total' => $totalCredited,
-        ];
-
-        // Generate pagination links
-        $links = [];
-        for ($page = 1; $page <= $creditedPagination['last_page']; $page++) {
-            $links[] = [
-                'url' => $page == 1 ? request()->url() : request()->url().'?credited_page='.$page,
-                'label' => (string) $page,
-                'active' => $page == $currentPage,
-            ];
-        }
-        $creditedPagination['links'] = $links;
-
         // Get archived enrollments
         $archivedEnrollments = \App\Models\ArchivedStudentEnrollment::where('student_id', $student->id)
             ->with('archivedSection.program')
@@ -306,7 +322,7 @@ class AcademicHistoryController extends Controller
             'curriculumSubjects' => $curriculumSubjects,
             'completedSubjects' => $completedSubjects,
             'subjectGrades' => $subjectGrades,
-            'creditedSubjects' => $creditedPagination,
+            'creditedSubjects' => $creditedSubjectsOnly,
             'archivedEnrollments' => $archivedEnrollments,
             'completionStats' => [
                 'totalSubjects' => $totalSubjects,

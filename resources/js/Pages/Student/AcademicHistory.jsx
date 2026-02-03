@@ -16,10 +16,16 @@ import {
     TrendingUp,
     User,
     School,
-    AlertCircle
+    AlertCircle,
+    ChevronLeft,
+    ChevronRight
 } from 'lucide-react'
+import { useState } from 'react'
 
 export default function AcademicHistory({ student, curriculumSubjects, completedSubjects, subjectGrades, creditedSubjects, archivedEnrollments, completionStats }) {
+    const [creditedSubjectsPage, setCreditedSubjectsPage] = useState(1)
+    const itemsPerPage = 5
+
     const formatStudentName = (student) => {
         const parts = [student.first_name, student.middle_name, student.last_name]
         if (student.suffix) {
@@ -194,6 +200,7 @@ export default function AcademicHistory({ student, curriculumSubjects, completed
                                                         const completed = isSubjectCompleted(subject.subject_code)
                                                         const gradeInfo = getSubjectGradeInfo(subject.subject_code)
                                                         const hasMissingGrades = gradeInfo && gradeInfo.missing_grades && gradeInfo.missing_grades.length > 0
+                                                        const isEnrolled = gradeInfo && gradeInfo.type === 'enrolled'
 
                                                         return (
                                                             <Card
@@ -201,6 +208,8 @@ export default function AcademicHistory({ student, curriculumSubjects, completed
                                                                 className={`transition-all duration-200 ${
                                                                     completed
                                                                         ? 'bg-green-50 border-green-200 shadow-sm'
+                                                                        : isEnrolled
+                                                                        ? 'bg-blue-50 border-blue-200 shadow-sm'
                                                                         : hasMissingGrades
                                                                         ? 'bg-yellow-50 border-yellow-200'
                                                                         : 'hover:shadow-md border-gray-200'
@@ -210,11 +219,14 @@ export default function AcademicHistory({ student, curriculumSubjects, completed
                                                                     <div className="flex items-start gap-3">
                                                                         <div className={`mt-1 ${
                                                                             completed ? 'text-green-600' :
+                                                                            isEnrolled ? 'text-blue-600' :
                                                                             hasMissingGrades ? 'text-yellow-600' :
                                                                             'text-gray-400'
                                                                         }`}>
                                                                             {completed ? (
                                                                                 <CheckCircle2 className="w-5 h-5" />
+                                                                            ) : isEnrolled ? (
+                                                                                <Clock className="w-5 h-5" />
                                                                             ) : hasMissingGrades ? (
                                                                                 <AlertCircle className="w-5 h-5" />
                                                                             ) : (
@@ -259,15 +271,21 @@ export default function AcademicHistory({ student, curriculumSubjects, completed
                                                                             )}
 
                                                                             {/* Missing Grades Warning */}
-                                                                            {hasMissingGrades && (
+                                                                            {(hasMissingGrades || isEnrolled) && (
                                                                                 <div className="mt-2 text-xs">
-                                                                                    <div className="flex items-center gap-1 text-yellow-700 font-medium mb-1">
+                                                                                    <div className={`flex items-center gap-1 font-medium mb-1 ${
+                                                                                        isEnrolled ? 'text-blue-700' : 'text-yellow-700'
+                                                                                    }`}>
                                                                                         <AlertCircle className="w-3 h-3" />
-                                                                                        Missing Grades:
+                                                                                        {isEnrolled ? 'Currently Enrolled - Grades Pending:' : 'Missing Grades:'}
                                                                                     </div>
                                                                                     <div className="flex flex-wrap gap-1">
                                                                                         {gradeInfo.missing_grades.map((grade, idx) => (
-                                                                                            <Badge key={idx} variant="outline" className="text-xs bg-yellow-100 text-yellow-800 border-yellow-300">
+                                                                                            <Badge key={idx} variant="outline" className={`text-xs ${
+                                                                                                isEnrolled 
+                                                                                                    ? 'bg-blue-100 text-blue-800 border-blue-300' 
+                                                                                                    : 'bg-yellow-100 text-yellow-800 border-yellow-300'
+                                                                                            }`}>
                                                                                                 {grade}
                                                                                             </Badge>
                                                                                         ))}
@@ -306,35 +324,25 @@ export default function AcademicHistory({ student, curriculumSubjects, completed
 
                 {/* Credited Subjects */}
                 {(() => {
-                    // Use paginated credited subjects data
-                    const creditedSubjectsData = creditedSubjects?.data || [];
-                    const passingCreditedSubjects = creditedSubjectsData.filter(subject => {
-                        const grade = subject.final_grade;
-                        if (!grade || grade === 'CR') return true; // No grade = CR = passing
+                    // Use the creditedSubjects prop directly (already filtered by backend)
+                    // Convert object to array if needed
+                    const creditedSubjectsArray = creditedSubjects ? Object.values(creditedSubjects) : [];
+                    const creditedSubjectsInCompleted = creditedSubjectsArray;
 
-                        const numericGrade = parseFloat(grade);
-                        if (isNaN(numericGrade)) return false; // Invalid grade
+                    // Pagination logic
+                    const totalPages = Math.ceil(creditedSubjectsInCompleted.length / itemsPerPage)
+                    const startIndex = (creditedSubjectsPage - 1) * itemsPerPage
+                    const endIndex = startIndex + itemsPerPage
+                    const paginatedSubjects = creditedSubjectsInCompleted.slice(startIndex, endIndex)
 
-                        // Check if it's GPA (1.00-5.00) or percentage (0-100)
-                        // GPA grades: 1.00-3.00 are passing
-                        // Percentage grades: >= 75 are passing
-                        if (numericGrade <= 5.0 && numericGrade >= 1.0) {
-                            // Likely GPA format (1.00-5.00)
-                            return numericGrade <= 3.0; // 1.00-3.00 are passing GPAs
-                        } else {
-                            // Likely percentage format (0-100)
-                            return numericGrade >= 75; // >= 75% is passing
-                        }
-                    });
-
-                    return passingCreditedSubjects.length > 0 && (
+                    return creditedSubjectsInCompleted.length > 0 && (
                         <Card>
                             <CardHeader>
                                 <CardTitle className="flex items-center gap-2">
                                     <Award className="w-5 h-5" />
-                                    Credited Subjects ({passingCreditedSubjects.length})
+                                    Credited Subjects ({creditedSubjectsInCompleted.length})
                                 </CardTitle>
-                                <p className="text-sm text-gray-600">Subjects credited through transfers, course shifts, or equivalency (passing grades only)</p>
+                                <p className="text-sm text-gray-600">Subjects credited through transfers, course shifts, or equivalency</p>
                             </CardHeader>
                             <CardContent>
                                 <div className="overflow-x-auto">
@@ -351,7 +359,7 @@ export default function AcademicHistory({ student, curriculumSubjects, completed
                                             </tr>
                                         </thead>
                                         <tbody>
-                                            {passingCreditedSubjects.map((subject, index) => (
+                                            {paginatedSubjects.map((subject, index) => (
                                                 <tr key={index} className="border-b hover:bg-gray-50">
                                                     <td className="py-3 px-4">
                                                         <Badge variant="outline" className="font-mono text-xs">
@@ -393,83 +401,34 @@ export default function AcademicHistory({ student, curriculumSubjects, completed
                                     </table>
                                 </div>
 
-                                {/* Pagination */}
-                                {creditedSubjects.last_page > 1 && (
-                                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-0 px-4 py-3 border-t bg-gray-50 rounded-b-lg mt-4">
-                                        <div className="flex items-center gap-2 text-sm text-gray-700">
-                                            <span>Showing</span>
-                                            <span className="font-medium">{creditedSubjects.from}</span>
-                                            <span>to</span>
-                                            <span className="font-medium">{creditedSubjects.to}</span>
-                                            <span>of</span>
-                                            <span className="font-medium">{creditedSubjects.total}</span>
-                                            <span>credited subjects</span>
+                                {/* Pagination Controls */}
+                                {totalPages > 1 && (
+                                    <div className="flex items-center justify-between mt-4 px-4">
+                                        <div className="text-sm text-gray-600">
+                                            Showing {startIndex + 1} to {Math.min(endIndex, creditedSubjectsInCompleted.length)} of {creditedSubjectsInCompleted.length} subjects
                                         </div>
-
-                                        {/* Responsive Pagination */}
-                                        <div className="flex items-center gap-1 overflow-x-auto">
-                                            {(() => {
-                                                const links = creditedSubjects.links.slice(1, -1);
-                                                const pages = [];
-
-                                                // Always ensure first page is included
-                                                if (links.length > 0 && links[0].label !== '1') {
-                                                    pages.push({
-                                                        url: creditedSubjects.links[0]?.url || null,
-                                                        label: '1',
-                                                        active: creditedSubjects.current_page === 1
-                                                    });
-                                                    if (links[0].label === '...') {
-                                                        // Keep the ellipsis if it was there
-                                                        pages.push(links[0]);
-                                                    }
-                                                }
-
-                                                // Add all existing links
-                                                pages.push(...links);
-
-                                                // Always ensure last page is included
-                                                const lastPageNum = creditedSubjects.last_page.toString();
-                                                const hasLastPage = pages.some(link => link.label === lastPageNum);
-                                                if (!hasLastPage && links.length > 0) {
-                                                    const lastLink = links[links.length - 1];
-                                                    if (lastLink.label === '...') {
-                                                        // Add ellipsis before last page
-                                                        pages.push(lastLink);
-                                                    }
-                                                    pages.push({
-                                                        url: creditedSubjects.links[creditedSubjects.links.length - 1]?.url || null,
-                                                        label: lastPageNum,
-                                                        active: creditedSubjects.current_page === creditedSubjects.last_page
-                                                    });
-                                                }
-
-                                                return pages.map((link, index) => (
-                                                    link.url ? (
-                                                        <Link
-                                                            key={`${link.label}-${index}`}
-                                                            href={link.url}
-                                                            className={`flex-shrink-0 px-2 py-1.5 text-xs font-medium border border-gray-300 transition-colors ${
-                                                                link.active
-                                                                    ? 'bg-blue-50 border-blue-500 text-blue-600 z-10'
-                                                                    : 'bg-white text-gray-500 hover:bg-gray-50 hover:text-gray-700'
-                                                            } ${index === 0 ? 'border-l rounded-l-md' : ''} ${index === pages.length - 1 ? 'border-r rounded-r-md' : 'border-r'}`}
-                                                            preserveScroll
-                                                        >
-                                                            {link.label}
-                                                        </Link>
-                                                    ) : (
-                                                        <span
-                                                            key={`${link.label}-${index}`}
-                                                            className={`flex-shrink-0 px-2 py-1.5 text-xs font-medium border border-gray-300 bg-gray-100 text-gray-400 cursor-not-allowed ${
-                                                                index === 0 ? 'border-l rounded-l-md' : ''} ${index === pages.length - 1 ? 'border-r rounded-r-md' : 'border-r'
-                                                            }`}
-                                                        >
-                                                            {link.label}
-                                                        </span>
-                                                    )
-                                                ));
-                                            })()}
+                                        <div className="flex items-center gap-2">
+                                            <Button
+                                                variant="outline"
+                                                size="sm"
+                                                onClick={() => setCreditedSubjectsPage(prev => Math.max(prev - 1, 1))}
+                                                disabled={creditedSubjectsPage === 1}
+                                            >
+                                                <ChevronLeft className="w-4 h-4" />
+                                                Previous
+                                            </Button>
+                                            <span className="text-sm text-gray-600 px-2">
+                                                Page {creditedSubjectsPage} of {totalPages}
+                                            </span>
+                                            <Button
+                                                variant="outline"
+                                                size="sm"
+                                                onClick={() => setCreditedSubjectsPage(prev => Math.min(prev + 1, totalPages))}
+                                                disabled={creditedSubjectsPage === totalPages}
+                                            >
+                                                Next
+                                                <ChevronRight className="w-4 h-4" />
+                                            </Button>
                                         </div>
                                     </div>
                                 )}

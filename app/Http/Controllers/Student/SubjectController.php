@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\ArchivedStudentEnrollment;
 use App\Models\CourseMaterial;
 use App\Models\MaterialAccessLog;
+use App\Models\SchoolSetting;
 use App\Models\Student;
 use App\Models\StudentSemesterPayment;
 use Illuminate\Http\Request;
@@ -26,14 +27,9 @@ class SubjectController extends Controller
 
         $student = $user->student;
 
-        // Get current academic year and semester from active enrollments
-        $currentEnrollment = $student->studentEnrollments()
-            ->where('status', 'active')
-            ->whereNotNull('section_id')
-            ->first();
-
-        $currentYear = $currentEnrollment?->academic_year ?? '2025-2026';
-        $currentSemester = $currentEnrollment?->semester ?? '1st';
+        // Get current academic year and semester from school settings
+        $currentYear = SchoolSetting::getCurrentAcademicYear();
+        $currentSemester = SchoolSetting::getCurrentSemester();
 
         // Get current payment status for the student
         $paymentStatus = StudentSemesterPayment::where('student_id', $student->id)
@@ -41,49 +37,97 @@ class SubjectController extends Controller
             ->where('semester', $currentSemester)
             ->first();
 
-        // Get all active enrollments with subject details (only those with sections) - filter by current semester
-        $enrollments = $student->studentEnrollments()
-            ->whereNotNull('section_id')
-            ->with([
-                'section' => function ($query) {
-                    $query->select('id', 'section_name', 'year_level', 'program_id', 'academic_year', 'semester');
-                },
-                'section.program' => function ($query) {
-                    $query->select('id', 'program_name', 'program_code');
-                },
-                'section.sectionSubjects' => function ($query) {
-                    $query->select('id', 'section_id', 'subject_id', 'teacher_id', 'schedule_days', 'start_time', 'end_time', 'room');
-                },
-                'section.sectionSubjects.subject' => function ($query) {
-                    $query->select('id', 'subject_code', 'subject_name', 'units', 'description');
-                },
-                'section.sectionSubjects.teacher' => function ($query) {
-                    $query->select('id', 'user_id');
-                },
-                'section.sectionSubjects.teacher.user' => function ($query) {
-                    $query->select('id', 'name');
-                },
-                'section.courseMaterials' => function ($query) {
-                    $query->where('is_active', true)
-                        ->where('visibility', 'all_students')
-                        ->select('id', 'section_id', 'teacher_id', 'title', 'description', 'file_name', 'file_path', 'file_type', 'file_size', 'original_name', 'upload_date', 'created_at');
-                },
-            ])
-            ->where('status', 'active')
-            ->where('academic_year', $currentYear)
-            ->where('semester', $currentSemester)
-            ->get();
+        // Get all enrollments with subject details (only those with sections) - filter by current semester
+        // For irregular students, get all enrollments in current semester (they might have multiple sections)
+        // For regular students, only get active enrollments
+        if ($student->student_type === 'irregular') {
+            $enrollments = $student->studentEnrollments()
+                ->whereNotNull('section_id')
+                ->where('academic_year', $currentYear)
+                ->where('semester', $currentSemester)
+                ->with([
+                    'section' => function ($query) {
+                        $query->select('id', 'section_name', 'year_level', 'program_id', 'academic_year', 'semester');
+                    },
+                    'section.program' => function ($query) {
+                        $query->select('id', 'program_name', 'program_code');
+                    },
+                    'section.sectionSubjects' => function ($query) {
+                        $query->select('id', 'section_id', 'subject_id', 'teacher_id', 'schedule_days', 'start_time', 'end_time', 'room');
+                    },
+                    'section.sectionSubjects.subject' => function ($query) {
+                        $query->select('id', 'subject_code', 'subject_name', 'units', 'description');
+                    },
+                    'section.sectionSubjects.teacher' => function ($query) {
+                        $query->select('id', 'user_id');
+                    },
+                    'section.sectionSubjects.teacher.user' => function ($query) {
+                        $query->select('id', 'name');
+                    },
+                    'section.courseMaterials' => function ($query) {
+                        $query->where('is_active', true)
+                            ->where('visibility', 'all_students')
+                            ->select('id', 'section_id', 'teacher_id', 'title', 'description', 'file_name', 'file_path', 'file_type', 'file_size', 'original_name', 'upload_date', 'created_at');
+                    },
+                ])
+                ->get();
+        } else {
+            $enrollments = $student->studentEnrollments()
+                ->whereNotNull('section_id')
+                ->where('status', 'active')
+                ->where('academic_year', $currentYear)
+                ->where('semester', $currentSemester)
+                ->with([
+                    'section' => function ($query) {
+                        $query->select('id', 'section_name', 'year_level', 'program_id', 'academic_year', 'semester');
+                    },
+                    'section.program' => function ($query) {
+                        $query->select('id', 'program_name', 'program_code');
+                    },
+                    'section.sectionSubjects' => function ($query) {
+                        $query->select('id', 'section_id', 'subject_id', 'teacher_id', 'schedule_days', 'start_time', 'end_time', 'room');
+                    },
+                    'section.sectionSubjects.subject' => function ($query) {
+                        $query->select('id', 'subject_code', 'subject_name', 'units', 'description');
+                    },
+                    'section.sectionSubjects.teacher' => function ($query) {
+                        $query->select('id', 'user_id');
+                    },
+                    'section.sectionSubjects.teacher.user' => function ($query) {
+                        $query->select('id', 'name');
+                    },
+                    'section.courseMaterials' => function ($query) {
+                        $query->where('is_active', true)
+                            ->where('visibility', 'all_students')
+                            ->select('id', 'section_id', 'teacher_id', 'title', 'description', 'file_name', 'file_path', 'file_type', 'file_size', 'original_name', 'upload_date', 'created_at');
+                    },
+                ])
+                ->get();
+        }
 
-        // Get subjects with grades to determine which subjects the student is actually taking (for irregular students)
-        $studentGrades = $student->studentGrades()
-            ->with(['sectionSubject.subject', 'sectionSubject.teacher.user', 'studentEnrollment.section.program'])
-            ->whereHas('studentEnrollment', function ($query) use ($student, $currentYear, $currentSemester) {
-                $query->where('student_id', $student->id)
-                    ->where('status', 'active')
-                    ->where('academic_year', $currentYear)
-                    ->where('semester', $currentSemester);
-            })
-            ->get();
+        // Get subjects with grades to determine which subjects the student is actually taking
+        // For irregular students, get ALL grades from current semester (they can be in multiple sections)
+        // For regular students, only from active enrollments
+        if ($student->student_type === 'irregular') {
+            $studentGrades = $student->studentGrades()
+                ->with(['sectionSubject.subject', 'sectionSubject.teacher.user', 'studentEnrollment.section.program'])
+                ->whereHas('studentEnrollment', function ($query) use ($student, $currentYear, $currentSemester) {
+                    $query->where('student_id', $student->id)
+                        ->where('academic_year', $currentYear)
+                        ->where('semester', $currentSemester);
+                })
+                ->get();
+        } else {
+            $studentGrades = $student->studentGrades()
+                ->with(['sectionSubject.subject', 'sectionSubject.teacher.user', 'studentEnrollment.section.program'])
+                ->whereHas('studentEnrollment', function ($query) use ($student, $currentYear, $currentSemester) {
+                    $query->where('student_id', $student->id)
+                        ->where('status', 'active')
+                        ->where('academic_year', $currentYear)
+                        ->where('semester', $currentSemester);
+                })
+                ->get();
+        }
 
         // Get SHS grades for SHS students
         $shsStudentGrades = collect();
@@ -127,17 +171,64 @@ class SubjectController extends Controller
         $subjects = [];
 
         if ($student->student_type === 'irregular') {
-            // For irregular students: only show subjects where they have grades
-            foreach ($subjectGradesMap as $subjectCode => $gradeData) {
-                $grade = $gradeData['grade'];
-                $gradeType = $gradeData['type'];
-                $sectionSubject = $grade->sectionSubject;
+            // For irregular students: show only subjects they are specifically enrolled in
+            // via StudentSubjectEnrollments (not all subjects from sections)
+            $subjectEnrollments = $student->studentSubjectEnrollments()
+                ->where('academic_year', $currentYear)
+                ->where('semester', $currentSemester)
+                ->with([
+                    'sectionSubject' => function ($query) {
+                        $query->with([
+                            'subject',
+                            'teacher.user',
+                            'section.program',
+                        ]);
+                    },
+                ])
+                ->get();
+
+            // Transform the data for easier frontend consumption
+            foreach ($subjectEnrollments as $subjectEnrollment) {
+                $sectionSubject = $subjectEnrollment->sectionSubject;
+                if (! $sectionSubject || ! $sectionSubject->subject) {
+                    continue;
+                }
+
                 $subject = $sectionSubject->subject;
                 $teacher = $sectionSubject->teacher;
-                $enrollment = $grade->studentEnrollment;
+                $section = $sectionSubject->section;
+
+                // Check if we have grades for this subject
+                $gradeData = $subjectGradesMap[$subject->subject_code] ?? null;
+                $gradesData = null;
+                $gradeType = null;
+
+                if ($gradeData) {
+                    $grade = $gradeData['grade'];
+                    $gradeType = $gradeData['type'];
+
+                    // Prepare grades based on type
+                    if ($gradeType === 'college') {
+                        $gradesData = [
+                            'prelim_grade' => $grade->prelim_grade,
+                            'midterm_grade' => $grade->midterm_grade,
+                            'prefinal_grade' => $grade->prefinal_grade,
+                            'final_grade' => $grade->final_grade,
+                            'semester_grade' => $grade->semester_grade,
+                            'status' => $grade->overall_status,
+                        ];
+                    } elseif ($gradeType === 'shs') {
+                        $gradesData = [
+                            'q1_grade' => $grade->first_quarter_grade,
+                            'q2_grade' => $grade->second_quarter_grade,
+                            'final_grade' => $grade->final_grade,
+                            'status' => $grade->completion_status,
+                        ];
+                    }
+                }
 
                 // Filter materials for this specific teacher
-                $sectionMaterials = $enrollment->section->courseMaterials
+                $sectionMaterials = $section?->courseMaterials
                     ->where('teacher_id', $sectionSubject->teacher_id)
                     ->map(function ($material) use ($student) {
                         // Check if student has accessed this material
@@ -153,30 +244,10 @@ class SubjectController extends Controller
                             'size' => $material->formatted_file_size,
                             'uploadDate' => $material->upload_date?->format('Y-m-d'),
                             'downloadUrl' => route('student.materials.download', $material->id),
-                            'isNew' => ! $hasAccessed && $material->created_at >= now()->subDays(7), // Mark as new if not accessed and uploaded in last 7 days
+                            'isNew' => ! $hasAccessed && $material->created_at >= now()->subDays(7),
                         ];
                     })
                     ->values();
-
-                // Prepare grades based on type
-                $gradesData = null;
-                if ($gradeType === 'college') {
-                    $gradesData = [
-                        'prelim_grade' => $grade->prelim_grade,
-                        'midterm_grade' => $grade->midterm_grade,
-                        'prefinal_grade' => $grade->prefinal_grade,
-                        'final_grade' => $grade->final_grade,
-                        'semester_grade' => $grade->semester_grade,
-                        'status' => $grade->overall_status,
-                    ];
-                } elseif ($gradeType === 'shs') {
-                    $gradesData = [
-                        'q1_grade' => $grade->first_quarter_grade,
-                        'q2_grade' => $grade->second_quarter_grade,
-                        'final_grade' => $grade->final_grade,
-                        'status' => $grade->completion_status,
-                    ];
-                }
 
                 $subjects[] = [
                     'id' => $subject->id,
@@ -185,12 +256,12 @@ class SubjectController extends Controller
                     'units' => $subject->units,
                     'description' => $subject->description,
                     'teacher_name' => $teacher?->user?->name ?? 'TBA',
-                    'section_name' => $enrollment->section->section_name,
-                    'program_name' => $enrollment->section->program->program_name,
-                    'program_code' => $enrollment->section->program->program_code,
-                    'year_level' => $enrollment->section->year_level,
-                    'academic_year' => $enrollment->section->academic_year,
-                    'semester' => $enrollment->section->semester,
+                    'section_name' => $section?->section_name ?? 'TBA',
+                    'program_name' => $section?->program?->program_name ?? 'TBA',
+                    'program_code' => $section?->program?->program_code ?? 'TBA',
+                    'year_level' => $section?->year_level ?? null,
+                    'academic_year' => $section?->academic_year ?? $currentYear,
+                    'semester' => $section?->semester ?? $currentSemester,
                     'schedule_days' => $sectionSubject->schedule_days,
                     'start_time' => $sectionSubject->start_time ? substr($sectionSubject->start_time, 0, 5) : null,
                     'end_time' => $sectionSubject->end_time ? substr($sectionSubject->end_time, 0, 5) : null,

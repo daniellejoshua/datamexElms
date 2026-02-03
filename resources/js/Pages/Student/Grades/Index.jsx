@@ -83,19 +83,34 @@ const getVisibleGrades = (paymentStatus) => {
         return { prelim: false, midterm: false, prefinal: false, final: false, semester: false };
     }
 
-    // If balance is 0, show all grades
+    // If balance is 0, show all grades including semester grade
     if (paymentStatus.balance === 0) {
         return { prelim: true, midterm: true, prefinal: true, final: true, semester: true };
     }
 
-    // Otherwise, show grades based on payment status
-    return {
-        prelim: paymentStatus.prelim_paid == true,
-        midterm: paymentStatus.midterm_paid == true,
-        prefinal: paymentStatus.prefinal_paid == true,
-        final: paymentStatus.final_paid == true,
-        semester: paymentStatus.prelim_paid == true && paymentStatus.midterm_paid == true && paymentStatus.prefinal_paid == true && paymentStatus.final_paid == true, // Show semester grade only if all periods are paid
-    };
+    // Payment-based logic
+    const prelimPaid = paymentStatus.prelim_paid == true;
+    const midtermPaid = paymentStatus.midterm_paid == true;
+    const prefinalPaid = paymentStatus.prefinal_paid == true;
+    const finalPaid = paymentStatus.final_paid == true;
+
+    // If finals are paid: show all grades
+    if (finalPaid) {
+        return { prelim: true, midterm: true, prefinal: true, final: true, semester: true };
+    }
+
+    // If prefinals are paid but not prelim: show prelim, midterm, and prefinals
+    if (prefinalPaid && !prelimPaid) {
+        return { prelim: true, midterm: true, prefinal: true, final: false, semester: true };
+    }
+
+    // If prelim is paid: show only prelim
+    if (prelimPaid) {
+        return { prelim: true, midterm: false, prefinal: false, final: false, semester: false };
+    }
+
+    // Default: no grades visible
+    return { prelim: false, midterm: false, prefinal: false, final: false, semester: false };
 };
 
 const Index = ({ auth, student, currentGrades, paymentStatus, stats }) => {
@@ -110,7 +125,7 @@ const Index = ({ auth, student, currentGrades, paymentStatus, stats }) => {
                             className="flex items-center gap-2 px-3 py-1.5 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-md transition-colors"
                         >
                             <ArrowLeft className="w-4 h-4" />
-                            Back to Dashboard
+                            <span className="hidden sm:inline">Back to Dashboard</span>
                         </button>
                         <div className="h-6 w-px bg-gray-300"></div>
                         <div>
@@ -153,7 +168,7 @@ const Index = ({ auth, student, currentGrades, paymentStatus, stats }) => {
 
                     {/* Grade Statistics Cards */}
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8 mt-6">
-                        <Card className="border-l-4 border-l-blue-500 hover:shadow-md transition-shadow mx-2 md:mx-0">
+                        <Card className="hover:shadow-md transition-shadow mx-2 md:mx-0">
                             <CardContent className="p-6">
                                 <div className="flex items-center justify-between">
                                     <div>
@@ -168,7 +183,8 @@ const Index = ({ auth, student, currentGrades, paymentStatus, stats }) => {
                             </CardContent>
                         </Card>
 
-                        <Card className="border-l-4 border-l-green-500 hover:shadow-md transition-shadow mx-2 md:mx-0">
+                        {paymentStatus?.balance === 0 && (
+                        <Card className="hover:shadow-md transition-shadow mx-2 md:mx-0">
                             <CardContent className="p-6">
                                 <div className="flex items-center justify-between">
                                     <div>
@@ -221,8 +237,9 @@ const Index = ({ auth, student, currentGrades, paymentStatus, stats }) => {
                                 </div>
                             </CardContent>
                         </Card>
+                        )}
 
-                        <Card className="border-l-4 border-l-purple-500 hover:shadow-md transition-shadow mx-2 md:mx-0">
+                        <Card className="hover:shadow-md transition-shadow mx-2 md:mx-0">
                             <CardContent className="p-6">
                                 <div className="flex items-center justify-between">
                                     <div>
@@ -239,7 +256,7 @@ const Index = ({ auth, student, currentGrades, paymentStatus, stats }) => {
                             </CardContent>
                         </Card>
 
-                        <Card className="border-l-4 border-l-orange-500 hover:shadow-md transition-shadow mx-2 md:mx-0">
+                        <Card className="hover:shadow-md transition-shadow mx-2 md:mx-0">
                             <CardContent className="p-6">
                                 <div className="flex items-center justify-between">
                                     <div>
@@ -373,7 +390,7 @@ const Index = ({ auth, student, currentGrades, paymentStatus, stats }) => {
                                                 const visibleGrades = isSHS ? null : getVisibleGrades(paymentStatus);
 
                                                 return (
-                                                    <Card key={index} className="hover:shadow-lg transition-all duration-300 border-l-4 border-l-blue-500">
+                                                    <Card key={index} className="hover:shadow-lg transition-all duration-300">
                                                         <CardHeader className="pb-3">
                                                             <div className="flex items-start justify-between">
                                                                 <div className="flex-1">
@@ -762,7 +779,7 @@ const Index = ({ auth, student, currentGrades, paymentStatus, stats }) => {
                                         <Button asChild className="bg-blue-600 hover:bg-blue-700">
                                             <Link href={route('student.dashboard')}>
                                                 <ArrowRight className="w-4 h-4 mr-2" />
-                                                Back to Dashboard
+                                                <span className="hidden sm:inline">Back to Dashboard</span>
                                             </Link>
                                         </Button>
                                     </div>

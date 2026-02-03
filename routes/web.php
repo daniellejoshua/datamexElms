@@ -36,13 +36,17 @@ Route::middleware(['auth', 'verified', 'role:student'])->prefix('student')->grou
     Route::get('/subjects', [StudentSubjectController::class, 'index'])->name('student.subjects');
     Route::get('/grades', [\App\Http\Controllers\Student\GradesController::class, 'index'])->name('student.grades');
     Route::get('/payments', [\App\Http\Controllers\Student\PaymentsController::class, 'index'])->name('student.payments');
-    Route::get('/payments/{payment}/calculate-irregular', [\App\Http\Controllers\Student\PaymentsController::class, 'calculateIrregularBalance'])->name('student.payments.calculate-irregular');
+    Route::get('/payments/{payment}/calculate-irregular', [\App\Http\Controllers\Student\PaymentsController::class, 'index'])->name('student.payments.calculate-irregular');
     Route::get('/academic-history', [\App\Http\Controllers\Student\AcademicHistoryController::class, 'index'])->name('student.academic-history');
     Route::get('/materials/{material}/download', [StudentSubjectController::class, 'downloadMaterial'])->name('student.materials.download');
     Route::post('/materials/{material}/mark-viewed', [StudentSubjectController::class, 'markMaterialAsViewed'])->name('student.materials.mark-viewed');
     Route::get('/archived-grades', [\App\Http\Controllers\Student\ArchivedGradesController::class, 'index'])->name('student.archived-grades');
     Route::get('/archived-grades/period', [\App\Http\Controllers\Student\ArchivedGradesController::class, 'showByPeriod'])->name('student.archived-grades.period');
     Route::get('/archived-grades/section/{section}', [\App\Http\Controllers\Student\ArchivedGradesController::class, 'showSection'])->name('student.archived-grades.section');
+    Route::get('/announcements', [\App\Http\Controllers\AnnouncementController::class, 'index'])->name('student.announcements');
+    Route::get('/announcements/{announcement}', [\App\Http\Controllers\AnnouncementController::class, 'show'])->name('student.announcements.show');
+    Route::post('/announcements/{announcement}/mark-read', [\App\Http\Controllers\AnnouncementController::class, 'markAsRead'])->name('student.announcements.mark-read');
+    Route::get('/announcements/{announcement}/attachments/{attachment}/download', [\App\Http\Controllers\AnnouncementController::class, 'downloadAttachment'])->name('student.announcements.download-attachment');
 });
 
 // Registrar Routes
@@ -50,6 +54,7 @@ Route::middleware([])->prefix('registrar')->name('registrar.')->group(function (
     \Log::info('Registrar route group accessed', ['url' => request()->fullUrl(), 'method' => request()->method()]);
     Route::get('/dashboard', [RegistrarController::class, 'dashboard'])->name('dashboard');
     Route::match(['get', 'post'], '/dashboard/refresh', [RegistrarController::class, 'refreshDashboard'])->name('dashboard.refresh');
+    Route::get('/dashboard/payment-details', [RegistrarController::class, 'getPaymentDetails'])->name('dashboard.payment-details');
     Route::get('/students', [RegistrarController::class, 'students'])->name('students');
     Route::get('/students/create', [RegistrarController::class, 'create'])->name('students.create');
     Route::post('/students', [RegistrarController::class, 'store'])->name('students.store');

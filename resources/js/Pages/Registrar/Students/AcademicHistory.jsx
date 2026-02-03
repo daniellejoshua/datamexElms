@@ -203,6 +203,7 @@ export default function AcademicHistory({ student, curriculumSubjects, completed
                                                         const completed = isSubjectCompleted(subject.subject_code)
                                                         const gradeInfo = getSubjectGradeInfo(subject.subject_code)
                                                         const hasMissingGrades = gradeInfo && gradeInfo.missing_grades && gradeInfo.missing_grades.length > 0
+                                                        const isEnrolled = gradeInfo && gradeInfo.type === 'enrolled'
                                                         
                                                         return (
                                                             <Card 
@@ -210,6 +211,8 @@ export default function AcademicHistory({ student, curriculumSubjects, completed
                                                                 className={`transition-all duration-200 ${
                                                                     completed 
                                                                         ? 'bg-green-50 border-green-200 shadow-sm' 
+                                                                        : isEnrolled
+                                                                        ? 'bg-blue-50 border-blue-200 shadow-sm'
                                                                         : hasMissingGrades
                                                                         ? 'bg-yellow-50 border-yellow-200'
                                                                         : 'hover:shadow-md border-gray-200'
@@ -219,11 +222,14 @@ export default function AcademicHistory({ student, curriculumSubjects, completed
                                                                     <div className="flex items-start gap-3">
                                                                         <div className={`mt-1 ${
                                                                             completed ? 'text-green-600' : 
+                                                                            isEnrolled ? 'text-blue-600' :
                                                                             hasMissingGrades ? 'text-yellow-600' : 
                                                                             'text-gray-400'
                                                                         }`}>
                                                                             {completed ? (
                                                                                 <CheckCircle2 className="w-5 h-5" />
+                                                                            ) : isEnrolled ? (
+                                                                                <Clock className="w-5 h-5" />
                                                                             ) : hasMissingGrades ? (
                                                                                 <AlertCircle className="w-5 h-5" />
                                                                             ) : (
@@ -268,15 +274,21 @@ export default function AcademicHistory({ student, curriculumSubjects, completed
                                                                             )}
                                                                             
                                                                             {/* Missing Grades Warning */}
-                                                                            {hasMissingGrades && (
+                                                                            {(hasMissingGrades || isEnrolled) && (
                                                                                 <div className="mt-2 text-xs">
-                                                                                    <div className="flex items-center gap-1 text-yellow-700 font-medium mb-1">
+                                                                                    <div className={`flex items-center gap-1 font-medium mb-1 ${
+                                                                                        isEnrolled ? 'text-blue-700' : 'text-yellow-700'
+                                                                                    }`}>
                                                                                         <AlertCircle className="w-3 h-3" />
-                                                                                        Missing Grades:
+                                                                                        {isEnrolled ? 'Currently Enrolled - Grades Pending:' : 'Missing Grades:'}
                                                                                     </div>
                                                                                     <div className="flex flex-wrap gap-1">
                                                                                         {gradeInfo.missing_grades.map((grade, idx) => (
-                                                                                            <Badge key={idx} variant="outline" className="text-xs bg-yellow-100 text-yellow-800 border-yellow-300">
+                                                                                            <Badge key={idx} variant="outline" className={`text-xs ${
+                                                                                                isEnrolled 
+                                                                                                    ? 'bg-blue-100 text-blue-800 border-blue-300' 
+                                                                                                    : 'bg-yellow-100 text-yellow-800 border-yellow-300'
+                                                                                            }`}>
                                                                                                 {grade}
                                                                                             </Badge>
                                                                                         ))}
@@ -315,12 +327,9 @@ export default function AcademicHistory({ student, curriculumSubjects, completed
 
                 {/* Credited Subjects */}
                 {(() => {
-                    // Get credited subjects that are also in completedSubjects (already validated by backend)
+                    // Get all credited subjects (show all credits, not just passing ones)
                     const creditedSubjectsInCompleted = subjectGrades?.filter(grade => 
-                        grade.type === 'credited' && 
-                        completedSubjects?.some(completed => 
-                            completed.subject_code === grade.subject_code
-                        )
+                        grade.type === 'credited'
                     ) || [];
 
                     // Pagination logic
@@ -336,7 +345,7 @@ export default function AcademicHistory({ student, curriculumSubjects, completed
                                     <Award className="w-5 h-5" />
                                     Credited Subjects ({creditedSubjectsInCompleted.length})
                                 </CardTitle>
-                                <p className="text-sm text-gray-600">Subjects credited through transfers, course shifts, or equivalency (passing grades only)</p>
+                                <p className="text-sm text-gray-600">Subjects credited through transfers, course shifts, or equivalency</p>
                             </CardHeader>
                             <CardContent>
                                 <div className="overflow-x-auto">

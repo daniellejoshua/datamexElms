@@ -177,7 +177,9 @@ export default function Dashboard({
                     {/* Total Subjects */}
                     <Card className="hover:shadow-md transition-shadow">
                         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                            <CardTitle className="text-sm font-medium text-muted-foreground">Total Subjects</CardTitle>
+                            <CardTitle className="text-sm font-medium text-muted-foreground">
+                                {student.student_type === 'irregular' ? 'Total Attempted' : 'Total Subjects'}
+                            </CardTitle>
                             <BookOpen className="h-4 w-4 text-muted-foreground" />
                         </CardHeader>
                         <CardContent>
@@ -451,7 +453,7 @@ export default function Dashboard({
                                                     {subject.subject_code} • {subject.teacher_name}
                                                 </p>
                                                 <p className="text-xs text-gray-500 truncate">
-                                                    {subject.section_name} • Room {subject.room}
+                                                    {formatSectionName(subject.section)} • Room {subject.room}
                                                 </p>
                                             </div>
                                             <div className="flex-shrink-0">
@@ -491,7 +493,10 @@ export default function Dashboard({
                                         Academic Progress
                                     </CardTitle>
                                     <CardDescription>
-                                        Your completion status and progress
+                                        {student.student_type === 'irregular' 
+                                            ? 'Your completion status across attempted subjects'
+                                            : 'Your completion status and progress'
+                                        }
                                     </CardDescription>
                                 </div>
                                 <Button asChild variant="ghost" size="sm">
@@ -509,7 +514,9 @@ export default function Dashboard({
                                     <div className="text-2xl font-bold text-green-700 mb-1">
                                         {stats.completedSubjects || 0}/{stats.totalCurriculumSubjects || 0}
                                     </div>
-                                    <div className="text-sm text-green-600 font-medium">Subjects Completed</div>
+                                    <div className="text-sm text-green-600 font-medium">
+                                        Subjects Completed
+                                    </div>
                                 </div>
 
                                 {/* Completion Percentage */}

@@ -114,6 +114,73 @@ export default function AuthenticatedLayout({ header, children }) {
                         )
                     },
                 ];
+            case 'registrar':
+                return [
+                    { 
+                        name: 'Dashboard', 
+                        href: route('registrar.dashboard'), 
+                        current: route().current('registrar.dashboard'),
+                        icon: (
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2H5a2 2 0 00-2-2z" />
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 5a2 2 0 012-2h4a2 2 0 012 2v0a2 2 0 01-2 2H10a2 2 0 01-2-2v0z" />
+                            </svg>
+                        )
+                    },
+                    { 
+                        name: 'Announcements', 
+                        href: route('announcements.index'), 
+                        current: route().current('announcements.*'),
+                        badge: unreadAnnouncementsCount > 0,
+                        icon: (
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z" />
+                            </svg>
+                        )
+                    },
+                    { 
+                        name: 'Student Management', 
+                        href: route('registrar.enrollments.index'), 
+                        current: route().current('registrar.enrollments.*') || route().current('registrar.students.*'),
+                        icon: (
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z" />
+                            </svg>
+                        )
+                    },
+                    { 
+                        name: 'Payments', 
+                        href: route('registrar.payments.college.index'), 
+                        current: route().current('registrar.payments.*'),
+                        children: [
+                            {
+                                name: 'College Payments',
+                                href: route('registrar.payments.college.index'),
+                                current: route().current('registrar.payments.college.*')
+                            },
+                            {
+                                name: 'SHS Payments',
+                                href: route('registrar.payments.shs.index'),
+                                current: route().current('registrar.payments.shs.*')
+                            }
+                        ],
+                        icon: (
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" />
+                            </svg>
+                        )
+                    },
+                    { 
+                        name: 'Programs', 
+                        href: route('registrar.programs.index'), 
+                        current: route().current('registrar.programs.*'),
+                        icon: (
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                            </svg>
+                        )
+                    },
+                ];
             case 'head_teacher':
             case 'super_admin':
                 return [
@@ -220,6 +287,7 @@ export default function AuthenticatedLayout({ header, children }) {
                         )
                     },
                 ];
+            case 'student':
                 return [
                     { 
                         name: 'Dashboard', 
@@ -233,9 +301,8 @@ export default function AuthenticatedLayout({ header, children }) {
                     },
                     { 
                         name: 'Announcements', 
-                        href: route('announcements.index'), 
-                        current: route().current('announcements.*'),
-                        badge: unreadAnnouncementsCount > 0,
+                        href: route('student.announcements'), 
+                        current: route().current('student.announcements.*'),
                         icon: (
                             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z" />
@@ -243,9 +310,20 @@ export default function AuthenticatedLayout({ header, children }) {
                         )
                     },
                     { 
+                        name: 'Subject', 
+                        href: route('student.subjects'), 
+                        current: route().current('student.subjects'),
+                        icon: (
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 14l9-5-9-5-9 5 9 5z" />
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 14l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0012 20.055a11.952 11.952 0 00-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14z" />
+                            </svg>
+                        )
+                    },
+                    { 
                         name: 'My Grades', 
-                        href: '#', 
-                        current: false,
+                        href: route('student.grades'), 
+                        current: route().current('student.grades'),
                         icon: (
                             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
@@ -253,66 +331,9 @@ export default function AuthenticatedLayout({ header, children }) {
                         )
                     },
                     { 
-                        name: 'My Schedule', 
-                        href: '#', 
-                        current: false,
-                        icon: (
-                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3a2 2 0 012-2h4a2 2 0 012 2v4m-6 9l2 2 4-4" />
-                            </svg>
-                        )
-                    },
-                ];
-            case 'registrar':
-                return [
-                    { 
-                        name: 'Dashboard', 
-                        href: route('registrar.dashboard'), 
-                        current: route().current('registrar.dashboard'),
-                        icon: (
-                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2H5a2 2 0 00-2-2z" />
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 5a2 2 0 012-2h4a2 2 0 012 2v0a2 2 0 01-2 2H10a2 2 0 01-2-2v0z" />
-                            </svg>
-                        )
-                    },
-                    { 
-                        name: 'Announcements', 
-                        href: route('announcements.index'), 
-                        current: route().current('announcements.*'),
-                        badge: unreadAnnouncementsCount > 0,
-                        icon: (
-                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z" />
-                            </svg>
-                        )
-                    },
-                    { 
-                        name: 'Student Management', 
-                        href: route('registrar.enrollments.index'), 
-                        current: route().current('registrar.enrollments.*') || route().current('registrar.students.*'),
-                        icon: (
-                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z" />
-                            </svg>
-                        )
-                    },
-                    { 
                         name: 'Payments', 
-                        href: route('registrar.payments.college.index'), 
-                        current: route().current('registrar.payments.*'),
-                        children: [
-                            {
-                                name: 'College Payments',
-                                href: route('registrar.payments.college.index'),
-                                current: route().current('registrar.payments.college.*')
-                            },
-                            {
-                                name: 'SHS Payments',
-                                href: route('registrar.payments.shs.index'),
-                                current: route().current('registrar.payments.shs.*')
-                            }
-                        ],
+                        href: route('student.payments'), 
+                        current: route().current('student.payments'),
                         icon: (
                             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" />
@@ -320,9 +341,9 @@ export default function AuthenticatedLayout({ header, children }) {
                         )
                     },
                     { 
-                        name: 'Programs', 
-                        href: route('registrar.programs.index'), 
-                        current: route().current('registrar.programs.*'),
+                        name: 'Past Grades', 
+                        href: route('student.archived-grades'), 
+                        current: route().current('student.archived-grades*'),
                         icon: (
                             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />

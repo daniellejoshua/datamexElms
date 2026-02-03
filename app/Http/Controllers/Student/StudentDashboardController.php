@@ -142,6 +142,7 @@ class StudentDashboardController extends Controller
                     'end_time' => $sectionSubject->end_time ? substr($sectionSubject->end_time, 0, 5) : null,
                     'section_name' => $enrollment->section->section_name ?? 'Unknown Section',
                     'program_name' => $enrollment->section->program->program_name ?? 'Unknown Program',
+                    'section' => $enrollment->section,
                 ]);
             }
         } else {
@@ -160,6 +161,7 @@ class StudentDashboardController extends Controller
                             'end_time' => $sectionSubject->end_time ? substr($sectionSubject->end_time, 0, 5) : null,
                             'section_name' => $enrollment->section->section_name,
                             'program_name' => $enrollment->section->program->program_name ?? 'Unknown Program',
+                            'section' => $enrollment->section,
                         ]);
                     }
                 }
@@ -263,6 +265,7 @@ class StudentDashboardController extends Controller
                     'subject_name' => $credited->subject->subject_name,
                     'type' => 'credited',
                     'final_grade' => $credited->final_grade,
+                    'credited_from' => $credited->studentCreditTransfer ? $credited->studentCreditTransfer->previous_school : null,
                     'is_complete' => true,
                 ];
 
@@ -296,6 +299,7 @@ class StudentDashboardController extends Controller
                     'subject_name' => $transfer->subject->subject_name,
                     'type' => 'credited',
                     'final_grade' => $transfer->verified_semester_grade,
+                    'credited_from' => $transfer->previous_school,
                     'is_complete' => true,
                 ];
 
@@ -310,9 +314,48 @@ class StudentDashboardController extends Controller
             }
         }
 
+        // Get enrolled subjects without grades (for current semester) - for irregular students
+        $currentAcademicYear = \App\Models\SchoolSetting::getCurrentAcademicYear();
+        $currentSemester = \App\Models\SchoolSetting::getCurrentSemester();
+
+        $enrolledSubjects = \App\Models\StudentEnrollment::where('student_id', $student->id)
+            ->where('status', 'active')
+            ->whereHas('section', function ($query) use ($currentAcademicYear, $currentSemester) {
+                $query->where('academic_year', $currentAcademicYear)
+                    ->where('semester', $currentSemester);
+            })
+            ->with(['section.sectionSubjects.subject'])
+            ->get();
+
+        foreach ($enrolledSubjects as $enrollment) {
+            if ($enrollment->section && $enrollment->section->sectionSubjects) {
+                foreach ($enrollment->section->sectionSubjects as $sectionSubject) {
+                    if ($sectionSubject->subject) {
+                        $subject = $sectionSubject->subject;
+
+                        // Skip if we already have this subject in subjectGradesMap
+                        if (isset($subjectGradesMap[$subject->subject_code])) {
+                            continue;
+                        }
+
+                        // This is an enrolled subject without grades
+                        $gradeInfo = [
+                            'subject_id' => $subject->id,
+                            'subject_code' => $subject->subject_code,
+                            'subject_name' => $subject->subject_name,
+                            'type' => 'enrolled',
+                            'is_complete' => false,
+                        ];
+
+                        $subjectGradesMap[$subject->subject_code] = $gradeInfo;
+                    }
+                }
+            }
+        }
+
         // Calculate completion statistics properly
-        // Only count curriculum subjects that have been completed
-        $totalCurriculumSubjects = count($curriculumSubjects);
+        // Use curriculum-based calculation for all students (same as AcademicHistoryController)
+        $totalSubjects = count($curriculumSubjects);
         $completedCurriculumSubjects = 0;
 
         foreach ($curriculumSubjects as $curriculumSubject) {
@@ -328,14 +371,28 @@ class StudentDashboardController extends Controller
                 }
             }
 
-            // Check if completed through crediting (only if grade >= 75 or CR)
+            // Check if completed through crediting (GPA 1.00-3.00 or percentage >= 75 or CR)
             if (! $isCompleted) {
                 foreach ($subjectGradesMap as $grade) {
-                    if ($grade['subject_code'] === $subjectCode &&
-                        $grade['type'] === 'credited' &&
-                        (is_null($grade['final_grade']) || (is_numeric($grade['final_grade']) && $grade['final_grade'] >= 75))) {
-                        $isCompleted = true;
-                        break;
+                    if ($grade['subject_code'] === $subjectCode && $grade['type'] === 'credited') {
+                        $gradeValue = $grade['final_grade'];
+                        $isTransfereeCredit = ! is_null($grade['credited_from']);
+                        if (is_null($gradeValue) || $gradeValue === 'CR') {
+                            // No grade = CR = passing
+                            $isCompleted = true;
+                        } elseif (is_numeric($gradeValue)) {
+                            $numericGrade = (float) $gradeValue;
+                            if ($isTransfereeCredit) {
+                                // Transferee credits use GPA: 1.00-3.00 are passing
+                                $isCompleted = $numericGrade <= 3.0;
+                            } else {
+                                // Regular credits use percentage: >= 75 is passing
+                                $isCompleted = $numericGrade >= 75;
+                            }
+                        }
+                        if ($isCompleted) {
+                            break;
+                        }
                     }
                 }
             }
@@ -345,7 +402,7 @@ class StudentDashboardController extends Controller
             }
         }
 
-        $completionRate = $totalCurriculumSubjects > 0 ? round(($completedCurriculumSubjects / $totalCurriculumSubjects) * 100) : 0;
+        $completionRate = $totalSubjects > 0 ? round(($completedCurriculumSubjects / $totalSubjects) * 100) : 0;
 
         return Inertia::render('Student/Dashboard', [
             'student' => $student->load(['user', 'program']),
@@ -358,10 +415,11 @@ class StudentDashboardController extends Controller
             'currentSection' => $enrollments->first()?->section,
             'stats' => [
                 'completedSubjects' => $completedCurriculumSubjects,
-                'totalCurriculumSubjects' => $totalCurriculumSubjects,
+                'totalCurriculumSubjects' => $totalSubjects,
                 'completionRate' => $completionRate,
                 'totalPaid' => $paymentStatus?->total_paid ?? 0,
                 'balance' => $paymentStatus?->balance ?? 0,
+                'studentType' => $student->student_type,
             ],
             'currentAcademicInfo' => [
                 'year' => $currentYear,

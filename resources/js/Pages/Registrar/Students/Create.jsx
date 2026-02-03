@@ -464,7 +464,6 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
     
     // Duplicate detection states
     const [duplicateWarning, setDuplicateWarning] = useState(null)
-    const [duplicateOverride, setDuplicateOverride] = useState(false)
     const [showDuplicateModal, setShowDuplicateModal] = useState(false)
     const [checkingDuplicate, setCheckingDuplicate] = useState(false)
     
@@ -1345,7 +1344,7 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
         }
 
         // Check for duplicates before proceeding
-        if (duplicateWarning && !duplicateOverride && !isExistingStudent && !isReturningStudent) {
+        if (duplicateWarning && !isExistingStudent && !isReturningStudent) {
             setShowDuplicateModal(true)
             toast.warning('Please review the duplicate warning before proceeding', {
                 duration: 5000,
@@ -1394,7 +1393,6 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
             ...data,
             address: addressParts || null,
             create_year_level_guide: createGuideChecked,
-            duplicate_override: duplicateOverride,
         }
 
         // Add credit transfer data for transferees and shiftees
@@ -1873,7 +1871,7 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                                         Checking for duplicate records...
                                     </p>
                                 )}
-                                {duplicateWarning && !checkingDuplicate && !duplicateOverride && (
+                                {duplicateWarning && !checkingDuplicate && (
                                     <div className="mt-2 p-3 bg-amber-50 border border-amber-200 rounded-md">
                                         <p className="text-amber-800 text-sm font-medium flex items-center gap-2">
                                             <AlertTriangle className="w-4 h-4" />
@@ -2893,11 +2891,16 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                         ))}
                     </div>
 
-                    <div className="flex flex-col gap-3 pt-4 border-t">
-                        <div className="text-sm text-gray-600">
-                            Is this the same person you're trying to register?
+                    <div className="flex flex-col gap-2 pt-3 border-t">
+                        <div className="text-center">
+                            <h3 className="text-base font-semibold text-gray-900">
+                                Confirm Student Identity
+                            </h3>
+                            <p className="text-sm text-gray-600">
+                                Is this the same person you're trying to register?
+                            </p>
                         </div>
-                        <div className="flex gap-3">
+                        <div className="flex gap-3 mt-2">
                             <Button
                                 onClick={() => {
                                     // User confirms it's the same person - auto-fill from existing record
@@ -2915,23 +2918,10 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                             </Button>
                             <Button
                                 onClick={() => {
-                                    // User confirms it's a different person - allow override
-                                    setDuplicateOverride(true)
                                     setShowDuplicateModal(false)
-                                    toast.info('Override confirmed. You can proceed with registration.', {
-                                        duration: 4000,
-                                    })
                                 }}
                                 variant="outline"
                                 className="flex-1"
-                            >
-                                No, Different Person - Continue
-                            </Button>
-                            <Button
-                                onClick={() => {
-                                    setShowDuplicateModal(false)
-                                }}
-                                variant="outline"
                             >
                                 Cancel
                             </Button>
