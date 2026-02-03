@@ -7,6 +7,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\StoreSectionRequest;
 use App\Http\Requests\Admin\UpdateSectionRequest;
 use App\Models\ArchivedSection;
+use App\Models\CurriculumSubject;
 use App\Models\Program;
 use App\Models\SchoolSetting;
 use App\Models\Section;
@@ -219,17 +220,44 @@ class SectionController extends Controller
         $isShsSection = $section->program->education_level === 'senior_high';
 
         // Get available students that match the program and enrollment rules
-        $availableStudentsQuery = Student::with(['user', 'program', 'studentEnrollments' => function ($query) {
-            $query->where('status', 'active');
-        }])
-            ->where('program_id', $section->program_id)
+        $availableStudentsQuery = Student::with(['user', 'program', 'studentEnrollments.section'])
             ->where('status', 'active')
+            ->when($section->program->education_level === 'senior_high', function ($query) {
+                // For SHS sections, only show SHS students (from any SHS program)
+                return $query->whereHas('program', function ($programQuery) {
+                    $programQuery->where('education_level', 'senior_high');
+                });
+            }, function ($query) use ($section) {
+                // For college sections, show students from the same program
+                return $query->where('program_id', $section->program_id);
+            })
             ->when(! empty($section->curriculum_id), function ($query) use ($section) {
-                return $query->where('curriculum_id', $section->curriculum_id);
+                // Only apply curriculum filter to regular students
+                // Irregular students can enroll in sections with different curricula since they take individual subjects
+                return $query->where(function ($subQuery) use ($section) {
+                    $subQuery->where('student_type', '!=', 'irregular')
+                        ->where('curriculum_id', $section->curriculum_id);
+                })->orWhere('student_type', 'irregular');
             })
             ->where(function ($query) use ($section) {
-                $query->where('current_year_level', $section->year_level)
-                    ->orWhere('student_type', 'irregular');
+                if ($section->program->education_level === 'senior_high') {
+                    // For SHS sections: show SHS students at correct year level OR SHS irregular students
+                    $query->where(function ($subQuery) use ($section) {
+                        $subQuery->where('current_year_level', $section->year_level)
+                            ->whereHas('program', function ($programQuery) {
+                                $programQuery->where('education_level', 'senior_high');
+                            });
+                    })->orWhere(function ($subQuery) {
+                        $subQuery->where('student_type', 'irregular')
+                            ->whereHas('program', function ($programQuery) {
+                                $programQuery->where('education_level', 'senior_high');
+                            });
+                    });
+                } else {
+                    // For college sections: show students at correct year level OR irregular students (from any program)
+                    $query->where('current_year_level', $section->year_level)
+                        ->orWhere('student_type', 'irregular');
+                }
             });
 
         // Filter students based on enrollment rules
@@ -257,28 +285,33 @@ class SectionController extends Controller
                 return true;
             }
 
-            // Get the highest year level the student is currently enrolled in
-            $maxCurrentYearLevel = $currentEnrollments->max(function ($enrollment) {
-                return $enrollment->section?->year_level ?? 0;
+            // Only consider enrollments with assigned sections for year level calculations
+            $enrollmentsWithSections = $currentEnrollments->filter(function ($enrollment) {
+                return ! empty($enrollment->section_id);
             });
 
-            // Check if student already has an enrollment at this year level
-            $hasEnrollmentAtThisLevel = $currentEnrollments->contains(function ($enrollment) use ($section) {
-                return ($enrollment->section?->year_level ?? null) === $section->year_level;
+            // Check if student is already enrolled in this specific section
+            $alreadyEnrolledInThisSection = $currentEnrollments->contains(function ($enrollment) use ($section) {
+                return $enrollment->section_id === $section->id &&
+                       $enrollment->academic_year === $section->academic_year &&
+                       $enrollment->semester === $section->semester &&
+                       $enrollment->status === 'active';
             });
 
-            // Don't show for same year level (to prevent multiple enrollments at same level)
-            if ($hasEnrollmentAtThisLevel) {
+            if ($alreadyEnrolledInThisSection) {
                 return false;
             }
 
-            // Don't show for higher year levels
-            if ($section->year_level > $maxCurrentYearLevel) {
+            // Check if student has completed all subjects for this year level
+            $hasCompletedAllSubjectsForYearLevel = $this->hasCompletedAllSubjectsForYearLevel($student, $section->year_level);
+
+            // Don't show if student has completed all subjects for this year level
+            if ($hasCompletedAllSubjectsForYearLevel) {
                 return false;
             }
 
-            // Show for lower year levels
-            return $section->year_level < $maxCurrentYearLevel;
+            // Allow enrollment in any year level (same or lower) as long as they haven't completed all subjects
+            return true;
         });
 
         return $this->inertia->render('Admin/Sections/Show', [
@@ -507,17 +540,44 @@ class SectionController extends Controller
         $enrolledStudentIds = $enrolledStudents->pluck('student.id')->toArray();
 
         // Get available students that match the program and enrollment rules
-        $availableStudentsQuery = Student::with(['user', 'program', 'studentEnrollments' => function ($query) {
-            $query->where('status', 'active');
-        }])
-            ->where('program_id', $section->program_id)
+        $availableStudentsQuery = Student::with(['user', 'program', 'studentEnrollments.section'])
             ->where('status', 'active')
+            ->when($section->program->education_level === 'senior_high', function ($query) {
+                // For SHS sections, only show SHS students (from any SHS program)
+                return $query->whereHas('program', function ($programQuery) {
+                    $programQuery->where('education_level', 'senior_high');
+                });
+            }, function ($query) use ($section) {
+                // For college sections, show students from the same program
+                return $query->where('program_id', $section->program_id);
+            })
             ->when(! empty($section->curriculum_id), function ($query) use ($section) {
-                return $query->where('curriculum_id', $section->curriculum_id);
+                // Only apply curriculum filter to regular students
+                // Irregular students can enroll in sections with different curricula since they take individual subjects
+                return $query->where(function ($subQuery) use ($section) {
+                    $subQuery->where('student_type', '!=', 'irregular')
+                        ->where('curriculum_id', $section->curriculum_id);
+                })->orWhere('student_type', 'irregular');
             })
             ->where(function ($query) use ($section) {
-                $query->where('current_year_level', $section->year_level)
-                    ->orWhere('student_type', 'irregular');
+                if ($section->program->education_level === 'senior_high') {
+                    // For SHS sections: show SHS students at correct year level OR SHS irregular students
+                    $query->where(function ($subQuery) use ($section) {
+                        $subQuery->where('current_year_level', $section->year_level)
+                            ->whereHas('program', function ($programQuery) {
+                                $programQuery->where('education_level', 'senior_high');
+                            });
+                    })->orWhere(function ($subQuery) {
+                        $subQuery->where('student_type', 'irregular')
+                            ->whereHas('program', function ($programQuery) {
+                                $programQuery->where('education_level', 'senior_high');
+                            });
+                    });
+                } else {
+                    // For college sections: show students at correct year level OR irregular students (from any program)
+                    $query->where('current_year_level', $section->year_level)
+                        ->orWhere('student_type', 'irregular');
+                }
             });
 
         $availableStudents = $availableStudentsQuery->get()->filter(function ($student) use ($section) {
@@ -544,28 +604,33 @@ class SectionController extends Controller
                 return true;
             }
 
-            // Get the highest year level the student is currently enrolled in
-            $maxCurrentYearLevel = $currentEnrollments->max(function ($enrollment) {
-                return $enrollment->section?->year_level ?? 0;
+            // Only consider enrollments with assigned sections for year level calculations
+            $enrollmentsWithSections = $currentEnrollments->filter(function ($enrollment) {
+                return ! empty($enrollment->section_id);
             });
 
-            // Check if student already has an enrollment at this year level
-            $hasEnrollmentAtThisLevel = $currentEnrollments->contains(function ($enrollment) use ($section) {
-                return ($enrollment->section?->year_level ?? null) === $section->year_level;
+            // Check if student is already enrolled in this specific section
+            $alreadyEnrolledInThisSection = $currentEnrollments->contains(function ($enrollment) use ($section) {
+                return $enrollment->section_id === $section->id &&
+                       $enrollment->academic_year === $section->academic_year &&
+                       $enrollment->semester === $section->semester &&
+                       $enrollment->status === 'active';
             });
 
-            // Don't show for same year level (to prevent multiple enrollments at same level)
-            if ($hasEnrollmentAtThisLevel) {
+            if ($alreadyEnrolledInThisSection) {
                 return false;
             }
 
-            // Don't show for higher year levels
-            if ($section->year_level > $maxCurrentYearLevel) {
+            // Check if student has completed all subjects for this year level
+            $hasCompletedAllSubjectsForYearLevel = $this->hasCompletedAllSubjectsForYearLevel($student, $section->year_level);
+
+            // Don't show if student has completed all subjects for this year level
+            if ($hasCompletedAllSubjectsForYearLevel) {
                 return false;
             }
 
-            // Show for lower year levels
-            return $section->year_level < $maxCurrentYearLevel;
+            // Allow enrollment in any year level (same or lower) as long as they haven't completed all subjects
+            return true;
         });
 
         // Debug logging
@@ -1049,9 +1114,19 @@ class SectionController extends Controller
                     continue;
                 }
 
-                // Check if student belongs to the same program as the section
-                if ($student->program_id !== $section->program_id) {
-                    $skippedStudents[] = $student->user->name.' (program mismatch)';
+                // Check if student belongs to the same program or same education level as the section
+                $programMatch = $student->program_id === $section->program_id;
+                $educationLevelMatch = $student->program->education_level === $section->program->education_level;
+
+                if (! $programMatch && ! $educationLevelMatch) {
+                    $skippedStudents[] = $student->user->name.' (program/education level mismatch)';
+
+                    continue;
+                }
+
+                // For SHS sections, ensure the student is from SHS
+                if ($section->program->education_level === 'senior_high' && $student->program->education_level !== 'senior_high') {
+                    $skippedStudents[] = $student->user->name.' (must be SHS student for SHS section)';
 
                     continue;
                 }
@@ -1100,23 +1175,25 @@ class SectionController extends Controller
                         continue;
                     }
                 } else {
-                    // Irregular students: check year level constraints
-                    $currentEnrollments = StudentEnrollment::with('section')
-                        ->where('student_id', $studentId)
+                    // Irregular students: check if they've completed all subjects for this year level
+                    $hasCompletedAllSubjects = $this->hasCompletedAllSubjectsForYearLevel($student, $section->year_level);
+
+                    if ($hasCompletedAllSubjects) {
+                        $skippedStudents[] = $student->user->name.' (has completed all subjects for year level '.$section->year_level.')';
+
+                        continue;
+                    }
+
+                    // Check if student is already enrolled in this specific section
+                    $existingSectionEnrollment = StudentEnrollment::where('student_id', $studentId)
+                        ->where('section_id', $section->id)
                         ->where('status', 'active')
-                        ->get();
+                        ->first();
 
-                    if ($currentEnrollments->isNotEmpty()) {
-                        $maxCurrentYearLevel = $currentEnrollments->max(function ($enrollment) {
-                            return $enrollment->section->year_level ?? 0;
-                        });
+                    if ($existingSectionEnrollment) {
+                        $skippedStudents[] = $student->user->name.' (already enrolled in this section)';
 
-                        // Cannot enroll in same or higher year level
-                        if ($section->year_level >= $maxCurrentYearLevel) {
-                            $skippedStudents[] = $student->user->name.' (cannot enroll in same or higher year level as current enrollment)';
-
-                            continue;
-                        }
+                        continue;
                     }
                 }
 
@@ -1483,19 +1560,41 @@ class SectionController extends Controller
             $enrolledCount = 0;
 
             foreach ($request->subject_ids as $sectionSubjectId) {
-                // Check if already enrolled in this subject
-                $existingEnrollment = StudentSubjectEnrollment::where('student_id', $student->id)
+                // Check if already enrolled in this subject (active enrollment)
+                $existingActiveEnrollment = StudentSubjectEnrollment::where('student_id', $student->id)
                     ->where('section_subject_id', $sectionSubjectId)
                     ->where('status', 'active')
                     ->first();
 
-                if ($existingEnrollment) {
+                if ($existingActiveEnrollment) {
                     $sectionSubject = SectionSubject::with('subject')->find($sectionSubjectId);
                     $alreadyEnrolled[] = $sectionSubject->subject->subject_name;
 
                     continue;
                 }
 
+                // Check if there's a dropped enrollment that can be reactivated
+                $existingDroppedEnrollment = StudentSubjectEnrollment::where('student_id', $student->id)
+                    ->where('section_subject_id', $sectionSubjectId)
+                    ->where('academic_year', $section->academic_year)
+                    ->where('semester', $section->semester)
+                    ->where('status', 'dropped')
+                    ->first();
+
+                if ($existingDroppedEnrollment) {
+                    // Reactivate the dropped enrollment
+                    $existingDroppedEnrollment->update([
+                        'status' => 'active',
+                        'enrolled_by' => Auth::id(),
+                        'enrollment_date' => now()->toDateString(),
+                        'updated_at' => now(),
+                    ]);
+                    $enrolledCount++;
+
+                    continue;
+                }
+
+                // Create new enrollment
                 $enrollmentsToCreate[] = [
                     'student_id' => $student->id,
                     'section_subject_id' => $sectionSubjectId,
@@ -1599,5 +1698,38 @@ class SectionController extends Controller
 
             return response()->json(['error' => 'An error occurred while removing the student from subject'], 500);
         }
+    }
+
+    /**
+     * Check if a student has completed all subjects for a given year level
+     */
+    private function hasCompletedAllSubjectsForYearLevel(Student $student, int $yearLevel): bool
+    {
+        // Get all subjects required for this year level in the student's curriculum
+        $requiredSubjects = CurriculumSubject::where('curriculum_id', $student->curriculum_id)
+            ->where('year_level', $yearLevel)
+            ->pluck('subject_id')
+            ->toArray();
+
+        if (empty($requiredSubjects)) {
+            // No subjects required for this year level, so they haven't "completed" it
+            return false;
+        }
+
+        // Get all subjects the student has completed for this year level
+        // Use a join to get the subject_id from the section_subjects table
+        $completedSubjectIds = StudentSubjectEnrollment::join('section_subjects', 'student_subject_enrollments.section_subject_id', '=', 'section_subjects.id')
+            ->join('subjects', 'section_subjects.subject_id', '=', 'subjects.id')
+            ->join('curriculum_subjects', 'subjects.id', '=', 'curriculum_subjects.subject_id')
+            ->where('student_subject_enrollments.student_id', $student->id)
+            ->where('student_subject_enrollments.status', 'completed')
+            ->where('curriculum_subjects.curriculum_id', $student->curriculum_id)
+            ->where('curriculum_subjects.year_level', $yearLevel)
+            ->pluck('section_subjects.subject_id')
+            ->unique()
+            ->toArray();
+
+        // Check if student has completed all required subjects
+        return count(array_intersect($requiredSubjects, $completedSubjectIds)) === count($requiredSubjects);
     }
 }

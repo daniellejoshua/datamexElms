@@ -573,6 +573,7 @@ class RegistrarController extends Controller
             'year_level' => ['required', 'string'],
             'student_type' => ['required', Rule::in(['regular', 'irregular'])],
             'education_level' => ['required', 'string'],
+            'enrollment_type' => ['nullable', Rule::in(['new', 'returning', 'transferee', 'shiftee'])],
             'track' => ['nullable', 'string'],
             'strand' => ['nullable', 'string'],
 
@@ -592,7 +593,12 @@ class RegistrarController extends Controller
             'credited_subjects.*.subject_id' => ['nullable', 'exists:subjects,id'],
             'credited_subjects.*.subject_code' => ['nullable', 'string'],
             'credited_subjects.*.subject_name' => ['nullable', 'string'],
+            'credited_subjects.*.description' => ['nullable', 'string'],
             'credited_subjects.*.units' => ['nullable', 'numeric'],
+            'credited_subjects.*.hours' => ['nullable', 'numeric'],
+            'credited_subjects.*.subject_type' => ['nullable', 'string'],
+            'credited_subjects.*.is_lab' => ['nullable', 'boolean'],
+            'credited_subjects.*.prerequisites' => ['nullable'],
             'credited_subjects.*.year_level' => ['nullable', 'integer'],
             'credited_subjects.*.semester' => ['nullable', 'string'],
             'credited_subjects.*.grade' => ['nullable', 'string'],
@@ -969,6 +975,7 @@ class RegistrarController extends Controller
                 if (! $existingGuide && $curriculumId) {
                     \App\Models\YearLevelCurriculumGuide::create([
                         'program_id' => $validated['program_id'],
+                        'academic_year' => \App\Models\SchoolSetting::getCurrentAcademicYear(),
                         'year_level' => $numericYearLevel,
                         'curriculum_id' => $curriculumId,
                     ]);
@@ -1206,7 +1213,7 @@ class RegistrarController extends Controller
                         ($studentData['has_voucher'] ?? false) &&
                         ($studentData['voucher_status'] ?? null) === 'active') {
                         $transactionAmount = $yearlyFee; // Show the yearly fee that was covered by voucher
-                        $transactionNotes = 'Fees covered by active voucher - enrollment recorded';
+                        $transactionNotes = 'Fees covered by active voucher';
                         $transactionDescription = 'Voucher Enrollment for '.$validated['year_level'];
                     }
 
@@ -1305,6 +1312,15 @@ class RegistrarController extends Controller
             }
 
             // Handle credit transfers for shiftees and transferees
+            // Set transfer_type based on enrollment_type if not provided
+            if (empty($validated['transfer_type']) && ! empty($validated['enrollment_type'])) {
+                if ($validated['enrollment_type'] === 'transferee') {
+                    $validated['transfer_type'] = 'transferee';
+                } elseif ($validated['enrollment_type'] === 'shiftee') {
+                    $validated['transfer_type'] = 'shiftee';
+                }
+            }
+
             if (! empty($validated['transfer_type']) && ($validated['transfer_type'] === 'shiftee' || $validated['transfer_type'] === 'transferee')) {
                 \Log::info('Processing credit transfers', [
                     'transfer_type' => $validated['transfer_type'],
@@ -1340,13 +1356,37 @@ class RegistrarController extends Controller
                     ]);
 
                     foreach ($validated['credited_subjects'] as $creditedSubject) {
-                        $grade = $creditedSubject['grade'] ?? null;
+                        $originalGrade = $creditedSubject['grade'] ?? null;
+                        $grade = $originalGrade;
+
+                        // Convert GPA to percentage for transferees (for storage)
+                        if ($validated['transfer_type'] === 'transferee' && $originalGrade !== null) {
+                            $grade = \App\Helpers\AcademicHelper::convertGpaToPercentage((float) $originalGrade);
+                            \Log::info('Converted transferee GPA to percentage', [
+                                'original_gpa' => $originalGrade,
+                                'converted_percentage' => $grade,
+                            ]);
+                        }
 
                         // Double-check grade validation on backend (should already be filtered on frontend)
-                        if ($grade !== null && (float) $grade < 75) {
+                        // For validation, use the original input grade
+                        $validationGrade = (float) $originalGrade;
+
+                        // Different validation for transferees (GPA) vs shiftees (percentage)
+                        if ($validated['transfer_type'] === 'transferee') {
+                            // For transferees: GPA system (1.00-3.00 passing, 5.00 failing)
+                            $isPassing = $validationGrade >= 1.00 && $validationGrade <= 3.00;
+                        } else {
+                            // For shiftees: percentage system (>= 75 passing)
+                            $isPassing = $validationGrade >= 75;
+                        }
+
+                        if ($originalGrade !== null && ! $isPassing) {
                             \Log::warning('⚠️ Skipping subject with failing grade', [
+                                'transfer_type' => $validated['transfer_type'],
                                 'subject_code' => $creditedSubject['subject_code'],
-                                'grade' => $grade,
+                                'grade' => $originalGrade,
+                                'is_passing' => $isPassing,
                             ]);
 
                             continue;
@@ -1358,14 +1398,66 @@ class RegistrarController extends Controller
                             'grade' => $grade,
                         ]);
 
+                        // For transferees, the subject might not exist in our subjects table
+                        // If subject_id is not provided or doesn't exist, create the subject
+                        $subjectId = $creditedSubject['subject_id'] ?? null;
+                        if (! $subjectId || ! \App\Models\Subject::find($subjectId)) {
+                            \Log::info('Subject not found, creating new subject', [
+                                'subject_code' => $creditedSubject['subject_code'],
+                                'subject_name' => $creditedSubject['subject_name'],
+                            ]);
+
+                            $subject = \App\Models\Subject::create([
+                                'subject_code' => $creditedSubject['subject_code'] ?? 'UNKNOWN',
+                                'subject_name' => $creditedSubject['subject_name'] ?? 'Unknown Subject',
+                                'description' => $creditedSubject['description'] ?? null,
+                                'units' => $creditedSubject['units'] ?? 3,
+                                'hours' => $creditedSubject['hours'] ?? 3,
+                                'subject_type' => $creditedSubject['subject_type'] ?? 'major',
+                                'program_id' => $newProgram->id, // Associate with the new program
+                                'is_lab' => $creditedSubject['is_lab'] ?? false,
+                                'prerequisites' => $creditedSubject['prerequisites'] ?? null,
+                                'status' => 'active',
+                            ]);
+
+                            $subjectId = $subject->id;
+
+                            \Log::info('✅ Created new subject', ['id' => $subjectId]);
+                        }
+
                         // Find the corresponding curriculum subject in the new curriculum
                         $curriculumSubject = \App\Models\CurriculumSubject::where('curriculum_id', $newCurriculum->id)
-                            ->where('subject_id', $creditedSubject['subject_id'])
+                            ->where('subject_id', $subjectId)
                             ->first();
+
+                        // If not found in curriculum, add it
+                        if (! $curriculumSubject) {
+                            \Log::info('Subject not in curriculum, adding it', [
+                                'curriculum_id' => $newCurriculum->id,
+                                'subject_id' => $subjectId,
+                            ]);
+
+                            $curriculumSubject = \App\Models\CurriculumSubject::create([
+                                'curriculum_id' => $newCurriculum->id,
+                                'subject_id' => $subjectId,
+                                'subject_code' => $creditedSubject['subject_code'] ?? 'UNKNOWN',
+                                'subject_name' => $creditedSubject['subject_name'] ?? 'Unknown Subject',
+                                'description' => $creditedSubject['description'] ?? null,
+                                'units' => $creditedSubject['units'] ?? 3,
+                                'hours' => $creditedSubject['hours'] ?? 3,
+                                'year_level' => $creditedSubject['year_level'] ?? 1,
+                                'semester' => $creditedSubject['semester'] ?? '1st',
+                                'subject_type' => $creditedSubject['subject_type'] ?? 'major',
+                                'is_lab' => $creditedSubject['is_lab'] ?? false,
+                                'status' => 'active',
+                            ]);
+
+                            \Log::info('✅ Added subject to curriculum', ['id' => $curriculumSubject->id]);
+                        }
 
                         \Log::info('Curriculum subject lookup', [
                             'curriculum_id' => $newCurriculum->id,
-                            'subject_id' => $creditedSubject['subject_id'],
+                            'subject_id' => $subjectId,
                             'found' => $curriculumSubject ? 'YES' : 'NO',
                         ]);
 
@@ -1375,7 +1467,7 @@ class RegistrarController extends Controller
                             'new_program_id' => $newProgram->id,
                             'previous_curriculum_id' => $previousCurriculum?->id,
                             'new_curriculum_id' => $newCurriculum->id,
-                            'subject_id' => $creditedSubject['subject_id'] ?? null,
+                            'subject_id' => $subjectId,
                             'subject_code' => $creditedSubject['subject_code'] ?? null,
                             'subject_name' => $creditedSubject['subject_name'] ?? null,
                             'original_subject_code' => $creditedSubject['original_subject_code'] ?? null,
@@ -1395,11 +1487,10 @@ class RegistrarController extends Controller
                         \Log::info('✅ Created StudentCreditTransfer', ['id' => $creditTransfer->id]);
 
                         // Also create StudentSubjectCredit record for Academic History display
-                        // Create the record even if curriculum_subject_id is null (for transferees)
                         $subjectCredit = \App\Models\StudentSubjectCredit::create([
                             'student_id' => $student->id,
                             'curriculum_subject_id' => $curriculumSubject?->id,
-                            'subject_id' => $creditedSubject['subject_id'],
+                            'subject_id' => $subjectId,
                             'subject_code' => $creditedSubject['subject_code'],
                             'subject_name' => $creditedSubject['subject_name'],
                             'units' => $creditedSubject['units'],
@@ -1416,7 +1507,6 @@ class RegistrarController extends Controller
 
                         \Log::info('✅ Created StudentSubjectCredit', [
                             'id' => $subjectCredit->id,
-                            'has_curriculum_subject' => $curriculumSubject ? 'YES' : 'NO',
                             'curriculum_subject_id' => $curriculumSubject?->id,
                         ]);
                     }
@@ -1909,9 +1999,8 @@ class RegistrarController extends Controller
         $curriculumSubjects = [];
         if ($student->curriculum_id) {
             $curriculumSubjects = \App\Models\CurriculumSubject::where('curriculum_id', $student->curriculum_id)
-                ->whereIn('semester', ['1st', '2nd'])
                 ->orderBy('year_level')
-                ->orderByRaw("FIELD(semester, '1st', '2nd')")
+                ->orderByRaw("FIELD(semester, '1st', '2nd', 'summer')")
                 ->get();
         }
 
@@ -2007,6 +2096,7 @@ class RegistrarController extends Controller
                     'type' => 'credited',
                     'credit_type' => $credited->credit_type,
                     'final_grade' => $credited->final_grade,
+                    'final_gpa' => \App\Helpers\AcademicHelper::convertToGPA($credited->final_grade),
                     'credited_from' => $credited->studentCreditTransfer ? $credited->studentCreditTransfer->previous_school : null,
                     'credited_at' => $credited->credited_at,
                     'is_complete' => true,
@@ -2014,12 +2104,34 @@ class RegistrarController extends Controller
 
                 $subjectGradesMap[$credited->subject->subject_code] = $creditInfo;
 
-                $completedSubjects[] = [
-                    'subject_id' => $credited->subject->id,
-                    'subject_code' => $credited->subject->subject_code,
-                    'subject_name' => $credited->subject->subject_name,
-                    'type' => 'credited',
-                ];
+                // Only add to completed subjects if grade is passing
+                // GPA grades (1.00-3.00) for transferees, percentage (>=75) for regular students
+                $gradeValue = $credited->final_grade;
+                $isTransfereeCredit = $credited->studentCreditTransfer !== null;
+                $isPassing = false;
+
+                if (is_null($gradeValue) || $gradeValue === 'CR') {
+                    // No grade = CR = passing
+                    $isPassing = true;
+                } elseif (is_numeric($gradeValue)) {
+                    $numericGrade = (float) $gradeValue;
+                    if ($isTransfereeCredit) {
+                        // Transferee credits use GPA: 1.00-3.00 are passing
+                        $isPassing = $numericGrade <= 3.0;
+                    } else {
+                        // Regular credits use percentage: >= 75 is passing
+                        $isPassing = $numericGrade >= 75;
+                    }
+                }
+
+                if ($isPassing) {
+                    $completedSubjects[] = [
+                        'subject_id' => $credited->subject->id,
+                        'subject_code' => $credited->subject->subject_code,
+                        'subject_name' => $credited->subject->subject_name,
+                        'type' => 'credited',
+                    ];
+                }
             }
         }
 
@@ -2038,6 +2150,7 @@ class RegistrarController extends Controller
                     'type' => 'credited',
                     'credit_type' => $transfer->transfer_type,
                     'final_grade' => $transfer->verified_semester_grade,
+                    'final_gpa' => \App\Helpers\AcademicHelper::convertToGPA($transfer->verified_semester_grade),
                     'credited_from' => $transfer->previous_school,
                     'credited_at' => $transfer->approved_at,
                     'is_complete' => true,
@@ -2045,12 +2158,27 @@ class RegistrarController extends Controller
 
                 $subjectGradesMap[$transfer->subject->subject_code] = $creditInfo;
 
-                $completedSubjects[] = [
-                    'subject_id' => $transfer->subject->id,
-                    'subject_code' => $transfer->subject->subject_code,
-                    'subject_name' => $transfer->subject->subject_name,
-                    'type' => 'credited',
-                ];
+                // Only add to completed subjects if grade is passing
+                // Credit transfers are always from transferees, so use GPA logic (1.00-3.00 passing)
+                $gradeValue = $transfer->verified_semester_grade;
+                $isPassing = false;
+                if (is_null($gradeValue) || $gradeValue === 'CR') {
+                    // No grade = CR = passing
+                    $isPassing = true;
+                } elseif (is_numeric($gradeValue)) {
+                    $numericGrade = (float) $gradeValue;
+                    // GPA format: 1.00-3.00 are passing
+                    $isPassing = $numericGrade <= 3.0;
+                }
+
+                if ($isPassing) {
+                    $completedSubjects[] = [
+                        'subject_id' => $transfer->subject->id,
+                        'subject_code' => $transfer->subject->subject_code,
+                        'subject_name' => $transfer->subject->subject_name,
+                        'type' => 'credited',
+                    ];
+                }
             }
         }
 

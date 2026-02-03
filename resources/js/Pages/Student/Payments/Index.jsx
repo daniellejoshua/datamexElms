@@ -308,7 +308,7 @@ const Index = ({ currentPayment, paymentHistory, stats, currentAcademicInfo, stu
                                                         {payment.academic_year} - {getSemesterDisplay(payment.semester)}
                                                     </p>
                                                     <p className="text-sm text-gray-500">
-                                                        Total: {formatCurrency(payment.calculated_total_amount || payment.total_amount || 0)} • Paid: {formatCurrency(payment.total_paid)}
+                                                        Total: {formatCurrency(student.student_type === 'regular' ? payment.total_semester_fee : (payment.calculated_total_amount || payment.total_amount || 0))} • Paid: {formatCurrency(payment.total_paid)}
                                                     </p>
                                                 </div>
                                             </div>
@@ -323,7 +323,7 @@ const Index = ({ currentPayment, paymentHistory, stats, currentAcademicInfo, stu
                                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                                                 <div>
                                                     <p className="text-sm text-gray-500">Total Fee</p>
-                                                    <p className="text-lg font-bold">{formatCurrency(payment.calculated_total_amount || payment.total_amount || 0)}</p>
+                                                    <p className="text-lg font-bold">{formatCurrency(student.student_type === 'regular' ? payment.total_semester_fee : (payment.calculated_total_amount || payment.total_amount || 0))}</p>
                                                 </div>
                                                 <div>
                                                     <p className="text-sm text-gray-500">Total Paid</p>
@@ -427,7 +427,7 @@ const Index = ({ currentPayment, paymentHistory, stats, currentAcademicInfo, stu
                                                                         </div>
                                                                     </td>
                                                                     <td className="py-3 px-4 text-right font-medium text-blue-600">
-                                                                        {formatCurrency(payment.calculated_total_amount || payment.total_amount || 0)}
+                                                                        {formatCurrency(student.student_type === 'regular' ? payment.total_semester_fee : (payment.calculated_total_amount || payment.total_amount || 0))}
                                                                     </td>
                                                                     <td className="py-3 px-4 text-center">
                                                                         <Badge className="bg-blue-100 text-blue-800 border-blue-200">

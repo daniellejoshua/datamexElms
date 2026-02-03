@@ -8,7 +8,7 @@ import { Label } from '@/components/ui/label'
 import { NumberInput } from '@/components/ui/number-input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
-import { UserPlus, ArrowLeft, GraduationCap, BookOpen, AlertTriangle, DollarSign, Info, Plus, X, CheckCircle2, Lock, Save, RotateCcw, FileText } from 'lucide-react'
+import { UserPlus, ArrowLeft, GraduationCap, BookOpen, AlertTriangle, Info, Plus, X, CheckCircle2, Lock, Save, RotateCcw, FileText } from 'lucide-react'
 import { useState, useEffect, useRef } from 'react'
 import { toast } from 'sonner'
 
@@ -23,7 +23,8 @@ const formatCurrency = (value) => {
     }).format(numValue)
 }
 
-// Philippine Address Data
+// REMOVED: Philippine Address Data - no longer needed since we switched to text inputs
+/*
 const PHILIPPINE_ADDRESSES = {
     provinces: [
         { code: 'ABR', name: 'Abra' },
@@ -337,6 +338,7 @@ const PHILIPPINE_ADDRESSES = {
         // Add more cities as needed...
     }
 }
+*/
 
 export default function CreateStudent({ programs, auth, currentAcademicYear, currentSemester, course_shift_required, old }) {
     const { flash } = usePage().props;
@@ -471,6 +473,9 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
     const [subjectComparison, setSubjectComparison] = useState(null)
     const [loadingComparison, setLoadingComparison] = useState(false)
     
+    // Phone validation states
+    const [phoneErrors, setPhoneErrors] = useState({}) // Track phone validation errors
+    
     // Shifting and Transferee states
     const [isShiftee, setIsShiftee] = useState(false)
     const [isTransferee, setIsTransferee] = useState(false)
@@ -489,10 +494,10 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
 
 
 
-    // Address dropdown states
-    const [provinces, setProvinces] = useState(PHILIPPINE_ADDRESSES.provinces)
-    const [cities, setCities] = useState([])
-    const [barangays, setBarangays] = useState([])
+    // Address dropdown states - REMOVED: Now using text inputs instead of dropdowns
+    // const [provinces, setProvinces] = useState(PHILIPPINE_ADDRESSES.provinces)
+    // const [cities, setCities] = useState([])
+    // const [barangays, setBarangays] = useState([])
 
     // Group programs by education level
     const collegePrograms = programs.filter(p => p.education_level === 'college')
@@ -868,35 +873,36 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
         }
     }, [flash?.success])
 
-    // Fetch cities when province changes
-    useEffect(() => {
-        if (!data.province) {
-            setCities([])
-            setBarangays([])
-            return
-        }
+    // REMOVED: Address dropdown management - now using text inputs
+    // useEffect(() => {
+    //     // Fetch cities when province changes
+    //     if (!data.province) {
+    //         setCities([])
+    //         setBarangays([])
+    //         return
+    //     }
 
-        const province = provinces.find(p => p.name === data.province)
-        if (province) {
-            const provinceCities = PHILIPPINE_ADDRESSES.cities[province.code] || []
-            setCities(provinceCities)
-            setBarangays([])
-        }
-    }, [data.province, provinces])
+    //     const province = provinces.find(p => p.name === data.province)
+    //     if (province) {
+    //         const provinceCities = PHILIPPINE_ADDRESSES.cities[province.code] || []
+    //         setCities(provinceCities)
+    //         setBarangays([])
+    //     }
+    // }, [data.province, provinces])
 
-    // Fetch barangays when city changes
-    useEffect(() => {
-        if (!data.city) {
-            setBarangays([])
-            return
-        }
+    // useEffect(() => {
+    //     // Fetch barangays when city changes
+    //     if (!data.city) {
+    //         setBarangays([])
+    //         return
+    //     }
 
-        const city = cities.find(c => c.name === data.city)
-        if (city) {
-            const cityBarangays = PHILIPPINE_ADDRESSES.barangays[city.code] || []
-            setBarangays(cityBarangays)
-        }
-    }, [data.city, cities])
+    //     const city = cities.find(c => c.name === data.city)
+    //     if (city) {
+    //         const cityBarangays = PHILIPPINE_ADDRESSES.barangays[city.code] || []
+    //         setBarangays(cityBarangays)
+    //     }
+    // }, [data.city, cities])
 
     const checkArchivedStudent = async () => {
         if (!data.email) return
@@ -1205,7 +1211,7 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
         
         // Set course shift data with credits
         setData(prev => {
-            // For irregular students, enrollment fee will be calculated based on enrolled subjects
+            // For irregular students, program fee will be calculated based on enrolled subjects
             // Set to 0 for now, will be calculated after section enrollment
             return {
                 ...prev,
@@ -1347,6 +1353,14 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
             return
         }
         
+        // Check for phone validation errors
+        if (phoneErrors.phone || phoneErrors.parent_contact) {
+            toast.error('Please correct the phone number validation errors before proceeding', {
+                duration: 5000,
+            })
+            return
+        }
+        
         // Show summary modal for confirmation
         setShowSummaryModal(true)
     }
@@ -1383,16 +1397,27 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
             duplicate_override: duplicateOverride,
         }
 
-        // Add credit transfer data ONLY for transferees (not shiftees)
-        if (isTransferee && data.enrollment_type === 'transferee') {
+        // Add credit transfer data for transferees and shiftees
+        if (data.enrollment_type === 'transferee') {
             console.log('📚 TRANSFEREE detected - Adding credit transfer data')
             
-            // Filter credited subjects: only include grades >= 75 (passing)
+            // Filter credited subjects: only include passing grades
+            // For transferees: GPA grades (1.00-3.00 are passing, 5.00 is failing)
+            // For shiftees: percentage grades (>= 75 are passing)
             const passingSubjects = (creditedSubjects || []).filter(subject => {
                 const grade = parseFloat(subject.grade)
-                const isPassing = !isNaN(grade) && grade >= 75
+                let isPassing = false
+                
+                if (isTransferee) {
+                    // For transferees, GPA system: 1.00-3.00 passing, 5.00 failing
+                    isPassing = !isNaN(grade) && grade >= 1.00 && grade <= 3.00
+                } else {
+                    // For shiftees, percentage system: >= 75 passing
+                    isPassing = !isNaN(grade) && grade >= 75
+                }
+                
                 if (!isPassing && subject.grade) {
-                    console.log(`❌ Excluding subject ${subject.subject_code} - Grade ${subject.grade} is below 75`)
+                    console.log(`❌ Excluding subject ${subject.subject_code} - Grade ${subject.grade} is not passing (${isTransferee ? 'GPA' : 'percentage'} system)`)
                 }
                 return isPassing
             })
@@ -1408,7 +1433,7 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
             console.log('  total checked subjects:', creditedSubjects?.length || 0)
             console.log('  passing subjects (>=75):', passingSubjects.length)
             console.log('  credited_subjects:', passingSubjects)
-        } else if (isShiftee) {
+        } else if (data.enrollment_type === 'shiftee') {
             console.log('🔄 SHIFTEE detected - Adding credited subjects from curriculum comparison')
 
             // For shiftees, use the curriculum comparison results to credit subjects
@@ -1552,10 +1577,10 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                             return 'Please select a year level for the student.';
                         }
                         if (field === 'enrollment_fee' && message.includes('valid positive number')) {
-                            return 'Please enter a valid enrollment fee amount.';
+                            return 'Please enter a valid program fee amount.';
                         }
                         if (field === 'enrollment_fee' && message.includes('cannot be zero')) {
-                            return 'Enrollment fee cannot be zero. Please enter a valid amount.';
+                            return 'Program fee cannot be zero. Please enter a valid amount.';
                         }
                         if (field === 'payment_amount' && message.includes('valid positive number')) {
                             return 'Please enter a valid payment amount.';
@@ -1808,6 +1833,7 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                                     value={data.birth_date ?? ''}
                                     onChange={e => setData('birth_date', e.target.value)}
                                     required
+                                    max={new Date().toISOString().split('T')[0]}
                                     className={isExistingStudent ? 'bg-gray-100 cursor-not-allowed' : ''}
                                     disabled={!formUnlocked || isExistingStudent}
                                 />
@@ -1928,16 +1954,26 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                                             const value = e.target.value.replace(/\D/g, '');
                                             if (value.length <= 10) {
                                                 setData('phone', '+63' + value);
+                                                
+                                                // Validate that phone number starts with 9
+                                                if (value.length > 0 && !value.startsWith('9')) {
+                                                    setPhoneErrors(prev => ({ ...prev, phone: true }));
+                                                } else {
+                                                    setPhoneErrors(prev => ({ ...prev, phone: false }));
+                                                }
                                             }
                                         }}
                                         placeholder="9123456789"
                                         maxLength="10"
-                                        className="rounded-l-none"
+                                        className={`rounded-l-none ${phoneErrors.phone ? 'border-red-500 focus:border-red-500' : ''}`}
                                         disabled={!formUnlocked}
                                     />
                                 </div>
                                 {errors.phone && (
                                     <p className="text-red-500 text-sm mt-1">{errors.phone}</p>
+                                )}
+                                {phoneErrors.phone && (
+                                    <p className="text-red-500 text-sm mt-1">Phone number must start with 9</p>
                                 )}
                             </div>
 
@@ -1955,16 +1991,26 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                                             const value = e.target.value.replace(/\D/g, '');
                                             if (value.length <= 10) {
                                                 setData('parent_contact', '+63' + value);
+                                                
+                                                // Validate that parent contact starts with 9
+                                                if (value.length > 0 && !value.startsWith('9')) {
+                                                    setPhoneErrors(prev => ({ ...prev, parent_contact: true }));
+                                                } else {
+                                                    setPhoneErrors(prev => ({ ...prev, parent_contact: false }));
+                                                }
                                             }
                                         }}
                                         placeholder="9123456789"
                                         maxLength="10"
-                                        className="rounded-l-none"
+                                        className={`rounded-l-none ${phoneErrors.parent_contact ? 'border-red-500 focus:border-red-500' : ''}`}
                                         disabled={!formUnlocked}
                                     />
                                 </div>
                                 {errors.parent_contact && (
                                     <p className="text-red-500 text-sm mt-1">{errors.parent_contact}</p>
+                                )}
+                                {phoneErrors.parent_contact && (
+                                    <p className="text-red-500 text-sm mt-1">Parent contact must start with 9</p>
                                 )}
                             </div>
                         </div>
@@ -1988,26 +2034,13 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
 
                                 <div>
                                     <Label htmlFor="province">Province</Label>
-                                    <Select
-                                        value={data.province}
-                                        onValueChange={(value) => {
-                                            setData('province', value)
-                                            setData('city', '') // Reset city when province changes
-                                            setData('barangay', '') // Reset barangay when province changes
-                                        }}
+                                    <Input
+                                        id="province"
+                                        value={data.province ?? ''}
+                                        onChange={e => setData('province', e.target.value)}
+                                        placeholder="e.g. Metro Manila"
                                         disabled={!formUnlocked}
-                                    >
-                                        <SelectTrigger>
-                                            <SelectValue placeholder="Select Province" />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            {provinces.map((province) => (
-                                                <SelectItem key={province.code} value={province.name}>
-                                                    {province.name}
-                                                </SelectItem>
-                                            ))}
-                                        </SelectContent>
-                                    </Select>
+                                    />
                                     {errors.province && (
                                         <p className="text-red-500 text-sm mt-1">{errors.province}</p>
                                     )}
@@ -2015,25 +2048,13 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
 
                                 <div>
                                     <Label htmlFor="city">City/Municipality</Label>
-                                    <Select
-                                        value={data.city}
-                                        onValueChange={(value) => {
-                                            setData('city', value)
-                                            setData('barangay', '') // Reset barangay when city changes
-                                        }}
-                                        disabled={!formUnlocked || !data.province}
-                                    >
-                                        <SelectTrigger>
-                                            <SelectValue placeholder="Select City/Municipality" />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            {cities.map((city) => (
-                                                <SelectItem key={city.code} value={city.name}>
-                                                    {city.name}
-                                                </SelectItem>
-                                            ))}
-                                        </SelectContent>
-                                    </Select>
+                                    <Input
+                                        id="city"
+                                        value={data.city ?? ''}
+                                        onChange={e => setData('city', e.target.value)}
+                                        placeholder="e.g. Quezon City"
+                                        disabled={!formUnlocked}
+                                    />
                                     {errors.city && (
                                         <p className="text-red-500 text-sm mt-1">{errors.city}</p>
                                     )}
@@ -2041,22 +2062,13 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
 
                                 <div>
                                     <Label htmlFor="barangay">Barangay</Label>
-                                    <Select
-                                        value={data.barangay}
-                                        onValueChange={(value) => setData('barangay', value)}
-                                        disabled={!formUnlocked || !data.city}
-                                    >
-                                        <SelectTrigger>
-                                            <SelectValue placeholder="Select Barangay" />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            {barangays.map((barangay) => (
-                                                <SelectItem key={barangay.code} value={barangay.name}>
-                                                    {barangay.name}
-                                                </SelectItem>
-                                            ))}
-                                        </SelectContent>
-                                    </Select>
+                                    <Input
+                                        id="barangay"
+                                        value={data.barangay ?? ''}
+                                        onChange={e => setData('barangay', e.target.value)}
+                                        placeholder="e.g. Barangay 1"
+                                        disabled={!formUnlocked}
+                                    />
                                     {errors.barangay && (
                                         <p className="text-red-500 text-sm mt-1">{errors.barangay}</p>
                                     )}
@@ -2428,9 +2440,9 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                                 <BookOpen className="w-5 h-5 text-orange-600" />
                             </div>
                                 <div>
-                                    <CardTitle>Enrollment Fee Payment</CardTitle>
+                                    <CardTitle>Program Fee Payment</CardTitle>
                                     <CardDescription>
-                                        Process the initial enrollment fee payment for {currentAcademicYear} - {currentSemester} Semester
+                                        Process the initial program fee payment for {currentAcademicYear} - {currentSemester} Semester
                                     </CardDescription>
                                 </div>
                             </div>
@@ -2491,12 +2503,12 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                                     )}
                                     <p className="text-xs text-gray-500 mt-1">
                                         {(isTransferee || isShiftee) && feeAdjustments && feeAdjustments.isIrregular !== undefined
-                                            ? 'Enrollment fee will be calculated based on subjects enrolled in first term'
+                                            ? 'Program fee will be calculated based on subjects enrolled in first term'
                                             : data.education_level === 'senior_high'
                                             ? '₱0.00 - Covered by SHS voucher program'
                                             : data.student_type === 'regular'
                                             ? 'Automatically set based on selected program and year level'
-                                            : 'Enter enrollment fee manually for irregular students'
+                                            : 'Enter program fee manually for irregular students'
                                         }
                                     </p>
                                 </div>
@@ -2509,18 +2521,18 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                                 <p className="text-xs text-gray-500 mt-1">
                                     {data.education_level === 'senior_high'
                                         ? 'No payment required - covered by voucher'
-                                        : 'Amount paid today towards the enrollment fee'
+                                        : 'Amount paid today towards the program fee'
                                     }
                                 </p>
                             </div>
                         </div>
 
-                        {/* Enrollment Fee and Payment Inputs */}
+                        {/* Program Fee and Payment Inputs */}
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div>
                                 <Label htmlFor="enrollment_fee" className="text-gray-700 font-medium mb-2 flex items-center gap-2">
-                                    <DollarSign className="w-4 h-4" />
-                                    Enrollment Fee
+                                    <span className="text-lg font-bold">₱</span>
+                                    Program Fee
                                 </Label>
                                 {data.enrollment_type === 'transferee' ? (
                                     <div className="p-3 bg-blue-50 border border-blue-200 rounded-md">
@@ -2528,13 +2540,13 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                                             To be calculated
                                         </p>
                                         <p className="text-xs text-blue-600 mt-1">
-                                            Transferee enrollment fee will be calculated after determining the catch-up subjects they need to take before prelim payment.
+                                            Transferee program fee will be calculated after determining the catch-up subjects they need to take before prelim payment.
                                         </p>
                                     </div>
                                 ) : data.student_type === 'irregular' ? (
                                     <div className="p-3 bg-gray-50 border border-gray-200 rounded-md">
                                         <p className="text-sm text-gray-600">
-                                            Irregular students' enrollment fee will be calculated after determining the catch-up subjects they need to take before prelim payment.
+                                            Irregular students' program fee will be calculated after determining the catch-up subjects they need to take before prelim payment.
                                         </p>
                                         <NumberInput
                                             id="enrollment_fee"
@@ -2559,7 +2571,7 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
 
                             <div>
                                 <Label htmlFor="payment_amount" className="text-gray-700 font-medium mb-2 flex items-center gap-2">
-                                    <DollarSign className="w-4 h-4" />
+                                    <span className="text-lg font-bold">₱</span>
                                     Payment Amount
                                 </Label>
                                 <NumberInput
@@ -2579,7 +2591,7 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                                 <div className="flex justify-between items-center">
                                     <div>
                                         <p className="text-sm text-gray-600 dark:text-gray-400">
-                                            Enrollment Fee Balance
+                                            Program Fee Balance
                                         </p>
                                         <p className="text-lg font-semibold text-gray-600 italic">
                                             To be calculated
@@ -2597,7 +2609,7 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                                 <div className="flex justify-between items-center">
                                     <div>
                                         <p className="text-sm text-gray-600 dark:text-gray-400">
-                                            Enrollment Fee Balance
+                                            Program Fee Balance
                                         </p>
                                         <p className="text-2xl font-bold text-blue-600 dark:text-blue-400">
                                             ₱{calculatedBalance.toFixed(2)}
@@ -3409,7 +3421,7 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                         <div className="p-4 bg-orange-50 rounded-lg">
                             <div className="grid grid-cols-2 gap-4">
                                 <div>
-                                    <span className="text-sm font-medium text-gray-600">Enrollment Fee</span>
+                                    <span className="text-sm font-medium text-gray-600">Program Fee</span>
                                     <p className="text-sm font-semibold">
                                         {data.enrollment_type === 'transferee' && (subjectsToCatchUp.length > 0 || feeAdjustments.isIrregular) || data.student_type !== 'regular'
                                             ? 'To be calculated'
@@ -3582,8 +3594,12 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                                                 {curriculumComparison.new_program?.name} • {data.year_level} • {curriculumComparison.new_program?.curriculum?.subjects?.length || 0} subjects
                                             </p>
                                         </div>
-                                        <Badge variant="outline" className="bg-blue-100 text-blue-700 border-blue-300 px-2 py-1 text-xs">
-                                            {creditedSubjects.length} selected
+                                        <Badge variant="outline" className={`px-2 py-1 text-xs ${
+                                            creditedSubjects.some(cs => !cs.grade || cs.grade === '')
+                                                ? 'bg-red-100 text-red-700 border-red-300'
+                                                : 'bg-blue-100 text-blue-700 border-blue-300'
+                                        }`}>
+                                            {creditedSubjects.length} selected{creditedSubjects.some(cs => !cs.grade || cs.grade === '') ? ' (grades needed)' : ''}
                                         </Badge>
                                     </div>
                                 </div>
@@ -3642,14 +3658,18 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                                                         }}
                                                         className={`relative rounded-lg p-4 border-2 cursor-pointer transition-all duration-200 ${
                                                             isSelected
-                                                                ? 'bg-blue-50 border-blue-400 shadow-md hover:bg-blue-100'
+                                                                ? (!selectedSubject?.grade || selectedSubject.grade === '')
+                                                                    ? 'bg-red-50 border-red-400 shadow-md hover:bg-red-100'
+                                                                    : 'bg-blue-50 border-blue-400 shadow-md hover:bg-blue-100'
                                                                 : 'bg-white border-gray-200 hover:border-blue-300 hover:shadow-sm'
                                                         }`}
                                                     >
                                                         {/* Selection indicator */}
                                                         <div className={`absolute top-2 right-2 w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all duration-200 ${
                                                             isSelected
-                                                                ? 'bg-blue-500 border-blue-500'
+                                                                ? (!selectedSubject?.grade || selectedSubject.grade === '')
+                                                                    ? 'bg-red-500 border-red-500'
+                                                                    : 'bg-blue-500 border-blue-500'
                                                                 : 'border-gray-300'
                                                         }`}>
                                                             {isSelected && <CheckCircle2 className="w-3 h-3 text-white" />}
@@ -3673,6 +3693,12 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
 
                                                             {isSelected && (
                                                                 <div className="pt-2 border-t border-blue-200">
+                                                                    {(!selectedSubject?.grade || selectedSubject.grade === '') && (
+                                                                        <div className="flex items-center gap-1 mb-2 text-red-600">
+                                                                            <AlertTriangle className="w-3 h-3" />
+                                                                            <span className="text-xs font-medium">Grade required</span>
+                                                                        </div>
+                                                                    )}
                                                                     {isTransferee ? (
                                                                         <div className="space-y-2">
                                                                             <div className="text-xs text-gray-600 font-medium">Select GPA:</div>
@@ -3941,7 +3967,7 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                                             </h4>
                                             <p className={`text-sm mt-1 ${feeAdjustments.isIrregular ? 'text-yellow-700' : 'text-green-700'}`}>
                                                 {feeAdjustments.isIrregular
-                                                    ? `Student has ${feeAdjustments.pastSubjectsToCatchUp?.length || 0} subject(s) to catch up${feeAdjustments.creditedFailed?.length > 0 ? ` and ${feeAdjustments.creditedFailed.length} failed subject(s)` : ''}. Enrollment fee will be calculated after subject scheduling.`
+                                                    ? `Student has ${feeAdjustments.pastSubjectsToCatchUp?.length || 0} subject(s) to catch up${feeAdjustments.creditedFailed?.length > 0 ? ` and ${feeAdjustments.creditedFailed.length} failed subject(s)` : ''}. Program fee will be calculated after subject scheduling.`
                                                     : 'Student meets all requirements for regular enrollment. No additional subjects needed.'}
                                             </p>
                                         </div>
@@ -4021,7 +4047,8 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                                                 return
                                             }
                                             if (creditedSubjects.some(cs => !cs.grade || cs.grade === '')) {
-                                                toast.error('Please enter grades for all selected subjects')
+                                                const missingCount = creditedSubjects.filter(cs => !cs.grade || cs.grade === '').length
+                                                toast.error(`Please enter grades for all selected subjects (${missingCount} missing)`)
                                                 return
                                             }
                                             // Only validate invalid grades for non-transferees (transferees use buttons with valid values only)

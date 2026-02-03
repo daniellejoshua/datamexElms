@@ -15,10 +15,16 @@ import {
     TrendingUp,
     User,
     School,
-    AlertCircle
+    AlertCircle,
+    ChevronLeft,
+    ChevronRight
 } from 'lucide-react'
+import { useState } from 'react'
 
 export default function AcademicHistory({ student, curriculumSubjects, completedSubjects, subjectGrades, archivedEnrollments }) {
+    const [creditedSubjectsPage, setCreditedSubjectsPage] = useState(1)
+    const itemsPerPage = 5
+
     const formatStudentName = (student) => {
         const parts = [student.first_name, student.middle_name, student.last_name]
         if (student.suffix) {
@@ -28,23 +34,11 @@ export default function AcademicHistory({ student, curriculumSubjects, completed
     }
 
     const isSubjectCompleted = (subjectCode) => {
-        const isInCompletedList = completedSubjects?.some(completed =>
+        // Backend has already validated grades and only includes passing subjects in completedSubjects
+        return completedSubjects?.some(completed =>
             completed.subject_code === subjectCode ||
             completed.subject_id === subjectCode
         )
-
-        if (!isInCompletedList) return false
-
-        // Check if this is a credited subject - if so, only count as completed if grade >= 75
-        const gradeInfo = getSubjectGradeInfo(subjectCode)
-        if (gradeInfo?.type === 'credited') {
-            const grade = parseFloat(gradeInfo.final_grade)
-            // Only count as completed if grade is >= 75 or no grade (CR)
-            return isNaN(grade) || grade >= 75
-        }
-
-        // For regular subjects, just check if it's in completed list
-        return true
     }
 
     const getSubjectGradeInfo = (subjectCode) => {
@@ -84,14 +78,12 @@ export default function AcademicHistory({ student, curriculumSubjects, completed
         const gradeInfo = getSubjectGradeInfo(subject.subject_code)
         return isSubjectCompleted(subject.subject_code) && (!gradeInfo || gradeInfo.type !== 'credited')
     }).length || 0
-    // Only count credited subjects with passing grades (>= 75)
-    const creditedCount = subjectGrades?.filter(grade => {
-        if (grade.type !== 'credited') return false;
-        const gradeValue = parseFloat(grade.final_grade);
-        // Include subjects with no grade (CR) or grades >= 75
-        return isNaN(gradeValue) || gradeValue >= 75;
+    // Count credited subjects that are in the completedSubjects array (already validated by backend)
+    const creditedCount = completedSubjects?.filter(subject => {
+        const gradeInfo = getSubjectGradeInfo(subject.subject_code)
+        return gradeInfo?.type === 'credited'
     }).length || 0
-    const completionPercentage = totalSubjects > 0 ? Math.round((completedCount / totalSubjects) * 100) : 0
+    const completionPercentage = totalSubjects > 0 ? Math.round(((completedCount + creditedCount) / totalSubjects) * 100) : 0
 
     return (
         <AuthenticatedLayout
@@ -322,20 +314,26 @@ export default function AcademicHistory({ student, curriculumSubjects, completed
 
                 {/* Credited Subjects */}
                 {(() => {
-                    // Filter credited subjects to only include passing grades (>= 75)
-                    const allCreditedSubjects = subjectGrades?.filter(grade => grade.type === 'credited') || [];
-                    const passingCreditedSubjects = allCreditedSubjects.filter(subject => {
-                        const grade = parseFloat(subject.final_grade);
-                        // Include subjects with no grade (CR) or grades >= 75
-                        return isNaN(grade) || grade >= 75;
-                    });
+                    // Get credited subjects that are also in completedSubjects (already validated by backend)
+                    const creditedSubjectsInCompleted = subjectGrades?.filter(grade => 
+                        grade.type === 'credited' && 
+                        completedSubjects?.some(completed => 
+                            completed.subject_code === grade.subject_code
+                        )
+                    ) || [];
 
-                    return passingCreditedSubjects.length > 0 && (
+                    // Pagination logic
+                    const totalPages = Math.ceil(creditedSubjectsInCompleted.length / itemsPerPage)
+                    const startIndex = (creditedSubjectsPage - 1) * itemsPerPage
+                    const endIndex = startIndex + itemsPerPage
+                    const paginatedSubjects = creditedSubjectsInCompleted.slice(startIndex, endIndex)
+
+                    return creditedSubjectsInCompleted.length > 0 && (
                         <Card>
                             <CardHeader>
                                 <CardTitle className="flex items-center gap-2">
                                     <Award className="w-5 h-5" />
-                                    Credited Subjects ({passingCreditedSubjects.length})
+                                    Credited Subjects ({creditedSubjectsInCompleted.length})
                                 </CardTitle>
                                 <p className="text-sm text-gray-600">Subjects credited through transfers, course shifts, or equivalency (passing grades only)</p>
                             </CardHeader>
@@ -354,7 +352,7 @@ export default function AcademicHistory({ student, curriculumSubjects, completed
                                             </tr>
                                         </thead>
                                         <tbody>
-                                            {passingCreditedSubjects.map((subject, index) => (
+                                            {paginatedSubjects.map((subject, index) => (
                                                 <tr key={index} className="border-b hover:bg-gray-50">
                                                     <td className="py-3 px-4">
                                                         <Badge variant="outline" className="font-mono text-xs">
@@ -395,6 +393,38 @@ export default function AcademicHistory({ student, curriculumSubjects, completed
                                         </tbody>
                                     </table>
                                 </div>
+
+                                {/* Pagination Controls */}
+                                {totalPages > 1 && (
+                                    <div className="flex items-center justify-between mt-4 px-4">
+                                        <div className="text-sm text-gray-600">
+                                            Showing {startIndex + 1} to {Math.min(endIndex, creditedSubjectsInCompleted.length)} of {creditedSubjectsInCompleted.length} subjects
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            <Button
+                                                variant="outline"
+                                                size="sm"
+                                                onClick={() => setCreditedSubjectsPage(prev => Math.max(prev - 1, 1))}
+                                                disabled={creditedSubjectsPage === 1}
+                                            >
+                                                <ChevronLeft className="w-4 h-4" />
+                                                Previous
+                                            </Button>
+                                            <span className="text-sm text-gray-600 px-2">
+                                                Page {creditedSubjectsPage} of {totalPages}
+                                            </span>
+                                            <Button
+                                                variant="outline"
+                                                size="sm"
+                                                onClick={() => setCreditedSubjectsPage(prev => Math.min(prev + 1, totalPages))}
+                                                disabled={creditedSubjectsPage === totalPages}
+                                            >
+                                                Next
+                                                <ChevronRight className="w-4 h-4" />
+                                            </Button>
+                                        </div>
+                                    </div>
+                                )}
                             </CardContent>
                         </Card>
                     );

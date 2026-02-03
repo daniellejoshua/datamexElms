@@ -14,6 +14,7 @@ use App\Models\Student;
 use App\Models\StudentEnrollment;
 use App\Models\StudentGrade;
 use App\Models\StudentSemesterPayment;
+use App\Models\StudentSubjectEnrollment;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -170,7 +171,7 @@ class AcademicYearController extends Controller
                 $shsSections[] = $section;
             }
 
-            $enrollments = $section->studentEnrollments;
+            $enrollments = $section->studentEnrollments->where('status', 'active');
             $sectionStudentCount = $enrollments->count();
             $totalStudents += $sectionStudentCount;
 
@@ -182,10 +183,31 @@ class AcademicYearController extends Controller
             $sectionIncompleteDetails = [];
 
             foreach ($enrollments as $enrollment) {
-                // Check grades for each subject in this section
+                // Check grades for each subject the student should have grades for
                 $enrollmentIncompleteSubjects = [];
 
-                foreach ($section->sectionSubjects as $sectionSubject) {
+                // Determine which subjects to check based on student type
+                $subjectsToCheck = [];
+                if ($enrollment->student->student_type === 'irregular') {
+                    // For irregular students, only check subjects they are enrolled in for this section
+                    $sectionSubjectIds = $section->sectionSubjects->pluck('id');
+                    $studentSubjectEnrollments = StudentSubjectEnrollment::where('student_id', $enrollment->student->id)
+                        ->where('academic_year', $validated['academic_year'])
+                        ->whereIn('semester', $semesterToCheck)
+                        ->where('status', 'active')
+                        ->whereIn('section_subject_id', $sectionSubjectIds)
+                        ->with('sectionSubject')
+                        ->get();
+
+                    foreach ($studentSubjectEnrollments as $subjectEnrollment) {
+                        $subjectsToCheck[] = $subjectEnrollment->sectionSubject;
+                    }
+                } else {
+                    // For regular students, check all section subjects
+                    $subjectsToCheck = $section->sectionSubjects;
+                }
+
+                foreach ($subjectsToCheck as $sectionSubject) {
                     // Use appropriate grade model based on section type
                     if ($isShsSection) {
                         // Check SHS grades (Q1, Q2)
@@ -201,6 +223,9 @@ class AcademicYearController extends Controller
                             if ($grade->second_quarter_grade === null) {
                                 $incompleteTerms[] = 'Q2';
                             }
+                        } else {
+                            // No grade record exists - all terms are incomplete
+                            $incompleteTerms = ['Q1', 'Q2'];
                         }
 
                         if (! empty($incompleteTerms)) {
@@ -238,6 +263,9 @@ class AcademicYearController extends Controller
                             if ($grade->final_grade === null) {
                                 $incompleteTerms[] = 'final';
                             }
+                        } else {
+                            // No grade record exists - all terms are incomplete
+                            $incompleteTerms = ['prelim', 'midterm', 'prefinal', 'final'];
                         }
 
                         if (! empty($incompleteTerms)) {

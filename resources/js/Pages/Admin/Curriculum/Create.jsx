@@ -12,6 +12,7 @@ import { ArrowLeft, FileText, AlertCircle, ChevronRight, ChevronLeft, BookOpen, 
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { useState, useEffect } from 'react';
+import { toast } from 'sonner';
 
 export default function Create({ programs, subjects: initialSubjects }) {
     const [currentStep, setCurrentStep] = useState(1);
@@ -32,12 +33,28 @@ export default function Create({ programs, subjects: initialSubjects }) {
         description: '',
         status: 'active',
         curriculum_subjects: [],
+    }, {
+        onSuccess: () => {
+            toast.success(`Curriculum "${data.curriculum_name}" created successfully!`);
+            router.visit(route('admin.curriculum.index'));
+        },
+        onError: () => {
+            toast.error('Failed to create curriculum. Please check the errors.');
+        }
     });
 
     // Constants
     const semesters = ['1st', '2nd'];
     const selectedProgram = programs?.find(p => p.id.toString() === data.program_id);
     const years = selectedProgram ? Array.from({ length: selectedProgram.total_years }, (_, i) => i + 1) : [];
+
+    // Show toast when validation errors occur
+    useEffect(() => {
+        if (Object.keys(errors).length > 0) {
+            const firstError = Object.values(errors)[0];
+            toast.error(firstError);
+        }
+    }, [errors]);
 
     // Load subjects when program is selected
     useEffect(() => {

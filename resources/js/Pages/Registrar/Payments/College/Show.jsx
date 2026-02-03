@@ -141,11 +141,9 @@ export default function CollegePaymentShow({ student, payments, auth }) {
                                 <div className="flex-1">
                                     <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Program</p>
                                     <p className="font-semibold text-gray-900 mt-0.5">
-                                        {student.program?.program_name || student.program?.name || 'N/A'}
+                                        {student.program?.program_code || student.program?.name || 'N/A'}
                                     </p>
-                                    <p className="text-xs text-gray-500 mt-0.5">
-                                        {student.program?.program_code || ''}
-                                    </p>
+                                 
                                 </div>
                             </div>
 

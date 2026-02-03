@@ -31,10 +31,60 @@ class CreditTransferController extends Controller
         try {
             $newProgram = Program::with('curriculums')->findOrFail($request->new_program_id);
 
-            // Get current curriculum for new program
-            $newCurriculum = $newProgram->curriculums()->where('is_current', true)->first();
+            // For transferees, check if there's a specific year level curriculum guide
+            $targetCurriculum = null;
 
-            if (! $newCurriculum) {
+            if (! $request->previous_program_id) {
+                $currentAcademicYear = \App\Models\SchoolSetting::getCurrentAcademicYear();
+
+                $yearLevelGuide = \App\Models\YearLevelCurriculumGuide::where('program_id', $request->new_program_id)
+                    ->where('year_level', $request->student_year_level)
+                    ->where('academic_year', $currentAcademicYear)
+                    ->with('curriculum')
+                    ->first();
+
+                \Log::info('Credit Transfer Debug - Transferee curriculum selection', [
+                    'program_id' => $request->new_program_id,
+                    'year_level' => $request->student_year_level,
+                    'academic_year' => $currentAcademicYear,
+                    'year_level_guide_found' => $yearLevelGuide ? true : false,
+                    'guide_curriculum' => $yearLevelGuide && $yearLevelGuide->curriculum ? $yearLevelGuide->curriculum->curriculum_name : null,
+                ]);
+
+                if ($yearLevelGuide && $yearLevelGuide->curriculum) {
+                    // Check if the guide curriculum has subjects
+                    $subjectCount = \App\Models\CurriculumSubject::where('curriculum_id', $yearLevelGuide->curriculum->id)->count();
+
+                    \Log::info('Credit Transfer Debug - Guide curriculum validation', [
+                        'guide_curriculum_id' => $yearLevelGuide->curriculum->id,
+                        'guide_curriculum_name' => $yearLevelGuide->curriculum->curriculum_name,
+                        'subject_count' => $subjectCount,
+                        'will_use_guide' => $subjectCount > 0,
+                    ]);
+
+                    if ($subjectCount > 0) {
+                        $targetCurriculum = $yearLevelGuide->curriculum;
+                    }
+                }
+            }
+
+            // Get current curriculum for new program if no valid year level guide exists
+            if (! $targetCurriculum) {
+                $targetCurriculum = $newProgram->curriculums()->where('is_current', true)->first();
+
+                \Log::info('Credit Transfer Debug - Using fallback curriculum', [
+                    'fallback_curriculum_id' => $targetCurriculum->id,
+                    'fallback_curriculum_name' => $targetCurriculum->curriculum_name,
+                    'reason' => ! $request->previous_program_id ? 'no_valid_year_level_guide' : 'shiftee',
+                ]);
+            } else {
+                \Log::info('Credit Transfer Debug - Using year level guide curriculum', [
+                    'selected_curriculum_id' => $targetCurriculum->id,
+                    'selected_curriculum_name' => $targetCurriculum->curriculum_name,
+                ]);
+            }
+
+            if (! $targetCurriculum) {
                 return response()->json([
                     'success' => false,
                     'message' => 'The new program does not have an active curriculum assigned.',
@@ -65,12 +115,19 @@ class CreditTransferController extends Controller
                     ->get();
             }
 
-            // Get all subjects from new curriculum
-            $newSubjects = CurriculumSubject::where('curriculum_id', $newCurriculum->id)
+            // Get all subjects from target curriculum (either year level guide or current curriculum)
+            $newSubjects = CurriculumSubject::where('curriculum_id', $targetCurriculum->id)
                 ->with('subject')
                 ->orderBy('year_level')
                 ->orderBy('semester')
                 ->get();
+
+            \Log::info('Credit Transfer Debug - Final subject loading', [
+                'target_curriculum_id' => $targetCurriculum->id,
+                'target_curriculum_name' => $targetCurriculum->curriculum_name,
+                'total_subjects_loaded' => $newSubjects->count(),
+                'is_transferee' => ! $request->previous_program_id,
+            ]);
 
             // Determine credited subjects and subjects to catch up
             $creditedSubjects = [];
@@ -240,16 +297,17 @@ class CreditTransferController extends Controller
 
             $response = [
                 'success' => true,
+                'message' => "Curriculum comparison completed successfully using {$targetCurriculum->curriculum_code}",
                 'data' => [
                     'new_program' => [
                         'id' => $newProgram->id,
                         'name' => $newProgram->program_name,
                         'code' => $newProgram->program_code,
                         'curriculum' => [
-                            'id' => $newCurriculum->id,
-                            'name' => $newCurriculum->curriculum_name,
-                            'code' => $newCurriculum->curriculum_code,
-                            'subjects' => $allNewSubjects, // All subjects for transferee to check
+                            'id' => $targetCurriculum->id,
+                            'name' => $targetCurriculum->curriculum_name,
+                            'code' => $targetCurriculum->curriculum_code,
+                            'subjects' => $allNewSubjects, // All subjects for transferee/shiftee to check
                         ],
                     ],
                     'credited_subjects' => $creditedSubjects,

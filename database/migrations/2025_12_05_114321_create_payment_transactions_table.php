@@ -36,6 +36,7 @@ return new class extends Migration
                 'bank_transfer',
                 'online',
                 'installment',
+                'voucher',
             ]);
 
             $table->string('reference_number')->nullable();

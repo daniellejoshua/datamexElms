@@ -28,23 +28,10 @@ export default function AcademicHistory({ student, curriculumSubjects, completed
     }
 
     const isSubjectCompleted = (subjectCode) => {
-        const isInCompletedList = completedSubjects?.some(completed =>
+        return completedSubjects?.some(completed =>
             completed.subject_code === subjectCode ||
             completed.subject_id === subjectCode
         )
-
-        if (!isInCompletedList) return false
-
-        // Check if this is a credited subject - if so, only count as completed if grade >= 75
-        const gradeInfo = getSubjectGradeInfo(subjectCode)
-        if (gradeInfo?.type === 'credited') {
-            const grade = parseFloat(gradeInfo.final_grade)
-            // Only count as completed if grade is >= 75 or no grade (CR)
-            return isNaN(grade) || grade >= 75
-        }
-
-        // For regular subjects, just check if it's in completed list
-        return true
     }
 
     const getSubjectGradeInfo = (subjectCode) => {
@@ -321,17 +308,30 @@ export default function AcademicHistory({ student, curriculumSubjects, completed
                     // Use paginated credited subjects data
                     const creditedSubjectsData = creditedSubjects?.data || [];
                     const passingCreditedSubjects = creditedSubjectsData.filter(subject => {
-                        const grade = parseFloat(subject.final_grade);
-                        // Include subjects with no grade (CR) or grades >= 75
-                        return isNaN(grade) || grade >= 75;
+                        const grade = subject.final_grade;
+                        if (!grade || grade === 'CR') return true; // No grade = CR = passing
+
+                        const numericGrade = parseFloat(grade);
+                        if (isNaN(numericGrade)) return false; // Invalid grade
+
+                        // Check if it's GPA (1.00-5.00) or percentage (0-100)
+                        // GPA grades: 1.00-3.00 are passing
+                        // Percentage grades: >= 75 are passing
+                        if (numericGrade <= 5.0 && numericGrade >= 1.0) {
+                            // Likely GPA format (1.00-5.00)
+                            return numericGrade <= 3.0; // 1.00-3.00 are passing GPAs
+                        } else {
+                            // Likely percentage format (0-100)
+                            return numericGrade >= 75; // >= 75% is passing
+                        }
                     });
 
-                    return creditedSubjects.total > 0 && (
+                    return passingCreditedSubjects.length > 0 && (
                         <Card>
                             <CardHeader>
                                 <CardTitle className="flex items-center gap-2">
                                     <Award className="w-5 h-5" />
-                                    Credited Subjects ({creditedSubjects.total})
+                                    Credited Subjects ({passingCreditedSubjects.length})
                                 </CardTitle>
                                 <p className="text-sm text-gray-600">Subjects credited through transfers, course shifts, or equivalency (passing grades only)</p>
                             </CardHeader>

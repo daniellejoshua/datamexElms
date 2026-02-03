@@ -201,6 +201,8 @@ class ShsSectionController extends Controller
 
     public function show(Section $section): Response
     {
+        $section->load('program');
+
         if ($section->program->education_level !== 'senior_high') {
             abort(404);
         }
@@ -214,6 +216,8 @@ class ShsSectionController extends Controller
 
     public function edit(Section $section): Response
     {
+        $section->load('program');
+
         if ($section->program->education_level !== 'senior_high') {
             abort(404);
         }
@@ -234,6 +238,8 @@ class ShsSectionController extends Controller
 
     public function update(UpdateSectionRequest $request, Section $section): RedirectResponse
     {
+        $section->load('program');
+
         if ($section->program->education_level !== 'senior_high') {
             abort(404);
         }
@@ -252,6 +258,8 @@ class ShsSectionController extends Controller
 
     public function destroy(Section $section): RedirectResponse
     {
+        $section->load('program');
+
         if ($section->program->education_level !== 'senior_high') {
             abort(404);
         }
@@ -264,6 +272,8 @@ class ShsSectionController extends Controller
 
     public function subjects(Section $section): Response
     {
+        $section->load('program');
+
         if ($section->program->education_level !== 'senior_high') {
             abort(404);
         }
@@ -285,6 +295,8 @@ class ShsSectionController extends Controller
 
     public function attachSubject(Request $request, Section $section)
     {
+        $section->load('program');
+
         if ($section->program->education_level !== 'senior_high') {
             abort(404);
         }
@@ -389,7 +401,7 @@ class ShsSectionController extends Controller
             'student_ids.*' => 'exists:students,id',
         ]);
 
-        $archivedSection = ArchivedSection::with(['archivedEnrollments.student'])->findOrFail($request->archived_section_id);
+        $archivedSection = ArchivedSection::with(['archivedEnrollments.student', 'program'])->findOrFail($request->archived_section_id);
 
         // Use program and curriculum from archived section
         if (! $archivedSection->program_id || ! $archivedSection->curriculum_id) {
@@ -464,6 +476,8 @@ class ShsSectionController extends Controller
 
     public function updateSubject(Request $request, Section $section, Subject $subject): RedirectResponse
     {
+        $section->load('program');
+
         if ($section->program->education_level !== 'senior_high') {
             abort(404);
         }
@@ -516,6 +530,8 @@ class ShsSectionController extends Controller
 
     public function detachSubject(Section $section, Subject $subject): RedirectResponse
     {
+        $section->load('program');
+
         if ($section->program->education_level !== 'senior_high') {
             abort(404);
         }

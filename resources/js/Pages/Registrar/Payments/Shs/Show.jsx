@@ -111,7 +111,7 @@ export default function ShsPaymentShow({ student, payments, auth }) {
                                 <div className="flex-1">
                                     <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Track & Strand</p>
                                     <p className="font-semibold text-gray-900 mt-0.5">
-                                        {student.program?.program_name || 'N/A'}
+                                        {student.program?.program_code || 'N/A'}
                                     </p>
                                 </div>
                             </div>

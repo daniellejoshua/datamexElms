@@ -191,6 +191,8 @@ class CollegeSectionController extends Controller
 
     public function show(Section $section): Response
     {
+        $section->load('program');
+
         if ($section->program->education_level !== 'college') {
             abort(404);
         }
@@ -204,6 +206,8 @@ class CollegeSectionController extends Controller
 
     public function edit(Section $section): Response
     {
+        $section->load('program');
+
         if ($section->program->education_level !== 'college') {
             abort(404);
         }
@@ -226,6 +230,8 @@ class CollegeSectionController extends Controller
 
     public function update(UpdateSectionRequest $request, Section $section): RedirectResponse
     {
+        $section->load('program');
+
         if ($section->program->education_level !== 'college') {
             abort(404);
         }
@@ -242,6 +248,8 @@ class CollegeSectionController extends Controller
 
     public function destroy(Section $section): RedirectResponse
     {
+        $section->load('program');
+
         if ($section->program->education_level !== 'college') {
             abort(404);
         }
@@ -254,6 +262,8 @@ class CollegeSectionController extends Controller
 
     public function subjects(Section $section): Response
     {
+        $section->load('program');
+
         if ($section->program->education_level !== 'college') {
             abort(404);
         }
@@ -275,6 +285,8 @@ class CollegeSectionController extends Controller
 
     public function attachSubject(Request $request, Section $section)
     {
+        $section->load('program');
+
         if ($section->program->education_level !== 'college') {
             abort(404);
         }
@@ -332,6 +344,8 @@ class CollegeSectionController extends Controller
 
     public function updateSubject(Request $request, Section $section, Subject $subject): RedirectResponse
     {
+        $section->load('program');
+
         if ($section->program->education_level !== 'college') {
             abort(404);
         }

@@ -116,4 +116,114 @@ class AcademicHelper
 
         return ($startYear - 1).'-'.$startYear;
     }
+
+    /**
+     * Convert numeric grade (1-100) to GPA equivalent (1.00-5.00).
+     * Based on standard Philippine grading system.
+     */
+    public static function convertToGPA(?float $numericGrade): ?string
+    {
+        if ($numericGrade === null) {
+            return null;
+        }
+
+        if ($numericGrade >= 97) {
+            return '1.00';
+        } elseif ($numericGrade >= 94) {
+            return '1.25';
+        } elseif ($numericGrade >= 91) {
+            return '1.50';
+        } elseif ($numericGrade >= 88) {
+            return '1.75';
+        } elseif ($numericGrade >= 85) {
+            return '2.00';
+        } elseif ($numericGrade >= 82) {
+            return '2.25';
+        } elseif ($numericGrade >= 79) {
+            return '2.50';
+        } elseif ($numericGrade >= 76) {
+            return '2.75';
+        } elseif ($numericGrade >= 75) {
+            return '3.00';
+        } elseif ($numericGrade >= 72) {
+            return '3.25';
+        } elseif ($numericGrade >= 69) {
+            return '3.50';
+        } elseif ($numericGrade >= 66) {
+            return '3.75';
+        } elseif ($numericGrade >= 63) {
+            return '4.00';
+        } elseif ($numericGrade >= 60) {
+            return '4.25';
+        } elseif ($numericGrade >= 55) {
+            return '4.50';
+        } elseif ($numericGrade >= 50) {
+            return '5.00';
+        } else {
+            return '5.00';
+        }
+    }
+
+    /**
+     * Convert GPA (1.00-5.00) to equivalent percentage grade (1-100).
+     * Based on standard Philippine grading system.
+     */
+    public static function convertGpaToPercentage(?float $gpa): ?float
+    {
+        if ($gpa === null) {
+            return null;
+        }
+
+        if ($gpa <= 1.00) {
+            return 100.0;
+        } elseif ($gpa <= 1.25) {
+            return 96.0;
+        } elseif ($gpa <= 1.50) {
+            return 93.0;
+        } elseif ($gpa <= 1.75) {
+            return 90.0;
+        } elseif ($gpa <= 2.00) {
+            return 87.0;
+        } elseif ($gpa <= 2.25) {
+            return 84.0;
+        } elseif ($gpa <= 2.50) {
+            return 81.0;
+        } elseif ($gpa <= 2.75) {
+            return 78.0;
+        } elseif ($gpa <= 3.00) {
+            return 75.0;
+        } elseif ($gpa <= 3.25) {
+            return 72.0;
+        } elseif ($gpa <= 3.50) {
+            return 69.0;
+        } elseif ($gpa <= 3.75) {
+            return 66.0;
+        } elseif ($gpa <= 4.00) {
+            return 63.0;
+        } elseif ($gpa <= 4.25) {
+            return 60.0;
+        } elseif ($gpa <= 4.50) {
+            return 55.0;
+        } elseif ($gpa <= 4.75) {
+            return 50.0;
+        } elseif ($gpa <= 5.00) {
+            return 50.0; // 5.00 GPA = 50%
+        } else {
+            return 0.0; // Failing grades below 50%
+        }
+    }
+
+    /**
+     * Format grade display showing both numeric and GPA formats.
+     */
+    public static function formatGradeDisplay(?float $numericGrade): string
+    {
+        if ($numericGrade === null) {
+            return 'N/A';
+        }
+
+        $gpa = self::convertToGPA($numericGrade);
+
+        return "{$numericGrade} ({$gpa})";
+    }
 }

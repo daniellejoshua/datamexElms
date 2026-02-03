@@ -14,29 +14,31 @@ class ProgramController extends Controller
      */
     public function index(Request $request)
     {
-        $programs = Program::with(['programFees', 'curriculums' => function ($query) {
+        $query = Program::with(['programFees', 'curriculums' => function ($query) {
             $query->active()->orderBy('is_current', 'desc')->orderBy('created_at', 'desc');
-        }, 'curriculums.curriculumSubjects.subject'])->withCount('students')->get();
+        }, 'curriculums.curriculumSubjects.subject'])->withCount('students');
 
         // Apply filters
         if ($request->filled('education_level') && $request->education_level !== 'all') {
-            $programs = $programs->where('education_level', $request->education_level);
+            $query->where('education_level', $request->education_level);
         }
 
         if ($request->filled('status') && $request->status !== 'all') {
-            $programs = $programs->where('status', $request->status);
+            $query->where('status', $request->status);
         }
 
         if ($request->filled('search')) {
             $search = $request->search;
-            $programs = $programs->filter(function ($program) use ($search) {
-                return str_contains(strtolower($program->program_name), strtolower($search)) ||
-                       str_contains(strtolower($program->program_code), strtolower($search));
+            $query->where(function ($q) use ($search) {
+                $q->where('program_name', 'LIKE', "%{$search}%")
+                    ->orWhere('program_code', 'LIKE', "%{$search}%");
             });
         }
 
+        $programs = $query->paginate(6)->withPath(request()->getPathInfo());
+
         // Load subjects and calculate correct counts for each program
-        $programs->each(function ($program) {
+        $programs->getCollection()->each(function ($program) {
             $program->load('subjects');
 
             // For SHS programs, include core and applied subjects that are available to all SHS students
@@ -52,23 +54,8 @@ class ProgramController extends Controller
             }
         });
 
-        // Manual pagination
-        $perPage = 6;
-        $currentPage = $request->get('page', 1);
-        $total = $programs->count();
-        $paginatedPrograms = $programs->forPage($currentPage, $perPage);
-
-        $paginatedResult = new \Illuminate\Pagination\LengthAwarePaginator(
-            $paginatedPrograms,
-            $total,
-            $perPage,
-            $currentPage,
-            ['path' => $request->url(), 'pageName' => 'page']
-        );
-        $paginatedResult->appends($request->query());
-
         return Inertia::render('Registrar/Programs/Index', [
-            'programs' => $paginatedResult,
+            'programs' => $programs,
             'filters' => $request->only(['education_level', 'status', 'search']),
         ]);
     }

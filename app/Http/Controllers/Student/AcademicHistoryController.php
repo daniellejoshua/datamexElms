@@ -23,9 +23,8 @@ class AcademicHistoryController extends Controller
         $curriculumSubjects = [];
         if ($student->curriculum_id) {
             $curriculumSubjects = \App\Models\CurriculumSubject::where('curriculum_id', $student->curriculum_id)
-                ->whereIn('semester', ['1st', '2nd'])
                 ->orderBy('year_level')
-                ->orderByRaw("FIELD(semester, '1st', '2nd')")
+                ->orderByRaw("FIELD(semester, '1st', '2nd', 'summer')")
                 ->get();
         }
 
@@ -121,6 +120,7 @@ class AcademicHistoryController extends Controller
                     'type' => 'credited',
                     'credit_type' => $credited->credit_type,
                     'final_grade' => $credited->final_grade,
+                    'final_gpa' => \App\Helpers\AcademicHelper::convertToGPA($credited->final_grade),
                     'credited_from' => $credited->studentCreditTransfer ? $credited->studentCreditTransfer->previous_school : null,
                     'credited_at' => $credited->credited_at,
                     'is_complete' => true,
@@ -128,12 +128,34 @@ class AcademicHistoryController extends Controller
 
                 $subjectGradesMap[$credited->subject->subject_code] = $creditInfo;
 
-                $completedSubjects[] = [
-                    'subject_id' => $credited->subject->id,
-                    'subject_code' => $credited->subject->subject_code,
-                    'subject_name' => $credited->subject->subject_name,
-                    'type' => 'credited',
-                ];
+                // Only add to completed subjects if grade is passing
+                // GPA grades (1.00-3.00) for transferees, percentage (>=75) for regular students
+                $gradeValue = $credited->final_grade;
+                $isTransfereeCredit = $credited->studentCreditTransfer !== null;
+                $isPassing = false;
+
+                if (is_null($gradeValue) || $gradeValue === 'CR') {
+                    // No grade = CR = passing
+                    $isPassing = true;
+                } elseif (is_numeric($gradeValue)) {
+                    $numericGrade = (float) $gradeValue;
+                    if ($isTransfereeCredit) {
+                        // Transferee credits use GPA: 1.00-3.00 are passing
+                        $isPassing = $numericGrade <= 3.0;
+                    } else {
+                        // Regular credits use percentage: >= 75 is passing
+                        $isPassing = $numericGrade >= 75;
+                    }
+                }
+
+                if ($isPassing) {
+                    $completedSubjects[] = [
+                        'subject_id' => $credited->subject->id,
+                        'subject_code' => $credited->subject->subject_code,
+                        'subject_name' => $credited->subject->subject_name,
+                        'type' => 'credited',
+                    ];
+                }
             }
         }
 
@@ -152,6 +174,7 @@ class AcademicHistoryController extends Controller
                     'type' => 'credited',
                     'credit_type' => $transfer->transfer_type,
                     'final_grade' => $transfer->verified_semester_grade,
+                    'final_gpa' => \App\Helpers\AcademicHelper::convertToGPA($transfer->verified_semester_grade),
                     'credited_from' => $transfer->previous_school,
                     'credited_at' => $transfer->approved_at,
                     'is_complete' => true,
@@ -159,12 +182,27 @@ class AcademicHistoryController extends Controller
 
                 $subjectGradesMap[$transfer->subject->subject_code] = $creditInfo;
 
-                $completedSubjects[] = [
-                    'subject_id' => $transfer->subject->id,
-                    'subject_code' => $transfer->subject->subject_code,
-                    'subject_name' => $transfer->subject->subject_name,
-                    'type' => 'credited',
-                ];
+                // Only add to completed subjects if grade is passing
+                // Credit transfers are always from transferees, so use GPA logic (1.00-3.00 passing)
+                $gradeValue = $transfer->verified_semester_grade;
+                $isPassing = false;
+                if (is_null($gradeValue) || $gradeValue === 'CR') {
+                    // No grade = CR = passing
+                    $isPassing = true;
+                } elseif (is_numeric($gradeValue)) {
+                    $numericGrade = (float) $gradeValue;
+                    // GPA format: 1.00-3.00 are passing
+                    $isPassing = $numericGrade <= 3.0;
+                }
+
+                if ($isPassing) {
+                    $completedSubjects[] = [
+                        'subject_id' => $transfer->subject->id,
+                        'subject_code' => $transfer->subject->subject_code,
+                        'subject_name' => $transfer->subject->subject_name,
+                        'type' => 'credited',
+                    ];
+                }
             }
         }
 
@@ -186,14 +224,28 @@ class AcademicHistoryController extends Controller
                 }
             }
 
-            // Check if completed through crediting (only if grade >= 75 or CR)
+            // Check if completed through crediting (GPA 1.00-3.00 or percentage >= 75 or CR)
             if (! $isCompleted) {
                 foreach ($subjectGradesMap as $grade) {
-                    if ($grade['subject_code'] === $subjectCode &&
-                        $grade['type'] === 'credited' &&
-                        (is_null($grade['final_grade']) || (is_numeric($grade['final_grade']) && $grade['final_grade'] >= 75))) {
-                        $isCompleted = true;
-                        break;
+                    if ($grade['subject_code'] === $subjectCode && $grade['type'] === 'credited') {
+                        $gradeValue = $grade['final_grade'];
+                        $isTransfereeCredit = ! is_null($grade['credited_from']);
+                        if (is_null($gradeValue) || $gradeValue === 'CR') {
+                            // No grade = CR = passing
+                            $isCompleted = true;
+                        } elseif (is_numeric($gradeValue)) {
+                            $numericGrade = (float) $gradeValue;
+                            if ($isTransfereeCredit) {
+                                // Transferee credits use GPA: 1.00-3.00 are passing
+                                $isCompleted = $numericGrade <= 3.0;
+                            } else {
+                                // Regular credits use percentage: >= 75 is passing
+                                $isCompleted = $numericGrade >= 75;
+                            }
+                        }
+                        if ($isCompleted) {
+                            break;
+                        }
                     }
                 }
             }

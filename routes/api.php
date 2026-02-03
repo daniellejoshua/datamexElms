@@ -48,14 +48,14 @@ Route::middleware(['web', 'auth:web', 'throttle.api'])->group(function () {
             return response()->json([
                 'exists' => true,
                 'has_unpaid_balances' => $unpaidBalances->isNotEmpty(),
-                'unpaid_balances' => $unpaid_balances,
+                'unpaid_balances' => $unpaidBalances,
                 'student' => [
                     'id' => $student->id,
                     'first_name' => $student->first_name,
                     'last_name' => $student->last_name,
                     'middle_name' => $student->middle_name,
-                    'name' => $student->user->name,
-                    'email' => $student->user->email,
+                    'name' => $student->user?->name,
+                    'email' => $student->user?->email,
                     'student_number' => $student->student_number,
                     'year_level' => $student->year_level,
                     'program' => $student->program,

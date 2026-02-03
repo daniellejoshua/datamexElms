@@ -751,7 +751,7 @@ export default function StudentsIndex({ students, programs, filters, auth, on_ho
                             {/* Main Information Grid */}
                             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                                 {/* Personal Information Card */}
-                                <Card className="border-l-4 border-l-blue-500">
+                                <Card>
                                     <CardHeader className="pb-3">
                                         <CardTitle className="text-lg flex items-center gap-2 text-blue-700">
                                             <User className="w-5 h-5" />
@@ -921,7 +921,7 @@ export default function StudentsIndex({ students, programs, filters, auth, on_ho
                                 </Card>
 
                                 {/* Academic Information Card */}
-                                <Card className="border-l-4 border-l-green-500">
+                                <Card>
                                     <CardHeader className="pb-3">
                                         <CardTitle className="text-lg flex items-center gap-2 text-green-700">
                                             <GraduationCap className="w-5 h-5" />
@@ -990,18 +990,6 @@ export default function StudentsIndex({ students, programs, filters, auth, on_ho
                                                                 <div className="flex items-center gap-2">
                                                                     <div className="w-2 h-2 bg-green-500 rounded-full"></div>
                                                                     Active
-                                                                </div>
-                                                            </SelectItem>
-                                                            <SelectItem value="inactive">
-                                                                <div className="flex items-center gap-2">
-                                                                    <div className="w-2 h-2 bg-red-500 rounded-full"></div>
-                                                                    Inactive
-                                                                </div>
-                                                            </SelectItem>
-                                                            <SelectItem value="graduated">
-                                                                <div className="flex items-center gap-2">
-                                                                    <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-                                                                    Graduated
                                                                 </div>
                                                             </SelectItem>
                                                             <SelectItem value="dropped">
@@ -1182,7 +1170,7 @@ export default function StudentsIndex({ students, programs, filters, auth, on_ho
                             </div>
 
                             {/* Academic History - Show for all students */}
-                            <Card className="border-l-4 border-l-purple-500">
+                            <Card>
                                 <CardHeader className="pb-3">
                                     <CardTitle className="text-lg flex items-center gap-2 text-purple-700">
                                         <GraduationCap className="w-5 h-5" />
@@ -1221,7 +1209,7 @@ export default function StudentsIndex({ students, programs, filters, auth, on_ho
                             </Card>
 
                             {/* Current Enrollment Information */}
-                            <Card className="border-l-4 border-l-emerald-500">
+                            <Card>
                                 <CardHeader className="pb-3">
                                     <CardTitle className="text-lg flex items-center gap-2 text-emerald-700">
                                         <User className="w-5 h-5" />

@@ -197,7 +197,7 @@ describe('Student Enrollment Management', function () {
         $program = Program::factory()->create();
         $sectionHigh = Section::factory()->create([
             'program_id' => $program->id,
-            'year_level' => 3,
+            'year_level' => 4,
         ]);
         $sectionSame = Section::factory()->create([
             'program_id' => $program->id,
@@ -222,12 +222,15 @@ describe('Student Enrollment Management', function () {
             'semester' => $sectionHigh->semester,
         ]);
 
+        // Irregular students can enroll in same year level sections (unless they've completed all subjects)
         $responseSame = $this->get(route('admin.sections.students', $sectionSame->id));
-        $responseSame->assertOk()->assertInertia(fn ($page) => $page->has('availableStudents', 0));
+        $responseSame->assertOk()->assertInertia(fn ($page) => $page->has('availableStudents', 1)->where('availableStudents.0.id', $student->id));
 
+        // Irregular students cannot enroll in higher year level sections
         $responseHigher = $this->get(route('admin.sections.students', $sectionHigh->id));
         $responseHigher->assertOk()->assertInertia(fn ($page) => $page->has('availableStudents', 0));
 
+        // Irregular students can enroll in lower year level sections
         $responseLower = $this->get(route('admin.sections.students', $sectionLower->id));
         $responseLower->assertOk()->assertInertia(fn ($page) => $page->has('availableStudents', 1)->where('availableStudents.0.id', $student->id));
     });

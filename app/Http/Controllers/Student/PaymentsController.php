@@ -47,9 +47,8 @@ class PaymentsController extends Controller
                         $payment->calculated_total_amount = $payment->total_semester_fee;
                     }
                 }
-            } else {
-                $payment->calculated_total_amount = $payment->total_semester_fee;
             }
+            // For regular students, do not set calculated_total_amount
 
             return $payment;
         });
