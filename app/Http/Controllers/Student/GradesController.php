@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Student;
 
 use App\Http\Controllers\Controller;
+use App\Models\StudentSemesterPayment;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -12,6 +13,15 @@ class GradesController extends Controller
     public function index(Request $request): Response
     {
         $student = $request->user()->student;
+
+        // Get current payment status for the student
+        $currentAcademicYear = \App\Helpers\AcademicHelper::getCurrentAcademicYear();
+        $currentSemester = \App\Helpers\AcademicHelper::getCurrentSemester();
+
+        $paymentStatus = StudentSemesterPayment::where('student_id', $student->id)
+            ->where('academic_year', $currentAcademicYear)
+            ->where('semester', $currentSemester)
+            ->first();
 
         // Get current College grades from active enrollments
         $collegeGrades = $student->studentGrades()
@@ -39,7 +49,7 @@ class GradesController extends Controller
 
         // Combine and paginate grades
         $allGrades = collect();
-        
+
         // Transform College grades
         foreach ($collegeGrades as $grade) {
             $allGrades->push([
@@ -85,6 +95,7 @@ class GradesController extends Controller
             } elseif ($grade['type'] === 'shs') {
                 return $grade['final_grade'] || $grade['q1_grade'] || $grade['q2_grade'];
             }
+
             return false;
         })->unique('section_subject_id')->count();
 
@@ -123,6 +134,7 @@ class GradesController extends Controller
 
         return Inertia::render('Student/Grades/Index', [
             'currentGrades' => $currentGrades,
+            'paymentStatus' => $paymentStatus,
             'stats' => [
                 'totalSubjects' => $uniqueSubjects,
                 'averageGrade' => $averageGrade,

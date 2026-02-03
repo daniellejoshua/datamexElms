@@ -16,7 +16,7 @@ import {
     BookOpen
 } from 'lucide-react';
 
-export default function GradesModal({ isOpen, onClose, subject }) {
+export default function GradesModal({ isOpen, onClose, subject, paymentStatus }) {
     if (!subject) return null;
 
     // Determine if this is SHS or College based on year level
@@ -52,16 +52,38 @@ export default function GradesModal({ isOpen, onClose, subject }) {
         return 'F';
     };
 
+    // Helper function to determine which grades to show based on payment status (College only)
+    const getVisibleGrades = (paymentStatus) => {
+        if (!paymentStatus) {
+            return { prelim: false, midterm: false, prefinal: false, final: false, semester: false };
+        }
+
+        // If balance is 0, show all grades
+        if (paymentStatus.balance === 0) {
+            return { prelim: true, midterm: true, prefinal: true, final: true, semester: true };
+        }
+
+        // Otherwise, show grades based on payment status
+        return {
+            prelim: paymentStatus.prelim_paid === 1,
+            midterm: paymentStatus.midterm_paid === 1,
+            prefinal: paymentStatus.prefinal_paid === 1,
+            final: paymentStatus.final_paid === 1,
+            semester: paymentStatus.prelim_paid === 1 && paymentStatus.midterm_paid === 1 && paymentStatus.prefinal_paid === 1 && paymentStatus.final_paid === 1, // Show semester grade only if all periods are paid
+        };
+    };
+
     // Define grade items based on student type
+    const visibleGrades = isSHS ? null : getVisibleGrades(paymentStatus);
     const gradeItems = isSHS ? [
         { label: 'Q1', value: subject.grades?.q1_grade, weight: '50%' },
         { label: 'Q2', value: subject.grades?.q2_grade, weight: '50%' },
     ] : [
-        { label: 'Prelim', value: subject.grades?.prelim_grade, weight: '25%' },
-        { label: 'Midterm', value: subject.grades?.midterm_grade, weight: '25%' },
-        { label: 'Prefinal', value: subject.grades?.prefinal_grade, weight: '25%' },
-        { label: 'Final', value: subject.grades?.final_grade, weight: '25%' },
-    ];
+        { label: 'Prelim', value: subject.grades?.prelim_grade, weight: '25%', show: !visibleGrades || visibleGrades.prelim },
+        { label: 'Midterm', value: subject.grades?.midterm_grade, weight: '25%', show: !visibleGrades || visibleGrades.midterm },
+        { label: 'Prefinal', value: subject.grades?.prefinal_grade, weight: '25%', show: !visibleGrades || visibleGrades.prefinal },
+        { label: 'Final', value: subject.grades?.final_grade, weight: '25%', show: !visibleGrades || visibleGrades.final },
+    ].filter(item => item.show !== false);
 
 // Add this function inside your GradesModal component
 const getGradePointEquivalence = (grade) => {
@@ -79,10 +101,6 @@ const getGradePointEquivalence = (grade) => {
     if (num < 75) return '5.00';
     return 'N/A';
 };
-
-
-
-
 
     // Calculate semester grade
     const calculateSemesterGrade = () => {
@@ -212,45 +230,57 @@ const getGradePointEquivalence = (grade) => {
                             </Card>
 
                             {/* Final Semester Grade */}
-                            <Card className="border-2 border-blue-200 bg-gradient-to-r from-blue-50 to-indigo-50">
-                                <CardHeader className="pb-3">
-                                    <CardTitle className="text-lg flex items-center gap-2">
-                                        <GraduationCap className="w-5 h-5 text-blue-600" />
-                                        Final Semester Grade
-                                    </CardTitle>
-                                </CardHeader>
-                                    <CardContent>
-                                        <div className="flex items-center justify-between">
-                                            <div>
-                                                <p className="text-sm text-gray-600 mb-1">Overall Performance</p>
-                                                <div className="flex items-center gap-3">
-                                                    <span className={`text-4xl font-bold ${getGradeColor(semesterGrade)}`}>
-                                                        {getGradePointEquivalence(semesterGrade)|| 'N/A'}
-                                                    </span>
+                            {isSHS || (!visibleGrades || visibleGrades.semester) ? (
+                                <Card className="border-2 border-blue-200 bg-gradient-to-r from-blue-50 to-indigo-50">
+                                    <CardHeader className="pb-3">
+                                        <CardTitle className="text-lg flex items-center gap-2">
+                                            <GraduationCap className="w-5 h-5 text-blue-600" />
+                                            Final Semester Grade
+                                        </CardTitle>
+                                    </CardHeader>
+                                        <CardContent>
+                                            <div className="flex items-center justify-between">
+                                                <div>
+                                                    <p className="text-sm text-gray-600 mb-1">Overall Performance</p>
+                                                    <div className="flex items-center gap-3">
+                                                        <span className={`text-4xl font-bold ${getGradeColor(semesterGrade)}`}>
+                                                            {getGradePointEquivalence(semesterGrade)|| 'N/A'}
+                                                        </span>
+                                                        <Badge 
+                                                            variant="secondary" 
+                                                            className={`text-lg px-3 py-1 ${getGradeBg(semesterGrade)} ${getGradeColor(semesterGrade)} border-0`}
+                                                        >
+                                                            {semesterGrade}
+                                                        </Badge>
+                                                    </div>
+                                                </div>
+                                                <div className="text-right">
+                                                    <p className="text-sm text-gray-600 mb-1">Status</p>
                                                     <Badge 
-                                                        variant="secondary" 
-                                                        className={`text-lg px-3 py-1 ${getGradeBg(semesterGrade)} ${getGradeColor(semesterGrade)} border-0`}
+                                                        variant={subject.grades?.status === 'passed' || subject.grades?.status === 'completed' ? 'default' : 'secondary'}
+                                                        className={
+                                                            subject.grades?.status === 'passed' || subject.grades?.status === 'completed'
+                                                                ? 'bg-green-100 text-green-800 border-green-200' 
+                                                                : 'bg-gray-100 text-gray-800'
+                                                        }
                                                     >
-                                                        {semesterGrade}
+                                                        {subject.grades?.status || 'Pending'}
                                                     </Badge>
                                                 </div>
                                             </div>
-                                            <div className="text-right">
-                                                <p className="text-sm text-gray-600 mb-1">Status</p>
-                                                <Badge 
-                                                    variant={subject.grades?.status === 'passed' || subject.grades?.status === 'completed' ? 'default' : 'secondary'}
-                                                    className={
-                                                        subject.grades?.status === 'passed' || subject.grades?.status === 'completed'
-                                                            ? 'bg-green-100 text-green-800 border-green-200' 
-                                                            : 'bg-gray-100 text-gray-800'
-                                                    }
-                                                >
-                                                    {subject.grades?.status || 'Pending'}
-                                                </Badge>
-                                            </div>
-                                        </div>
+                                        </CardContent>
+                                    </Card>
+                            ) : (
+                                <Card className="border-2 border-gray-200 bg-gradient-to-r from-gray-50 to-gray-100">
+                                    <CardContent className="p-8 text-center">
+                                        <GraduationCap className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                                        <h3 className="text-lg font-semibold text-gray-900 mb-2">Semester Grade Locked</h3>
+                                        <p className="text-gray-600">
+                                            Complete all period payments (Prelim, Midterm, Prefinal, Final) to view your semester grade.
+                                        </p>
                                     </CardContent>
                                 </Card>
+                            )}
                         </>
                     ) : (
                         <Card>

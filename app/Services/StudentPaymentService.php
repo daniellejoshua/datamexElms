@@ -324,6 +324,7 @@ class StudentPaymentService
             ->where('year_level', $currentYearLevel)
             ->where('semester', $semester)
             ->where('credit_status', 'credited')
+            ->where('credit_type', 'transfer') // Only count transfer credits, not regular grading credits
             ->get();
 
         foreach ($credits as $credit) {

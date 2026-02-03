@@ -6,8 +6,8 @@ use App\Http\Controllers\Controller;
 use App\Models\ArchivedStudentEnrollment;
 use App\Models\CourseMaterial;
 use App\Models\MaterialAccessLog;
-use App\Models\ShsStudentGrade;
 use App\Models\Student;
+use App\Models\StudentSemesterPayment;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
@@ -34,6 +34,12 @@ class SubjectController extends Controller
 
         $currentYear = $currentEnrollment?->academic_year ?? '2025-2026';
         $currentSemester = $currentEnrollment?->semester ?? '1st';
+
+        // Get current payment status for the student
+        $paymentStatus = StudentSemesterPayment::where('student_id', $student->id)
+            ->where('academic_year', $currentYear)
+            ->where('semester', $currentSemester)
+            ->first();
 
         // Get all active enrollments with subject details (only those with sections) - filter by current semester
         $enrollments = $student->studentEnrollments()
@@ -303,6 +309,7 @@ class SubjectController extends Controller
             'subjects' => $subjects,
             'student' => $student->load('user'),
             'archivedEnrollments' => $archivedEnrollments,
+            'paymentStatus' => $paymentStatus,
         ]);
     }
 

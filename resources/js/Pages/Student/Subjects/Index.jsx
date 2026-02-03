@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Head, Link } from '@inertiajs/react';
+import { route } from 'ziggy-js';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -21,7 +22,7 @@ import {
     ArrowLeft
 } from 'lucide-react';
 
-export default function StudentSubjectsIndex({ subjects, student, archivedEnrollments }) {
+export default function StudentSubjectsIndex({ subjects, student, archivedEnrollments, paymentStatus }) {
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedSubject, setSelectedSubject] = useState(null);
     const [isGradesModalOpen, setIsGradesModalOpen] = useState(false);
@@ -360,6 +361,7 @@ export default function StudentSubjectsIndex({ subjects, student, archivedEnroll
                 isOpen={isGradesModalOpen}
                 onClose={handleCloseGradesModal}
                 subject={selectedSubject}
+                paymentStatus={paymentStatus}
             />
             
             {/* Materials Modal */}

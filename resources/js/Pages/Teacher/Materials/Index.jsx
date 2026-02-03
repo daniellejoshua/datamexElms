@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Head, Link, useForm, router } from '@inertiajs/react';
+import { route } from 'ziggy-js';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -185,15 +186,6 @@ export default function MaterialsIndex({ section, materials, sectionSubject }) {
         <AuthenticatedLayout
             header={
                 <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                        <div className="bg-blue-100 p-1.5 rounded-md">
-                            <BookOpen className="w-4 h-4 text-blue-600" />
-                        </div>
-                        <div>
-                            <h2 className="text-lg font-semibold text-gray-900">{sectionSubject.subject.subject_name}</h2>
-                            <p className="text-xs text-gray-500 mt-0.5">{getSimplifiedSectionName()} • {sectionSubject.subject.subject_code} • Learning Materials</p>
-                        </div>
-                    </div>
                     <Button
                         asChild
                         variant="ghost"
@@ -201,10 +193,19 @@ export default function MaterialsIndex({ section, materials, sectionSubject }) {
                         className="text-gray-600 hover:text-gray-900"
                     >
                         <Link href={route('teacher.sections.college')} className="flex items-center">
-                            <ArrowLeft className="w-4 h-4 mr-1 flex-shrink-0" />
-                            <span>Back to Sections</span>
+                            <ArrowLeft className="w-4 h-4 flex-shrink-0" />
+                            <span className="hidden sm:inline ml-1">Back to Sections</span>
                         </Link>
                     </Button>
+                    <div className="flex items-center gap-2 min-w-0 flex-1">
+                        <div className="bg-blue-100 p-1.5 rounded-md flex-shrink-0">
+                            <BookOpen className="w-4 h-4 text-blue-600" />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                            <h2 className="text-base sm:text-lg font-semibold text-gray-900 truncate">{sectionSubject.subject.subject_name}</h2>
+                            <p className="text-xs text-gray-500 mt-0.5 truncate">{getSimplifiedSectionName()} • {sectionSubject.subject.subject_code} • Learning Materials</p>
+                        </div>
+                    </div>
                 </div>
             }
         >
