@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Admin\AcademicYearController;
 use App\Http\Controllers\Admin\AdminDashboardController;
+use App\Http\Controllers\Admin\AlertController;
 use App\Http\Controllers\Admin\ClassScheduleController;
 use App\Http\Controllers\Admin\CollegeSectionController;
 use App\Http\Controllers\Admin\CollegeSubjectController;
@@ -154,6 +155,9 @@ Route::middleware(['web', 'auth', 'verified'])->prefix('admin')->name('admin.')-
         // Dashboard
         Route::get('/dashboard', [AdminDashboardController::class, 'index'])->name('dashboard');
 
+        // Alerts Management
+        Route::get('/alerts', [AlertController::class, 'index'])->name('alerts.index');
+
         // Section Management
         Route::resource('sections', SectionController::class);
         Route::get('sections/{section}/students', [SectionController::class, 'students'])->name('sections.students');
@@ -169,8 +173,7 @@ Route::middleware(['web', 'auth', 'verified'])->prefix('admin')->name('admin.')-
         Route::post('sections/{section}/students/{student}/subjects', [SectionController::class, 'enrollStudentInSubjects'])->name('sections.enroll-subjects');
         Route::delete('sections/{section}/students/{student}/subjects', [SectionController::class, 'removeStudentFromSubject'])->name('sections.remove-from-subject');
 
-        // Subject Scheduling
-        Route::get('sections/{section}/subjects', [SectionController::class, 'subjects'])->name('sections.subjects');
+        // Subject Scheduling - Removed general route, use section-specific routes instead
         Route::post('sections/{section}/subjects', [SectionController::class, 'attachSubject'])->name('sections.attach-subject');
         Route::patch('sections/{section}/subjects/{subject}', [SectionController::class, 'updateSubject'])->name('sections.update-subject');
         Route::delete('sections/{section}/subjects/{subject}', [SectionController::class, 'detachSubject'])->name('sections.detach-subject');

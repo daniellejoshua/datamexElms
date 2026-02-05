@@ -3,52 +3,16 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
-use App\Models\AuditLog;
-use App\Models\Program;
 use App\Models\Section;
 use App\Models\Student;
-use App\Models\StudentEnrollment;
-use App\Models\Subject;
-use App\Models\Teacher;
-use App\Models\User;
-use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 use Inertia\Response;
 
-class AdminDashboardController extends Controller
+class AlertController extends Controller
 {
     public function index(): Response
     {
-        // Get system overview statistics
-        $stats = [
-            'totalUsers' => User::count(),
-            'totalStudents' => Student::count(),
-            'totalTeachers' => Teacher::count(),
-            'totalPrograms' => Program::count(),
-            'totalSubjects' => Subject::count(),
-            'totalSections' => Section::count(),
-            'activeEnrollments' => StudentEnrollment::where('status', 'active')->count(),
-        ];
-
-        // Get recent activity from audit logs
-        $recentActivity = AuditLog::with('user')
-            ->latest()
-            ->limit(10)
-            ->get();
-
-        // Get enrollment statistics by education level
-        $enrollmentStats = StudentEnrollment::join('students', 'student_enrollments.student_id', '=', 'students.id')
-            ->select('students.education_level', DB::raw('count(*) as count'))
-            ->where('student_enrollments.status', 'active')
-            ->groupBy('students.education_level')
-            ->get();
-
-        // Get program distribution
-        $programStats = Student::select('student_type', DB::raw('count(*) as count'))
-            ->groupBy('student_type')
-            ->get();
-
-        // Get sections with low enrollment (below 20)
+        // Get all low enrollment sections
         $lowEnrollmentSections = Section::with(['program', 'studentEnrollments' => function ($query) {
             $query->where('status', 'active');
         }])
@@ -56,22 +20,21 @@ class AdminDashboardController extends Controller
             ->filter(function ($section) {
                 return $section->studentEnrollments->count() < 20;
             })
-            ->take(5)
             ->map(function ($section) {
                 return [
                     'id' => $section->id,
                     'section_name' => $section->formatted_name,
                     'program_name' => $section->program->program_name ?? 'Unknown',
                     'student_count' => $section->studentEnrollments->count(),
+                    'capacity' => 40, // Assuming standard capacity
                 ];
             });
 
-        // Get students without sections (no active enrollments)
+        // Get all students without sections
         $studentsWithoutSections = Student::whereDoesntHave('enrollments', function ($query) {
             $query->where('status', 'active');
         })
             ->with(['user', 'program'])
-            ->take(5)
             ->get()
             ->map(function ($student) {
                 return [
@@ -80,17 +43,17 @@ class AdminDashboardController extends Controller
                     'name' => $student->user->name ?? 'Unknown',
                     'program_name' => $student->program->program_name ?? 'Unknown',
                     'education_level' => $student->education_level,
+                    'year_level' => $student->year_level,
                 ];
             });
 
-        // Get sections with subjects that don't have assigned teachers
+        // Get all sections with unassigned subjects
         $sectionsWithoutTeachers = Section::with(['program', 'sectionSubjects' => function ($query) {
             $query->whereNull('teacher_id')->where('status', 'active');
         }])
             ->whereHas('sectionSubjects', function ($query) {
                 $query->whereNull('teacher_id')->where('status', 'active');
             })
-            ->take(5)
             ->get()
             ->map(function ($section) {
                 $unassignedSubjects = $section->sectionSubjects->map(function ($sectionSubject) {
@@ -107,11 +70,11 @@ class AdminDashboardController extends Controller
                 ];
             });
 
-        // Get teachers with pending grade submissions for current period
+        // Get teachers with pending grade submissions
         $currentAcademicYear = config('school_settings.current_academic_year', '2026-2027');
         $currentSemester = config('school_settings.current_semester', '1st');
 
-        // For college students - check if final grades are submitted for current semester
+        // For college students - check if final grades are submitted
         $collegePendingTeachers = \DB::table('section_subjects')
             ->join('sections', 'section_subjects.section_id', '=', 'sections.id')
             ->join('programs', 'sections.program_id', '=', 'programs.id')
@@ -170,7 +133,7 @@ class AdminDashboardController extends Controller
             foreach ($pendingGroup as $teacherId => $records) {
                 $teacher = \App\Models\Teacher::with('user')->find($teacherId);
                 if ($teacher) {
-                    $sections = $records->pluck('formatted_name')->unique()->take(3);
+                    $sections = $records->pluck('formatted_section_name')->unique();
                     $subjectCount = $records->count();
 
                     $pendingGradeTeachers->push([
@@ -178,21 +141,27 @@ class AdminDashboardController extends Controller
                         'name' => $teacher->user->name ?? 'Unknown',
                         'sections' => $sections,
                         'pending_subjects_count' => $subjectCount,
+                        'education_levels' => $records->groupBy(function ($record) {
+                            // Determine education level from the query type
+                            return str_contains($record->formatted_section_name, 'SHS') ? 'senior_high' : 'college';
+                        })->keys(),
                     ]);
                 }
             }
         }
 
-        $pendingGradeTeachers = $pendingGradeTeachers->take(5);
-
-        return Inertia::render('Admin/Dashboard', [
-            'stats' => $stats,
-            'enrollmentStats' => $enrollmentStats,
-            'programStats' => $programStats,
+        return Inertia::render('Admin/Alerts/Index', [
             'lowEnrollmentSections' => $lowEnrollmentSections,
             'studentsWithoutSections' => $studentsWithoutSections,
             'sectionsWithoutTeachers' => $sectionsWithoutTeachers,
             'pendingGradeTeachers' => $pendingGradeTeachers,
+            'alertsSummary' => [
+                'total_alerts' => $lowEnrollmentSections->count() + $studentsWithoutSections->count() + $sectionsWithoutTeachers->count() + $pendingGradeTeachers->count(),
+                'low_enrollment_count' => $lowEnrollmentSections->count(),
+                'unassigned_students_count' => $studentsWithoutSections->count(),
+                'unassigned_subjects_count' => $sectionsWithoutTeachers->count(),
+                'pending_grades_count' => $pendingGradeTeachers->count(),
+            ],
         ]);
     }
 }
