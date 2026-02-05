@@ -1,18 +1,27 @@
 import { useState, useEffect } from 'react'
 import { Head, useForm, Link } from '@inertiajs/react'
 import { Transition } from '@headlessui/react'
+import { toast } from 'sonner'
 
 export default function Login({ status, canResetPassword }) {
     const [showPassword, setShowPassword] = useState(false)
     const [showLoader, setShowLoader] = useState(false)
-    const [showSuccessDialog, setShowSuccessDialog] = useState(false)
     const [showErrorDialog, setShowErrorDialog] = useState(false)
     const [showForgotPassword, setShowForgotPassword] = useState(false)
-    const [showOtpDialog, setShowOtpDialog] = useState(false)
-    const [showResetPassword, setShowResetPassword] = useState(false)
-    const [otpTimer, setOtpTimer] = useState(0)
-    const [resendCount, setResendCount] = useState(0)
     const [errorMessage, setErrorMessage] = useState('')
+    const [isResetLinkSent, setIsResetLinkSent] = useState(false)
+    const [cooldownTime, setCooldownTime] = useState(0)
+
+    // Cooldown timer effect
+    useEffect(() => {
+        let interval
+        if (cooldownTime > 0) {
+            interval = setInterval(() => {
+                setCooldownTime(time => time - 1)
+            }, 1000)
+        }
+        return () => clearInterval(interval)
+    }, [cooldownTime])
 
     const { data, setData, post, processing, errors, reset } = useForm({
         email: '',
@@ -24,31 +33,6 @@ export default function Login({ status, canResetPassword }) {
         email: '',
     })
 
-    const { data: otpData, setData: setOtpData, post: postOtp } = useForm({
-        otp: '',
-        email: '',
-    })
-
-    const { data: resetData, setData: setResetData, post: postReset } = useForm({
-        email: '',
-        password: '',
-        password_confirmation: '',
-        token: '',
-    })
-
-    // OTP Timer Effect
-    useEffect(() => {
-        let interval = null
-        if (otpTimer > 0) {
-            interval = setInterval(() => {
-                setOtpTimer(timer => timer - 1)
-            }, 1000)
-        } else if (otpTimer === 0) {
-            clearInterval(interval)
-        }
-        return () => clearInterval(interval)
-    }, [otpTimer])
-
     const submit = (e) => {
         e.preventDefault()
         setShowLoader(true)
@@ -57,12 +41,6 @@ export default function Login({ status, canResetPassword }) {
             onFinish: () => {
                 reset('password')
                 setShowLoader(false)
-            },
-            onSuccess: () => {
-                setShowSuccessDialog(true)
-                setTimeout(() => {
-                    setShowSuccessDialog(false)
-                }, 2000)
             },
             onError: () => {
                 setErrorMessage('Wrong email or password')
@@ -76,46 +54,42 @@ export default function Login({ status, canResetPassword }) {
 
     const handleForgotPassword = (e) => {
         e.preventDefault()
+        if (isResetLinkSent || cooldownTime > 0) {
+            toast.error('Please wait before requesting another password reset link.')
+            return // Prevent multiple submissions
+        }
+        
         setShowLoader(true)
+        setCooldownTime(60) // 60 second cooldown
 
         postForgot(route('password.email'), {
             onSuccess: () => {
                 setShowLoader(false)
                 setShowForgotPassword(false)
-                setShowOtpDialog(true)
-                setOtpTimer(300) // 5 minutes
-                setOtpData('email', forgotData.email)
+                setIsResetLinkSent(true)
+                toast.success('Password reset link sent! Check your email for instructions.')
+                setShowSuccessDialog(true)
+                setTimeout(() => {
+                    setShowSuccessDialog(false)
+                }, 3000)
             },
-            onError: () => {
+            onError: (errors) => {
                 setShowLoader(false)
-                setErrorMessage('Email not found')
+                setCooldownTime(0) // Reset cooldown on error
+                
+                // Check if it's a rate limiting error
+                if (errors.response && errors.response.status === 429) {
+                    const retryAfter = errors.response.data?.retry_after || 60;
+                    setCooldownTime(retryAfter); // Set cooldown based on server response
+                    toast.error(`Too many password reset requests. Please wait ${retryAfter} seconds before trying again.`)
+                    setErrorMessage(`Too many requests. Please wait ${retryAfter} seconds before trying again.`)
+                } else {
+                    toast.error('Email not found or invalid. Please check your email address.')
+                    setErrorMessage('Email not found or invalid')
+                }
                 setShowErrorDialog(true)
             }
         })
-    }
-
-    const handleOtpVerification = (e) => {
-        e.preventDefault()
-        // In a real implementation, you would verify OTP with backend
-        setShowOtpDialog(false)
-        setShowResetPassword(true)
-    }
-
-    const handleResendOtp = () => {
-        if (resendCount >= 3) {
-            setErrorMessage('You have exceeded the maximum number of resend attempts')
-            setShowErrorDialog(true)
-            return
-        }
-        setResendCount(prev => prev + 1)
-        setOtpTimer(300)
-        // Resend OTP logic here
-    }
-
-    const formatTime = (seconds) => {
-        const minutes = Math.floor(seconds / 60)
-        const remainingSeconds = seconds % 60
-        return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`
     }
 
     return (
@@ -252,10 +226,19 @@ export default function Login({ status, canResetPassword }) {
                             {canResetPassword && (
                                 <button
                                     type="button"
-                                    className="text-sm text-red-600 hover:text-red-500"
-                                    onClick={() => setShowForgotPassword(true)}
+                                    disabled={cooldownTime > 0}
+                                    className={`text-sm ${cooldownTime > 0 ? 'text-gray-400 cursor-not-allowed' : 'text-red-600 hover:text-red-500'}`}
+                                    onClick={() => {
+                                        if (cooldownTime > 0) {
+                                            toast.error('Please wait before requesting another password reset.')
+                                            return
+                                        }
+                                        setShowForgotPassword(true)
+                                        setIsResetLinkSent(false)
+                                        setForgotData('email', '')
+                                    }}
                                 >
-                                    Forgot your password?
+                                    {cooldownTime > 0 ? `Forgot password? (Wait ${cooldownTime}s)` : 'Forgot your password?'}
                                 </button>
                             )}
                         </div>
@@ -294,21 +277,6 @@ export default function Login({ status, canResetPassword }) {
                 </div>
             </Transition>
 
-            {/* Success Dialog */}
-            <Transition show={showSuccessDialog}>
-                <div className="fixed inset-0 flex items-center justify-center z-50 backdrop-blur-sm bg-black bg-opacity-25">
-                    <div className="flex flex-col items-center bg-white p-6 rounded-xl shadow-lg animate-bounce">
-                        <div className="w-16 h-16 text-green-600 animate-pulse">
-                            <i className="ri-checkbox-circle-fill text-6xl"></i>
-                        </div>
-                        <p className="mt-6 text-green-600 text-lg font-semibold text-center">
-                            Success! Welcome back!
-                        </p>
-                        <p className="text-sm text-gray-700 mt-2">Redirecting to dashboard...</p>
-                    </div>
-                </div>
-            </Transition>
-
             {/* Error Dialog */}
             <Transition show={showErrorDialog}>
                 <div className="fixed inset-0 flex items-center justify-center z-50 backdrop-blur-sm bg-black bg-opacity-25">
@@ -335,76 +303,55 @@ export default function Login({ status, canResetPassword }) {
                     <div className="bg-white p-6 rounded-xl shadow-lg w-full max-w-md mx-4">
                         <h3 className="text-lg font-semibold mb-4">Forgot Password</h3>
                         <p className="text-sm text-gray-600 mb-4">
-                            Enter your registered email address:
+                            {isResetLinkSent 
+                                ? "A password reset link has been sent to your email address. Please check your inbox and follow the instructions."
+                                : "Enter your registered email address and we'll send you a password reset link:"
+                            }
                         </p>
-                        <form onSubmit={handleForgotPassword}>
-                            <input
-                                type="email"
-                                placeholder="Email address"
-                                className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500"
-                                value={forgotData.email}
-                                onChange={(e) => setForgotData('email', e.target.value)}
-                                required
-                            />
+                        {!isResetLinkSent && (
+                            <form onSubmit={handleForgotPassword}>
+                                <input
+                                    type="email"
+                                    placeholder="Email address"
+                                    className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500"
+                                    value={forgotData.email}
+                                    onChange={(e) => setForgotData('email', e.target.value)}
+                                    required
+                                />
+                                <div className="flex gap-3 mt-4">
+                                    <button
+                                        type="submit"
+                                        disabled={processing || cooldownTime > 0}
+                                        className="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition"
+                                    >
+                                        {processing 
+                                            ? 'Sending...' 
+                                            : cooldownTime > 0 
+                                                ? `Wait ${cooldownTime}s` 
+                                                : 'Send Reset Link'
+                                        }
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowForgotPassword(false)}
+                                        className="bg-gray-400 text-white px-4 py-2 rounded-lg hover:bg-gray-500 transition"
+                                    >
+                                        Cancel
+                                    </button>
+                                </div>
+                            </form>
+                        )}
+                        {isResetLinkSent && (
                             <div className="flex gap-3 mt-4">
-                                <button
-                                    type="submit"
-                                    className="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition"
-                                >
-                                    Send OTP
-                                </button>
                                 <button
                                     type="button"
                                     onClick={() => setShowForgotPassword(false)}
-                                    className="bg-gray-400 text-white px-4 py-2 rounded-lg hover:bg-gray-500 transition"
+                                    className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition w-full"
                                 >
-                                    Cancel
+                                    Got it!
                                 </button>
                             </div>
-                        </form>
-                    </div>
-                </div>
-            </Transition>
-
-            {/* OTP Verification Dialog */}
-            <Transition show={showOtpDialog}>
-                <div className="fixed inset-0 flex items-center justify-center z-50 backdrop-blur-sm bg-black bg-opacity-25">
-                    <div className="bg-white p-6 rounded-xl shadow-lg w-full max-w-md mx-4">
-                        <h3 className="text-lg font-semibold mb-4">Verify OTP</h3>
-                        <p className="text-sm text-gray-600 mb-2">Enter the OTP sent to your email:</p>
-                        <p className="text-sm text-gray-500 mb-4">
-                            Time remaining: {formatTime(otpTimer)}
-                        </p>
-                        <form onSubmit={handleOtpVerification}>
-                            <input
-                                type="text"
-                                placeholder="Enter 6-digit OTP"
-                                className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 mb-4"
-                                value={otpData.otp}
-                                onChange={(e) => setOtpData('otp', e.target.value)}
-                                maxLength={6}
-                                required
-                            />
-                            <div className="flex gap-3">
-                                <button
-                                    type="submit"
-                                    className="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition"
-                                >
-                                    Verify OTP
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={handleResendOtp}
-                                    disabled={otpTimer > 0 || resendCount >= 3}
-                                    className="bg-gray-600 text-white px-4 py-2 rounded-lg hover:bg-gray-700 transition disabled:opacity-50"
-                                >
-                                    Resend OTP
-                                </button>
-                            </div>
-                        </form>
-                        <p className="text-xs text-gray-500 mt-2">
-                            Resends remaining: {3 - resendCount}
-                        </p>
+                        )}
                     </div>
                 </div>
             </Transition>

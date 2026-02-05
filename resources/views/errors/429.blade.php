@@ -99,7 +99,7 @@
         </p>
 
         <div class="retry-info">
-            <strong>Retry after:</strong> <span id="retry-seconds">{{ $retry_after }}</span> seconds
+            <strong>Retry after:</strong> <span id="retry-seconds">{{ $retry_after ?? 60 }}</span> seconds
         </div>
 
         <a href="{{ url()->previous() }}" class="back-button">
@@ -111,8 +111,23 @@
     </div>
 
     <script>
-        let retryAfter = parseInt('{{ $retry_after }}') || 0;
+        // Get retry-after from response headers or use default
+        let retryAfter = {{ $retry_after ?? 60 }};
+        
+        // Try to get from response headers if available
+        if (typeof window !== 'undefined' && window.performance && window.performance.getEntriesByType) {
+            const navigationEntries = window.performance.getEntriesByType('navigation');
+            if (navigationEntries.length > 0) {
+                const retryAfterHeader = navigationEntries[0].responseHeaders?.['retry-after'] || 
+                                        navigationEntries[0].responseHeaders?.['Retry-After'];
+                if (retryAfterHeader) {
+                    retryAfter = parseInt(retryAfterHeader);
+                }
+            }
+        }
+        
         const retryElement = document.getElementById('retry-seconds');
+        retryElement.textContent = retryAfter;
 
         const countdown = setInterval(() => {
             retryAfter--;

@@ -183,6 +183,7 @@ Route::middleware(['web', 'auth', 'verified'])->prefix('admin')->name('admin.')-
         Route::get('academic-years/{archivedSection}', [AcademicYearController::class, 'show'])->name('academic-years.show');
         Route::post('academic-years/validate-archive', [AcademicYearController::class, 'validateArchive'])->name('academic-years.validate-archive');
         Route::post('academic-years/archive', [AcademicYearController::class, 'archiveSemester'])->name('academic-years.archive');
+        Route::post('academic-years/verify-archive-pin', [AcademicYearController::class, 'verifyArchivePin'])->name('academic-years.verify-archive-pin');
 
         // College Management Routes
         Route::prefix('college')->name('college.')->group(function () {

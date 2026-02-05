@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Mail\PasswordResetPin;
 use App\Models\ArchivedSection;
 use App\Models\ArchivedStudent;
 use App\Models\ArchivedStudentEnrollment;
@@ -17,9 +18,10 @@ use App\Models\StudentSemesterPayment;
 use App\Models\StudentSubjectEnrollment;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -94,6 +96,12 @@ class AcademicYearController extends Controller
             'currentSemester' => SchoolSetting::getCurrentSemester(),
             'unpaid_count' => $unpaidCount,
             'unpaid_students' => $unpaidStudents,
+            'flash' => [
+                'success' => session('success'),
+                'archive_results' => session('archive_results'),
+                'requires_archive_pin' => session('requires_archive_pin'),
+                'archive_pin_message' => session('archive_pin_message'),
+            ],
         ]);
     }
 
@@ -438,13 +446,75 @@ class AcademicYearController extends Controller
             'semester' => 'required|in:1st,2nd',
             'archive_notes' => 'nullable|string|max:1000',
             'force' => 'boolean',
-            'password' => 'required|string',
         ]);
 
-        // Password confirmation
-        if (! Hash::check($validated['password'], $request->user()->password)) {
-            return redirect()->back()->withErrors(['password' => 'Password confirmation failed.']);
+        $user = $request->user();
+
+        // Rate limiting: Allow only 1 PIN request per minute per user
+        $rateLimitKey = "archive_pin_rate_limit_{$user->id}";
+        if (Cache::has($rateLimitKey)) {
+            return back()->withErrors([
+                'rate_limit' => 'Please wait before requesting another PIN. You can only request one PIN per minute.',
+            ]);
         }
+
+        // Set rate limit for 1 minute
+        Cache::put($rateLimitKey, true, now()->addMinute());
+
+        // Generate 6-digit PIN
+        $pin = str_pad(random_int(0, 999999), 6, '0', STR_PAD_LEFT);
+
+        // Store PIN in cache for 10 minutes
+        Cache::put("archive_pin_{$user->id}", $pin, now()->addMinutes(10));
+
+        // Store archive data temporarily
+        Cache::put("archive_data_{$user->id}", [
+            'academic_year' => $validated['academic_year'],
+            'semester' => $validated['semester'],
+            'archive_notes' => $validated['archive_notes'] ?? null,
+            'force' => $validated['force'] ?? false,
+            'expires_at' => now()->addMinutes(10),
+        ], now()->addMinutes(10));
+
+        // Send PIN via email
+        Mail::to($user->email)->send(new PasswordResetPin($pin, 'archive'));
+
+        // Store PIN requirement in session
+        session([
+            'requires_archive_pin' => true,
+            'archive_pin_message' => 'A 6-digit PIN has been sent to your email. Please enter it to confirm the archive operation.',
+        ]);
+
+        return back()->with('status', 'archive-pin-sent');
+    }
+
+    /**
+     * Verify PIN and complete archive operation.
+     */
+    public function verifyArchivePin(Request $request)
+    {
+        $request->validate([
+            'pin' => ['required', 'digits:6'],
+        ]);
+
+        $user = $request->user();
+        $cachedPin = Cache::get("archive_pin_{$user->id}");
+        $archiveData = Cache::get("archive_data_{$user->id}");
+
+        if (! $cachedPin || ! $archiveData) {
+            return back()->withErrors([
+                'pin' => 'PIN has expired. Please start the archive process again.',
+            ]);
+        }
+
+        if ($cachedPin !== $request->pin) {
+            return back()->withErrors([
+                'pin' => 'Invalid PIN. Please check your email and try again.',
+            ]);
+        }
+
+        // Proceed with archiving using the cached data
+        $validated = $archiveData;
 
         // Check if semester is already archived
         $archivedSemester = match ($validated['semester']) {
@@ -455,6 +525,54 @@ class AcademicYearController extends Controller
         $existing = ArchivedSection::where('academic_year', $validated['academic_year'])
             ->where('semester', $archivedSemester)
             ->exists();
+
+        if ($existing) {
+            return redirect()->back()->withErrors(['error' => 'This semester has already been archived.']);
+        }
+
+        // Check for unpaid students for this academic period
+        $semesterToCheck = match ($validated['semester']) {
+            '1st' => ['1st', 'first'],
+            '2nd' => ['2nd', 'second'],
+            default => [$validated['semester']],
+        };
+
+        $unpaidCount = StudentSemesterPayment::where('academic_year', $validated['academic_year'])
+            ->where(function ($q) use ($semesterToCheck) {
+                $q->whereIn('semester', $semesterToCheck);
+            })
+            ->where('balance', '>', 0)
+            ->count();
+
+        if ($unpaidCount > 0 && empty($validated['force'])) {
+            return redirect()->back()->withErrors(['error' => "There are {$unpaidCount} students with outstanding balances. Resolve them or check 'Force' to continue."]);
+        }
+
+        // Count active sections that will be archived
+        $sectionsToArchive = Section::where('academic_year', $validated['academic_year'])
+            ->where(function ($q) use ($semesterToCheck) {
+                $q->whereIn('semester', $semesterToCheck);
+            })
+            ->where('status', '!=', 'archived')
+            ->count();
+
+        if ($sectionsToArchive === 0) {
+            return redirect()->back()->withErrors(['error' => 'No active sections found for this academic period.']);
+        }
+
+        $archiveResults = [
+            'sections_archived' => 0,
+            'students_affected' => 0,
+            'students_completed' => 0,
+            'students_dropped' => 0,
+            'incomplete_grades' => 0,
+            'payment_holds_applied' => 0,
+            'regularity_promotions' => 0,
+            'average_section_grade' => 0,
+            'archived_sections' => [],
+            'promoted_students' => [],
+            'held_students' => [],
+        ];
 
         if ($existing) {
             return redirect()->back()->withErrors(['error' => 'This semester has already been archived.']);
@@ -607,6 +725,13 @@ class AcademicYearController extends Controller
 
         // Advance to next semester/academic year
         $this->advanceAcademicPeriod($validated['academic_year'], $validated['semester']);
+
+        // Clear the cached data
+        Cache::forget("archive_pin_{$user->id}");
+        Cache::forget("archive_data_{$user->id}");
+
+        // Clear session data
+        session()->forget(['requires_archive_pin', 'archive_pin_message']);
 
         return redirect()->route('admin.academic-years.index')->with([
             'success' => 'Semester archived successfully!',

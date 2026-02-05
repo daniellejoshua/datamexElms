@@ -216,6 +216,7 @@ export default function Index({ announcements, auth }) {
                                             <div className="flex items-center justify-between">
                                                 <div className="flex items-center space-x-2">
                                                     <Avatar className="w-6 h-6">
+                                                        <AvatarImage src={announcement.creator.profile_picture} />
                                                         <AvatarFallback className="text-xs bg-gray-200 dark:bg-gray-700">
                                                             {getInitials(announcement.creator.name)}
                                                         </AvatarFallback>

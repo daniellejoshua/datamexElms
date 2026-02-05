@@ -33,7 +33,7 @@ import {
 } from 'lucide-react';
 import axios from 'axios';
 
-const Index = ({ currentAcademicYear, currentSemester, unpaid_count = 0, unpaid_students = [] }) => {
+const Index = ({ currentAcademicYear, currentSemester, unpaid_count = 0, unpaid_students = [], flash = {} }) => {
     const { props } = usePage();
     const archiveResults = props.archive_results || null;
 
@@ -41,11 +41,13 @@ const Index = ({ currentAcademicYear, currentSemester, unpaid_count = 0, unpaid_
     const [currentStep, setCurrentStep] = useState('initial'); // initial, validation, confirm, processing, results
     const [validationData, setValidationData] = useState(null);
     const [isValidating, setIsValidating] = useState(false);
+    const [generatingPin, setGeneratingPin] = useState(false);
     const [archiveFormData, setArchiveFormData] = useState({
         academic_year: currentAcademicYear,
         semester: currentSemester,
         archive_notes: '',
         password: '',
+        pin: '',
         force: false,
     });
     // Modal states
@@ -106,11 +108,35 @@ const Index = ({ currentAcademicYear, currentSemester, unpaid_count = 0, unpaid_
     };
 
     // Step 2: Proceed to confirmation
-    const handleProceedToConfirm = () => {
+    const handleProceedToConfirm = async () => {
         if (!validationData?.is_valid && validationData?.errors?.length > 0) {
             return;
         }
-        setCurrentStep('confirm');
+
+        setGeneratingPin(true);
+        setErrors({});
+
+        try {
+            await axios.post(route('admin.academic-years.archive'), {
+                academic_year: archiveFormData.academic_year,
+                semester: archiveFormData.semester,
+                archive_notes: archiveFormData.archive_notes,
+                force: archiveFormData.force,
+            });
+
+            // Reload the page to get the updated flash data with PIN requirement
+            router.visit(route('admin.academic-years.index'), {
+                preserveScroll: true,
+                preserveState: true,
+                onSuccess: () => {
+                    setCurrentStep('confirm');
+                },
+            });
+        } catch (error) {
+            setErrors({ validation: 'Failed to initiate archive process. Please try again.' });
+        } finally {
+            setGeneratingPin(false);
+        }
     };
 
     // Step 3: Submit archive
@@ -119,7 +145,8 @@ const Index = ({ currentAcademicYear, currentSemester, unpaid_count = 0, unpaid_
         setProcessingArchive(true);
         setErrors({});
 
-        router.post(route('admin.academic-years.archive'), archiveFormData, {
+        // Always use verify-archive-pin route since PIN is now required
+        router.post(route('academic-years.verify-archive-pin'), archiveFormData, {
             onSuccess: (page) => {
                 // Archive successful - redirect to index to prevent double archiving
                 router.visit(route('admin.academic-years.index'), {
@@ -334,6 +361,7 @@ const Index = ({ currentAcademicYear, currentSemester, unpaid_count = 0, unpaid_
                             }}
                             onShowRegularity={() => setShowRegularityModal(true)}
                             onShowOutstandingBalances={() => setShowOutstandingBalancesModal(true)}
+                            generatingPin={generatingPin}
                         />
                     )}
 
@@ -350,6 +378,7 @@ const Index = ({ currentAcademicYear, currentSemester, unpaid_count = 0, unpaid_
                             onCancel={handleResetFlow}
                             processing={processingArchive}
                             errors={errors}
+                            flash={flash}
                         />
                     )}
 
@@ -394,7 +423,7 @@ const Index = ({ currentAcademicYear, currentSemester, unpaid_count = 0, unpaid_
 };
 
 // Validation Summary Component
-const ValidationSummary = ({ data, currentAcademicYear, currentSemester, getSemesterDisplay, onProceed, onCancel, onShowIncompleteGrades, onShowRegularity, onShowOutstandingBalances }) => {
+const ValidationSummary = ({ data, currentAcademicYear, currentSemester, getSemesterDisplay, onProceed, onCancel, onShowIncompleteGrades, onShowRegularity, onShowOutstandingBalances, generatingPin = false }) => {
     return (
         <div className="space-y-6">
             <Card className="border-0 shadow-lg">
@@ -610,11 +639,20 @@ const ValidationSummary = ({ data, currentAcademicYear, currentSemester, getSeme
                         </Button>
                         <Button
                             onClick={onProceed}
-                            disabled={!data.is_valid}
+                            disabled={!data.is_valid || generatingPin}
                             className="bg-blue-600 hover:bg-blue-700 text-white px-6"
                         >
-                            Proceed to Confirmation
-                            <ArrowRight className="h-4 w-4 ml-2" />
+                            {generatingPin ? (
+                                <>
+                                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                    Generating PIN...
+                                </>
+                            ) : (
+                                <>
+                                    Proceed to Confirmation
+                                    <ArrowRight className="h-4 w-4 ml-2" />
+                                </>
+                            )}
                         </Button>
                     </div>
                 </CardContent>
@@ -635,7 +673,10 @@ const ConfirmationStep = ({
     onCancel,
     processing,
     errors,
+    flash,
 }) => {
+    const requiresPin = flash?.requires_archive_pin;
+    const pinMessage = flash?.archive_pin_message;
     return (
         <Card className="border-0 shadow-lg">
             <CardHeader>
@@ -676,19 +717,45 @@ const ConfirmationStep = ({
                         </div>
 
                         <div>
-                            <Label htmlFor="password">Confirm Password *</Label>
-                            <Input
-                                id="password"
-                                type="password"
-                                value={archiveFormData.password}
-                                onChange={(e) =>
-                                    setArchiveFormData({ ...archiveFormData, password: e.target.value })
-                                }
-                                required
-                                className="mt-1"
-                            />
-                            {errors.password && (
-                                <p className="mt-1 text-sm text-red-600">{errors.password}</p>
+                            {requiresPin ? (
+                                <>
+                                    <Label htmlFor="pin">Confirm Archive PIN *</Label>
+                                    {pinMessage && (
+                                        <p className="text-sm text-blue-600 dark:text-blue-400 mt-1 mb-2">{pinMessage}</p>
+                                    )}
+                                    <Input
+                                        id="pin"
+                                        type="text"
+                                        value={archiveFormData.pin}
+                                        onChange={(e) =>
+                                            setArchiveFormData({ ...archiveFormData, pin: e.target.value })
+                                        }
+                                        required
+                                        className="mt-1"
+                                        placeholder="Enter 6-digit PIN"
+                                        maxLength={6}
+                                    />
+                                    {errors.pin && (
+                                        <p className="mt-1 text-sm text-red-600">{errors.pin}</p>
+                                    )}
+                                </>
+                            ) : (
+                                <>
+                                    <Label htmlFor="password">Confirm Password *</Label>
+                                    <Input
+                                        id="password"
+                                        type="password"
+                                        value={archiveFormData.password}
+                                        onChange={(e) =>
+                                            setArchiveFormData({ ...archiveFormData, password: e.target.value })
+                                        }
+                                        required
+                                        className="mt-1"
+                                    />
+                                    {errors.password && (
+                                        <p className="mt-1 text-sm text-red-600">{errors.password}</p>
+                                    )}
+                                </>
                             )}
                         </div>
 
