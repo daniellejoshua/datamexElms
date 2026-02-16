@@ -146,7 +146,7 @@ const Index = ({ currentAcademicYear, currentSemester, unpaid_count = 0, unpaid_
         setErrors({});
 
         // Always use verify-archive-pin route since PIN is now required
-        router.post(route('academic-years.verify-archive-pin'), archiveFormData, {
+        router.post(route('admin.academic-years.verify-archive-pin'), archiveFormData, {
             onSuccess: (page) => {
                 // Archive successful - redirect to index to prevent double archiving
                 router.visit(route('admin.academic-years.index'), {

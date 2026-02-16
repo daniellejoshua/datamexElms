@@ -4,6 +4,7 @@ import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { toast } from 'sonner';
 import { Check, X, Users, UserPlus, GraduationCap, ArrowLeft, Mail, Phone, MapPin, Calendar, BookOpen, User, Trash2, Settings, Clock, UserCheck } from 'lucide-react';
 
 export default function SubjectEnrollment({ section, student, availableSubjects, currentEnrollments, creditedSubjects = [], enrolledInOtherSections = [] }) {
@@ -72,9 +73,26 @@ export default function SubjectEnrollment({ section, student, availableSubjects,
                 onSuccess: (page) => {
                     setSelectedSubjects([]);
                     setIsEnrolling(false);
+
+                    // show immediate success toast (flash will still appear after redirect)
+                    toast.success('Subjects enrolled successfully');
                 },
                 onError: (errors) => {
                     console.error('Enrollment errors:', errors);
+
+                    // pick a sensible error message and show a Sonner toast immediately
+                    let message = 'Failed to enroll subjects. Please check the form.';
+
+                    if (errors && typeof errors === 'object') {
+                        if (errors.error) {
+                            message = Array.isArray(errors.error) ? errors.error[0] : errors.error;
+                        } else {
+                            const first = Object.values(errors)[0];
+                            message = Array.isArray(first) ? first[0] : String(first);
+                        }
+                    }
+
+                    toast.error(message || 'Failed to enroll subjects');
                     setIsEnrolling(false);
                 }
             });
@@ -115,12 +133,26 @@ export default function SubjectEnrollment({ section, student, availableSubjects,
             });
 
             if (response.ok) {
-                alert('Student removed from subject successfully!');
-                window.location.reload();
+                toast.success('Student removed from subject successfully');
+
+                // give the toast a short moment to appear, then reload so props/flash stay correct
+                setTimeout(() => window.location.reload(), 600);
             } else {
-                const responseText = await response.text();
-                console.log('Error response:', responseText);
-                alert(`Failed to remove student from subject. Status: ${response.status}`);
+                let errMsg = `Failed to remove student (status: ${response.status})`;
+
+                try {
+                    const json = await response.json();
+                    if (json && (json.error || json.message)) {
+                        errMsg = json.error || json.message;
+                    }
+                } catch (e) {
+                    // fallback to text
+                    const responseText = await response.text();
+                    console.log('Non-JSON error response:', responseText);
+                }
+
+                console.log('Error response:', errMsg);
+                toast.error(errMsg);
             }
         } catch (error) {
             console.error('Remove from subject error:', error);

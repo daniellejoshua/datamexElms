@@ -612,9 +612,17 @@ class SectionController extends Controller
                 return $enrollment->status === 'active';
             });
 
+            // Always prevent showing irregular students for sections that are a
+            // higher year level than the student's current_year_level — apply
+            // this rule regardless of whether they have active enrollments.
+            if (! is_null($student->current_year_level) && $section->year_level > $student->current_year_level) {
+                return false;
+            }
+
+            // If the student has no current enrollments, do not show them in the
+            // "available students" list by default (prevents accidental bulk-enroll).
             if ($currentEnrollments->isEmpty()) {
-                // No current enrollments, can be enrolled anywhere
-                return true;
+                return false;
             }
 
             // Only consider enrollments with assigned sections for year level calculations
@@ -639,6 +647,59 @@ class SectionController extends Controller
 
             // Don't show if student has completed all subjects for this year level
             if ($hasCompletedAllSubjectsForYearLevel) {
+                return false;
+            }
+
+            // Determine whether there are any section subjects the irregular student can be
+            // enrolled in (exclude credited subjects and existing subject enrollments).
+            $enrolledSubjectCodes = \App\Models\StudentSubjectEnrollment::where('student_id', $student->id)
+                ->where('academic_year', $section->academic_year)
+                ->where('semester', $section->semester)
+                ->where('status', 'active')
+                ->with('sectionSubject.subject')
+                ->get()
+                ->pluck('sectionSubject.subject.subject_code')
+                ->filter()
+                ->toArray();
+
+            $creditedSubjectCodes = \App\Models\StudentSubjectCredit::where('student_id', $student->id)
+                ->where('credit_status', 'credited')
+                ->pluck('subject_code')
+                ->toArray();
+
+            $creditTransferSubjectCodes = \App\Models\StudentCreditTransfer::where('student_id', $student->id)
+                ->where('credit_status', 'credited')
+                ->pluck('subject_code')
+                ->toArray();
+
+            $allCreditedCodes = array_merge($creditedSubjectCodes, $creditTransferSubjectCodes);
+
+            $sectionSubjectsQuery = \App\Models\SectionSubject::where('section_id', $section->id)
+                ->where('status', 'active')
+                ->whereHas('subject', function ($q) use ($allCreditedCodes, $enrolledSubjectCodes) {
+                    $q->whereNotIn('subject_code', array_merge($allCreditedCodes, $enrolledSubjectCodes));
+                });
+
+            // If student is from a different program, only consider subjects present
+            // in the student's curriculum for this year level (intersection).
+            if ($student->program_id !== $section->program_id && $student->curriculum_id) {
+                $studentCurriculumCodes = \App\Models\CurriculumSubject::where('curriculum_id', $student->curriculum_id)
+                    ->where('year_level', $section->year_level)
+                    ->pluck('subject_code')
+                    ->toArray();
+
+                if (! empty($studentCurriculumCodes)) {
+                    $sectionSubjectsQuery->whereHas('subject', function ($q) use ($studentCurriculumCodes) {
+                        $q->whereIn('subject_code', $studentCurriculumCodes);
+                    });
+                } else {
+                    // Student has no curriculum subjects for this year level => none available
+                    return false;
+                }
+            }
+
+            // If there are no available section subjects for this irregular student, do not show them
+            if (! $sectionSubjectsQuery->exists()) {
                 return false;
             }
 
@@ -1225,7 +1286,7 @@ class SectionController extends Controller
                 if ($student->student_type === 'irregular') {
                     // For irregular students enrolled in same year level section,
                     // enroll them in subjects they don't already have credits for
-                    if ($student->current_year_level == $section->year_level) {
+                    if ($student->current_year_level == $section->year_level && $student->program_id === $section->program_id) {
                         // Get subjects the student already has credits for
                         $creditedSubjectCodes = \App\Models\StudentSubjectCredit::where('student_id', $studentId)
                             ->where('credit_status', 'credited')
@@ -1255,12 +1316,31 @@ class SectionController extends Controller
                         }
 
                         // Get section subjects excluding those the student already has credits for
-                        $sectionSubjects = SectionSubject::where('section_id', $section->id)
+                        $sectionSubjectsQuery = SectionSubject::where('section_id', $section->id)
                             ->where('status', 'active')
                             ->whereHas('subject', function ($query) use ($allCreditedCodes) {
                                 $query->whereNotIn('subject_code', $allCreditedCodes);
-                            })
-                            ->get();
+                            });
+
+                        // If the student is from a different program, restrict auto-enrollment to subjects
+                        // that exist in the student's curriculum for this year level (intersection).
+                        if ($student->program_id !== $section->program_id && $student->curriculum_id) {
+                            $studentCurriculumCodes = \App\Models\CurriculumSubject::where('curriculum_id', $student->curriculum_id)
+                                ->where('year_level', $section->year_level)
+                                ->pluck('subject_code')
+                                ->toArray();
+
+                            if (! empty($studentCurriculumCodes)) {
+                                $sectionSubjectsQuery->whereHas('subject', function ($q) use ($studentCurriculumCodes) {
+                                    $q->whereIn('subject_code', $studentCurriculumCodes);
+                                });
+                            } else {
+                                // No overlapping subjects -> do not auto-enroll any subjects
+                                $sectionSubjectsQuery->whereRaw('0 = 1');
+                            }
+                        }
+
+                        $sectionSubjects = $sectionSubjectsQuery->get();
 
                         foreach ($sectionSubjects as $sectionSubject) {
                             // Check if student is already enrolled in this subject
@@ -1422,6 +1502,19 @@ class SectionController extends Controller
                 return redirect()->back()->with('error', 'Student already has grades cannot be removed like that.');
             }
 
+            // Mark any active subject-level enrollments (for this student in this section/period) as dropped
+            \App\Models\StudentSubjectEnrollment::where('student_id', $request->student_id)
+                ->where('academic_year', $section->academic_year)
+                ->where('semester', $section->semester)
+                ->whereHas('sectionSubject', function ($q) use ($section) {
+                    $q->where('section_id', $section->id);
+                })
+                ->where('status', 'active')
+                ->update([
+                    'status' => 'dropped',
+                    'updated_at' => now(),
+                ]);
+
             $enrollment->update(['status' => 'dropped']);
 
             \Illuminate\Support\Facades\Log::info('Student removed from section', [
@@ -1474,37 +1567,154 @@ class SectionController extends Controller
             ->filter()
             ->toArray();
 
-        // Get subject codes the student already has credits for
+        // Get subject codes and ids the student already has credits for
         $creditedSubjectCodes = \App\Models\StudentSubjectCredit::where('student_id', $student->id)
             ->where('credit_status', 'credited')
             ->pluck('subject_code')
             ->toArray();
 
-        // Also include subjects from credit transfers
+        $creditedSubjectIds = \App\Models\StudentSubjectCredit::where('student_id', $student->id)
+            ->where('credit_status', 'credited')
+            ->whereNotNull('subject_id')
+            ->pluck('subject_id')
+            ->toArray();
+
+        // Also include subjects from credit transfers (codes + subject ids)
         $creditTransferSubjectCodes = \App\Models\StudentCreditTransfer::where('student_id', $student->id)
             ->where('credit_status', 'credited')
             ->pluck('subject_code')
             ->toArray();
 
-        $allCreditedCodes = array_merge($creditedSubjectCodes, $creditTransferSubjectCodes);
+        $creditTransferSubjectIds = \App\Models\StudentCreditTransfer::where('student_id', $student->id)
+            ->where('credit_status', 'credited')
+            ->whereNotNull('subject_id')
+            ->pluck('subject_id')
+            ->toArray();
+
+        $allCreditedCodes = array_unique(array_merge($creditedSubjectCodes, $creditTransferSubjectCodes));
+        $allCreditedIds = array_unique(array_merge($creditedSubjectIds, $creditTransferSubjectIds));
 
         // Get available subjects excluding those already enrolled and those with credits
-        $availableSubjects = $section->sectionSubjects()
+        $availableSubjectsQuery = $section->sectionSubjects()
             ->with(['subject', 'teacher.user'])
             ->where('status', 'active')
-            ->whereHas('subject', function ($query) use ($enrolledSubjectCodes, $allCreditedCodes) {
-                $query->whereNotIn('subject_code', array_merge($enrolledSubjectCodes, $allCreditedCodes));
-            })
-            ->get();
+            ->whereHas('subject', function ($query) use ($enrolledSubjectCodes, $allCreditedCodes, $allCreditedIds) {
+                // exclude by code and by id (if provided)
+                if (! empty($enrolledSubjectCodes) || ! empty($allCreditedCodes)) {
+                    $codes = array_merge($enrolledSubjectCodes, $allCreditedCodes);
+                    $query->whereNotIn('subject_code', $codes);
+                }
+
+                if (! empty($allCreditedIds)) {
+                    $query->whereNotIn('id', $allCreditedIds);
+                }
+            });
+
+        // If the student is from a different program, only show subjects that are
+        // present in the student's curriculum for this year level (intersection).
+        if ($student->program_id !== $section->program_id && $student->curriculum_id) {
+            $studentCurriculumCodes = \App\Models\CurriculumSubject::where('curriculum_id', $student->curriculum_id)
+                ->where('year_level', $section->year_level)
+                ->pluck('subject_code')
+                ->toArray();
+
+            if (! empty($studentCurriculumCodes)) {
+                $availableSubjectsQuery->whereHas('subject', function ($q) use ($studentCurriculumCodes) {
+                    $q->whereIn('subject_code', $studentCurriculumCodes);
+                });
+            } else {
+                $availableSubjectsQuery->whereRaw('0 = 1');
+            }
+        }
+
+        $availableSubjects = $availableSubjectsQuery->get();
 
         // Get subjects excluded due to credits (for display purposes)
         $creditedSubjects = $section->sectionSubjects()
             ->with(['subject', 'teacher.user'])
             ->where('status', 'active')
-            ->whereHas('subject', function ($query) use ($allCreditedCodes) {
-                $query->whereIn('subject_code', $allCreditedCodes);
+            ->whereHas('subject', function ($query) use ($allCreditedCodes, $allCreditedIds) {
+                $query->where(function ($q) use ($allCreditedCodes, $allCreditedIds) {
+                    if (! empty($allCreditedCodes)) {
+                        $q->whereIn('subject_code', $allCreditedCodes);
+                    }
+
+                    if (! empty($allCreditedIds)) {
+                        $q->orWhereIn('id', $allCreditedIds);
+                    }
+                });
             })
             ->get();
+
+        // Also include any credited subjects for the student that are NOT part of this section's subjects
+        // (so the UI always shows the full set of credited subjects for the student).
+        $sectionCreditedSubjectIds = $creditedSubjects->pluck('subject_id')->filter()->map(fn ($v) => (int) $v)->toArray();
+
+        $studentCredits = \App\Models\StudentSubjectCredit::where('student_id', $student->id)
+            ->where('credit_status', 'credited')
+            ->get();
+
+        $creditTransfers = \App\Models\StudentCreditTransfer::where('student_id', $student->id)
+            ->where('credit_status', 'credited')
+            ->get();
+
+        $extraCredited = collect();
+
+        foreach ($studentCredits as $credit) {
+            $subId = $credit->subject_id;
+            $subCode = $credit->subject_code;
+
+            $alreadyIncludedById = $subId && in_array((int) $subId, $sectionCreditedSubjectIds, true);
+            $alreadyIncludedByCode = $creditedSubjects->contains(function ($ss) use ($subCode) {
+                return optional($ss->subject)->subject_code === $subCode;
+            });
+
+            if (! $alreadyIncludedById && ! $alreadyIncludedByCode) {
+                $extraCredited->push((object) [
+                    'id' => 'credit-'.($credit->id ?? uniqid()),
+                    'subject' => (object) [
+                        'subject_code' => $credit->subject_code,
+                        'subject_name' => $credit->subject_name,
+                    ],
+                    'teacher' => null,
+                ]);
+            }
+        }
+
+        foreach ($creditTransfers as $ct) {
+            $subId = $ct->subject_id;
+            $subCode = $ct->subject_code;
+
+            $alreadyIncludedById = $subId && in_array((int) $subId, $sectionCreditedSubjectIds, true);
+            $alreadyIncludedByCode = $creditedSubjects->contains(function ($ss) use ($subCode) {
+                return optional($ss->subject)->subject_code === $subCode;
+            });
+
+            if (! $alreadyIncludedById && ! $alreadyIncludedByCode) {
+                $extraCredited->push((object) [
+                    'id' => 'ct-'.($ct->id ?? uniqid()),
+                    'subject' => (object) [
+                        'subject_code' => $ct->subject_code,
+                        'subject_name' => $ct->subject_name,
+                    ],
+                    'teacher' => null,
+                ]);
+            }
+        }
+
+        // Merge section's SectionSubject entries with any extra credited subjects
+        if ($extraCredited->isNotEmpty()) {
+            // Deduplicate extra credited entries by subject_code (prefer section entries first)
+            $uniqueExtra = $extraCredited->unique(fn ($item) => strtolower(optional($item->subject)->subject_code ?? ''));
+
+            // Merge and ensure the final collection is unique by subject_code to avoid duplicates
+            $creditedSubjects = $creditedSubjects->concat($uniqueExtra)
+                ->unique(fn ($item) => strtolower(optional($item->subject)->subject_code ?? ''))
+                ->values();
+        } else {
+            // Ensure section-sourced creditedSubjects are unique by subject_code as well
+            $creditedSubjects = $creditedSubjects->unique(fn ($item) => strtolower(optional($item->subject)->subject_code ?? ''))->values();
+        }
 
         $currentEnrollments = StudentSubjectEnrollment::where('student_id', $student->id)
             ->where('academic_year', $section->academic_year)
@@ -1558,10 +1768,25 @@ class SectionController extends Controller
             'subject_ids.*' => [
                 'required',
                 'exists:section_subjects,id',
-                function ($attribute, $value, $fail) use ($section) {
-                    $sectionSubject = \App\Models\SectionSubject::find($value);
+                function ($attribute, $value, $fail) use ($section, $student) {
+                    $sectionSubject = \App\Models\SectionSubject::with('subject')->find($value);
                     if (! $sectionSubject || $sectionSubject->section_id !== $section->id) {
                         $fail('The selected subject does not belong to this section.');
+
+                        return;
+                    }
+
+                    // If the student is from a different program, ensure the subject exists
+                    // in the student's curriculum for this year level (prevent cross-program auto-selection).
+                    if ($student->program_id !== $section->program_id && $student->curriculum_id) {
+                        $studentCurriculumCodes = \App\Models\CurriculumSubject::where('curriculum_id', $student->curriculum_id)
+                            ->where('year_level', $section->year_level)
+                            ->pluck('subject_code')
+                            ->toArray();
+
+                        if (! in_array($sectionSubject->subject->subject_code, $studentCurriculumCodes)) {
+                            $fail('The selected subject is not part of the student\'s curriculum.');
+                        }
                     }
                 },
             ],
@@ -1665,6 +1890,16 @@ class SectionController extends Controller
         ]);
 
         try {
+            // If this irregular student belongs to the same program and is in the same year level
+            // as the section, treat them like a regular student for subject removal (disallow).
+            if ($student->student_type === 'irregular'
+                && $student->program_id === $section->program_id
+                && ! is_null($student->current_year_level)
+                && $student->current_year_level == $section->year_level
+            ) {
+                return response()->json(['error' => 'Cannot remove subject for an irregular student who is in the same program and year level (treated as regular)'], 422);
+            }
+
             $enrollment = StudentSubjectEnrollment::where('student_id', $student->id)
                 ->where('section_subject_id', $request->section_subject_id)
                 ->where('status', 'active')
@@ -1674,7 +1909,7 @@ class SectionController extends Controller
                 return response()->json(['error' => 'Student not enrolled in this subject'], 404);
             }
 
-            // Check if student has any grades for this specific subject
+            // Check if student has any college/regular grades for this specific subject
             $hasGrades = \App\Models\StudentGrade::where('section_subject_id', $request->section_subject_id)
                 ->whereHas('studentEnrollment', function ($query) use ($student) {
                     $query->where('student_id', $student->id);
@@ -1688,11 +1923,29 @@ class SectionController extends Controller
                 })
                 ->exists();
 
-            if ($hasGrades) {
+            // Also check SHS grades (first/second/third/fourth/final)
+            $hasShsGrades = \App\Models\ShsStudentGrade::where('section_subject_id', $request->section_subject_id)
+                ->whereHas('studentEnrollment', function ($query) use ($student) {
+                    $query->where('student_id', $student->id);
+                })
+                ->where(function ($query) {
+                    $query->whereNotNull('first_quarter_grade')
+                        ->orWhereNotNull('second_quarter_grade')
+                        ->orWhereNotNull('third_quarter_grade')
+                        ->orWhereNotNull('fourth_quarter_grade')
+                        ->orWhereNotNull('final_grade');
+                })
+                ->exists();
+
+            if ($hasGrades || $hasShsGrades) {
                 return response()->json(['error' => 'Cannot remove student from subject because they already have grades recorded for this subject'], 422);
             }
 
-            $enrollment->update(['status' => 'dropped']);
+            // Mark all active enrollments for this student/section_subject as dropped (defensive)
+            StudentSubjectEnrollment::where('student_id', $student->id)
+                ->where('section_subject_id', $request->section_subject_id)
+                ->where('status', 'active')
+                ->update(['status' => 'dropped']);
 
             \Illuminate\Support\Facades\Log::info('Student removed from subject', [
                 'student_id' => $student->id,
