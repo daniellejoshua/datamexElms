@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\Section;
 use App\Models\Student;
+use App\Models\Teacher;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -126,28 +127,42 @@ class AlertController extends Controller
             ->get()
             ->groupBy('teacher_id');
 
-        // Combine and format the pending teachers data
-        $pendingGradeTeachers = collect();
+        // Combine college + SHS groups per teacher to avoid duplicate teacher entries
+        $combinedByTeacher = [];
 
         foreach ([$collegePendingTeachers, $shsPendingTeachers] as $pendingGroup) {
             foreach ($pendingGroup as $teacherId => $records) {
-                $teacher = \App\Models\Teacher::with('user')->find($teacherId);
-                if ($teacher) {
-                    $sections = $records->pluck('formatted_section_name')->unique();
-                    $subjectCount = $records->count();
-
-                    $pendingGradeTeachers->push([
-                        'id' => $teacher->id,
-                        'name' => $teacher->user->name ?? 'Unknown',
-                        'sections' => $sections,
-                        'pending_subjects_count' => $subjectCount,
-                        'education_levels' => $records->groupBy(function ($record) {
-                            // Determine education level from the query type
-                            return str_contains($record->formatted_section_name, 'SHS') ? 'senior_high' : 'college';
-                        })->keys(),
-                    ]);
+                if (! isset($combinedByTeacher[$teacherId])) {
+                    $combinedByTeacher[$teacherId] = $records;
+                } else {
+                    $combinedByTeacher[$teacherId] = $combinedByTeacher[$teacherId]->concat($records);
                 }
             }
+        }
+
+        $pendingGradeTeachers = collect();
+
+        foreach ($combinedByTeacher as $teacherId => $records) {
+            $teacher = Teacher::with('user')->find($teacherId);
+
+            if (! $teacher) {
+                continue;
+            }
+
+            // unique sections (one entry per section) and distinct subject count
+            $sections = $records->pluck('formatted_section_name')->unique()->values();
+            $subjectCount = $records->pluck('subject_id')->unique()->count();
+
+            $pendingGradeTeachers->push([
+                'id' => $teacher->id,
+                'name' => $teacher->user->name ?? 'Unknown',
+                'sections' => $sections,
+                'section_count' => $sections->count(),
+                'pending_subjects_count' => $subjectCount,
+                'education_levels' => $records->groupBy(function ($record) {
+                    return str_contains($record->formatted_section_name, 'SHS') ? 'senior_high' : 'college';
+                })->keys()->values(),
+            ]);
         }
 
         return Inertia::render('Admin/Alerts/Index', [

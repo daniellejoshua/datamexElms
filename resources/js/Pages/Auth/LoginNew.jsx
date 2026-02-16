@@ -12,6 +12,10 @@ export default function Login({ status, canResetPassword }) {
     const [isResetLinkSent, setIsResetLinkSent] = useState(false)
     const [cooldownTime, setCooldownTime] = useState(0)
 
+    // Block immediate login after logout to avoid stale CSRF race
+    const [isBlockedAfterLogout, setIsBlockedAfterLogout] = useState(false)
+    const [blockSeconds, setBlockSeconds] = useState(0)
+
     // Cooldown timer effect
     useEffect(() => {
         let interval
@@ -22,6 +26,43 @@ export default function Login({ status, canResetPassword }) {
         }
         return () => clearInterval(interval)
     }, [cooldownTime])
+
+    // If the user just logged out (sessionStorage set by logout handler),
+    // block immediate login for a short period and show a loader/banner.
+    useEffect(() => {
+        try {
+            const ts = Number(sessionStorage.getItem('justLoggedOutAt')) || 0
+            if (!ts) return
+
+            const ageMs = Date.now() - ts
+            const BLOCK_MS = 2500 // block duration (2.5s)
+
+            if (ageMs < BLOCK_MS) {
+                const remaining = Math.ceil((BLOCK_MS - ageMs) / 1000)
+                setIsBlockedAfterLogout(true)
+                setBlockSeconds(remaining)
+
+                const countdown = setInterval(() => {
+                    setBlockSeconds(s => {
+                        if (s <= 1) {
+                            clearInterval(countdown)
+                            setIsBlockedAfterLogout(false)
+                            try { sessionStorage.removeItem('justLoggedOutAt') } catch (e) {}
+                            return 0
+                        }
+                        return s - 1
+                    })
+                }, 1000)
+
+                return () => clearInterval(countdown)
+            } else {
+                // stale flag — remove it
+                sessionStorage.removeItem('justLoggedOutAt')
+            }
+        } catch (e) {
+            // ignore storage errors
+        }
+    }, [])
 
     const { data, setData, post, processing, errors, reset } = useForm({
         email: '',
@@ -35,9 +76,35 @@ export default function Login({ status, canResetPassword }) {
 
     const submit = (e) => {
         e.preventDefault()
+
+        if (isBlockedAfterLogout) {
+            toast.error('Please wait a moment while your previous session finishes logging out.')
+            return
+        }
+
+        // capture current CSRF token so we can detect whether it was refreshed
+        const beforeCsrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || null
+
         setShowLoader(true)
 
         post(route('login'), {
+            onSuccess: () => {
+                // set a small flag for the destination page to show the toast
+                // after the refresh. do NOT show a client toast here to avoid
+                // duplicate toasts after reload.
+                try { sessionStorage.setItem('justLoggedInAt', Date.now().toString()) } catch (e) {}
+
+                // after a short delay, if the page's CSRF meta did NOT change,
+                // force a full reload to ensure the client has a fresh token.
+                setTimeout(() => {
+                    const afterCsrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || null
+
+                    if (beforeCsrf && afterCsrf === beforeCsrf) {
+                        // still the same token -> force reload to fetch fresh meta
+                        window.location.reload()
+                    }
+                }, 300)
+            },
             onFinish: () => {
                 reset('password')
                 setShowLoader(false)
@@ -243,16 +310,24 @@ export default function Login({ status, canResetPassword }) {
                             )}
                         </div>
 
+                        {/* Show a short banner when we're blocking immediate sign-in after logout */}
+                        {isBlockedAfterLogout && (
+                            <div className="mb-3 rounded-md bg-yellow-50 border border-yellow-200 text-yellow-800 px-4 py-2 text-sm flex items-center gap-3">
+                                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-yellow-500" />
+                                Finishing sign-out — please wait {blockSeconds}s
+                            </div>
+                        )}
+
                         <div>
                             <button
                                 type="submit"
-                                disabled={processing}
+                                disabled={processing || isBlockedAfterLogout}
                                 className="group relative w-full flex justify-center py-3 px-4 border border-transparent text-sm font-medium rounded-lg text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 disabled:opacity-50 disabled:cursor-not-allowed transition duration-200"
                             >
-                                {processing ? (
+                                {processing || isBlockedAfterLogout ? (
                                     <div className="flex items-center">
                                         <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                                        Signing in...
+                                        {isBlockedAfterLogout ? 'Please wait...' : 'Signing in...'}
                                     </div>
                                 ) : (
                                     'Sign in'

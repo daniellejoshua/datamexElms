@@ -20,6 +20,8 @@ import {
     Download
 } from 'lucide-react'
 
+import { useState } from 'react'
+
 export default function AlertsIndex({
     lowEnrollmentSections,
     studentsWithoutSections,
@@ -27,6 +29,8 @@ export default function AlertsIndex({
     pendingGradeTeachers,
     alertsSummary
 }) {
+
+
     return (
         <AuthenticatedLayout
             header={
@@ -43,20 +47,12 @@ export default function AlertsIndex({
                             <p className="text-xs text-gray-500 mt-0.5">Comprehensive view of all academic issues</p>
                         </div>
                     </div>
-                    <div className="flex items-center gap-2">
-                        <Badge variant="outline" className="text-red-700 border-red-300 bg-red-50">
-                            {alertsSummary.total_alerts} Total Issues
-                        </Badge>
-                        <Button variant="outline" size="sm">
-                            <Download className="w-4 h-4 mr-2" />
-                            Export Report
-                        </Button>
-                    </div>
+                  
                 </div>
             }
         >
             <Head title="Academic Alerts Center" />
-
+                    
             <div className="p-4 sm:p-6 lg:p-8 space-y-6">
                 {/* Summary Cards */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -151,10 +147,6 @@ export default function AlertsIndex({
                                         <CardTitle className="text-lg">Sections with Low Enrollment</CardTitle>
                                         <CardDescription>Sections with fewer than 20 students enrolled</CardDescription>
                                     </div>
-                                    <Button variant="outline" size="sm">
-                                        <Filter className="w-4 h-4 mr-2" />
-                                        Filter
-                                    </Button>
                                 </div>
                             </CardHeader>
                             <CardContent className="space-y-3">
@@ -164,31 +156,28 @@ export default function AlertsIndex({
                                         <p>No sections with low enrollment found.</p>
                                     </div>
                                 ) : (
-                                    lowEnrollmentSections.map((section, index) => (
-                                        <Link key={index} href={route('admin.sections.show', section.id)} className="block">
-                                            <Card className="p-4 border border-amber-200 bg-white/80 hover:bg-white hover:shadow-sm transition-all duration-200 cursor-pointer">
-                                                <div className="flex items-center justify-between">
-                                                    <div className="flex-1 min-w-0">
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                                        {lowEnrollmentSections.map((section, index) => (
+                                            <Link key={section.id ?? index} href={route('admin.sections.show', section.id)} className="block">
+                                                <Card className="h-full p-4 border border-amber-200 bg-white/80 hover:bg-white hover:shadow-sm transition-all duration-200 cursor-pointer flex flex-col justify-between">
+                                                    <div className="min-w-0">
                                                         <p className="font-semibold text-sm text-gray-900 truncate">{section.section_name}</p>
                                                         <p className="text-xs text-gray-600 truncate mt-1">{section.program_name}</p>
-                                                        <div className="flex items-center gap-2 mt-2">
-                                                            <Badge variant="outline" className="text-xs">
-                                                                {section.student_count}/{section.capacity} students
-                                                            </Badge>
-                                                            <Badge variant="outline" className="text-xs text-amber-700 border-amber-300">
-                                                                {Math.round((section.student_count / section.capacity) * 100)}% capacity
-                                                            </Badge>
-                                                        </div>
                                                     </div>
-                                                    <div className="text-right">
+
+                                                    <div className="mt-4 flex items-center justify-between">
+                                                        <Badge variant="outline" className="text-xs">
+                                                            {section.student_count} students
+                                                        </Badge>
+
                                                         <Badge variant="outline" className="text-amber-700 border-amber-300 bg-amber-50">
                                                             Low Enrollment
                                                         </Badge>
                                                     </div>
-                                                </div>
-                                            </Card>
-                                        </Link>
-                                    ))
+                                                </Card>
+                                            </Link>
+                                        ))}
+                                    </div>
                                 )}
                             </CardContent>
                         </Card>
@@ -203,10 +192,6 @@ export default function AlertsIndex({
                                         <CardTitle className="text-lg">Students Without Section Assignment</CardTitle>
                                         <CardDescription>Students who are not enrolled in any active section</CardDescription>
                                     </div>
-                                    <Button variant="outline" size="sm">
-                                        <Filter className="w-4 h-4 mr-2" />
-                                        Filter
-                                    </Button>
                                 </div>
                             </CardHeader>
                             <CardContent className="space-y-3">
@@ -216,25 +201,34 @@ export default function AlertsIndex({
                                         <p>All students are properly assigned to sections.</p>
                                     </div>
                                 ) : (
-                                    studentsWithoutSections.map((student, index) => (
-                                        <Link key={index} href={route('registrar.students')} className="block">
-                                            <Card className="p-4 border border-red-200 bg-white/80 hover:bg-white hover:shadow-sm transition-all duration-200 cursor-pointer">
-                                                <div className="flex items-center justify-between">
-                                                    <div className="flex-1 min-w-0">
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                                        {studentsWithoutSections.map((student, index) => (
+                                            <Link key={student.id ?? index} href={route('registrar.students')} className="block">
+                                                <Card className="h-full p-4 border border-red-200 bg-white/80 hover:bg-white hover:shadow-sm transition-all duration-200 cursor-pointer flex flex-col justify-between">
+                                                    <div className="min-w-0">
                                                         <p className="font-semibold text-sm text-gray-900 truncate">{student.name}</p>
                                                         <p className="text-xs text-gray-600 truncate mt-1">
                                                             {student.student_number} • {student.program_name} • Year {student.year_level}
                                                         </p>
                                                     </div>
-                                                    <div className="text-right">
-                                                        <Badge variant="outline" className="text-red-700 border-red-300 bg-red-50">
-                                                            {student.education_level === 'senior_high' ? 'SHS' : 'College'}
-                                                        </Badge>
+
+                                                    <div className="mt-4 flex items-center justify-between">
+                                                        <div className="flex flex-col text-right">
+                                                            <div className="text-xs text-gray-500">Year</div>
+                                                            <div className="text-sm font-semibold text-gray-900">{student.year_level}</div>
+                                                        </div>
+
+                                                        <div className="flex items-center gap-2">
+                                                            <Badge variant="outline" className="text-xs text-red-700 border-red-300 bg-red-50">
+                                                                {student.education_level === 'senior_high' ? 'SHS' : 'College'}
+                                                            </Badge>
+                                                            <Badge variant="outline" className="text-xs text-gray-500">View</Badge>
+                                                        </div>
                                                     </div>
-                                                </div>
-                                            </Card>
-                                        </Link>
-                                    ))
+                                                </Card>
+                                            </Link>
+                                        ))}
+                                    </div>
                                 )}
                             </CardContent>
                         </Card>
@@ -249,10 +243,6 @@ export default function AlertsIndex({
                                         <CardTitle className="text-lg">Sections with Unassigned Subjects</CardTitle>
                                         <CardDescription>Sections that have subjects without assigned teachers</CardDescription>
                                     </div>
-                                    <Button variant="outline" size="sm">
-                                        <Filter className="w-4 h-4 mr-2" />
-                                        Filter
-                                    </Button>
                                 </div>
                             </CardHeader>
                             <CardContent className="space-y-3">
@@ -262,11 +252,11 @@ export default function AlertsIndex({
                                         <p>All section subjects have assigned teachers.</p>
                                     </div>
                                 ) : (
-                                    sectionsWithoutTeachers.map((section, index) => (
-                                        <Link key={index} href={route(section.education_level === 'senior_high' ? 'admin.shs.sections.subjects' : 'admin.college.sections.subjects', section.id)} className="block">
-                                            <Card className="p-4 border border-orange-200 bg-white/80 hover:bg-white hover:shadow-sm transition-all duration-200 cursor-pointer">
-                                                <div className="flex items-start justify-between">
-                                                    <div className="flex-1 min-w-0">
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                                        {sectionsWithoutTeachers.map((section, index) => (
+                                            <Link key={section.id ?? index} href={route(section.education_level === 'senior_high' ? 'admin.shs.sections.subjects' : 'admin.college.sections.subjects', section.id)} className="block">
+                                                <Card className="h-full p-4 border border-orange-200 bg-white/80 hover:bg-white hover:shadow-sm transition-all duration-200 cursor-pointer flex flex-col justify-between">
+                                                    <div className="min-w-0">
                                                         <p className="font-semibold text-sm text-gray-900 truncate">{section.section_name}</p>
                                                         <p className="text-xs text-gray-600 truncate mt-1">{section.program_name}</p>
                                                         <div className="mt-2 flex flex-wrap gap-1">
@@ -282,13 +272,19 @@ export default function AlertsIndex({
                                                             )}
                                                         </div>
                                                     </div>
-                                                    <Badge variant="outline" className="text-orange-700 border-orange-300 bg-orange-50 font-semibold ml-3">
-                                                        {section.unassigned_count} subjects
-                                                    </Badge>
-                                                </div>
-                                            </Card>
-                                        </Link>
-                                    ))
+                                                    <div className="mt-4 flex items-center justify-between">
+                                                        <div className="flex flex-col items-end">
+                                                            <div className="text-right text-xs text-gray-500">Capacity</div>
+                                                            <div className="text-sm font-semibold text-gray-900">{section.capacity}</div>
+                                                        </div>
+                                                        <Badge variant="outline" className="text-orange-700 border-orange-300 bg-orange-50 font-semibold">
+                                                            {section.unassigned_count} subjects
+                                                        </Badge>
+                                                    </div>
+                                                </Card>
+                                            </Link>
+                                        ))}
+                                    </div>
                                 )}
                             </CardContent>
                         </Card>
@@ -303,11 +299,8 @@ export default function AlertsIndex({
                                         <CardTitle className="text-lg">Teachers with Pending Grade Submissions</CardTitle>
                                         <CardDescription>Teachers who haven't submitted grades for the current period</CardDescription>
                                     </div>
-                                    <Button variant="outline" size="sm">
-                                        <Filter className="w-4 h-4 mr-2" />
-                                        Filter
-                                    </Button>
-                                </div>
+
+                                </div> 
                             </CardHeader>
                             <CardContent className="space-y-3">
                                 {pendingGradeTeachers.length === 0 ? (
@@ -316,12 +309,13 @@ export default function AlertsIndex({
                                         <p>All teachers have submitted their grades.</p>
                                     </div>
                                 ) : (
-                                    pendingGradeTeachers.map((teacher, index) => (
-                                        <Link key={index} href={route('admin.teachers.show', teacher.id)} className="block">
-                                            <Card className="p-4 border border-purple-200 bg-white/80 hover:bg-white hover:shadow-sm transition-all duration-200 cursor-pointer">
-                                                <div className="flex items-start justify-between">
-                                                    <div className="flex-1 min-w-0">
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                                        {pendingGradeTeachers.map((teacher, index) => (
+                                            <Link key={teacher.id ?? index} href={route('admin.teachers.show', teacher.id)} className="block">
+                                                <Card className="h-full p-4 border border-purple-200 bg-white/80 hover:bg-white hover:shadow-sm transition-all duration-200 cursor-pointer flex flex-col justify-between">
+                                                    <div className="min-w-0">
                                                         <p className="font-semibold text-sm text-gray-900 truncate">{teacher.name}</p>
+
                                                         <div className="mt-2 flex flex-wrap gap-1">
                                                             {teacher.sections.slice(0, 3).map((section, sectIndex) => (
                                                                 <Badge key={sectIndex} variant="outline" className="text-xs text-purple-700 border-purple-300 bg-purple-50">
@@ -342,18 +336,35 @@ export default function AlertsIndex({
                                                             ))}
                                                         </div>
                                                     </div>
-                                                    <Badge variant="outline" className="text-purple-700 border-purple-300 bg-purple-50 font-semibold ml-3">
-                                                        {teacher.pending_subjects_count} subjects
-                                                    </Badge>
-                                                </div>
-                                            </Card>
-                                        </Link>
-                                    ))
+                                                    <div className="mt-4 flex items-center justify-between">
+                                                        <div className="flex flex-col items-end text-right">
+                                                            <div className="text-xs text-gray-500">Sections</div>
+                                                            <div className="text-sm font-semibold text-gray-900">{teacher.section_count}</div>
+                                                        </div>
+
+                                                        <div className="flex items-center gap-3">
+                                                            <Badge variant="outline" className="text-purple-700 border-purple-300 bg-purple-50 font-semibold">
+                                                                {teacher.pending_subjects_count} subjects
+                                                            </Badge>
+
+                                                            <div className="text-right">
+                                                                {teacher.email && (
+                                                                    <div className="text-xs text-gray-500">{teacher.email}</div>
+                                                                )}
+                                                                <Badge variant="outline" className="text-xs text-gray-500">View</Badge>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </Card>
+                                            </Link>
+                                        ))}
+                                    </div>
                                 )}
                             </CardContent>
                         </Card>
                     </TabsContent>
                 </Tabs>
+
             </div>
         </AuthenticatedLayout>
     )

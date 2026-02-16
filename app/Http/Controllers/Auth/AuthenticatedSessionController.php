@@ -33,7 +33,18 @@ class AuthenticatedSessionController extends Controller
 
         $request->session()->regenerate();
 
-        return redirect()->intended(route('dashboard', absolute: false));
+        // Flash a welcome message so the front-end (AuthenticatedLayout) shows
+        // a sonner toast after the redirect.
+        $redirect = redirect()->intended(route('dashboard', absolute: false))
+            ->with('success', "Welcome back, {$request->user()->name}!");
+
+        // For Inertia requests return X-Inertia-Location so the client performs a
+        // full page reload and picks up a fresh CSRF token (prevents 419s).
+        if ($request->header('X-Inertia')) {
+            return $redirect->header('X-Inertia-Location', $redirect->getTargetUrl());
+        }
+
+        return $redirect;
     }
 
     /**
@@ -50,13 +61,11 @@ class AuthenticatedSessionController extends Controller
         // Regenerate the CSRF token
         $request->session()->regenerateToken();
 
-        // Force full page reload by setting external redirect header for Inertia
-        if ($request->header('X-Inertia')) {
-            return redirect()->route('login')
-                ->header('X-Inertia-Location', route('login'));
-        }
+        // Always include X-Inertia-Location on logout so clients will perform a
+        // full reload and receive a fresh CSRF meta tag. This is defensive
+        // (harmless for non-Inertia clients) and prevents stale-token races.
+        return redirect()->route('login')
+            ->header('X-Inertia-Location', route('login'));
 
-        // Regular redirect for non-Inertia requests
-        return redirect()->route('login');
     }
 }

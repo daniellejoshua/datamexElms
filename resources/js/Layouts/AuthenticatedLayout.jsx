@@ -27,11 +27,31 @@ export default function AuthenticatedLayout({ header, children }) {
 
     // Handle flash messages
     useEffect(() => {
+        // Priority: server-provided flash (preferred) — otherwise use a local
+        // 'justLoggedInAt' flag so toasts appear even when a hard reload or
+        // other navigation omitted the flash.
         if (flash?.success) {
             toast.success(flash.success, {
                 duration: 5000,
             })
+            // if present, clear the local flag so we don't double-toast
+            try { sessionStorage.removeItem('justLoggedInAt') } catch (e) {}
+            return
         }
+
+        // local fallback for immediate client-side login (if server flash
+        // didn't make it through the navigation)
+        try {
+            const ts = Number(sessionStorage.getItem('justLoggedInAt')) || 0
+            if (ts && (Date.now() - ts) < 5000) {
+                toast.success('Signed in successfully', { duration: 4000 })
+                sessionStorage.removeItem('justLoggedInAt')
+                return
+            }
+        } catch (e) {
+            // ignore storage errors
+        }
+
         if (flash?.error) {
             // Show rate limit messages as special styled toasts
             if (flash.error.toLowerCase().includes('rate limit') ||
@@ -543,10 +563,19 @@ export default function AuthenticatedLayout({ header, children }) {
                                             sessionStorage.clear();
                                             localStorage.clear();
                                             // Force full page reload to login
+                                            // mark that we just logged out so the login page can show a
+                                            // short loader and avoid a stale-CSRF race when the user
+                                            // immediately attempts to sign in again
                                             router.post(route('logout'), {}, {
                                                 preserveState: false,
                                                 preserveScroll: false,
                                                 onSuccess: () => {
+                                                    try {
+                                                        sessionStorage.setItem('justLoggedOutAt', Date.now().toString());
+                                                    } catch (e) {
+                                                        // ignore storage errors
+                                                    }
+
                                                     window.location.href = route('login');
                                                 },
                                             });
@@ -626,10 +655,19 @@ export default function AuthenticatedLayout({ header, children }) {
                                                 sessionStorage.clear();
                                                 localStorage.clear();
                                                 // Force full page reload to login
+                                                // mark that we just logged out so the login page can show a
+                                                // short loader and avoid a stale-CSRF race when the user
+                                                // immediately attempts to sign in again
                                                 router.post(route('logout'), {}, {
                                                     preserveState: false,
                                                     preserveScroll: false,
                                                     onSuccess: () => {
+                                                        try {
+                                                            sessionStorage.setItem('justLoggedOutAt', Date.now().toString());
+                                                        } catch (e) {
+                                                            // ignore storage errors
+                                                        }
+
                                                         window.location.href = route('login');
                                                     },
                                                 });

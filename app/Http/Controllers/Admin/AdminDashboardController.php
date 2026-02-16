@@ -163,24 +163,37 @@ class AdminDashboardController extends Controller
             ->get()
             ->groupBy('teacher_id');
 
-        // Combine and format the pending teachers data
-        $pendingGradeTeachers = collect();
+        // Combine college + SHS groups per teacher to avoid duplicates
+        $combinedByTeacher = [];
 
         foreach ([$collegePendingTeachers, $shsPendingTeachers] as $pendingGroup) {
             foreach ($pendingGroup as $teacherId => $records) {
-                $teacher = \App\Models\Teacher::with('user')->find($teacherId);
-                if ($teacher) {
-                    $sections = $records->pluck('formatted_name')->unique()->take(3);
-                    $subjectCount = $records->count();
-
-                    $pendingGradeTeachers->push([
-                        'id' => $teacher->id,
-                        'name' => $teacher->user->name ?? 'Unknown',
-                        'sections' => $sections,
-                        'pending_subjects_count' => $subjectCount,
-                    ]);
+                if (! isset($combinedByTeacher[$teacherId])) {
+                    $combinedByTeacher[$teacherId] = $records;
+                } else {
+                    $combinedByTeacher[$teacherId] = $combinedByTeacher[$teacherId]->concat($records);
                 }
             }
+        }
+
+        $pendingGradeTeachers = collect();
+
+        foreach ($combinedByTeacher as $teacherId => $records) {
+            $teacher = \App\Models\Teacher::with('user')->find($teacherId);
+            if (! $teacher) {
+                continue;
+            }
+
+            // ensure sections are unique and count distinct pending subjects
+            $sections = $records->pluck('formatted_section_name')->unique()->take(3)->values();
+            $subjectCount = $records->pluck('subject_id')->unique()->count();
+
+            $pendingGradeTeachers->push([
+                'id' => $teacher->id,
+                'name' => $teacher->user->name ?? 'Unknown',
+                'sections' => $sections,
+                'pending_subjects_count' => $subjectCount,
+            ]);
         }
 
         $pendingGradeTeachers = $pendingGradeTeachers->take(5);

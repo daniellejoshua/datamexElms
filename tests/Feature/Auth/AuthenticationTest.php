@@ -18,6 +18,23 @@ test('users can authenticate using the login screen', function () {
 
     $this->assertAuthenticated();
     $response->assertRedirect(route('dashboard', absolute: false));
+    $response->assertSessionHas('success');
+});
+
+it('returns X-Inertia-Location on Inertia login so the client reloads', function () {
+    $user = User::factory()->create();
+
+    $response = $this->withHeader('X-Inertia', 'true')->post('/login', [
+        'email' => $user->email,
+        'password' => 'password',
+    ]);
+
+    $this->assertAuthenticated();
+    $response->assertRedirect(route('dashboard', absolute: false));
+    $this->assertTrue($response->headers->has('X-Inertia-Location'));
+    $this->assertStringContainsString('/dashboard', $response->headers->get('X-Inertia-Location'));
+
+    $response->assertSessionHas('success');
 });
 
 test('users can not authenticate with invalid password', function () {
@@ -37,5 +54,5 @@ test('users can logout', function () {
     $response = $this->actingAs($user)->post('/logout');
 
     $this->assertGuest();
-    $response->assertRedirect('/');
+    $response->assertRedirect(route('login'));
 });

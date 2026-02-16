@@ -52,7 +52,6 @@ Route::middleware(['auth', 'verified', 'role:student'])->prefix('student')->grou
 
 // Registrar Routes
 Route::middleware([])->prefix('registrar')->name('registrar.')->group(function () {
-    \Log::info('Registrar route group accessed', ['url' => request()->fullUrl(), 'method' => request()->method()]);
     Route::get('/dashboard', [RegistrarController::class, 'dashboard'])->name('dashboard');
     Route::match(['get', 'post'], '/dashboard/refresh', [RegistrarController::class, 'refreshDashboard'])->name('dashboard.refresh');
     Route::get('/dashboard/payment-details', [RegistrarController::class, 'getPaymentDetails'])->name('dashboard.payment-details');
