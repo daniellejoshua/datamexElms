@@ -319,7 +319,7 @@ export default function AlertsIndex({
                                                         <div className="mt-2 flex flex-wrap gap-1">
                                                             {teacher.sections.slice(0, 3).map((section, sectIndex) => (
                                                                 <Badge key={sectIndex} variant="outline" className="text-xs text-purple-700 border-purple-300 bg-purple-50">
-                                                                    {section}
+                                                                    {section.name} • {section.student_count}
                                                                 </Badge>
                                                             ))}
                                                             {teacher.sections.length > 3 && (
@@ -336,23 +336,15 @@ export default function AlertsIndex({
                                                             ))}
                                                         </div>
                                                     </div>
-                                                    <div className="mt-4 flex items-center justify-between">
-                                                        <div className="flex flex-col items-end text-right">
-                                                            <div className="text-xs text-gray-500">Sections</div>
-                                                            <div className="text-sm font-semibold text-gray-900">{teacher.section_count}</div>
-                                                        </div>
+                                                    <div className="mt-4 flex items-center justify-end gap-3">
+                                                        <Badge variant="outline" className="text-purple-700 border-purple-300 bg-purple-50 font-semibold">
+                                                            {teacher.pending_subjects_count} subjects
+                                                        </Badge>
 
-                                                        <div className="flex items-center gap-3">
-                                                            <Badge variant="outline" className="text-purple-700 border-purple-300 bg-purple-50 font-semibold">
-                                                                {teacher.pending_subjects_count} subjects
-                                                            </Badge>
-
-                                                            <div className="text-right">
-                                                                {teacher.email && (
-                                                                    <div className="text-xs text-gray-500">{teacher.email}</div>
-                                                                )}
-                                                                <Badge variant="outline" className="text-xs text-gray-500">View</Badge>
-                                                            </div>
+                                                        <div className="text-right">
+                                                            {teacher.email && (
+                                                                <div className="text-xs text-gray-500">{teacher.email}</div>
+                                                            )}
                                                         </div>
                                                     </div>
                                                 </Card>

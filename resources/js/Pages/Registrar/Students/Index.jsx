@@ -544,7 +544,7 @@ export default function StudentsIndex({ students, programs, filters, auth, on_ho
                                                 <td className="py-3 px-4">
                                                     <div>
                                                         <div className="font-medium text-blue-600">
-                                                            {formatSectionName(student.current_section, student.is_currently_enrolled)}
+                                                            {student.student_type === 'irregular' ? 'Irregular' : formatSectionName(student.current_section, student.is_currently_enrolled)}
                                                         </div>
                                                     </div>
                                                 </td>
@@ -1242,7 +1242,7 @@ export default function StudentsIndex({ students, programs, filters, auth, on_ho
                                                 <span className="text-sm font-medium text-blue-700 uppercase tracking-wide">Current Section</span>
                                             </div>
                                             <div className="text-lg font-bold text-blue-900 mb-1">
-                                                {formatSectionName(selectedStudent.current_section, selectedStudent.is_currently_enrolled)}
+                                                {selectedStudent.student_type === 'irregular' ? 'Irregular' : formatSectionName(selectedStudent.current_section, selectedStudent.is_currently_enrolled)}
                                             </div>
                                             {selectedStudent.current_section && (
                                                 <div className="text-sm text-blue-700">

@@ -280,8 +280,16 @@ class SectionController extends Controller
                 return $enrollment->status === 'active';
             });
 
+            // Determine numeric year-level for comparisons
+            $studentYear = (int) ($student->current_year_level ?? $student->year_level ?? 0);
+            $sectionYear = (int) $section->year_level;
+
             if ($currentEnrollments->isEmpty()) {
-                // No current enrollments, can be enrolled anywhere
+                // No current enrollments — still restrict enrolling into a higher year-level section
+                if ($studentYear > 0 && $studentYear < $sectionYear) {
+                    return false;
+                }
+
                 return true;
             }
 
@@ -310,7 +318,12 @@ class SectionController extends Controller
                 return false;
             }
 
-            // Allow enrollment in any year level (same or lower) as long as they haven't completed all subjects
+            // Prevent enrolling irregular students into sections above their current year level
+            if ($studentYear > 0 && $studentYear < $sectionYear) {
+                return false;
+            }
+
+            // Allow enrollment in same or lower year level as long as they haven't completed all subjects
             return true;
         });
 

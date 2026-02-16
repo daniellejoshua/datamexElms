@@ -8,7 +8,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Label } from '@/components/ui/label'
 import { BookOpen, ArrowLeft, Save, Plus } from 'lucide-react'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 
 export default function CreateProgram({ auth }) {
     const [form, setForm] = useState({
@@ -17,17 +17,38 @@ export default function CreateProgram({ auth }) {
         description: '',
         education_level: '',
         total_years: 4,
-        status: 'active'
+        status: 'active',
+        // per-year fees (created on the fly to match total_years)
+        program_fees: [],
+        // keep a top-level semester_fee for backwards compatibility with the controller
+        semester_fee: 0,
     })
 
     const [processing, setProcessing] = useState(false)
     const [errors, setErrors] = useState({})
 
+    // initialize program_fees whenever total_years or education_level changes
+    useEffect(() => {
+        const years = form.total_years || 1;
+        const maxYears = form.education_level === 'senior_high' ? 2 : years;
+
+        const fees = [];
+        for (let year = 1; year <= maxYears; year++) {
+            fees.push({ year_level: year, fee_type: 'regular', semester_fee: 0 });
+        }
+
+        setForm(prev => ({ ...prev, program_fees: fees, semester_fee: fees[0]?.semester_fee ?? 0 }));
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [form.total_years, form.education_level])
+
     const handleSubmit = (e) => {
         e.preventDefault()
         setProcessing(true)
 
-        router.post(route('registrar.programs.store'), form, {
+        // ensure top-level semester_fee exists for validation compatibility
+        const payload = { ...form, semester_fee: form.program_fees?.[0]?.semester_fee ?? form.semester_fee ?? 0 };
+
+        router.post(route('registrar.programs.store'), payload, {
             onFinish: () => setProcessing(false),
             onError: (errors) => setErrors(errors),
         })
@@ -39,6 +60,30 @@ export default function CreateProgram({ auth }) {
             [field]: value
         }))
     }
+
+    const updateFee = (yearLevel, amount) => {
+        const numericAmount = amount === '' ? 0 : parseFloat(amount) || 0;
+        const updatedFees = (form.program_fees || []).map(fee =>
+            fee.year_level === yearLevel && fee.fee_type === 'regular'
+                ? { ...fee, semester_fee: numericAmount }
+                : fee
+        );
+        setForm(prev => ({ ...prev, program_fees: updatedFees, semester_fee: updatedFees[0]?.semester_fee ?? prev.semester_fee }));
+    };
+
+    // Format number with commas for display
+    const formatCurrency = (value) => {
+        if (!value || value === 0) return '';
+        return new Intl.NumberFormat('en-US').format(value);
+    };
+
+    // Handle fee input change with formatting
+    const handleFeeChange = (yearLevel, inputValue) => {
+        // Remove any non-numeric characters except decimal point
+        const cleanValue = inputValue.replace(/[^0-9.]/g, '');
+        const numericValue = cleanValue === '' ? 0 : parseFloat(cleanValue) || 0;
+        updateFee(yearLevel, numericValue.toString());
+    };
 
     return (
         <AuthenticatedLayout
@@ -69,7 +114,7 @@ export default function CreateProgram({ auth }) {
         >
             <Head title="Create Program" />
 
-            <div className="max-w-2xl mx-auto mt-6">
+            <div className="max-w-4xl mx-auto mt-6">
                 <Card>
                     <CardHeader>
                         <CardTitle className="flex items-center">
@@ -159,6 +204,54 @@ export default function CreateProgram({ auth }) {
                                         <p className="text-red-500 text-sm mt-1">{errors.total_years}</p>
                                     )}
                                 </div>
+                            </div>
+
+                            {/* Fee Structure (match total_years) */}
+                            <div className="mt-6">
+                                <Card>
+                                    <CardHeader>
+                                        <CardTitle>Fee Structure</CardTitle>
+                                        <CardDescription>
+                                            Set semester fees for each year level. These fees will be automatically applied to regular students during enrollment.
+                                            {form.education_level === 'senior_high' ? ' (Senior High fees are annual)' : ''}
+                                        </CardDescription>
+                                    </CardHeader>
+                                    <CardContent>
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                            {Array.from({ length: form.education_level === 'senior_high' ? Math.min(2, form.total_years) : form.total_years }, (_, i) => i + 1).map((year) => {
+                                                const fee = (form.program_fees || []).find(
+                                                    f => f.year_level === year && f.fee_type === 'regular'
+                                                );
+                                                const amount = fee ? fee.semester_fee : 0;
+
+                                                return (
+                                                    <div key={year} className="flex items-center gap-3 p-3 border rounded-lg bg-gray-50">
+                                                        <Label className="text-sm font-medium w-24 flex-shrink-0">
+                                                            {form.education_level === 'senior_high' ? `Grade ${year + 10}` : `${year}${year === 1 ? 'st' : year === 2 ? 'nd' : year === 3 ? 'rd' : 'th'} Year`}:
+                                                        </Label>
+                                                        <div className="relative flex-1">
+                                                            <span className="absolute left-2 top-1/2 transform -translate-y-1/2 text-gray-500 text-xs z-10">
+                                                                ₱
+                                                            </span>
+                                                            <Input
+                                                                type="text"
+                                                                value={formatCurrency(amount)}
+                                                                onChange={(e) => handleFeeChange(year, e.target.value)}
+                                                                className="pl-6 h-8 text-sm w-full"
+                                                                placeholder="0"
+                                                            />
+                                                        </div>
+                                                        <span className="text-xs text-gray-500">{form.education_level === 'senior_high' ? 'per year level' : 'per semester'}</span>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+
+                                        {errors['program_fees'] && (
+                                            <p className="text-sm text-red-600 mt-3">{errors['program_fees']}</p>
+                                        )}
+                                    </CardContent>
+                                </Card>
                             </div>
 
                             <div className="flex justify-end gap-4">

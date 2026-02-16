@@ -230,6 +230,16 @@ describe('Student Enrollment Management', function () {
         $responseHigher = $this->get(route('admin.sections.students', $sectionHigh->id));
         $responseHigher->assertOk()->assertInertia(fn ($page) => $page->has('availableStudents', 0));
 
+        // If an irregular student has NO current enrollments, still prevent showing them on a higher year-level section
+        $studentNoEnroll = Student::factory()->create([
+            'program_id' => $program->id,
+            'student_type' => 'irregular',
+            'current_year_level' => 3,
+        ]);
+
+        $responseHigherNoEnroll = $this->get(route('admin.sections.students', $sectionHigh->id));
+        $responseHigherNoEnroll->assertOk()->assertInertia(fn ($page) => $page->has('availableStudents', 0));
+
         // Irregular students can enroll in lower year level sections
         $responseLower = $this->get(route('admin.sections.students', $sectionLower->id));
         $responseLower->assertOk()->assertInertia(fn ($page) => $page->has('availableStudents', 1)->where('availableStudents.0.id', $student->id));

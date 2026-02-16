@@ -80,11 +80,40 @@ class ProgramController extends Controller
             'education_level' => 'required|in:college,senior_high',
             'track' => 'nullable|string|max:255',
             'total_years' => 'required|integer|min:1|max:6',
-            'semester_fee' => 'required|numeric|min:0',
+            'semester_fee' => 'nullable|numeric|min:0',
+            'program_fees' => 'nullable|array',
+            'program_fees.*.year_level' => 'required_with:program_fees|integer|min:1|max:6',
+            'program_fees.*.fee_type' => 'required_with:program_fees|in:regular',
+            'program_fees.*.semester_fee' => 'required_with:program_fees|numeric|min:0',
             'status' => 'required|in:active,inactive',
         ]);
 
-        Program::create($validated);
+        // If program_fees provided, use first regular fee as the program's base semester_fee when not explicitly set
+        if (empty($validated['semester_fee']) && ! empty($validated['program_fees'])) {
+            $firstFee = collect($validated['program_fees'])->first();
+            $validated['semester_fee'] = $firstFee['semester_fee'] ?? 0;
+        }
+
+        // Persist program and associated program_fees (if any)
+        \DB::transaction(function () use ($validated) {
+            $programFees = $validated['program_fees'] ?? null;
+
+            // ensure semester_fee is set (default to 0)
+            $programData = array_merge($validated, ['program_fees' => null]);
+            $programData['semester_fee'] = $programData['semester_fee'] ?? 0;
+
+            $program = Program::create($programData);
+
+            if ($programFees) {
+                foreach ($programFees as $fee) {
+                    $program->programFees()->create([
+                        'year_level' => $fee['year_level'],
+                        'fee_type' => $fee['fee_type'],
+                        'semester_fee' => $fee['semester_fee'],
+                    ]);
+                }
+            }
+        });
 
         return redirect()->route('registrar.programs.index')
             ->with('success', 'Program created successfully.');

@@ -76,6 +76,7 @@ class AlertController extends Controller
         $currentSemester = config('school_settings.current_semester', '1st');
 
         // For college students - check if final grades are submitted
+        // restrict to programs marked as 'college' to avoid picking up SHS sections
         $collegePendingTeachers = \DB::table('section_subjects')
             ->join('sections', 'section_subjects.section_id', '=', 'sections.id')
             ->join('programs', 'sections.program_id', '=', 'programs.id')
@@ -91,10 +92,14 @@ class AlertController extends Controller
             ->where('student_enrollments.status', 'active')
             ->whereNotNull('section_subjects.teacher_id')
             ->whereNull('student_grades.final_submitted_at')
+            ->where('programs.education_level', 'college')
             ->select(
                 'section_subjects.teacher_id',
                 \DB::raw("CONCAT(COALESCE(programs.program_code, ''), '-', sections.year_level, sections.section_name) as formatted_section_name"),
-                'section_subjects.subject_id'
+                'section_subjects.subject_id',
+                \DB::raw("'college' as education_level"),
+                // per-section active student count
+                \DB::raw("(SELECT COUNT(*) FROM student_enrollments se WHERE se.section_id = sections.id AND se.status = 'active') as student_count")
             )
             ->distinct()
             ->get()
@@ -121,7 +126,9 @@ class AlertController extends Controller
             ->select(
                 'section_subjects.teacher_id',
                 \DB::raw("CONCAT(COALESCE(programs.program_code, ''), '-', sections.year_level, sections.section_name) as formatted_section_name"),
-                'section_subjects.subject_id'
+                'section_subjects.subject_id',
+                \DB::raw("'senior_high' as education_level"),
+                \DB::raw("(SELECT COUNT(*) FROM student_enrollments se WHERE se.section_id = sections.id AND se.status = 'active') as student_count")
             )
             ->distinct()
             ->get()
@@ -149,8 +156,14 @@ class AlertController extends Controller
                 continue;
             }
 
-            // unique sections (one entry per section) and distinct subject count
-            $sections = $records->pluck('formatted_section_name')->unique()->values();
+            // unique sections (one entry per section) with student counts and distinct subject count
+            $sections = $records->map(function ($r) {
+                return [
+                    'name' => $r->formatted_section_name,
+                    'student_count' => (int) ($r->student_count ?? 0),
+                ];
+            })->unique('name')->values();
+
             $subjectCount = $records->pluck('subject_id')->unique()->count();
 
             $pendingGradeTeachers->push([
@@ -159,9 +172,7 @@ class AlertController extends Controller
                 'sections' => $sections,
                 'section_count' => $sections->count(),
                 'pending_subjects_count' => $subjectCount,
-                'education_levels' => $records->groupBy(function ($record) {
-                    return str_contains($record->formatted_section_name, 'SHS') ? 'senior_high' : 'college';
-                })->keys()->values(),
+                'education_levels' => $records->pluck('education_level')->unique()->values(),
             ]);
         }
 
