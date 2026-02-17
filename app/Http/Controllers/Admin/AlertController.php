@@ -8,6 +8,7 @@ use App\Models\Student;
 use App\Models\Teacher;
 use Inertia\Inertia;
 use Inertia\Response;
+use Illuminate\Pagination\LengthAwarePaginator;
 
 class AlertController extends Controller
 {
@@ -176,18 +177,170 @@ class AlertController extends Controller
             ]);
         }
 
+        // --- Paginate results per user's preference ---
+        $lowPerPage = 6; // low enrollment: 6 cards per page
+        $otherPerPage = 3; // pending grades & unassigned subjects & unassigned students: 3 cards per page
+
+        $lowPage = (int) request()->input('low_enrollment_page', 1);
+        $studentsPage = (int) request()->input('unassigned_students_page', 1);
+        $subjectsPage = (int) request()->input('unassigned_subjects_page', 1);
+        $pendingPage = (int) request()->input('pending_grades_page', 1);
+
+        $lowTotal = $lowEnrollmentSections->count();
+        $lowItems = $lowEnrollmentSections->forPage($lowPage, $lowPerPage)->values();
+        $lowPaginator = new LengthAwarePaginator($lowItems, $lowTotal, $lowPerPage, $lowPage, [
+            'path' => url()->current(),
+            'pageName' => 'low_enrollment_page',
+            'query' => request()->query(),
+        ]);
+
+        $studentsTotal = $studentsWithoutSections->count();
+        $studentsItems = $studentsWithoutSections->forPage($studentsPage, $otherPerPage)->values();
+        $studentsPaginator = new LengthAwarePaginator($studentsItems, $studentsTotal, $otherPerPage, $studentsPage, [
+            'path' => url()->current(),
+            'pageName' => 'unassigned_students_page',
+            'query' => request()->query(),
+        ]);
+
+        $subjectsTotal = $sectionsWithoutTeachers->count();
+        $subjectsItems = $sectionsWithoutTeachers->forPage($subjectsPage, $otherPerPage)->values();
+        $subjectsPaginator = new LengthAwarePaginator($subjectsItems, $subjectsTotal, $otherPerPage, $subjectsPage, [
+            'path' => url()->current(),
+            'pageName' => 'unassigned_subjects_page',
+            'query' => request()->query(),
+        ]);
+
+        $pendingTotal = $pendingGradeTeachers->count();
+        $pendingItems = $pendingGradeTeachers->forPage($pendingPage, $otherPerPage)->values();
+        $pendingPaginator = new LengthAwarePaginator($pendingItems, $pendingTotal, $otherPerPage, $pendingPage, [
+            'path' => url()->current(),
+            'pageName' => 'pending_grades_page',
+            'query' => request()->query(),
+        ]);
+
         return Inertia::render('Admin/Alerts/Index', [
-            'lowEnrollmentSections' => $lowEnrollmentSections,
-            'studentsWithoutSections' => $studentsWithoutSections,
-            'sectionsWithoutTeachers' => $sectionsWithoutTeachers,
-            'pendingGradeTeachers' => $pendingGradeTeachers,
+            'lowEnrollmentSections' => $lowPaginator,
+            'studentsWithoutSections' => $studentsPaginator,
+            'sectionsWithoutTeachers' => $subjectsPaginator,
+            'pendingGradeTeachers' => $pendingPaginator,
             'alertsSummary' => [
-                'total_alerts' => $lowEnrollmentSections->count() + $studentsWithoutSections->count() + $sectionsWithoutTeachers->count() + $pendingGradeTeachers->count(),
-                'low_enrollment_count' => $lowEnrollmentSections->count(),
-                'unassigned_students_count' => $studentsWithoutSections->count(),
-                'unassigned_subjects_count' => $sectionsWithoutTeachers->count(),
-                'pending_grades_count' => $pendingGradeTeachers->count(),
+                'total_alerts' => $lowTotal + $studentsTotal + $subjectsTotal + $pendingTotal,
+                'low_enrollment_count' => $lowTotal,
+                'unassigned_students_count' => $studentsTotal,
+                'unassigned_subjects_count' => $subjectsTotal,
+                'pending_grades_count' => $pendingTotal,
             ],
         ]);
     }
+
+    /**
+     * Return detailed missing-grade rows (student, subject, section, missing components)
+     * for a specific teacher — used by the admin pending-grades modal (JSON).
+     */
+    public function pendingGradesForTeacher(Teacher $teacher)
+    {
+        $incompleteGrades = [];
+
+        // College missing components
+        $collegeGrades = \App\Models\StudentGrade::join('section_subjects', 'student_grades.section_subject_id', '=', 'section_subjects.id')
+            ->where('section_subjects.teacher_id', $teacher->id)
+            ->join('student_enrollments', 'student_grades.student_enrollment_id', '=', 'student_enrollments.id')
+            ->join('students', 'student_enrollments.student_id', '=', 'students.id')
+            ->join('sections', 'student_enrollments.section_id', '=', 'sections.id')
+            ->join('subjects', 'section_subjects.subject_id', '=', 'subjects.id')
+            ->where('students.status', 'active')
+            ->where('student_enrollments.status', 'active')
+            ->whereRaw('(student_grades.prelim_grade IS NULL OR student_grades.midterm_grade IS NULL OR student_grades.prefinal_grade IS NULL OR student_grades.final_grade IS NULL)')
+            ->select(
+                'students.first_name',
+                'students.last_name',
+                'subjects.subject_code',
+                'sections.section_name',
+                'sections.year_level',
+                'sections.program_id',
+                'sections.academic_year',
+                'sections.semester',
+                'student_grades.prelim_grade',
+                'student_grades.midterm_grade',
+                'student_grades.prefinal_grade',
+                'student_grades.final_grade'
+            )
+            ->get();
+
+        foreach ($collegeGrades as $grade) {
+            $missingGrades = [];
+            if (is_null($grade->prelim_grade)) $missingGrades[] = 'P';
+            if (is_null($grade->midterm_grade)) $missingGrades[] = 'M';
+            if (is_null($grade->prefinal_grade)) $missingGrades[] = 'PF';
+            if (is_null($grade->final_grade)) $missingGrades[] = 'F';
+
+            $incompleteGrades[] = [
+                'student' => $grade->first_name.' '.$grade->last_name,
+                'subject' => $grade->subject_code,
+                'section' => $grade->year_level.($grade->program_id ? '-'.$grade->section_name : $grade->section_name),
+                'missing_grades' => implode(', ', $missingGrades),
+                'academic_year' => $grade->academic_year,
+                'semester' => ucfirst($grade->semester),
+                'type' => 'College',
+            ];
+        }
+
+        // SHS missing components
+        $shsGrades = \App\Models\ShsStudentGrade::join('section_subjects', 'shs_student_grades.section_subject_id', '=', 'section_subjects.id')
+            ->where('section_subjects.teacher_id', $teacher->id)
+            ->join('student_enrollments', 'shs_student_grades.student_enrollment_id', '=', 'student_enrollments.id')
+            ->join('students', 'student_enrollments.student_id', '=', 'students.id')
+            ->join('sections', 'student_enrollments.section_id', '=', 'sections.id')
+            ->join('subjects', 'section_subjects.subject_id', '=', 'subjects.id')
+            ->leftJoin('programs', 'sections.program_id', '=', 'programs.id')
+            ->where('students.status', 'active')
+            ->where('student_enrollments.status', 'active')
+            ->whereRaw('(shs_student_grades.first_quarter_grade IS NULL OR shs_student_grades.second_quarter_grade IS NULL OR shs_student_grades.final_grade IS NULL)')
+            ->select(
+                'students.first_name',
+                'students.last_name',
+                'subjects.subject_code',
+                'sections.section_name',
+                'sections.year_level',
+                'programs.track',
+                'sections.academic_year',
+                'sections.semester',
+                'shs_student_grades.first_quarter_grade',
+                'shs_student_grades.second_quarter_grade',
+                'shs_student_grades.final_grade'
+            )
+            ->get();
+
+        foreach ($shsGrades as $grade) {
+            $missingGrades = [];
+            if (is_null($grade->first_quarter_grade)) $missingGrades[] = '1Q';
+            if (is_null($grade->second_quarter_grade)) $missingGrades[] = '2Q';
+            if (is_null($grade->final_grade)) $missingGrades[] = 'F';
+
+            $incompleteGrades[] = [
+                'student' => $grade->first_name.' '.$grade->last_name,
+                'subject' => $grade->subject_code,
+                'section' => 'Grade '.$grade->year_level.($grade->track ? ' - '.$grade->track : ''),
+                'missing_grades' => implode(', ', $missingGrades),
+                'academic_year' => $grade->academic_year,
+                'semester' => ucfirst($grade->semester),
+                'type' => 'SHS',
+            ];
+        }
+
+        // Paginate the results (default 5 per page for modal)
+        $perPage = (int) request()->input('per_page', 5);
+        $page = (int) request()->input('page', 1);
+        $total = count($incompleteGrades);
+
+        $items = array_slice($incompleteGrades, ($page - 1) * $perPage, $perPage);
+
+        $paginator = new LengthAwarePaginator($items, $total, $perPage, $page, [
+            'path' => url()->current(),
+            'query' => request()->query(),
+        ]);
+
+        return response()->json($paginator->toArray());
+    }
 }
+

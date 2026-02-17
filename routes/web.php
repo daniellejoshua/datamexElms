@@ -156,6 +156,8 @@ Route::middleware(['web', 'auth', 'verified'])->prefix('admin')->name('admin.')-
 
         // Alerts Management
         Route::get('/alerts', [AlertController::class, 'index'])->name('alerts.index');
+        // Return pending-grade details (students & missing components) for a teacher (JSON)
+        Route::get('/alerts/pending-grades/{teacher}', [AlertController::class, 'pendingGradesForTeacher'])->name('alerts.pending-grades.show');
 
         // Section Management
         Route::resource('sections', SectionController::class);

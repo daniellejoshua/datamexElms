@@ -19,6 +19,7 @@ import {
     Filter,
     Download
 } from 'lucide-react'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 
 import { useState } from 'react'
 
@@ -29,7 +30,36 @@ export default function AlertsIndex({
     pendingGradeTeachers,
     alertsSummary
 }) {
+    const [showPendingModal, setShowPendingModal] = useState(false);
+    const [selectedTeacher, setSelectedTeacher] = useState(null);
+    const [pendingDetails, setPendingDetails] = useState(null); // paginator object
+    const [isLoadingPendingDetails, setIsLoadingPendingDetails] = useState(false);
+    const [pendingPage, setPendingPage] = useState(1);
+    const PENDING_PER_PAGE = 5;
 
+    const fetchPendingDetails = async (teacherId, page = 1) => {
+        setIsLoadingPendingDetails(true);
+        setPendingDetails(null);
+        setPendingPage(page);
+
+        try {
+            const res = await fetch(`/admin/alerts/pending-grades/${teacherId}?page=${page}&per_page=${PENDING_PER_PAGE}`);
+            if (!res.ok) throw new Error('Failed to fetch');
+            const data = await res.json();
+            setPendingDetails(data ?? null);
+        } catch (e) {
+            setPendingDetails({ data: [] });
+            console.error(e);
+        } finally {
+            setIsLoadingPendingDetails(false);
+        }
+    };
+
+    const openPendingModal = (teacher) => {
+        setSelectedTeacher(teacher);
+        setShowPendingModal(true);
+        fetchPendingDetails(teacher.id, 1);
+    };
 
     return (
         <AuthenticatedLayout
@@ -119,22 +149,45 @@ export default function AlertsIndex({
 
                 {/* Detailed Alerts Tabs */}
                 <Tabs defaultValue="low-enrollment" className="space-y-4">
-                    <TabsList className="grid w-full grid-cols-4">
-                        <TabsTrigger value="low-enrollment" className="flex items-center gap-2">
-                            <School className="w-4 h-4" />
-                            Low Enrollment ({alertsSummary.low_enrollment_count})
+                    <TabsList className="flex gap-2 w-full overflow-x-auto -mx-4 px-4 py-2 sm:grid sm:grid-cols-4 sm:overflow-visible sm:mx-0 sm:px-0">
+                        <TabsTrigger
+                            value="low-enrollment"
+                            aria-label={`Low Enrollment (${alertsSummary.low_enrollment_count})`}
+                            className="flex items-center gap-2 whitespace-nowrap px-3 py-2 rounded-md text-sm hover:bg-gray-50"
+                        >
+                            <School className="w-4 h-4 text-amber-600" />
+                            <span className="hidden sm:inline">Low Enrollment</span>
+                            <span className="ml-2 inline-flex items-center justify-center w-6 h-6 text-xs font-semibold rounded-full bg-amber-100 text-amber-800">{alertsSummary.low_enrollment_count}</span>
                         </TabsTrigger>
-                        <TabsTrigger value="unassigned-students" className="flex items-center gap-2">
-                            <UserX className="w-4 h-4" />
-                            Unassigned Students ({alertsSummary.unassigned_students_count})
+
+                        <TabsTrigger
+                            value="unassigned-students"
+                            aria-label={`Unassigned Students (${alertsSummary.unassigned_students_count})`}
+                            className="flex items-center gap-2 whitespace-nowrap px-3 py-2 rounded-md text-sm hover:bg-gray-50"
+                        >
+                            <UserX className="w-4 h-4 text-red-600" />
+                            <span className="hidden sm:inline">Unassigned Students</span>
+                            <span className="ml-2 inline-flex items-center justify-center w-6 h-6 text-xs font-semibold rounded-full bg-red-100 text-red-700">{alertsSummary.unassigned_students_count}</span>
                         </TabsTrigger>
-                        <TabsTrigger value="unassigned-subjects" className="flex items-center gap-2">
-                            <UserCheck className="w-4 h-4" />
-                            Unassigned Subjects ({alertsSummary.unassigned_subjects_count})
+
+                        <TabsTrigger
+                            value="unassigned-subjects"
+                            aria-label={`Unassigned Subjects (${alertsSummary.unassigned_subjects_count})`}
+                            className="flex items-center gap-2 whitespace-nowrap px-3 py-2 rounded-md text-sm hover:bg-gray-50"
+                        >
+                            <UserCheck className="w-4 h-4 text-orange-600" />
+                            <span className="hidden sm:inline">Unassigned Subjects</span>
+                            <span className="ml-2 inline-flex items-center justify-center w-6 h-6 text-xs font-semibold rounded-full bg-orange-100 text-orange-700">{alertsSummary.unassigned_subjects_count}</span>
                         </TabsTrigger>
-                        <TabsTrigger value="pending-grades" className="flex items-center gap-2">
-                            <ClipboardList className="w-4 h-4" />
-                            Pending Grades ({alertsSummary.pending_grades_count})
+
+                        <TabsTrigger
+                            value="pending-grades"
+                            aria-label={`Pending Grades (${alertsSummary.pending_grades_count})`}
+                            className="flex items-center gap-2 whitespace-nowrap px-3 py-2 rounded-md text-sm hover:bg-gray-50"
+                        >
+                            <ClipboardList className="w-4 h-4 text-purple-600" />
+                            <span className="hidden sm:inline">Pending Grades</span>
+                            <span className="ml-2 inline-flex items-center justify-center w-6 h-6 text-xs font-semibold rounded-full bg-purple-100 text-purple-700">{alertsSummary.pending_grades_count}</span>
                         </TabsTrigger>
                     </TabsList>
 
@@ -150,14 +203,15 @@ export default function AlertsIndex({
                                 </div>
                             </CardHeader>
                             <CardContent className="space-y-3">
-                                {lowEnrollmentSections.length === 0 ? (
+                                {lowEnrollmentSections.data.length === 0 ? (
                                     <div className="text-center py-8 text-gray-500">
                                         <School className="w-12 h-12 mx-auto mb-4 text-gray-300" />
                                         <p>No sections with low enrollment found.</p>
                                     </div>
                                 ) : (
+                                    <>
                                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                                        {lowEnrollmentSections.map((section, index) => (
+                                        {lowEnrollmentSections.data.map((section, index) => (
                                             <Link key={section.id ?? index} href={route('admin.sections.show', section.id)} className="block">
                                                 <Card className="h-full p-4 border border-amber-200 bg-white/80 hover:bg-white hover:shadow-sm transition-all duration-200 cursor-pointer flex flex-col justify-between">
                                                     <div className="min-w-0">
@@ -178,6 +232,26 @@ export default function AlertsIndex({
                                             </Link>
                                         ))}
                                     </div>
+
+                                    {(lowEnrollmentSections.prev_page_url || lowEnrollmentSections.next_page_url) && (
+                                        <div className="mt-4 flex items-center justify-between">
+                                            <div className="text-sm text-gray-500">Showing {lowEnrollmentSections.from}–{lowEnrollmentSections.to} of {lowEnrollmentSections.total}</div>
+                                            <div className="flex items-center gap-2">
+                                                {lowEnrollmentSections.prev_page_url ? (
+                                                    <Link href={lowEnrollmentSections.prev_page_url} preserveState className="text-sm px-3 py-1 rounded-md border">Previous</Link>
+                                                ) : (
+                                                    <span className="text-sm text-gray-400 px-3 py-1">Previous</span>
+                                                )}
+
+                                                {lowEnrollmentSections.next_page_url ? (
+                                                    <Link href={lowEnrollmentSections.next_page_url} preserveState className="text-sm px-3 py-1 rounded-md border">Next</Link>
+                                                ) : (
+                                                    <span className="text-sm text-gray-400 px-3 py-1">Next</span>
+                                                )}
+                                            </div>
+                                        </div>
+                                    )}
+                                    </>
                                 )}
                             </CardContent>
                         </Card>
@@ -195,14 +269,15 @@ export default function AlertsIndex({
                                 </div>
                             </CardHeader>
                             <CardContent className="space-y-3">
-                                {studentsWithoutSections.length === 0 ? (
+                                {studentsWithoutSections.data.length === 0 ? (
                                     <div className="text-center py-8 text-gray-500">
                                         <Users className="w-12 h-12 mx-auto mb-4 text-gray-300" />
                                         <p>All students are properly assigned to sections.</p>
                                     </div>
                                 ) : (
+                                    <>
                                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                                        {studentsWithoutSections.map((student, index) => (
+                                        {studentsWithoutSections.data.map((student, index) => (
                                             <Link key={student.id ?? index} href={route('registrar.students')} className="block">
                                                 <Card className="h-full p-4 border border-red-200 bg-white/80 hover:bg-white hover:shadow-sm transition-all duration-200 cursor-pointer flex flex-col justify-between">
                                                     <div className="min-w-0">
@@ -229,6 +304,26 @@ export default function AlertsIndex({
                                             </Link>
                                         ))}
                                     </div>
+
+                                    {(studentsWithoutSections.prev_page_url || studentsWithoutSections.next_page_url) && (
+                                        <div className="mt-4 flex items-center justify-between">
+                                            <div className="text-sm text-gray-500">Showing {studentsWithoutSections.from}–{studentsWithoutSections.to} of {studentsWithoutSections.total}</div>
+                                            <div className="flex items-center gap-2">
+                                                {studentsWithoutSections.prev_page_url ? (
+                                                    <Link href={studentsWithoutSections.prev_page_url} preserveState className="text-sm px-3 py-1 rounded-md border">Previous</Link>
+                                                ) : (
+                                                    <span className="text-sm text-gray-400 px-3 py-1">Previous</span>
+                                                )}
+
+                                                {studentsWithoutSections.next_page_url ? (
+                                                    <Link href={studentsWithoutSections.next_page_url} preserveState className="text-sm px-3 py-1 rounded-md border">Next</Link>
+                                                ) : (
+                                                    <span className="text-sm text-gray-400 px-3 py-1">Next</span>
+                                                )}
+                                            </div>
+                                        </div>
+                                    )}
+                                    </>
                                 )}
                             </CardContent>
                         </Card>
@@ -246,14 +341,15 @@ export default function AlertsIndex({
                                 </div>
                             </CardHeader>
                             <CardContent className="space-y-3">
-                                {sectionsWithoutTeachers.length === 0 ? (
+                                {sectionsWithoutTeachers.data.length === 0 ? (
                                     <div className="text-center py-8 text-gray-500">
                                         <BookOpen className="w-12 h-12 mx-auto mb-4 text-gray-300" />
                                         <p>All section subjects have assigned teachers.</p>
                                     </div>
                                 ) : (
+                                    <>
                                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                                        {sectionsWithoutTeachers.map((section, index) => (
+                                        {sectionsWithoutTeachers.data.map((section, index) => (
                                             <Link key={section.id ?? index} href={route(section.education_level === 'senior_high' ? 'admin.shs.sections.subjects' : 'admin.college.sections.subjects', section.id)} className="block">
                                                 <Card className="h-full p-4 border border-orange-200 bg-white/80 hover:bg-white hover:shadow-sm transition-all duration-200 cursor-pointer flex flex-col justify-between">
                                                     <div className="min-w-0">
@@ -285,6 +381,26 @@ export default function AlertsIndex({
                                             </Link>
                                         ))}
                                     </div>
+
+                                    {(sectionsWithoutTeachers.prev_page_url || sectionsWithoutTeachers.next_page_url) && (
+                                        <div className="mt-4 flex items-center justify-between">
+                                            <div className="text-sm text-gray-500">Showing {sectionsWithoutTeachers.from}–{sectionsWithoutTeachers.to} of {sectionsWithoutTeachers.total}</div>
+                                            <div className="flex items-center gap-2">
+                                                {sectionsWithoutTeachers.prev_page_url ? (
+                                                    <Link href={sectionsWithoutTeachers.prev_page_url} preserveState className="text-sm px-3 py-1 rounded-md border">Previous</Link>
+                                                ) : (
+                                                    <span className="text-sm text-gray-400 px-3 py-1">Previous</span>
+                                                )}
+
+                                                {sectionsWithoutTeachers.next_page_url ? (
+                                                    <Link href={sectionsWithoutTeachers.next_page_url} preserveState className="text-sm px-3 py-1 rounded-md border">Next</Link>
+                                                ) : (
+                                                    <span className="text-sm text-gray-400 px-3 py-1">Next</span>
+                                                )}
+                                            </div>
+                                        </div>
+                                    )}
+                                    </>
                                 )}
                             </CardContent>
                         </Card>
@@ -303,59 +419,177 @@ export default function AlertsIndex({
                                 </div> 
                             </CardHeader>
                             <CardContent className="space-y-3">
-                                {pendingGradeTeachers.length === 0 ? (
+                                {pendingGradeTeachers.data.length === 0 ? (
                                     <div className="text-center py-8 text-gray-500">
                                         <GraduationCap className="w-12 h-12 mx-auto mb-4 text-gray-300" />
                                         <p>All teachers have submitted their grades.</p>
                                     </div>
                                 ) : (
+                                    <>
                                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                                        {pendingGradeTeachers.map((teacher, index) => (
-                                            <Link key={teacher.id ?? index} href={route('admin.teachers.show', teacher.id)} className="block">
-                                                <Card className="h-full p-4 border border-purple-200 bg-white/80 hover:bg-white hover:shadow-sm transition-all duration-200 cursor-pointer flex flex-col justify-between">
-                                                    <div className="min-w-0">
-                                                        <p className="font-semibold text-sm text-gray-900 truncate">{teacher.name}</p>
+                                        {pendingGradeTeachers.data.map((teacher, index) => {
+                                            const totalStudents = teacher.sections?.reduce((sum, s) => sum + (s.student_count || 0), 0) ?? 0;
 
-                                                        <div className="mt-2 flex flex-wrap gap-1">
-                                                            {teacher.sections.slice(0, 3).map((section, sectIndex) => (
-                                                                <Badge key={sectIndex} variant="outline" className="text-xs text-purple-700 border-purple-300 bg-purple-50">
-                                                                    {section.name} • {section.student_count}
-                                                                </Badge>
-                                                            ))}
-                                                            {teacher.sections.length > 3 && (
-                                                                <Badge variant="outline" className="text-xs text-purple-700 border-purple-300 bg-purple-50">
-                                                                    +{teacher.sections.length - 3} more
-                                                                </Badge>
-                                                            )}
-                                                        </div>
-                                                        <div className="mt-2 flex gap-1">
-                                                            {teacher.education_levels.map((level, levelIndex) => (
-                                                                <Badge key={levelIndex} variant="outline" className="text-xs text-purple-600 border-purple-300">
-                                                                    {level === 'senior_high' ? 'SHS' : 'College'}
-                                                                </Badge>
-                                                            ))}
-                                                        </div>
-                                                    </div>
-                                                    <div className="mt-4 flex items-center justify-end gap-3">
-                                                        <Badge variant="outline" className="text-purple-700 border-purple-300 bg-purple-50 font-semibold">
-                                                            {teacher.pending_subjects_count} subjects
-                                                        </Badge>
+                                            return (
+                                                <div key={teacher.id ?? index} role="button" onClick={() => openPendingModal(teacher)} className="block">
+                                                    <Card className="h-full p-4 border border-purple-200 bg-white/80 hover:bg-white hover:shadow-sm transition-all duration-200 cursor-pointer flex flex-col justify-between">
+                                                        <div className="min-w-0">
+                                                            <div className="flex items-start justify-between gap-4">
+                                                                <div className="min-w-0">
+                                                                    <p className="font-semibold text-sm text-gray-900 truncate">{teacher.name}</p>
+                                                                    <p className="text-xs text-gray-600 truncate mt-1">{teacher.sections?.[0]?.name ?? ''}</p>
+                                                                    <div className="mt-2 flex flex-wrap gap-1">
+                                                                     
+                                                                        {teacher.sections.length > 3 && (
+                                                                            <Badge variant="outline" className="text-xs text-purple-700 border-purple-300 bg-purple-50">
+                                                                                +{teacher.sections.length - 3} more
+                                                                            </Badge>
+                                                                        )}
+                                                                    </div>
+                                                                </div>
 
-                                                        <div className="text-right">
-                                                            {teacher.email && (
-                                                                <div className="text-xs text-gray-500">{teacher.email}</div>
-                                                            )}
+                                                                <div className="text-right">
+                                                                    <div className="text-2xl font-bold text-purple-700">{totalStudents}</div>
+                                                                    <div className="text-xs text-gray-500">students</div>
+                                                                </div>
+                                                            </div>
+
+                                                            <div className="mt-2 flex gap-1">
+                                                                {teacher.education_levels.map((level, levelIndex) => (
+                                                                    <Badge key={levelIndex} variant="outline" className="text-xs text-purple-600 border-purple-300">
+                                                                        {level === 'senior_high' ? 'SHS' : 'College'}
+                                                                    </Badge>
+                                                                ))}
+                                                            </div>
                                                         </div>
-                                                    </div>
-                                                </Card>
-                                            </Link>
-                                        ))}
+                                                        <div className="mt-4 flex items-center justify-end gap-3">
+                                                            <Badge variant="outline" className="text-purple-700 border-purple-300 bg-purple-50 font-semibold">
+                                                                {teacher.pending_subjects_count} subjects
+                                                            </Badge>
+
+                                                            <div className="text-right">
+                                                                <div className="text-xs text-gray-500">Click to view missing students</div>
+                                                            </div>
+                                                        </div>
+                                                    </Card>
+                                                </div>
+                                            );
+                                        })}
                                     </div>
+
+                                    {(pendingGradeTeachers.prev_page_url || pendingGradeTeachers.next_page_url) && (
+                                        <div className="mt-4 flex items-center justify-between">
+                                            <div className="text-sm text-gray-500">Showing {pendingGradeTeachers.from}–{pendingGradeTeachers.to} of {pendingGradeTeachers.total}</div>
+                                            <div className="flex items-center gap-2">
+                                                {pendingGradeTeachers.prev_page_url ? (
+                                                    <Link href={pendingGradeTeachers.prev_page_url} preserveState className="text-sm px-3 py-1 rounded-md border">Previous</Link>
+                                                ) : (
+                                                    <span className="text-sm text-gray-400 px-3 py-1">Previous</span>
+                                                )}
+
+                                                {pendingGradeTeachers.next_page_url ? (
+                                                    <Link href={pendingGradeTeachers.next_page_url} preserveState className="text-sm px-3 py-1 rounded-md border">Next</Link>
+                                                ) : (
+                                                    <span className="text-sm text-gray-400 px-3 py-1">Next</span>
+                                                )}
+                                            </div>
+                                        </div>
+                                    )}
+                                    </>
                                 )}
                             </CardContent>
                         </Card>
                     </TabsContent>
                 </Tabs>
+
+                {/* Pending Grades Details Modal */}
+                <Dialog open={showPendingModal} onOpenChange={setShowPendingModal}>
+                    <DialogContent className="max-w-4xl max-h-[85vh] overflow-y-auto">
+                        <DialogHeader className="border-b border-gray-200 pb-4">
+                            <DialogTitle className="flex items-center gap-2 text-lg font-semibold">
+                                {selectedTeacher ? `Missing Grades — ${selectedTeacher.name}` : 'Missing Grades'}
+                            </DialogTitle>
+                            <DialogDescription>
+                                <span className="text-sm text-gray-600">Students and missing grade components by subject</span>
+                            </DialogDescription>
+                        </DialogHeader>
+
+                        <div className="mt-4">
+                            {isLoadingPendingDetails ? (
+                                <div className="py-8 text-center text-gray-500">Loading…</div>
+                            ) : (!pendingDetails || (Array.isArray(pendingDetails.data) && pendingDetails.data.length === 0)) ? (
+                                <div className="text-center py-8 text-gray-500">
+                                    <GraduationCap className="w-12 h-12 mx-auto mb-4 text-gray-300" />
+                                    <p>No missing grades for this teacher.</p>
+                                </div>
+                            ) : (
+                                <div className="space-y-3">
+                                    <div className="border border-gray-200 rounded-lg overflow-hidden bg-white">
+                                        <div className="max-h-[440px] overflow-y-auto">
+                                            <table className="w-full text-sm">
+                                                <thead className="bg-gray-50 sticky top-0 z-10">
+                                                    <tr className="border-b border-gray-200">
+                                                        <th className="px-3 py-2.5 text-left font-semibold text-gray-700 w-12">#</th>
+                                                        <th className="px-3 py-2.5 text-left font-semibold text-gray-700">Student</th>
+                                                        <th className="px-3 py-2.5 text-left font-semibold text-gray-700">Subject</th>
+                                                        <th className="px-3 py-2.5 text-left font-semibold text-gray-700">Section</th>
+                                                        <th className="px-3 py-2.5 text-left font-semibold text-gray-700">Academic Year</th>
+                                                        <th className="px-3 py-2.5 text-left font-semibold text-gray-700">Semester</th>
+                                                        <th className="px-3 py-2.5 text-left font-semibold text-gray-700">Type</th>
+                                                        <th className="px-3 py-2.5 text-left font-semibold text-gray-700">Missing Grades</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody className="divide-y divide-gray-200">
+                                                    {pendingDetails.data.map((item, idx) => (
+                                                        <tr key={`pending-${idx}`} className="hover:bg-gray-50 transition-colors">
+                                                            <td className="px-3 py-3 text-gray-600 font-medium">{pendingDetails.from + idx}</td>
+                                                            <td className="px-3 py-3">
+                                                                <span className="font-medium text-gray-900">{item.student}</span>
+                                                            </td>
+                                                            <td className="px-3 py-3 text-gray-700">{item.subject}</td>
+                                                            <td className="px-3 py-3 text-gray-700">{item.section}</td>
+                                                            <td className="px-3 py-3 text-gray-700">{item.academic_year}</td>
+                                                            <td className="px-3 py-3">
+                                                                <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800">{item.semester}</span>
+                                                            </td>
+                                                            <td className="px-3 py-3">
+                                                                <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-800">{item.type}</span>
+                                                            </td>
+                                                            <td className="px-3 py-3">
+                                                                <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-800">{item.missing_grades}</span>
+                                                            </td>
+                                                        </tr>
+                                                    ))}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+
+                                    {pendingDetails.total > pendingDetails.per_page && (
+                                        <div className="mt-4 flex items-center justify-between">
+                                            <div className="text-sm text-gray-500">Showing {pendingDetails.from}–{pendingDetails.to} of {pendingDetails.total}</div>
+                                            <div className="flex items-center gap-2">
+                                                <Button size="sm" variant="outline" disabled={!pendingDetails.prev_page_url} onClick={() => fetchPendingDetails(selectedTeacher.id, pendingDetails.current_page - 1)}>
+                                                    Previous
+                                                </Button>
+
+                                                <div className="text-sm text-gray-600">Page {pendingDetails.current_page} of {pendingDetails.last_page}</div>
+
+                                                <Button size="sm" variant="outline" disabled={!pendingDetails.next_page_url} onClick={() => fetchPendingDetails(selectedTeacher.id, pendingDetails.current_page + 1)}>
+                                                    Next
+                                                </Button>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+                        </div>
+
+                        <div className="mt-6 flex justify-end">
+                            <Button onClick={() => setShowPendingModal(false)} variant="outline">Close</Button>
+                        </div>
+                    </DialogContent>
+                </Dialog>
 
             </div>
         </AuthenticatedLayout>

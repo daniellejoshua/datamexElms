@@ -72,9 +72,10 @@ it('does not duplicate a teacher when they have pending grades across SHS and Co
 
     $response = $this->get(route('admin.alerts.index'));
 
-    $response->assertOk()->assertInertia(fn ($page) => $page->has('pendingGradeTeachers', 1)
-        ->where('pendingGradeTeachers.0.id', $teacher->id)
-        ->where('pendingGradeTeachers.0.education_levels', ['college', 'senior_high'])
+    $response->assertOk()->assertInertia(fn ($page) => $page->has('pendingGradeTeachers.data', 1)
+        ->where('pendingGradeTeachers.data.0.id', $teacher->id)
+        ->where('pendingGradeTeachers.data.0.education_levels', ['college', 'senior_high'])
+        ->where('pendingGradeTeachers.per_page', 3)
     );
 });
 
@@ -127,9 +128,141 @@ it('shows only SHS for a teacher who only teaches SHS and returns student counts
 
     $response = $this->get(route('admin.alerts.index'));
 
-    $response->assertOk()->assertInertia(fn ($page) => $page->has('pendingGradeTeachers', 1)
-        ->where('pendingGradeTeachers.0.id', $teacher->id)
-        ->where('pendingGradeTeachers.0.education_levels', ['senior_high'])
-        ->where('pendingGradeTeachers.0.sections.0.student_count', 2)
+    $response->assertOk()->assertInertia(fn ($page) => $page->has('pendingGradeTeachers.data', 1)
+        ->where('pendingGradeTeachers.data.0.id', $teacher->id)
+        ->where('pendingGradeTeachers.data.0.education_levels', ['senior_high'])
+        ->where('pendingGradeTeachers.data.0.sections.0.student_count', 2)
+        ->where('pendingGradeTeachers.per_page', 3)
     );
+});
+
+it('returns incomplete grade rows for a teacher (used by admin pending-grades modal)', function () {
+    config(['school_settings.current_academic_year' => '2024-2025']);
+    config(['school_settings.current_semester' => '1st']);
+
+    $admin = User::factory()->create(['role' => 'super_admin']);
+    $this->actingAs($admin);
+
+    $teacher = Teacher::factory()->create();
+
+    $program = Program::factory()->create(['education_level' => 'college', 'program_code' => 'COL']);
+    $section = Section::factory()->create([
+        'program_id' => $program->id,
+        'academic_year' => '2024-2025',
+        'semester' => '1st',
+        'year_level' => 1,
+        'section_name' => 'A',
+    ]);
+
+    $subject = \App\Models\Subject::factory()->create();
+
+    $sectionSubject = SectionSubject::factory()->create([
+        'section_id' => $section->id,
+        'subject_id' => $subject->id,
+        'teacher_id' => $teacher->id,
+        'status' => 'active',
+    ]);
+
+    $student = Student::factory()->create(['program_id' => $program->id, 'education_level' => 'college']);
+
+    $enrollment = StudentEnrollment::factory()->create([
+        'student_id' => $student->id,
+        'section_id' => $section->id,
+        'status' => 'active',
+        'academic_year' => '2024-2025',
+        'semester' => '1st',
+    ]);
+
+    // Create a StudentGrade with missing prelim (null) to simulate incomplete grades
+    \App\Models\StudentGrade::create([
+        'student_enrollment_id' => $enrollment->id,
+        'section_subject_id' => $sectionSubject->id,
+        'teacher_id' => $teacher->id,
+        'prelim_grade' => null,
+        'midterm_grade' => null,
+        'prefinal_grade' => null,
+        'final_grade' => null,
+    ]);
+
+    $response = $this->getJson(route('admin.alerts.pending-grades.show', ['teacher' => $teacher->id]));
+
+    $response->assertOk();
+    $payload = $response->json();
+
+    // Paginated response
+    expect(array_key_exists('data', $payload))->toBeTrue();
+    expect($payload['per_page'])->toBe(5);
+    expect($payload['total'])->toBeGreaterThanOrEqual(1);
+    expect(count($payload['data']))->toBeGreaterThanOrEqual(1);
+    expect($payload['data'][0])->toHaveKey('student');
+    expect($payload['data'][0])->toHaveKey('subject');
+    expect($payload['data'][0])->toHaveKey('missing_grades');
+    expect(str_contains($payload['data'][0]['missing_grades'], 'P') || str_contains($payload['data'][0]['missing_grades'], 'F'))->toBeTrue();
+
+});
+
+it('paginates pending grades modal with 5 items per page', function () {
+    config(['school_settings.current_academic_year' => '2024-2025']);
+    config(['school_settings.current_semester' => '1st']);
+
+    $admin = User::factory()->create(['role' => 'super_admin']);
+    $this->actingAs($admin);
+
+    $teacher = Teacher::factory()->create();
+
+    $program = Program::factory()->create(['education_level' => 'college', 'program_code' => 'COL']);
+    $section = Section::factory()->create([
+        'program_id' => $program->id,
+        'academic_year' => '2024-2025',
+        'semester' => '1st',
+        'year_level' => 1,
+        'section_name' => 'A',
+    ]);
+
+    $subject = \App\Models\Subject::factory()->create();
+
+    $sectionSubject = SectionSubject::factory()->create([
+        'section_id' => $section->id,
+        'subject_id' => $subject->id,
+        'teacher_id' => $teacher->id,
+        'status' => 'active',
+    ]);
+
+    // create 7 students with incomplete grades
+    $students = \App\Models\Student::factory()->count(7)->create(['program_id' => $program->id, 'education_level' => 'college']);
+
+    foreach ($students as $student) {
+        $enrollment = StudentEnrollment::factory()->create([
+            'student_id' => $student->id,
+            'section_id' => $section->id,
+            'status' => 'active',
+            'academic_year' => '2024-2025',
+            'semester' => '1st',
+        ]);
+
+        \App\Models\StudentGrade::create([
+            'student_enrollment_id' => $enrollment->id,
+            'section_subject_id' => $sectionSubject->id,
+            'teacher_id' => $teacher->id,
+            'prelim_grade' => null,
+            'midterm_grade' => null,
+            'prefinal_grade' => null,
+            'final_grade' => null,
+        ]);
+    }
+
+    $page1 = $this->getJson(route('admin.alerts.pending-grades.show', ['teacher' => $teacher->id, 'page' => 1]));
+    $page1->assertOk();
+    $p1 = $page1->json();
+    expect($p1['per_page'])->toBe(5);
+    expect($p1['total'])->toBe(7);
+    expect(count($p1['data']))->toBe(5);
+
+    $page2 = $this->getJson(route('admin.alerts.pending-grades.show', ['teacher' => $teacher->id, 'page' => 2]));
+    $page2->assertOk();
+    $p2 = $page2->json();
+    expect($p2['per_page'])->toBe(5);
+    expect($p2['total'])->toBe(7);
+    expect(count($p2['data']))->toBe(2);
+
 });
