@@ -376,11 +376,37 @@ class SubjectController extends Controller
             ->orderBy('semester', 'desc')
             ->get();
 
+        // Determine visible grade periods server-side (same rules as GradesController)
+        $visiblePeriods = [
+            'prelim' => false,
+            'midterm' => false,
+            'prefinal' => false,
+            'final' => false,
+            'semester' => false,
+        ];
+
+        if ($paymentStatus) {
+            if ($paymentStatus->balance === 0) {
+                $visiblePeriods = array_fill_keys(array_keys($visiblePeriods), true);
+            } else {
+                if (! empty($paymentStatus->final_paid)) {
+                    $visiblePeriods = ['prelim' => true, 'midterm' => true, 'prefinal' => true, 'final' => true, 'semester' => false];
+                } elseif (! empty($paymentStatus->prefinal_paid)) {
+                    $visiblePeriods = ['prelim' => true, 'midterm' => true, 'prefinal' => true, 'final' => false, 'semester' => false];
+                } elseif (! empty($paymentStatus->midterm_paid)) {
+                    $visiblePeriods = ['prelim' => true, 'midterm' => true, 'prefinal' => false, 'final' => false, 'semester' => false];
+                } elseif (! empty($paymentStatus->prelim_paid)) {
+                    $visiblePeriods = ['prelim' => true, 'midterm' => false, 'prefinal' => false, 'final' => false, 'semester' => false];
+                }
+            }
+        }
+
         return Inertia::render('Student/Subjects/Index', [
             'subjects' => $subjects,
             'student' => $student->load('user'),
             'archivedEnrollments' => $archivedEnrollments,
             'paymentStatus' => $paymentStatus,
+            'visibleGradePeriods' => $visiblePeriods,
         ]);
     }
 

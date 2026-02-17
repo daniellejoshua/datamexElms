@@ -88,32 +88,32 @@ const getVisibleGrades = (paymentStatus) => {
         return { prelim: true, midterm: true, prefinal: true, final: true, semester: true };
     }
 
-    // Payment-based logic
-    const prelimPaid = paymentStatus.prelim_paid == true;
-    const midtermPaid = paymentStatus.midterm_paid == true;
-    const prefinalPaid = paymentStatus.prefinal_paid == true;
-    const finalPaid = paymentStatus.final_paid == true;
+    const prelimPaid = Boolean(paymentStatus.prelim_paid);
+    const midtermPaid = Boolean(paymentStatus.midterm_paid);
+    const prefinalPaid = Boolean(paymentStatus.prefinal_paid);
+    const finalPaid = Boolean(paymentStatus.final_paid);
 
-    // If finals are paid: show all grades
+    // Precedence: final > prefinal > midterm > prelim
     if (finalPaid) {
-        return { prelim: true, midterm: true, prefinal: true, final: true, semester: true };
+        return { prelim: true, midterm: true, prefinal: true, final: true, semester: false };
     }
 
-    // If prefinals are paid but not prelim: show prelim, midterm, and prefinals
-    if (prefinalPaid && !prelimPaid) {
-        return { prelim: true, midterm: true, prefinal: true, final: false, semester: true };
+    if (prefinalPaid) {
+        return { prelim: true, midterm: true, prefinal: true, final: false, semester: false };
     }
 
-    // If prelim is paid: show only prelim
+    if (midtermPaid) {
+        return { prelim: true, midterm: true, prefinal: false, final: false, semester: false };
+    }
+
     if (prelimPaid) {
         return { prelim: true, midterm: false, prefinal: false, final: false, semester: false };
     }
 
-    // Default: no grades visible
     return { prelim: false, midterm: false, prefinal: false, final: false, semester: false };
 };
 
-const Index = ({ auth, student, currentGrades, paymentStatus, stats }) => {
+const Index = ({ auth, student, currentGrades, paymentStatus, visibleGradePeriods, stats }) => {
     return (
         <AuthenticatedLayout
             auth={auth}
@@ -386,8 +386,8 @@ const Index = ({ auth, student, currentGrades, paymentStatus, stats }) => {
                                                 // Calculate average grade for card color
                                                 const averageGrade = validGrades.length > 0 ? validGrades.reduce((a, b) => a + b, 0) / validGrades.length : null;
 
-                                                // Get visible grades for college students based on payment status
-                                                const visibleGrades = isSHS ? null : getVisibleGrades(paymentStatus);
+                                                // Get visible grades for college students based on server-provided periods or payment status
+                                                const visibleGrades = isSHS ? null : (visibleGradePeriods ?? getVisibleGrades(paymentStatus));
 
                                                 return (
                                                     <Card key={index} className="hover:shadow-lg transition-all duration-300">

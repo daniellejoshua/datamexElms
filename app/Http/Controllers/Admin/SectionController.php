@@ -262,9 +262,18 @@ class SectionController extends Controller
 
         // Filter students based on enrollment rules
         $availableStudents = $availableStudentsQuery->get()->filter(function ($student) use ($section) {
-            // For regular students: exclude only if they already have an active enrollment
-            // with a section assigned in the current academic period (prevents double-sectioning)
+            // For regular students: ensure year-level matches the section and exclude only if
+            // they already have an active enrollment with an assigned section in the current period.
             if ($student->student_type !== 'irregular') {
+                // Strictly require the student's numeric year level to match the section's year level
+                $studentYear = (int) ($student->current_year_level ?? $student->year_level ?? 0);
+                $sectionYear = (int) $section->year_level;
+
+                if ($studentYear !== $sectionYear) {
+                    // Regular students on a different year level must not appear as available
+                    return false;
+                }
+
                 $hasActiveEnrollmentWithSection = $student->studentEnrollments->contains(function ($enrollment) use ($section) {
                     return $enrollment->academic_year === $section->academic_year &&
                            $enrollment->semester === $section->semester &&
@@ -326,6 +335,13 @@ class SectionController extends Controller
             // Allow enrollment in same or lower year level as long as they haven't completed all subjects
             return true;
         });
+
+        \Log::info('Admin Section show - available students', [
+            'section_id' => $section->id,
+            'section_year' => $section->year_level,
+            'available_count' => $availableStudents->count(),
+            'available_ids' => $availableStudents->pluck('id')->toArray(),
+        ]);
 
         return $this->inertia->render('Admin/Sections/Show', [
             'section' => $section,
@@ -550,6 +566,14 @@ class SectionController extends Controller
             ->where('status', 'active')
             ->get();
 
+        // Annotate each enrolled student's model with UI flags.
+        // Subject-level management is only available for irregular students.
+        foreach ($enrolledStudents as $enrollment) {
+            $student = $enrollment->student;
+
+            $student->setAttribute('can_manage_subjects', $student->student_type === 'irregular');
+        }
+
         $enrolledStudentIds = $enrolledStudents->pluck('student.id')->toArray();
 
         // Get available students that match the program and enrollment rules
@@ -594,9 +618,18 @@ class SectionController extends Controller
             });
 
         $availableStudents = $availableStudentsQuery->get()->filter(function ($student) use ($section) {
-            // For regular students: exclude only if they already have an active enrollment
-            // with a section assigned in the current academic period (prevents double-sectioning)
+            // For regular students: require exact year-level match and exclude if they
+            // already have an active enrollment with an assigned section in the same period.
             if ($student->student_type !== 'irregular') {
+                // Normalize numeric year from either `current_year_level` or `year_level` (handles strings like "1st Year")
+                $studentYear = (int) ($student->current_year_level ?? $student->year_level ?? 0);
+                $sectionYear = (int) $section->year_level;
+
+                // Exclude regular students whose year level does not equal the section's year level
+                if ($studentYear !== $sectionYear) {
+                    return false;
+                }
+
                 $hasActiveEnrollmentWithSection = $student->studentEnrollments->contains(function ($enrollment) use ($section) {
                     return $enrollment->academic_year === $section->academic_year &&
                            $enrollment->semester === $section->semester &&
@@ -1367,10 +1400,49 @@ class SectionController extends Controller
                     }
                     // For irregular students in different year levels, enroll them in subjects they haven't taken yet
                 } else {
-                    // For regular students, enroll them in all section subjects
-                    $sectionSubjects = SectionSubject::where('section_id', $section->id)
-                        ->where('status', 'active')
-                        ->get();
+                    // For regular students, enroll them in section subjects BUT
+                    // exclude any subjects the student already has credited (by code or id).
+                    $creditedSubjectCodes = \App\Models\StudentSubjectCredit::where('student_id', $studentId)
+                        ->where('credit_status', 'credited')
+                        ->pluck('subject_code')
+                        ->toArray();
+
+                    $creditedSubjectIds = \App\Models\StudentSubjectCredit::where('student_id', $studentId)
+                        ->where('credit_status', 'credited')
+                        ->whereNotNull('subject_id')
+                        ->pluck('subject_id')
+                        ->toArray();
+
+                    $creditTransferSubjectCodes = \App\Models\StudentCreditTransfer::where('student_id', $studentId)
+                        ->where('credit_status', 'credited')
+                        ->pluck('subject_code')
+                        ->toArray();
+
+                    $creditTransferSubjectIds = \App\Models\StudentCreditTransfer::where('student_id', $studentId)
+                        ->where('credit_status', 'credited')
+                        ->whereNotNull('subject_id')
+                        ->pluck('subject_id')
+                        ->toArray();
+
+                    $allCreditedCodes = array_unique(array_merge($creditedSubjectCodes, $creditTransferSubjectCodes));
+                    $allCreditedIds = array_unique(array_merge($creditedSubjectIds, $creditTransferSubjectIds));
+
+                    $sectionSubjectsQuery = \App\Models\SectionSubject::where('section_id', $section->id)
+                        ->where('status', 'active');
+
+                    if (! empty($allCreditedCodes) || ! empty($allCreditedIds)) {
+                        $sectionSubjectsQuery->whereHas('subject', function ($q) use ($allCreditedCodes, $allCreditedIds) {
+                            if (! empty($allCreditedCodes)) {
+                                $q->whereNotIn('subject_code', $allCreditedCodes);
+                            }
+
+                            if (! empty($allCreditedIds)) {
+                                $q->whereNotIn('id', $allCreditedIds);
+                            }
+                        });
+                    }
+
+                    $sectionSubjects = $sectionSubjectsQuery->get();
 
                     foreach ($sectionSubjects as $sectionSubject) {
                         // Check if student is already enrolled in this subject
@@ -1742,6 +1814,9 @@ class SectionController extends Controller
             ->map(function ($enrollment) {
                 return $enrollment->sectionSubject;
             });
+
+        // Only irregular students can manage subjects
+        $student->setAttribute('can_manage_subjects', $student->student_type === 'irregular');
 
         return $this->inertia->render('Admin/Sections/SubjectEnrollment', [
             'section' => $section,

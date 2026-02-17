@@ -258,6 +258,40 @@ it('validates required fields', function () {
     ]);
 });
 
+it('accepts enrollment fee for transferee determined regular', function () {
+    // Ensure first semester so transferees are allowed
+    SchoolSetting::setCurrentAcademicPeriod('2024-2025', '1st');
+
+    $this->actingAs($this->user);
+
+    $studentData = [
+        'first_name' => 'Transferee',
+        'last_name' => 'Regularized',
+        'birth_date' => '2000-06-15',
+        'email' => 'transferee.regularized.'.uniqid().'@example.com',
+        'program_id' => $this->program->id,
+        'year_level' => '2nd Year',
+        'student_type' => 'regular',
+        'enrollment_type' => 'transferee',
+        'education_level' => 'college',
+        'enrollment_fee' => 4500.00,
+        'payment_amount' => 0.00,
+    ];
+
+    $response = $this->post(route('registrar.students.store'), $studentData);
+
+    $response->assertRedirect(route('registrar.students'));
+    $response->assertSessionHas('success');
+
+    $student = Student::whereHas('user', fn ($q) => $q->where('email', $studentData['email']))->first();
+    expect($student)->not->toBeNull();
+    expect($student->student_type)->toBe('regular');
+
+    $payment = StudentSemesterPayment::where('student_id', $student->id)->first();
+    expect($payment)->not->toBeNull();
+    expect((float) $payment->enrollment_fee)->toBe(4500.00);
+});
+
 it('assigns older curriculum to transfer student when batch matches', function () {
     $this->actingAs($this->user);
 

@@ -309,7 +309,7 @@ const Index = ({ currentPayment, paymentHistory, stats, currentAcademicInfo, stu
                                                         {payment.academic_year} - {getSemesterDisplay(payment.semester)}
                                                     </p>
                                                     <p className="text-sm text-gray-500">
-                                                        Total: {formatCurrency(student.student_type === 'regular' ? payment.total_semester_fee : (payment.calculated_total_amount || payment.total_amount || 0))} • Paid: {formatCurrency(payment.total_paid)}
+                                                        Total: {formatCurrency(payment.calculated_total_amount ?? payment.total_semester_fee)} • Paid: {formatCurrency(payment.total_paid)}
                                                     </p>
                                                 </div>
                                             </div>
@@ -324,7 +324,7 @@ const Index = ({ currentPayment, paymentHistory, stats, currentAcademicInfo, stu
                                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                                                 <div>
                                                     <p className="text-sm text-gray-500">Total Fee</p>
-                                                    <p className="text-lg font-bold">{formatCurrency(student.student_type === 'regular' ? payment.total_semester_fee : (payment.calculated_total_amount || payment.total_amount || 0))}</p>
+                                                    <p className="text-lg font-bold">{formatCurrency(payment.calculated_total_amount ?? (student.student_type === 'regular' ? payment.total_semester_fee : (payment.total_amount || 0)))}</p>
                                                 </div>
                                                 <div>
                                                     <p className="text-sm text-gray-500">Total Paid</p>
@@ -341,8 +341,8 @@ const Index = ({ currentPayment, paymentHistory, stats, currentAcademicInfo, stu
                                                     </Badge>
                                                 </div>
                                             </div>
-                                            {/* Balance Calculation Button - Only for irregular students */}
-                                            {student.student_type !== 'regular' && (
+                                            {/* Balance Calculation Button - show for irregular students OR transferees with credit transfers/previous_school */}
+                                            {(student.student_type !== 'regular' || student.previous_school || (student.creditTransfers && student.creditTransfers.length > 0)) && (
                                                 <div className="flex justify-center">
                                                     <Button
                                                         onClick={() => handleShowCalculation(payment)}
@@ -430,7 +430,7 @@ const Index = ({ currentPayment, paymentHistory, stats, currentAcademicInfo, stu
                                                                         </div>
                                                                     </td>
                                                                     <td className="py-3 px-4 text-right font-medium text-blue-600">
-                                                                        {formatCurrency(student.student_type === 'regular' ? payment.total_semester_fee : (payment.calculated_total_amount || payment.total_amount || 0))}
+                                                                        {formatCurrency(payment.calculated_total_amount ?? (student.student_type === 'regular' ? payment.total_semester_fee : (payment.total_amount || 0)))}
                                                                     </td>
                                                                     <td className="py-3 px-4 text-center">
                                                                         <Badge className="bg-blue-100 text-blue-800 border-blue-200">

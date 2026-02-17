@@ -206,7 +206,7 @@ export default function CollegePaymentShow({ student, payments, auth }) {
                                                         {payment.academic_year} - {payment.semester} Semester
                                                     </p>
                                                     <p className="text-sm text-gray-500">
-                                                        Total: {formatCurrency(payment.total_semester_fee)} • Paid: {formatCurrency(payment.total_paid)}
+                                                        Total: {formatCurrency(payment.calculated_total_amount ?? payment.total_semester_fee)} • Paid: {formatCurrency(payment.total_paid)}
                                                     </p>
                                                 </div>
                                             </div>
@@ -221,7 +221,7 @@ export default function CollegePaymentShow({ student, payments, auth }) {
                                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-2">
                                                 <div>
                                                     <p className="text-sm text-gray-500">Total Fee</p>
-                                                    <p className="text-lg font-bold">{formatCurrency(payment.total_semester_fee)}</p>
+                                                    <p className="text-lg font-bold">{formatCurrency(payment.calculated_total_amount ?? payment.total_semester_fee)}</p>
                                                 </div>
                                                 <div>
                                                     <p className="text-sm text-gray-500">Total Paid</p>
@@ -237,8 +237,8 @@ export default function CollegePaymentShow({ student, payments, auth }) {
                                                 </div>
                                             </div>
 
-                                            {/* Balance Calculation Button - Only for irregular students */}
-                                            {student.student_type === 'irregular' && (
+                                            {/* Balance Calculation Button - show for irregular students OR transferees with creditTransfers/previous_school */}
+                                            {(student.student_type === 'irregular' || student.previous_school || (student.creditTransfers && student.creditTransfers.length > 0)) && (
                                                 <div className="flex justify-center">
                                                     <Button
                                                         onClick={() => handleShowCalculation(payment)}

@@ -16,7 +16,7 @@ import {
     BookOpen
 } from 'lucide-react';
 
-export default function GradesModal({ isOpen, onClose, subject, paymentStatus }) {
+export default function GradesModal({ isOpen, onClose, subject, paymentStatus, visibleGradePeriods }) {
     if (!subject) return null;
 
     // Determine if this is SHS or College based on year level
@@ -58,38 +58,37 @@ export default function GradesModal({ isOpen, onClose, subject, paymentStatus })
             return { prelim: false, midterm: false, prefinal: false, final: false, semester: false };
         }
 
-        // If balance is 0, show all grades including semester grade
         if (paymentStatus.balance === 0) {
             return { prelim: true, midterm: true, prefinal: true, final: true, semester: true };
         }
 
-        // Payment-based logic
-        const prelimPaid = paymentStatus.prelim_paid === true;
-        const midtermPaid = paymentStatus.midterm_paid === true;
-        const prefinalPaid = paymentStatus.prefinal_paid === true;
-        const finalPaid = paymentStatus.final_paid === true;
+        const prelimPaid = Boolean(paymentStatus.prelim_paid);
+        const midtermPaid = Boolean(paymentStatus.midterm_paid);
+        const prefinalPaid = Boolean(paymentStatus.prefinal_paid);
+        const finalPaid = Boolean(paymentStatus.final_paid);
 
-        // If finals are paid: show all grades
         if (finalPaid) {
-            return { prelim: true, midterm: true, prefinal: true, final: true, semester: true };
+            return { prelim: true, midterm: true, prefinal: true, final: true, semester: false };
         }
 
-        // If prefinals are paid but not prelim: show prelim, midterm, and prefinals
-        if (prefinalPaid && !prelimPaid) {
-            return { prelim: true, midterm: true, prefinal: true, final: false, semester: true };
+        if (prefinalPaid) {
+            return { prelim: true, midterm: true, prefinal: true, final: false, semester: false };
         }
 
-        // If prelim is paid: show only prelim
+        if (midtermPaid) {
+            return { prelim: true, midterm: true, prefinal: false, final: false, semester: false };
+        }
+
         if (prelimPaid) {
             return { prelim: true, midterm: false, prefinal: false, final: false, semester: false };
         }
 
-        // Default: no grades visible
         return { prelim: false, midterm: false, prefinal: false, final: false, semester: false };
     };
 
     // Define grade items based on student type
-    const visibleGrades = isSHS ? null : getVisibleGrades(paymentStatus);
+    // Prefer server-provided `visibleGradePeriods` when available (keeps logic identical to Grades index)
+    const visibleGrades = isSHS ? null : (visibleGradePeriods ?? getVisibleGrades(paymentStatus));
     const gradeItems = isSHS ? [
         { label: 'Q1', value: subject.grades?.q1_grade, weight: '50%' },
         { label: 'Q2', value: subject.grades?.q2_grade, weight: '50%' },

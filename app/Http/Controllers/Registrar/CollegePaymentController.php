@@ -142,7 +142,7 @@ class CollegePaymentController extends Controller
      */
     public function show(Student $student): Response
     {
-        $student->load(['user', 'program']);
+        $student->load(['user', 'program', 'creditTransfers']);
 
         if ($student->education_level === 'college') {
             $payments = StudentSemesterPayment::where('student_id', $student->id)
@@ -157,6 +157,20 @@ class CollegePaymentController extends Controller
                 ->get();
         } else {
             abort(404, 'Student education level not supported.');
+        }
+
+        // Pre-calculate irregular/transferee balances for display when applicable
+        $hasCreditTransfers = $student->creditTransfers()->exists() || (bool) $student->previous_school;
+        if ($student->student_type === 'irregular' || $hasCreditTransfers) {
+            $paymentService = app(\App\Services\StudentPaymentService::class);
+            foreach ($payments as $payment) {
+                try {
+                    $calc = $paymentService->calculateIrregularBalance($payment);
+                    $payment->calculated_total_amount = $calc['calculated_balance'] ?? $payment->total_semester_fee;
+                } catch (\Exception $e) {
+                    $payment->calculated_total_amount = $payment->total_semester_fee;
+                }
+            }
         }
 
         return Inertia::render('Registrar/Payments/College/Show', [

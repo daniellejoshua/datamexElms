@@ -414,7 +414,7 @@ export default function CollegePaymentsIndex({ payments, stats, filters, current
                                                 </div>
                                             </td>
                                             <td className="py-3 px-4 font-medium">
-                                                {formatCurrency(payment.total_semester_fee)}
+                                                {formatCurrency(payment.calculated_total_amount ?? payment.total_semester_fee)}
                                             </td>
                                             <td className="py-3 px-4">
                                                 {payment.student?.student_type === 'irregular' && !payment.prelim_paid && payment.total_semester_fee === 0 ? (

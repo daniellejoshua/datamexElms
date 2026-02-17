@@ -2532,7 +2532,14 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                                     <span className="text-lg font-bold">₱</span>
                                     Program Fee
                                 </Label>
-                                {data.enrollment_type === 'transferee' ? (
+                                {/*
+                                    Previously we hid the program fee for *all* transferees.
+                                    Change: If a transferee has been *determined as regular* by
+                                    the credit-evaluation flow (data.student_type === 'regular'),
+                                    show the regular program-fee input so the registrar can
+                                    collect/set the enrollment fee just like other regulars.
+                                */}
+                                {data.enrollment_type === 'transferee' && data.student_type !== 'regular' ? (
                                     <div className="p-3 bg-blue-50 border border-blue-200 rounded-md">
                                         <p className="text-sm text-blue-800 font-medium">
                                             To be calculated
@@ -4096,13 +4103,30 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                                                 pastSubjectsToCatchUp,
                                                 isIrregular
                                             })
-                                            
-                                            setData(prev => ({
-                                                ...prev,
-                                                student_type: isIrregular ? 'irregular' : 'regular',
-                                                enrollment_fee: isIrregular ? '0' : prev.enrollment_fee,
-                                                payment_amount: isIrregular ? '0' : prev.payment_amount
-                                            }))
+
+                                            setData(prev => {
+                                                // If student becomes REGULAR and there is no existing enrollment_fee,
+                                                // populate it from the selected program's regular semester fee (if available).
+                                                let resolvedEnrollmentFee = prev.enrollment_fee
+
+                                                if (!isIrregular) {
+                                                    if (!resolvedEnrollmentFee || resolvedEnrollmentFee === '') {
+                                                        const program = programs.find(p => p.id === parseInt(prev.program_id))
+                                                        const programFee = program?.program_fees?.find(fee =>
+                                                            fee.year_level === parseInt(prev.year_level) && fee.fee_type === 'regular'
+                                                        )
+                                                        const isShsStudent = program?.education_level === 'senior_high'
+                                                        resolvedEnrollmentFee = isShsStudent ? '0' : (programFee?.semester_fee ?? '')
+                                                    }
+                                                }
+
+                                                return {
+                                                    ...prev,
+                                                    student_type: isIrregular ? 'irregular' : 'regular',
+                                                    enrollment_fee: isIrregular ? '0' : resolvedEnrollmentFee,
+                                                    payment_amount: isIrregular ? '0' : prev.payment_amount
+                                                }
+                                            })
                                         }
                                         
                                         setCreditModalStep(prev => prev + 1)

@@ -31,8 +31,13 @@ class PaymentsController extends Controller
             ->get();
 
         // Calculate proper total amounts for irregular students
-        $paymentHistory->transform(function ($payment) use ($student) {
-            if ($student->student_type === 'irregular') {
+        $hasCreditTransfers = $student->creditTransfers()->exists() || (bool) $student->previous_school;
+
+        $paymentHistory->transform(function ($payment) use ($student, $hasCreditTransfers) {
+            // Compute a calculated total amount for:
+            // - irregular students
+            // - transferees who have credit transfers / previous_school (show calculation even if regular)
+            if ($student->student_type === 'irregular' || $hasCreditTransfers) {
                 // Check if balance has already been calculated and stored
                 if ($payment->is_balance_calculated && $payment->calculated_total_amount) {
                     // Use stored calculated amount
@@ -48,7 +53,6 @@ class PaymentsController extends Controller
                     }
                 }
             }
-            // For regular students, do not set calculated_total_amount
 
             return $payment;
         });

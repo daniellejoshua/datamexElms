@@ -39,11 +39,21 @@ class DashboardController extends Controller
 
         // Calculate statistics
         $totalSections = $teacherSections->pluck('section_id')->unique()->count();
-        $totalStudents = $teacherSections->pluck('section_id')->unique()->sum(function ($sectionId) {
-            return \App\Models\StudentEnrollment::where('section_id', $sectionId)
+
+        // Total students should reflect students in the teacher's assigned subject(s) —
+        // count distinct students from StudentSubjectEnrollment for the teacher's SectionSubject IDs
+        $teacherSectionSubjectIds = $teacherSections->pluck('id')->toArray();
+
+        $totalStudents = 0;
+        if (! empty($teacherSectionSubjectIds)) {
+            $totalStudents = \App\Models\StudentSubjectEnrollment::whereIn('section_subject_id', $teacherSectionSubjectIds)
                 ->where('status', 'active')
-                ->count();
-        });
+                ->where('academic_year', $currentAcademicYear)
+                ->where('semester', $currentSemester)
+                ->distinct('student_id')
+                ->count('student_id');
+        }
+
         $totalSubjects = $teacherSections->pluck('subject_id')->unique()->count();
 
         // Get today's schedule
@@ -58,12 +68,20 @@ class DashboardController extends Controller
         // Prepare section overview data
         $sectionOverview = $teacherSections->groupBy('section_id')->map(function ($sectionSubjects, $sectionId) {
             $section = $sectionSubjects->first()->section;
-            // Count unique students enrolled in this section for this academic year and semester
-            $studentCount = \App\Models\StudentEnrollment::where('section_id', $sectionId)
-                ->where('status', 'active')
-                ->where('academic_year', $section->academic_year)
-                ->where('semester', $section->semester)
-                ->count();
+
+            // Count unique students assigned to THIS TEACHER for the section by
+            // checking StudentSubjectEnrollment for the teacher's sectionSubject ids.
+            $sectionSubjectIds = $sectionSubjects->pluck('id')->toArray();
+
+            $studentCount = 0;
+            if (! empty($sectionSubjectIds)) {
+                $studentCount = \App\Models\StudentSubjectEnrollment::whereIn('section_subject_id', $sectionSubjectIds)
+                    ->where('status', 'active')
+                    ->where('academic_year', $section->academic_year)
+                    ->where('semester', $section->semester)
+                    ->distinct('student_id')
+                    ->count('student_id');
+            }
 
             return [
                 'id' => $section->id,
@@ -130,7 +148,11 @@ class DashboardController extends Controller
                     'room' => $sectionSubject->room,
                     'start_time' => $sectionSubject->start_time,
                     'end_time' => $sectionSubject->end_time,
-                    'student_count' => $sectionSubject->section->enrollments->count(),
+                    'student_count' => \App\Models\StudentSubjectEnrollment::where('section_subject_id', $sectionSubject->id)
+                        ->where('status', 'active')
+                        ->where('academic_year', $sectionSubject->section->academic_year)
+                        ->where('semester', $sectionSubject->section->semester)
+                        ->count(),
                 ];
             });
     }

@@ -22,7 +22,7 @@ import {
     ArrowLeft
 } from 'lucide-react';
 
-export default function StudentSubjectsIndex({ subjects, student, archivedEnrollments, paymentStatus }) {
+export default function StudentSubjectsIndex({ subjects, student, archivedEnrollments, paymentStatus, visibleGradePeriods }) {
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedSubject, setSelectedSubject] = useState(null);
     const [isGradesModalOpen, setIsGradesModalOpen] = useState(false);
@@ -362,6 +362,7 @@ export default function StudentSubjectsIndex({ subjects, student, archivedEnroll
                 onClose={handleCloseGradesModal}
                 subject={selectedSubject}
                 paymentStatus={paymentStatus}
+                visibleGradePeriods={visibleGradePeriods}
             />
             
             {/* Materials Modal */}

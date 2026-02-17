@@ -372,7 +372,7 @@ export default function Students({ section, enrolledStudents, availableStudents,
                                                     >
                                                         <Settings className="h-3.5 w-3.5" />
                                                     </button>
-                                                )}
+                                                )} 
                                                 <button
                                                     onClick={(e) => {
                                                         e.stopPropagation();
@@ -521,9 +521,11 @@ export default function Students({ section, enrolledStudents, availableStudents,
                         </div>
 
                         <div className="flex items-left relative right-8 gap-2">
-                            <Button variant="ghost" size="sm" onClick={() => selectedStudent && handleManageSubjects(selectedStudent.id)} title="Manage subjects">
-                                <Settings className="w-4 h-4" />
-                            </Button>
+                                {selectedStudent?.student_type === 'irregular' && (
+                                <Button variant="ghost" size="sm" onClick={() => selectedStudent && handleManageSubjects(selectedStudent.id)} title="Manage subjects">
+                                    <Settings className="w-4 h-4" />
+                                </Button>
+                            )} 
                             <Button variant="ghost" size="sm" className="text-red-600" onClick={() => selectedStudent && handleRemoveStudent(selectedStudent.id, selectedStudent.user.name)} title="Remove from section">
                                 <Trash2 className="w-4 h-4" />
                             </Button>

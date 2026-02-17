@@ -14,7 +14,7 @@ export default function SubjectEnrollment({ section, student, availableSubjects,
     const [isRemoveModalOpen, setIsRemoveModalOpen] = useState(false);
     const [subjectToRemove, setSubjectToRemove] = useState(null);
 
-    console.log('SubjectEnrollment props:', { section, student, availableSubjects, currentEnrollments });
+    console.log('SubjectEnrollment props:', { section, student, availableSubjects, currentEnrollments }); 
 
     // Safe function to parse schedule days (handles both JSON strings and plain strings)
     const parseScheduleDays = (scheduleDays) => {
@@ -276,16 +276,21 @@ export default function SubjectEnrollment({ section, student, availableSubjects,
                                                     </div>
                                                 </div>
                                                 <div className="flex items-center gap-2 ml-3">
-                                                    <button
-                                                        onClick={(e) => {
-                                                            e.stopPropagation();
-                                                            handleRemoveFromSubject(enrollment);
-                                                        }}
-                                                        className="opacity-0 group-hover:opacity-100 transition-opacity p-1.5 text-red-600 hover:text-red-800 hover:bg-red-50 rounded"
-                                                        title="Remove from subject"
-                                                    >
-                                                        <Trash2 className="h-3.5 w-3.5" />
-                                                    </button>
+                                                        {!isViewOnly && (
+                                                        <button
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                handleRemoveFromSubject(enrollment);
+                                                            }}
+                                                            className="opacity-0 group-hover:opacity-100 transition-opacity p-1.5 text-red-600 hover:text-red-800 hover:bg-red-50 rounded"
+                                                            title="Remove from subject"
+                                                        >
+                                                            <Trash2 className="h-3.5 w-3.5" />
+                                                        </button>
+                                                    )}
+                                                    {isViewOnly && (
+                                                        <span className="text-xs text-gray-400">Read-only</span>
+                                                    )}
                                                 </div>
                                             </div>
                                         ))
@@ -322,7 +327,7 @@ export default function SubjectEnrollment({ section, student, availableSubjects,
                                                 </>
                                             )}
                                         </button>
-                                    )}
+                                    )} 
                                 </div>
                             </div>
                             
@@ -354,7 +359,7 @@ export default function SubjectEnrollment({ section, student, availableSubjects,
                                                             <Check className="h-3 w-3 text-white" />
                                                         )}
                                                     </div>
-                                                </div>
+                                                </div> 
                                                 <div className="flex-1">
                                                     <p className="font-medium text-gray-900">
                                                         {sectionSubject.subject.subject_code}

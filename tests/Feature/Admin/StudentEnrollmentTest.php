@@ -77,7 +77,7 @@ describe('Student Enrollment Management', function () {
         ]);
     });
 
-    it('prevents students with different year levels from enrolling', function () {
+    it('prevents students with different year levels from enrolling and they are not listed as available', function () {
         $program = Program::factory()->create();
         $section = Section::factory()->create([
             'program_id' => $program->id,
@@ -90,6 +90,11 @@ describe('Student Enrollment Management', function () {
             'student_type' => 'regular', // Explicitly set as regular
         ]);
 
+        // The student should NOT appear in the availableStudents list for this section
+        $responseGet = $this->get(route('admin.sections.students', $section->id));
+        $responseGet->assertOk()->assertInertia(fn ($page) => $page->has('availableStudents', 0));
+
+        // Attempting to enroll should still be prevented
         $response = $this->post(route('admin.sections.enroll', $section->id), [
             'student_ids' => [$student->id],
         ]);
@@ -100,6 +105,73 @@ describe('Student Enrollment Management', function () {
         $this->assertDatabaseMissing('student_enrollments', [
             'student_id' => $student->id,
             'section_id' => $section->id,
+            'status' => 'active',
+        ]);
+
+        // Ensure a regular student with matching year_level IS listed as available
+        $matchingStudent = Student::factory()->create([
+            'program_id' => $program->id,
+            'current_year_level' => 2,
+            'student_type' => 'regular',
+        ]);
+
+        $responseSame = $this->get(route('admin.sections.students', $section->id));
+        $responseSame->assertOk()->assertInertia(fn ($page) => $page->has('availableStudents', 1)->where('availableStudents.0.id', $matchingStudent->id));
+    });
+
+    it('does not enroll credited subjects for regular students (avoid duplicate enrollment)', function () {
+        $program = Program::factory()->create();
+        $section = Section::factory()->create(['program_id' => $program->id, 'year_level' => 2]);
+
+        $subjectA = \App\Models\Subject::factory()->create(['subject_code' => 'REG-A']);
+        $subjectB = \App\Models\Subject::factory()->create(['subject_code' => 'REG-B']);
+
+        \App\Models\SectionSubject::factory()->create(['section_id' => $section->id, 'subject_id' => $subjectA->id, 'status' => 'active']);
+        \App\Models\SectionSubject::factory()->create(['section_id' => $section->id, 'subject_id' => $subjectB->id, 'status' => 'active']);
+
+        // Regular student who already has credit for subjectA
+        $student = Student::factory()->create([
+            'program_id' => $program->id,
+            'student_type' => 'regular',
+            'current_year_level' => 2,
+        ]);
+
+        \App\Models\StudentSubjectCredit::create([
+            'student_id' => $student->id,
+            'subject_id' => $subjectA->id,
+            'subject_code' => $subjectA->subject_code,
+            'subject_name' => $subjectA->subject_name,
+            'units' => 3,
+            'year_level' => 2,
+            'semester' => '1',
+            'credit_status' => 'credited',
+        ]);
+
+        $response = $this->post(route('admin.sections.enroll', $section->id), [
+            'student_ids' => [$student->id],
+        ]);
+
+        $response->assertRedirect()->assertSessionHas('success');
+
+        $sectionSubjectA = \App\Models\SectionSubject::where('section_id', $section->id)
+            ->whereHas('subject', fn ($q) => $q->where('subject_code', 'REG-A'))
+            ->first();
+
+        $sectionSubjectB = \App\Models\SectionSubject::where('section_id', $section->id)
+            ->whereHas('subject', fn ($q) => $q->where('subject_code', 'REG-B'))
+            ->first();
+
+        // Student should NOT be enrolled in the credited subject A
+        $this->assertDatabaseMissing('student_subject_enrollments', [
+            'student_id' => $student->id,
+            'section_subject_id' => $sectionSubjectA->id,
+            'status' => 'active',
+        ]);
+
+        // But should be enrolled in subject B
+        $this->assertDatabaseHas('student_subject_enrollments', [
+            'student_id' => $student->id,
+            'section_subject_id' => $sectionSubjectB->id,
             'status' => 'active',
         ]);
     });
@@ -417,7 +489,8 @@ describe('Student Enrollment Management', function () {
         \App\Models\SectionSubject::factory()->create(['section_id' => $section->id, 'subject_id' => $subjectB->id, 'status' => 'active']);
         \App\Models\SectionSubject::factory()->create(['section_id' => $section->id, 'subject_id' => $subjectC->id, 'status' => 'active']);
 
-        $student = Student::factory()->create(['program_id' => $program->id]);
+        // Use an IRREGULAR student so subject-enrollment page is accessible
+        $student = Student::factory()->create(['program_id' => $program->id, 'student_type' => 'irregular']);
 
         // Credit by subject_code (should match subjectA)
         \App\Models\StudentSubjectCredit::create([

@@ -132,9 +132,36 @@ class GradesController extends Controller
         }
         $averageGrade = count($allGradesArray) > 0 ? array_sum($allGradesArray) / count($allGradesArray) : null;
 
+        // Determine visible grade periods server-side (used by the frontend)
+        $visiblePeriods = [
+            'prelim' => false,
+            'midterm' => false,
+            'prefinal' => false,
+            'final' => false,
+            'semester' => false,
+        ];
+
+        if ($paymentStatus) {
+            if ($paymentStatus->balance === 0) {
+                $visiblePeriods = array_fill_keys(array_keys($visiblePeriods), true);
+            } else {
+                // precedence: final > prefinal > midterm > prelim
+                if (! empty($paymentStatus->final_paid)) {
+                    $visiblePeriods = ['prelim' => true, 'midterm' => true, 'prefinal' => true, 'final' => true, 'semester' => false];
+                } elseif (! empty($paymentStatus->prefinal_paid)) {
+                    $visiblePeriods = ['prelim' => true, 'midterm' => true, 'prefinal' => true, 'final' => false, 'semester' => false];
+                } elseif (! empty($paymentStatus->midterm_paid)) {
+                    $visiblePeriods = ['prelim' => true, 'midterm' => true, 'prefinal' => false, 'final' => false, 'semester' => false];
+                } elseif (! empty($paymentStatus->prelim_paid)) {
+                    $visiblePeriods = ['prelim' => true, 'midterm' => false, 'prefinal' => false, 'final' => false, 'semester' => false];
+                }
+            }
+        }
+
         return Inertia::render('Student/Grades/Index', [
             'currentGrades' => $currentGrades,
             'paymentStatus' => $paymentStatus,
+            'visibleGradePeriods' => $visiblePeriods,
             'stats' => [
                 'totalSubjects' => $uniqueSubjects,
                 'averageGrade' => $averageGrade,
