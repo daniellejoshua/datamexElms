@@ -2380,7 +2380,17 @@ class RegistrarController extends Controller
         $currentAcademicYear = SchoolSetting::getCurrentAcademicYear();
         $currentSemester = SchoolSetting::getCurrentSemester();
 
-        $query = Student::with(['user', 'program'])
+        $query = Student::with([
+                'user',
+                'program',
+                // eager-load only the current active enrollment for the current period (with section)
+                'studentEnrollments' => function ($q) use ($currentAcademicYear, $currentSemester) {
+                    $q->where('academic_year', $currentAcademicYear)
+                        ->where('semester', $currentSemester)
+                        ->where('status', 'active')
+                        ->with('section');
+                },
+            ])
             ->where('current_year_level', $yearLevel)
             ->whereHas('studentEnrollments', function ($query) use ($currentAcademicYear, $currentSemester) {
                 $query->where('academic_year', $currentAcademicYear)
@@ -2436,6 +2446,9 @@ class RegistrarController extends Controller
             ->take($perPage)
             ->get()
             ->map(function ($student) {
+                // prefer an active enrollment that already has a section assigned; fallback to any active enrollment
+                $enrollment = $student->studentEnrollments->firstWhere('section_id', '!=', null) ?? $student->studentEnrollments->first();
+
                 return [
                     'id' => $student->id,
                     'student_number' => $student->student_number,
@@ -2443,6 +2456,7 @@ class RegistrarController extends Controller
                     'program_code' => $student->program->program_code,
                     'year_level' => $student->current_year_level,
                     'student_type' => $student->student_type,
+                    'section' => $enrollment && $enrollment->section ? $enrollment->section->formatted_name : null,
                 ];
             });
 

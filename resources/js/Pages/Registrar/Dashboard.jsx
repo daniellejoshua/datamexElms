@@ -707,40 +707,35 @@ export default function RegistrarDashboard({ stats, auth }) {
                                     <p className="text-gray-600 mt-4 font-medium">Loading students...</p>
                                 </div>
                             ) : (
-                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-3 gap-3">
                                     {modalData.students.map((student) => (
-                                        <div key={student.id} className="group relative bg-white rounded-xl border border-gray-200 shadow-sm hover:shadow-lg hover:border-blue-200 transition-all duration-300 p-4 cursor-pointer">
-                                            <div className="absolute inset-0 bg-gradient-to-br from-blue-50/50 to-purple-50/30 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
-                                            <div className="relative">
-                                                <div className="flex items-start gap-3">
-                                                    <div className="flex-shrink-0">
-                                                        <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                                                            modalData.status === 'paid' 
-                                                            ? 'bg-gradient-to-br from-green-100 to-green-200 group-hover:from-green-200 group-hover:to-green-300' 
-                                                            : 'bg-gradient-to-br from-amber-100 to-amber-200 group-hover:from-amber-200 group-hover:to-amber-300'
-                                                        } transition-all duration-300`}>
-                                                            <Users className={`w-5 h-5 ${
-                                                                modalData.status === 'paid' ? 'text-green-600' : 'text-amber-600'
-                                                            }`} />
-                                                        </div>
-                                                    </div>
-                                                    <div className="min-w-0 flex-1">
-                                                        <h4 className="font-semibold text-gray-900 text-sm leading-tight group-hover:text-blue-700 transition-colors duration-200">
-                                                            {student.full_name}
-                                                        </h4>
-                                                        <p className="text-xs text-gray-500 mt-1 font-medium tracking-wide">
-                                                            {student.student_number}
-                                                        </p>
+                                        <div key={student.id} className="group bg-white rounded-lg border border-gray-200 shadow-sm hover:shadow-md transition-all duration-200 p-3">
+                                            <div className="flex items-center gap-3">
+                                                <div className="flex-shrink-0">
+                                                    <div className={`w-9 h-9 rounded-full flex items-center justify-center ${modalData.status === 'paid' ? 'bg-gradient-to-br from-green-100 to-green-200' : 'bg-gradient-to-br from-amber-100 to-amber-200'}`}>
+                                                        <Users className={`w-4 h-4 ${modalData.status === 'paid' ? 'text-green-600' : 'text-amber-600'}`} />
                                                     </div>
                                                 </div>
-                                                <div className="mt-3 flex justify-end">
-                                                    <span className={`inline-flex items-center px-3 py-1.5 rounded-full text-xs font-semibold ${
-                                                        modalData.status === 'paid'
-                                                        ? 'bg-green-100 text-green-800 border border-green-200'
-                                                        : 'bg-amber-100 text-amber-800 border border-amber-200'
-                                                    } group-hover:scale-105 transition-transform duration-200`}>
-                                                        {student.program_code}
-                                                    </span>
+
+                                                <div className="min-w-0 flex-1">
+                                                    <div className="flex items-start justify-between gap-3">
+                                                        <div className="truncate">
+                                                            <h4 className="font-semibold text-gray-900 text-sm truncate">{student.full_name}</h4>
+                                                            <p className="text-xs text-gray-500 mt-0.5 truncate">{student.student_number}</p>
+                                                        </div>
+
+                                                        <div className="flex flex-col items-end ml-2">
+                                                            {/* show section as the badge if available, otherwise fallback to program */}
+                                                            <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold ${modalData.status === 'paid' ? 'bg-green-100 text-green-800 border border-green-200' : 'bg-amber-100 text-amber-800 border border-amber-200'}`}>
+                                                                {student.section ? student.section : student.program_code}
+                                                            </span>
+
+                                                            {/* only show "Irregular" label for irregular students; no "No section" text */}
+                                                            {student.student_type === 'irregular' && (
+                                                                <div className="text-xs text-gray-500 mt-1">Irregular</div>
+                                                            )}
+                                                        </div>
+                                                    </div>
                                                 </div>
                                             </div>
                                         </div>
