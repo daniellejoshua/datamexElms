@@ -121,6 +121,19 @@ Route::middleware([])->prefix('registrar')->name('registrar.')->group(function (
 });
 
 // Teacher Routes
+
+// Super Admin Routes
+Route::middleware(['auth', 'verified', 'role:super_admin'])->prefix('super-admin')->name('superadmin.')->group(function () {
+    Route::get('/', [\App\Http\Controllers\SuperAdmin\SuperAdminDashboardController::class, 'index'])->name('dashboard');
+    Route::get('/users', [\App\Http\Controllers\SuperAdmin\SuperAdminDashboardController::class, 'users'])->name('users');
+    Route::post('/users/head-teacher', [\App\Http\Controllers\SuperAdmin\HeadTeacherController::class, 'store'])->name('users.head-teacher.store');
+    Route::get('/system-logs', [\App\Http\Controllers\SuperAdmin\SuperAdminDashboardController::class, 'systemLogs'])->name('system-logs');
+
+    // Backup & Restore (basic upload/trigger endpoints)
+    Route::get('/backup', [\App\Http\Controllers\SuperAdmin\BackupController::class, 'index'])->name('backup.index');
+    Route::post('/backup', [\App\Http\Controllers\SuperAdmin\BackupController::class, 'backup'])->name('backup.create');
+    Route::post('/backup/restore', [\App\Http\Controllers\SuperAdmin\BackupController::class, 'restore'])->name('backup.restore');
+});
 Route::middleware(['auth', 'verified', 'role:teacher'])->prefix('teacher')->name('teacher.')->group(function () {
     Route::get('/dashboard', [TeacherDashboardController::class, 'index'])->name('dashboard');
 
