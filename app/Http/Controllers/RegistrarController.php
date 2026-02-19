@@ -443,17 +443,28 @@ class RegistrarController extends Controller
                 ];
             } else {
                 // For college students, show payment periods
+                // map payment period keys to StudentSemesterPayment boolean columns
+                $periodToColumn = [
+                    'prelim_payment' => 'prelim_paid',
+                    'midterm_payment' => 'midterm_paid',
+                    'prefinal_payment' => 'prefinal_paid',
+                    'final_payment' => 'final_paid',
+                ];
+
                 foreach ($paymentPeriods as $periodKey => $periodLabel) {
-                    // Count students who have paid for this period
+                    // Prefer StudentSemesterPayment flags scoped to the current academic period
                     $paidCount = Student::where('current_year_level', $yearLevel)
                         ->whereHas('studentEnrollments', function ($query) use ($currentAcademicYear, $currentSemester) {
                             $query->where('academic_year', $currentAcademicYear)
                                 ->where('semester', $currentSemester)
                                 ->where('status', 'active');
                         })
-                        ->whereHas('paymentTransactions', function ($query) use ($periodKey) {
-                            $query->where('payment_type', $periodKey)
-                                ->where('status', 'completed');
+                        ->whereHas('studentSemesterPayments', function ($q) use ($currentAcademicYear, $currentSemester, $periodToColumn, $periodKey) {
+                            $q->where('academic_year', $currentAcademicYear)
+                                ->where('semester', $currentSemester)
+                                ->when(isset($periodToColumn[$periodKey]), function ($q) use ($periodToColumn, $periodKey) {
+                                    $q->where($periodToColumn[$periodKey], true);
+                                });
                         })
                         ->count();
 
@@ -2411,16 +2422,28 @@ class RegistrarController extends Controller
                 });
             }
         } else {
-            // Handle college payment queries
+            // Handle college payment queries - scope to current academic year & semester via StudentSemesterPayment
+            $periodToColumn = [
+                'prelim_payment' => 'prelim_paid',
+                'midterm_payment' => 'midterm_paid',
+                'prefinal_payment' => 'prefinal_paid',
+                'final_payment' => 'final_paid',
+            ];
+
+            $paidColumn = $periodToColumn[$period] ?? null;
+
             if ($status === 'paid') {
-                $query->whereHas('paymentTransactions', function ($query) use ($period) {
-                    $query->where('payment_type', $period)
-                        ->where('status', 'completed');
+                $query->whereHas('studentSemesterPayments', function ($q) use ($currentAcademicYear, $currentSemester, $paidColumn) {
+                    $q->where('academic_year', $currentAcademicYear)
+                        ->where('semester', $currentSemester)
+                        ->when($paidColumn, fn($q) => $q->where($paidColumn, true));
                 });
             } else {
-                $query->whereDoesntHave('paymentTransactions', function ($query) use ($period) {
-                    $query->where('payment_type', $period)
-                        ->where('status', 'completed');
+                // 'unpaid' => students that do NOT have a current semester payment row with the paid flag set
+                $query->whereDoesntHave('studentSemesterPayments', function ($q) use ($currentAcademicYear, $currentSemester, $paidColumn) {
+                    $q->where('academic_year', $currentAcademicYear)
+                        ->where('semester', $currentSemester)
+                        ->when($paidColumn, fn($q) => $q->where($paidColumn, true));
                 });
             }
         }

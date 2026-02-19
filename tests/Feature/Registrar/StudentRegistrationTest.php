@@ -155,6 +155,37 @@ it('registers an irregular student', function () {
     expect($payment->status)->toBe('completed');
 });
 
+it('returns normalized year_level label for existing student check', function () {
+    $this->actingAs($this->user);
+
+    $student = Student::factory()->create([
+        'student_number' => 'TEST-COL-0001',
+        'current_year_level' => 3,
+        'education_level' => 'college',
+        'program_id' => $this->program->id,
+    ]);
+
+    $response = $this->getJson(route('api.students.check', ['student_number' => $student->student_number]));
+    $response->assertSuccessful();
+
+    $payload = $response->json();
+    expect($payload['exists'])->toBeTrue();
+    expect($payload['student']['year_level'])->toBe('3rd Year');
+
+    // SHS mapping
+    $shsProgram = Program::factory()->create(['education_level' => 'senior_high']);
+    $shsStudent = Student::factory()->create([
+        'student_number' => 'TEST-SHS-0001',
+        'current_year_level' => 11,
+        'education_level' => 'senior_high',
+        'program_id' => $shsProgram->id,
+    ]);
+
+    $resp2 = $this->getJson(route('api.students.check', ['student_number' => $shsStudent->student_number]));
+    $resp2->assertSuccessful();
+    expect($resp2->json('student.year_level'))->toBe('Grade 11');
+});
+
 it('creates user account with password123 as default password', function () {
     // Set current semester to 1st to allow new student enrollment
     SchoolSetting::setCurrentAcademicPeriod('2024-2025', '1st');

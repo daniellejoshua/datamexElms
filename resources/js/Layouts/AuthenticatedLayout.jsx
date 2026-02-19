@@ -202,7 +202,6 @@ export default function AuthenticatedLayout({ header, children }) {
                     },
                 ];
             case 'head_teacher':
-            case 'super_admin':
                 return [
                     { 
                         name: 'Dashboard', 
@@ -303,6 +302,47 @@ export default function AuthenticatedLayout({ header, children }) {
                         icon: (
                             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+                            </svg>
+                        )
+                    },
+                ];
+            case 'super_admin':
+                return [
+                    {
+                        name: 'Dashboard',
+                        href: route('superadmin.dashboard'),
+                        current: route().current('superadmin.dashboard'),
+                        icon: (
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2H5a2 2 0 00-2-2z" />
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 5a2 2 0 012-2h4a2 2 0 012 2v0a2 2 0 01-2 2H10a2 2 0 01-2-2v0z" />
+                            </svg>
+                        )
+                    },
+                    {
+                        name: 'Manage head teachers',
+                        href: route('superadmin.users'),
+                        current: route().current('superadmin.users.*'),
+                        icon: <Users className="w-5 h-5" />
+                    },
+                    {
+                        name: 'System logs',
+                        href: route('superadmin.system-logs'),
+                        current: route().current('superadmin.system-logs'),
+                        icon: (
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h4l3 8 4-16 3 8h4" />
+                            </svg>
+                        )
+                    },
+                    {
+                        name: 'Backup & Restore',
+                        href: route('superadmin.backup.index'),
+                        current: route().current('superadmin.backup.*'),
+                        icon: (
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3" />
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                             </svg>
                         )
                     },

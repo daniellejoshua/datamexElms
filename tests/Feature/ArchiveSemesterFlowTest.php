@@ -228,3 +228,79 @@ it('archives SHS 1st semester data when transitioning to 2nd semester', function
     // Verify original grade still exists (not deleted)
     expect(StudentGrade::count())->toBe($initialGradeCount);
 });
+
+it('allows archive to proceed when Force is checked at confirmation even if unpaid students exist', function () {
+    // Admin user
+    $admin = User::factory()->create(['role' => 'head_teacher']);
+
+    // Set current academic period
+    SchoolSetting::set('current_academic_year', '2025-2026');
+    SchoolSetting::set('current_semester', '2nd');
+
+    // Program & section
+    $program = Program::factory()->create(['education_level' => 'college']);
+    $section = Section::create([
+        'program_id' => $program->id,
+        'section_name' => 'Test Sec',
+        'year_level' => 1,
+        'academic_year' => '2025-2026',
+        'semester' => '2nd',
+        'status' => 'active',
+    ]);
+
+    // Create a student with unpaid semester payment
+    $user = User::factory()->create(['role' => 'student']);
+    $student = Student::create([
+        'user_id' => $user->id,
+        'program_id' => $program->id,
+        'student_number' => '2025-0002',
+        'first_name' => 'Unpaid',
+        'last_name' => 'Student',
+    ]);
+
+    // Ensure the student is enrolled in the section (archive only handles sections with enrollments)
+    StudentEnrollment::create([
+        'student_id' => $student->id,
+        'section_id' => $section->id,
+        'enrollment_date' => now(),
+        'status' => 'active',
+        'academic_year' => '2025-2026',
+        'semester' => '2nd',
+        'enrolled_by' => $admin->id,
+    ]);
+
+    \App\Models\StudentSemesterPayment::create([
+        'student_id' => $student->id,
+        'academic_year' => '2025-2026',
+        'semester' => '2nd',
+        'total_fee' => 1000,
+        'amount_paid' => 0,
+        'balance' => 1000,
+    ]);
+
+    // Acting as admin: initiate archive (generates PIN and caches archive_data)
+    $this->actingAs($admin)->post(route('admin.academic-years.archive'), [
+        'academic_year' => '2025-2026',
+        'semester' => '2nd',
+        'archive_notes' => 'Force test',
+        'force' => false,
+    ])->assertSessionHas('status', 'archive-pin-sent');
+
+    // Retrieve PIN from cache
+    $pin = \Illuminate\Support\Facades\Cache::get("archive_pin_{$admin->id}");
+    expect($pin)->not->toBeNull();
+
+    // Now verify PIN but send force = true (user checks Force on confirmation)
+    $response = $this->actingAs($admin)->post(route('admin.academic-years.verify-archive-pin'), [
+        'pin' => $pin,
+        'force' => true,
+    ]);
+
+    $response->assertRedirect(route('admin.academic-years.index'));
+
+    // Confirm that section was archived (section status updated or archived_section exists)
+    $this->assertDatabaseHas('archived_sections', [
+        'original_section_id' => $section->id,
+        'academic_year' => '2025-2026',
+    ]);
+});

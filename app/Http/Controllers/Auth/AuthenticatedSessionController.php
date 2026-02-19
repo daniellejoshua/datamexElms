@@ -33,8 +33,30 @@ class AuthenticatedSessionController extends Controller
 
         $request->session()->regenerate();
 
+        // If the user was attempting to visit an admin URL prior to logging in
+        // (stored in the session as the "intended" URL), prefer a role-
+        // appropriate dashboard instead of blindly returning them to the
+        // previously intended admin page. This prevents a super admin who
+        // authenticates from being sent to the head-teacher/admin dashboard.
+        $intended = $request->session()->get('url.intended');
+
+        if ($intended && str_starts_with($intended, url('/admin')) && $request->user()->role === 'super_admin') {
+            // Clear the intended so redirect()->intended won't use it
+            $request->session()->forget('url.intended');
+
+            $targetUrl = route('superadmin.dashboard', absolute: false);
+            $redirect = redirect($targetUrl)->with('success', "Welcome back, {$request->user()->name}!");
+
+            if ($request->header('X-Inertia')) {
+                return $redirect->header('X-Inertia-Location', $redirect->getTargetUrl());
+            }
+
+            return $redirect;
+        }
+
         // Flash a welcome message so the front-end (AuthenticatedLayout) shows
-        // a sonner toast after the redirect.
+        // a sonner toast after the redirect. Default behaviour still uses the
+        // intended URL when present.
         $redirect = redirect()->intended(route('dashboard', absolute: false))
             ->with('success', "Welcome back, {$request->user()->name}!");
 

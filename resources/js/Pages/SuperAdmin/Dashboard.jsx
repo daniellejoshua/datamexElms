@@ -69,7 +69,7 @@ export default function SuperAdminDashboard({ stats, recentUsers, roleDistributi
                             <CardTitle className="text-sm">Quick Actions</CardTitle>
                         </CardHeader>
                         <CardContent className="space-y-3">
-                            <Link href={route('superadmin.users')} className="inline-block text-sm text-blue-600">Manage users &rarr;</Link>
+                            <Link href={route('superadmin.users')} className="inline-block text-sm text-blue-600">Manage head teachers &rarr;</Link>
                             <Link href={route('superadmin.backup.index')} className="inline-block text-sm text-blue-600">Backup / Restore DB &rarr;</Link>
                             <Link href={route('superadmin.system-logs')} className="inline-block text-sm text-blue-600">View system logs &rarr;</Link>
                         </CardContent>

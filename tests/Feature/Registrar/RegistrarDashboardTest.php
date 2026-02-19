@@ -122,6 +122,69 @@ it('prefers an active enrollment that already has a section assigned', function 
     expect($payload['students'][0]['section'])->toBe($section->program->program_code.'-'.$section->year_level.$section->section_name);
 });
 
+it('only considers payments for the current academic year and semester in payment-details', function () {
+    // Ensure current academic period
+    \App\Models\SchoolSetting::setCurrentAcademicPeriod('2025-2026', '1st');
+
+    $registrar = \App\Models\User::factory()->create(['role' => 'registrar']);
+
+    $program = \App\Models\Program::factory()->create(['program_code' => uniqid('BSIT-')]);
+
+    $section = \App\Models\Section::factory()->create([
+        'program_id' => $program->id,
+        'year_level' => 3,
+        'section_name' => 'C',
+        'academic_year' => \App\Models\SchoolSetting::getCurrentAcademicYear(),
+        'semester' => \App\Models\SchoolSetting::getCurrentSemester(),
+    ]);
+
+    $student = \App\Models\Student::factory()->create([
+        'program_id' => $program->id,
+        'current_year_level' => 3,
+        'student_type' => 'regular',
+        'education_level' => 'college',
+    ]);
+
+    \App\Models\StudentEnrollment::factory()->create([
+        'student_id' => $student->id,
+        'section_id' => $section->id,
+        'status' => 'active',
+        'academic_year' => \App\Models\SchoolSetting::getCurrentAcademicYear(),
+        'semester' => \App\Models\SchoolSetting::getCurrentSemester(),
+    ]);
+
+    // Student has a paid prelim in a previous academic year only
+    \App\Models\StudentSemesterPayment::create([
+        'student_id' => $student->id,
+        'academic_year' => '2024-2025',
+        'semester' => '1st',
+        'prelim_paid' => true,
+        'total_semester_fee' => 1000,
+        'total_paid' => 1000,
+        'balance' => 0,
+    ]);
+
+    // No current-semester payment record -> should be treated as unpaid for current period
+    $paidResponse = $this->actingAs($registrar)->getJson(route('registrar.dashboard.payment-details', [
+        'year_level' => 3,
+        'period' => 'prelim_payment',
+        'status' => 'paid',
+    ]));
+
+    $paidResponse->assertSuccessful();
+    expect($paidResponse->json('students'))->toBe([]);
+
+    $unpaidResponse = $this->actingAs($registrar)->getJson(route('registrar.dashboard.payment-details', [
+        'year_level' => 3,
+        'period' => 'prelim_payment',
+        'status' => 'unpaid',
+    ]));
+
+    $unpaidResponse->assertSuccessful();
+    $ids = collect($unpaidResponse->json('students'))->pluck('id')->all();
+    expect($ids)->toContain($student->id);
+});
+
 it('requires registrar role to access dashboard', function () {
     $user = \App\Models\User::factory()->create();
 

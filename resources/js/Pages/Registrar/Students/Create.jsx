@@ -9,7 +9,7 @@ import { NumberInput } from '@/components/ui/number-input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { UserPlus, ArrowLeft, GraduationCap, BookOpen, AlertTriangle, Info, Plus, X, CheckCircle2, Lock, Save, RotateCcw, FileText } from 'lucide-react'
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import { toast } from 'sonner'
 
 // Currency formatting utility
@@ -23,322 +23,6 @@ const formatCurrency = (value) => {
     }).format(numValue)
 }
 
-// REMOVED: Philippine Address Data - no longer needed since we switched to text inputs
-/*
-const PHILIPPINE_ADDRESSES = {
-    provinces: [
-        { code: 'ABR', name: 'Abra' },
-        { code: 'AGN', name: 'Agusan del Norte' },
-        { code: 'AGS', name: 'Agusan del Sur' },
-        { code: 'AKL', name: 'Aklan' },
-        { code: 'ALB', name: 'Albay' },
-        { code: 'ANT', name: 'Antique' },
-        { code: 'APA', name: 'Apayao' },
-        { code: 'AUR', name: 'Aurora' },
-        { code: 'BAS', name: 'Basilan' },
-        { code: 'BAN', name: 'Bataan' },
-        { code: 'BTN', name: 'Batanes' },
-        { code: 'BTG', name: 'Batangas' },
-        { code: 'BEN', name: 'Benguet' },
-        { code: 'BIL', name: 'Biliran' },
-        { code: 'BOH', name: 'Bohol' },
-        { code: 'BUK', name: 'Bukidnon' },
-        { code: 'BUL', name: 'Bulacan' },
-        { code: 'CAG', name: 'Cagayan' },
-        { code: 'CAN', name: 'Camarines Norte' },
-        { code: 'CAS', name: 'Camarines Sur' },
-        { code: 'CAM', name: 'Camiguin' },
-        { code: 'CAP', name: 'Capiz' },
-        { code: 'CAT', name: 'Catanduanes' },
-        { code: 'CAV', name: 'Cavite' },
-        { code: 'CEB', name: 'Cebu' },
-        { code: 'COM', name: 'Compostela Valley' },
-        { code: 'DAN', name: 'Davao del Norte' },
-        { code: 'DAS', name: 'Davao del Sur' },
-        { code: 'DAV', name: 'Davao Occidental' },
-        { code: 'DAO', name: 'Davao Oriental' },
-        { code: 'DIN', name: 'Dinagat Islands' },
-        { code: 'EAS', name: 'Eastern Samar' },
-        { code: 'GUI', name: 'Guimaras' },
-        { code: 'IFU', name: 'Ifugao' },
-        { code: 'ILN', name: 'Ilocos Norte' },
-        { code: 'ILS', name: 'Ilocos Sur' },
-        { code: 'ILI', name: 'Iloilo' },
-        { code: 'ISA', name: 'Isabela' },
-        { code: 'KAL', name: 'Kalinga' },
-        { code: 'LUN', name: 'La Union' },
-        { code: 'LAG', name: 'Laguna' },
-        { code: 'LAN', name: 'Lanao del Norte' },
-        { code: 'LAS', name: 'Lanao del Sur' },
-        { code: 'LEY', name: 'Leyte' },
-        { code: 'MAG', name: 'Maguindanao' },
-        { code: 'MAD', name: 'Marinduque' },
-        { code: 'MAS', name: 'Masbate' },
-        { code: 'MSC', name: 'Misamis Occidental' },
-        { code: 'MSR', name: 'Misamis Oriental' },
-        { code: 'MOU', name: 'Mountain Province' },
-        { code: 'NEC', name: 'Negros Occidental' },
-        { code: 'NER', name: 'Negros Oriental' },
-        { code: 'NSA', name: 'Northern Samar' },
-        { code: 'NUE', name: 'Nueva Ecija' },
-        { code: 'NUV', name: 'Nueva Vizcaya' },
-        { code: 'MDC', name: 'Occidental Mindoro' },
-        { code: 'MDR', name: 'Oriental Mindoro' },
-        { code: 'PLW', name: 'Palawan' },
-        { code: 'PAM', name: 'Pampanga' },
-        { code: 'PAN', name: 'Pangasinan' },
-        { code: 'QUE', name: 'Quezon' },
-        { code: 'QUI', name: 'Quirino' },
-        { code: 'RIZ', name: 'Rizal' },
-        { code: 'ROM', name: 'Romblon' },
-        { code: 'WSA', name: 'Samar' },
-        { code: 'SAR', name: 'Sarangani' },
-        { code: 'SIQ', name: 'Siquijor' },
-        { code: 'SOR', name: 'Sorsogon' },
-        { code: 'SCO', name: 'South Cotabato' },
-        { code: 'SLE', name: 'Southern Leyte' },
-        { code: 'SUK', name: 'Sultan Kudarat' },
-        { code: 'SLU', name: 'Sulu' },
-        { code: 'SUN', name: 'Surigao del Norte' },
-        { code: 'SUR', name: 'Surigao del Sur' },
-        { code: 'TAR', name: 'Tarlac' },
-        { code: 'TAW', name: 'Tawi-Tawi' },
-        { code: 'ZMB', name: 'Zambales' },
-        { code: 'ZAN', name: 'Zamboanga del Norte' },
-        { code: 'ZAS', name: 'Zamboanga del Sur' },
-        { code: 'ZSI', name: 'Zamboanga Sibugay' },
-        { code: 'NCR', name: 'National Capital Region' },
-    ],
-    cities: {
-        'ABR': [
-            { code: 'ABR-001', name: 'Bangued' },
-            { code: 'ABR-002', name: 'Boliney' },
-            { code: 'ABR-003', name: 'Bucay' },
-            { code: 'ABR-004', name: 'Bucloc' },
-            { code: 'ABR-005', name: 'Daguioman' },
-            { code: 'ABR-006', name: 'Danglas' },
-            { code: 'ABR-007', name: 'Dolores' },
-            { code: 'ABR-008', name: 'La Paz' },
-            { code: 'ABR-009', name: 'Lacub' },
-            { code: 'ABR-010', name: 'Lagangilang' },
-            { code: 'ABR-011', name: 'Lagayan' },
-            { code: 'ABR-012', name: 'Langiden' },
-            { code: 'ABR-013', name: 'Licuan-Baay' },
-            { code: 'ABR-014', name: 'Luba' },
-            { code: 'ABR-015', name: 'Malibcong' },
-            { code: 'ABR-016', name: 'Manabo' },
-            { code: 'ABR-017', name: 'Peñarrubia' },
-            { code: 'ABR-018', name: 'Pidigan' },
-            { code: 'ABR-019', name: 'Pilar' },
-            { code: 'ABR-020', name: 'Sallapadan' },
-            { code: 'ABR-021', name: 'San Isidro' },
-            { code: 'ABR-022', name: 'San Juan' },
-            { code: 'ABR-023', name: 'San Quintin' },
-            { code: 'ABR-024', name: 'Tayum' },
-            { code: 'ABR-025', name: 'Tineg' },
-            { code: 'ABR-026', name: 'Tubo' },
-            { code: 'ABR-027', name: 'Villaviciosa' },
-        ],
-        'BTG': [
-            { code: 'BTG-001', name: 'Agoncillo' },
-            { code: 'BTG-002', name: 'Alitagtag' },
-            { code: 'BTG-003', name: 'Balayan' },
-            { code: 'BTG-004', name: 'Balete' },
-            { code: 'BTG-005', name: 'Batangas City' },
-            { code: 'BTG-006', name: 'Bauan' },
-            { code: 'BTG-007', name: 'Calaca' },
-            { code: 'BTG-008', name: 'Calatagan' },
-            { code: 'BTG-009', name: 'Cuenca' },
-            { code: 'BTG-010', name: 'Ibaan' },
-            { code: 'BTG-011', name: 'Laurel' },
-            { code: 'BTG-012', name: 'Lemery' },
-            { code: 'BTG-013', name: 'Lian' },
-            { code: 'BTG-014', name: 'Lipa' },
-            { code: 'BTG-015', name: 'Loboc' },
-            { code: 'BTG-016', name: 'Mabini' },
-            { code: 'BTG-017', name: 'Malvar' },
-            { code: 'BTG-018', name: 'Mataas na Kahoy' },
-            { code: 'BTG-019', name: 'Nasugbu' },
-            { code: 'BTG-020', name: 'Padre Garcia' },
-            { code: 'BTG-021', name: 'Rosario' },
-            { code: 'BTG-022', name: 'San Jose' },
-            { code: 'BTG-023', name: 'San Juan' },
-            { code: 'BTG-024', name: 'San Luis' },
-            { code: 'BTG-025', name: 'San Nicolas' },
-            { code: 'BTG-026', name: 'San Pascual' },
-            { code: 'BTG-027', name: 'Santa Teresita' },
-            { code: 'BTG-028', name: 'Santo Tomas' },
-            { code: 'BTG-029', name: 'Taal' },
-            { code: 'BTG-030', name: 'Talisa' },
-            { code: 'BTG-031', name: 'Tanauan' },
-            { code: 'BTG-032', name: 'Taysan' },
-            { code: 'BTG-033', name: 'Tingloy' },
-            { code: 'BTG-034', name: 'Tuy' },
-        ],
-        'CAV': [
-            { code: 'CAV-001', name: 'Alfonso' },
-            { code: 'CAV-002', name: 'Amadeo' },
-            { code: 'CAV-003', name: 'Bacoor' },
-            { code: 'CAV-004', name: 'Carmona' },
-            { code: 'CAV-005', name: 'Cavite City' },
-            { code: 'CAV-006', name: 'Dasmariñas' },
-            { code: 'CAV-007', name: 'General Emilio Aguinaldo' },
-            { code: 'CAV-008', name: 'General Mariano Alvarez' },
-            { code: 'CAV-009', name: 'General Trias' },
-            { code: 'CAV-010', name: 'Imus' },
-            { code: 'CAV-011', name: 'Indang' },
-            { code: 'CAV-012', name: 'Kawit' },
-            { code: 'CAV-013', name: 'Magallanes' },
-            { code: 'CAV-014', name: 'Maragondon' },
-            { code: 'CAV-015', name: 'Mendez' },
-            { code: 'CAV-016', name: 'Naic' },
-            { code: 'CAV-017', name: 'Noveleta' },
-            { code: 'CAV-018', name: 'Rosario' },
-            { code: 'CAV-019', name: 'Silang' },
-            { code: 'CAV-020', name: 'Tagaytay' },
-            { code: 'CAV-021', name: 'Tanza' },
-            { code: 'CAV-022', name: 'Trece Martires' },
-            { code: 'CAV-023', name: 'Trece Martires City' },
-        ],
-        'LAG': [
-            { code: 'LAG-001', name: 'Alaminos' },
-            { code: 'LAG-002', name: 'Bay' },
-            { code: 'LAG-003', name: 'Biñan' },
-            { code: 'LAG-004', name: 'Cabuyao' },
-            { code: 'LAG-005', name: 'Calamba' },
-            { code: 'LAG-006', name: 'Calauan' },
-            { code: 'LAG-007', name: 'Cavinti' },
-            { code: 'LAG-008', name: 'Famy' },
-            { code: 'LAG-009', name: 'Kalayaan' },
-            { code: 'LAG-010', name: 'Liliw' },
-            { code: 'LAG-011', name: 'Los Baños' },
-            { code: 'LAG-012', name: 'Luisiana' },
-            { code: 'LAG-013', name: 'Lumban' },
-            { code: 'LAG-014', name: 'Mabitac' },
-            { code: 'LAG-015', name: 'Magdalena' },
-            { code: 'LAG-016', name: 'Majayjay' },
-            { code: 'LAG-017', name: 'Nagcarlan' },
-            { code: 'LAG-018', name: 'Paete' },
-            { code: 'LAG-019', name: 'Pagsanjan' },
-            { code: 'LAG-020', name: 'Pakil' },
-            { code: 'LAG-021', name: 'Pangil' },
-            { code: 'LAG-022', name: 'Pila' },
-            { code: 'LAG-023', name: 'Rizal' },
-            { code: 'LAG-024', name: 'San Pablo' },
-            { code: 'LAG-025', name: 'San Pedro' },
-            { code: 'LAG-026', name: 'Santa Cruz' },
-            { code: 'LAG-027', name: 'Santa Maria' },
-            { code: 'LAG-028', name: 'Santa Rosa' },
-            { code: 'LAG-029', name: 'Siniloan' },
-            { code: 'LAG-030', name: 'Victoria' },
-        ],
-        'NCR': [
-            { code: 'NCR-001', name: 'Caloocan' },
-            { code: 'NCR-002', name: 'Las Piñas' },
-            { code: 'NCR-003', name: 'Makati' },
-            { code: 'NCR-004', name: 'Malabon' },
-            { code: 'NCR-005', name: 'Mandaluyong' },
-            { code: 'NCR-006', name: 'Manila' },
-            { code: 'NCR-007', name: 'Marikina' },
-            { code: 'NCR-008', name: 'Muntinlupa' },
-            { code: 'NCR-009', name: 'Navotas' },
-            { code: 'NCR-010', name: 'Parañaque' },
-            { code: 'NCR-011', name: 'Pasay' },
-            { code: 'NCR-012', name: 'Pasig' },
-            { code: 'NCR-013', name: 'Pateros' },
-            { code: 'NCR-014', name: 'Quezon City' },
-            { code: 'NCR-015', name: 'San Juan' },
-            { code: 'NCR-016', name: 'Taguig' },
-            { code: 'NCR-017', name: 'Valenzuela' },
-        ],
-        // Add more provinces as needed...
-    },
-    barangays: {
-        'CAV-003': [ // Bacoor
-            { code: 'CAV-003-001', name: 'Alima' },
-            { code: 'CAV-003-002', name: 'Aniban' },
-            { code: 'CAV-003-003', name: 'Banalo' },
-            { code: 'CAV-003-004', name: 'Bayanan' },
-            { code: 'CAV-003-005', name: 'Campo Santo' },
-            { code: 'CAV-003-006', name: 'Daang Bukid' },
-            { code: 'CAV-003-007', name: 'Digman' },
-            { code: 'CAV-003-008', name: 'Habay' },
-            { code: 'CAV-003-009', name: 'Kaingin' },
-            { code: 'CAV-003-010', name: 'Ligas' },
-            { code: 'CAV-003-011', name: 'Mabolo' },
-            { code: 'CAV-003-012', name: 'Maliksi' },
-            { code: 'CAV-003-013', name: 'Mambog' },
-            { code: 'CAV-003-014', name: 'Molino' },
-            { code: 'CAV-003-015', name: 'Niog' },
-            { code: 'CAV-003-016', name: 'Poblacion' },
-            { code: 'CAV-003-017', name: 'Real' },
-            { code: 'CAV-003-018', name: 'Salinas' },
-            { code: 'CAV-003-019', name: 'San Nicolas' },
-            { code: 'CAV-003-020', name: 'Sineguelasan' },
-            { code: 'CAV-003-021', name: 'Tabing Dagat' },
-            { code: 'CAV-003-022', name: 'Talaba' },
-            { code: 'CAV-003-023', name: 'Tamsui' },
-            { code: 'CAV-003-024', name: 'Zapote' },
-        ],
-        'NCR-003': [ // Makati
-            { code: 'NCR-003-001', name: 'Bangkal' },
-            { code: 'NCR-003-002', name: 'Bel-Air' },
-            { code: 'NCR-003-003', name: 'Carmona' },
-            { code: 'NCR-003-004', name: 'Cembo' },
-            { code: 'NCR-003-005', name: 'Comembo' },
-            { code: 'NCR-003-006', name: 'Dasmariñas' },
-            { code: 'NCR-003-007', name: 'East Rembo' },
-            { code: 'NCR-003-008', name: 'Forbes Park' },
-            { code: 'NCR-003-009', name: 'Guadalupe Nuevo' },
-            { code: 'NCR-003-010', name: 'Guadalupe Viejo' },
-            { code: 'NCR-003-011', name: 'Kasilawan' },
-            { code: 'NCR-003-012', name: 'La Paz' },
-            { code: 'NCR-003-013', name: 'Magallanes' },
-            { code: 'NCR-003-014', name: 'Olympia' },
-            { code: 'NCR-003-015', name: 'Palanan' },
-            { code: 'NCR-003-016', name: 'Pembo' },
-            { code: 'NCR-003-017', name: 'Pinagkaisahan' },
-            { code: 'NCR-003-018', name: 'Pio del Pilar' },
-            { code: 'NCR-003-019', name: 'Pitogo' },
-            { code: 'NCR-003-020', name: 'Poblacion' },
-            { code: 'NCR-003-021', name: 'Post Proper Northside' },
-            { code: 'NCR-003-022', name: 'Post Proper Southside' },
-            { code: 'NCR-003-023', name: 'Rizal' },
-            { code: 'NCR-003-024', name: 'San Antonio' },
-            { code: 'NCR-003-025', name: 'San Isidro' },
-            { code: 'NCR-003-026', name: 'San Lorenzo' },
-            { code: 'NCR-003-027', name: 'Santa Cruz' },
-            { code: 'NCR-003-028', name: 'Singkamas' },
-            { code: 'NCR-003-029', name: 'South Cembo' },
-            { code: 'NCR-003-030', name: 'Tejeros' },
-            { code: 'NCR-003-031', name: 'Urdaneta' },
-            { code: 'NCR-003-032', name: 'Valenzuela' },
-            { code: 'NCR-003-033', name: 'West Rembo' },
-        ],
-        'LAG-028': [ // Santa Rosa
-            { code: 'LAG-028-001', name: 'Aplaya' },
-            { code: 'LAG-028-002', name: 'Balibago' },
-            { code: 'LAG-028-003', name: 'Caingin' },
-            { code: 'LAG-028-004', name: 'Dila' },
-            { code: 'LAG-028-005', name: 'Dita' },
-            { code: 'LAG-028-006', name: 'Don Jose' },
-            { code: 'LAG-028-007', name: 'Ibaba' },
-            { code: 'LAG-028-008', name: 'Kanluran' },
-            { code: 'LAG-028-009', name: 'Labas' },
-            { code: 'LAG-028-010', name: 'Macabling' },
-            { code: 'LAG-028-011', name: 'Malitlit' },
-            { code: 'LAG-028-012', name: 'Malusak' },
-            { code: 'LAG-028-013', name: 'Market Area' },
-            { code: 'LAG-028-014', name: 'Pooc' },
-            { code: 'LAG-028-015', name: 'Pulong Santa Cruz' },
-            { code: 'LAG-028-016', name: 'Santo Domingo' },
-            { code: 'LAG-028-017', name: 'Sinalhan' },
-            { code: 'LAG-028-018', name: 'Tagapo' },
-        ],
-        // Add more cities as needed...
-    }
-}
-*/
 
 export default function CreateStudent({ programs, auth, currentAcademicYear, currentSemester, course_shift_required, old }) {
     const { flash } = usePage().props;
@@ -458,7 +142,62 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
         (data.education_level === 'college' && ['2nd Year', '3rd Year', '4th Year'].includes(data.year_level)) ||
         (data.education_level === 'senior_high' && ['Grade 12', '2'].includes(data.year_level))
     )
-    
+
+    // Computed, read-only enrollment type (used by UI). Rules:
+    // - existing/returning => 'returning' (unless program changed -> 'shiftee')
+    // - new (1st Year / Grade 11 in 1st sem) => 'new'
+    // - higher-year non-existing students => 'transferee'
+    const computedEnrollmentType = useMemo(() => {
+        // Existing or returning students
+        if (isExistingStudent || isReturningStudent) {
+            // If existing student changes program selection, show 'shiftee'
+            if (isExistingStudent && studentFound?.program?.id && data.program_id && parseInt(data.program_id, 10) !== studentFound.program.id) {
+                return 'shiftee'
+            }
+
+            return 'returning'
+        }
+
+        // Not enough data yet
+        if (!data.year_level || !data.education_level) {
+            return ''
+        }
+
+        const isCollege = data.education_level === 'college'
+
+        if (isCollege) {
+            if (data.year_level === '1st Year' && currentSemester === '1st') return 'new'
+            if (['2nd Year', '3rd Year', '4th Year', '5th Year'].includes(data.year_level)) return 'transferee'
+            return 'new'
+        }
+
+        // SHS
+        if ((data.year_level === 'Grade 11' || data.year_level === '1') && currentSemester === '1st') return 'new'
+        if (['Grade 12', '2'].includes(data.year_level)) return 'transferee'
+
+        return ''
+    }, [isExistingStudent, isReturningStudent, studentFound, data.program_id, data.year_level, data.education_level, currentSemester])
+
+    // Keep backend payload value in sync with the computed enrollment type
+    useEffect(() => {
+        if (computedEnrollmentType && data.enrollment_type !== computedEnrollmentType) {
+            setData('enrollment_type', computedEnrollmentType)
+        }
+
+        setIsTransferee(computedEnrollmentType === 'transferee')
+        setIsShiftee(computedEnrollmentType === 'shiftee')
+
+        // If an existing college student somehow has an SHS program selected, clear it and warn
+        const existingCollege = (isExistingStudent && studentFound?.education_level === 'college') || (isReturningStudent && archivedStudent?.education_level === 'college')
+        if (existingCollege && data.program_id) {
+            const selected = programs.find(p => p.id === parseInt(data.program_id, 10))
+            if (selected && selected.education_level === 'senior_high') {
+                setData('program_id', '')
+                toast.error('Existing college students cannot be assigned to Senior High programs. Please choose a college program.')
+            }
+        }
+    }, [computedEnrollmentType, data.program_id, isExistingStudent, studentFound, isReturningStudent, archivedStudent])
+
     // Form locking state - lock in 2nd semester mode unless student is checked/found
     const [formUnlocked, setFormUnlocked] = useState(currentSemester !== '2nd')
     
@@ -699,22 +438,10 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
         }
     }, [data.year_level, data.enrollment_type, data.education_level, currentSemester])
 
-    // Auto-set enrollment type for non-existing students in higher year levels
+    // NOTE: enrollment_type is now computed/display-only in the UI (see computedEnrollmentType).
+    // Keep `shouldBeTransferee` logic for display helpers but do not mutate `data.enrollment_type` here.
     useEffect(() => {
-        if (data.program_id && data.year_level && data.education_level && !isExistingStudent && !isReturningStudent) {
-            const isCollege = data.education_level === 'college'
-            const isShs = data.education_level === 'senior_high'
-            
-            // Check if student is in higher year levels that would require them to be transferees
-            const isHigherLevel = isCollege 
-                ? ['2nd Year', '3rd Year', '4th Year'].includes(data.year_level)  // Removed '5th Year'
-                : ['Grade 12', '2'].includes(data.year_level)
-            
-            if (isHigherLevel && data.enrollment_type !== 'transferee') {
-                setData('enrollment_type', 'transferee')
-                toast.info(`Automatically set to Transferee - ${data.year_level} students must be transferees if not existing students`)
-            }
-        }
+        // no-op: enrollment_type is controlled by computedEnrollmentType
     }, [data.program_id, data.year_level, data.education_level, isExistingStudent, isReturningStudent, data.enrollment_type])
     
     // Handle shiftee/transferee selection
@@ -932,6 +659,8 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                 setStudentFound(result.student)
                 setIsExistingStudent(true)
                 setIsReturningStudent(false)
+                // Always treat an *existing* student as a returning enrollment in the UI
+                setData(prev => ({ ...prev, enrollment_type: 'returning' }))
                 // Show success notification
                 toast.success(`Existing student found: ${result.student.first_name} ${result.student.last_name}`)
                 // Only unlock form in 2nd semester mode when student is found
@@ -947,7 +676,20 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                     middle_name: result.student.middle_name || '',
                     email: result.student.email || '',
                     program_id: result.student.program?.id || '',
-                    year_level: result.student.year_level || '',
+                    // Normalize incoming year_level (accept numeric or label)
+                    year_level: (function () {
+                        const y = result.student.year_level ?? result.student.current_year_level ?? ''
+                        if (!y && y !== 0) return ''
+                        const numeric = Number(y)
+                        if (!Number.isNaN(numeric) && numeric > 0) {
+                            if (result.student.education_level === 'senior_high') {
+                                return numeric === 12 ? 'Grade 12' : 'Grade 11'
+                            }
+                            const map = {1: '1st Year', 2: '2nd Year', 3: '3rd Year', 4: '4th Year', 5: '5th Year'}
+                            return map[numeric] ?? String(y)
+                        }
+                        return String(y)
+                    })(),
                     education_level: result.student.education_level || 'college',
                     student_type: result.student.student_type || 'regular',
                     curriculum_id: result.student.curriculum_id || '',
@@ -1007,8 +749,22 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                     middle_name: result.archived.middle_name || '',
                     email: result.archived.email || '',
                     program_id: result.archived.program?.id || '',
-                    year_level: result.archived.year_level || '',
+                    // Normalize archived year_level (accept numeric or label)
+                    year_level: (function () {
+                        const y = result.archived.year_level ?? result.archived.current_year_level ?? ''
+                        if (!y && y !== 0) return ''
+                        const numeric = Number(y)
+                        if (!Number.isNaN(numeric) && numeric > 0) {
+                            if (result.archived.education_level === 'senior_high') {
+                                return numeric === 12 ? 'Grade 12' : 'Grade 11'
+                            }
+                            const map = {1: '1st Year', 2: '2nd Year', 3: '3rd Year', 4: '4th Year', 5: '5th Year'}
+                            return map[numeric] ?? String(y)
+                        }
+                        return String(y)
+                    })(),
                     education_level: result.archived.education_level || 'college',
+                    enrollment_type: 'returning',
                     student_type: 'returning',
                     birth_date: formatDateForInput(result.archived.birth_date) || '',
                     phone: result.archived.phone || '',
@@ -2159,16 +1915,38 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                                                     SENIOR HIGH SCHOOL
                                                 </div>
                                             )}
-                                            {shsPrograms.map(program => (
-                                                <SelectItem key={program.id} value={program.id.toString()}>
-                                                    <div className="flex items-center gap-2">
-                                                        <Badge variant="secondary" className="font-mono text-xs">
-                                                            {program.program_code}
-                                                        </Badge>
-                                                        <span className="text-sm">{program.program_name || program.name}</span>
-                                                    </div>
-                                                </SelectItem>
-                                            ))}
+                                            {/**
+                                             * Disable SHS programs for existing college students.
+                                             * An "existing college student" is either an active student found by number
+                                             * or a returning (archived) student whose education_level is 'college'.
+                                             */}
+                                            {shsPrograms.map(program => {
+                                                const existingCollegeStudent = (
+                                                    (isExistingStudent && studentFound?.education_level === 'college') ||
+                                                    (isReturningStudent && archivedStudent?.education_level === 'college')
+                                                );
+
+                                                return (
+                                                    <SelectItem
+                                                        key={program.id}
+                                                        value={program.id.toString()}
+                                                        disabled={existingCollegeStudent}
+                                                        className={existingCollegeStudent ? 'opacity-50 cursor-not-allowed' : ''}
+                                                    >
+                                                        <div className="flex items-center gap-2">
+                                                            <Badge variant="secondary" className="font-mono text-xs">
+                                                                {program.program_code}
+                                                            </Badge>
+                                                            <span className="text-sm">{program.program_name || program.name}</span>
+                                                        </div>
+                                                    </SelectItem>
+                                                )
+                                            })}
+
+                                            {/** Show helper text when selection is restricted */}
+                                            {((isExistingStudent && studentFound?.education_level === 'college') || (isReturningStudent && archivedStudent?.education_level === 'college')) && (
+                                                <p className="text-xs text-amber-600 mt-2">Existing college students cannot be assigned to Senior High programs.</p>
+                                            )}
                                         </SelectContent>
                                     </Select>
                                     {errors.program_id && (
@@ -2268,164 +2046,64 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
 
                         <div>
                             <Label htmlFor="enrollment_type" className="text-sm font-medium">Enrollment Type *</Label>
-                            {isExistingStudent ? (
-                                // For existing students, show the dropdown
-                                <Select
-                                    value={data.enrollment_type ?? ''}
-                                    onValueChange={(value) => setData('enrollment_type', value)}
-                                    disabled={!formUnlocked || (data.year_level === '1st Year' || data.year_level === 'Grade 11') || (!data.program_id || !data.year_level) || shouldBeTransferee}
-                                >
-                                    <SelectTrigger className={`h-10 ${errors.student_type ? 'border-red-500' : 'border-gray-300 focus:border-green-500'} ${(data.year_level === '1st Year' || data.year_level === 'Grade 11') || (!data.program_id || !data.year_level) || shouldBeTransferee ? 'bg-gray-50 cursor-not-allowed' : ''}`}>
-                                        <SelectValue placeholder="Select enrollment type">
-                                            {data.enrollment_type === 'new' && (data.year_level === '1st Year' || data.year_level === 'Grade 11') && (
-                                                <>
-                                                    <UserPlus className="inline w-4 h-4 mr-2" />
-                                                    New Student (Automatically selected for {data.year_level})
-                                                </>
-                                            )}
-                                            {data.enrollment_type === 'transferee' && shouldBeTransferee && (
-                                                <>
-                                                    <BookOpen className="inline w-4 h-4 mr-2" />
-                                                    Transferee (Automatically selected for {data.year_level})
-                                                </>
-                                            )}
-                                        </SelectValue>
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        {(() => {
-                                            const isCollege = data.education_level === 'college'
-                                            const isShs = data.education_level === 'senior_high'
-                                            const canBeNew = isCollege
-                                ? (data.year_level === '1st Year' && currentSemester === '1st')
-                                : isShs && ((data.year_level === 'Grade 11' || data.year_level === '1') && currentSemester === '1st')
-                                            const canBeShiftee = isExistingStudent || isReturningStudent
-                                            const isSecondSemester = currentSemester === '2nd'
 
-                                            // If year level is 1st Year or Grade 11, only show "new" option
-                                            if (data.year_level === '1st Year' || data.year_level === 'Grade 11') {
-                                                return (
-                                                    <SelectItem value="new">
-                                                        <UserPlus className="inline w-4 h-4 mr-2" />
-                                                        New Student (Automatically selected for {data.year_level})
-                                                    </SelectItem>
-                                                )
-                                            }
-
-                                            // If should be transferee automatically, only show transferee option
-                                            if (shouldBeTransferee) {
-                                                return (
-                                                    <SelectItem value="transferee">
-                                                        <BookOpen className="inline w-4 h-4 mr-2" />
-                                                        Transferee (Automatically selected for {data.year_level} - not existing student)
-                                                    </SelectItem>
-                                                )
-                                            }
-
-                                            return (
-                                                <>
-                                                    {/* Only show new student for 1st year students */}
-                                                    {(data.year_level === '1st Year' || data.year_level === 'Grade 11') && (
-                                                        <SelectItem value="new" disabled={!canBeNew || isSecondSemester}>
-                                                            <UserPlus className="inline w-4 h-4 mr-2" />
-                                                            New Student
-                                                            {(!canBeNew || isSecondSemester) && (
-                                                                <span className="text-xs text-gray-400 ml-2">
-                                                                    {!canBeNew ? '(Only for 1st Year, 1st Semester)' : '(Not available in 2nd semester)'}
-                                                                </span>
-                                                            )}
-                                                        </SelectItem>
-                                                    )}
-                                                    
-                                                    {/* Show transferee for students above 1st year */}
-                                                    {(data.year_level !== '1st Year' && data.year_level !== 'Grade 11') && (
-                                                        <SelectItem value="transferee">
-                                                            <BookOpen className="inline w-4 h-4 mr-2" />
-                                                            Transferee (From Another School)
-                                                        </SelectItem>
-                                                    )}
-                                                    
-                                                    {/* Only show returning student if auto-detected */}
-                                                    {isReturningStudent && (
-                                                        <SelectItem value="returning" disabled={isSecondSemester && !isExistingStudent}>
-                                                            <RotateCcw className="inline w-4 h-4 mr-2" />
-                                                            Returning Student (Regular Re-enrollment)
-                                                            {isSecondSemester && !isExistingStudent && (
-                                                                <span className="text-xs text-gray-400 ml-2">
-                                                                    (Only for students enrolled in 1st semester)
-                                                                </span>
-                                                            )}
-                                                        </SelectItem>
-                                                    )}
-                                                    
-                                                    {data.education_level === 'college' && !isSecondSemester && (
-                                                        <SelectItem value="shiftee" disabled={!canBeShiftee}>
-                                                            <FileText className="inline w-4 h-4 mr-2" />
-                                                            Course Shiftee (Changing Program)
-                                                            {!canBeShiftee && (
-                                                                <span className="text-xs text-gray-400 ml-2">
-                                                                    (Only for existing students)
-                                                                </span>
-                                                            )}
-                                                        </SelectItem>
-                                                    )}
-                                                </>
-                                            )
-                                        })()}
-                                    </SelectContent>
-                                </Select>
-                            ) : (
-                                // For non-existing students, show just text
-                                <div className="h-10 px-3 py-2 bg-gray-50 border border-gray-300 rounded-md flex items-center text-sm text-gray-700">
-                                    {data.enrollment_type === 'new' && (data.year_level === '1st Year' || data.year_level === 'Grade 11') && (
+                            {/* Read-only, computed enrollment type */}
+                            <div className="h-10 px-3 py-2 bg-gray-50 border border-gray-300 rounded-md flex items-center text-sm text-gray-700">
+                                <div className="flex items-center gap-2">
+                                    {computedEnrollmentType === 'new' && (
                                         <>
-                                            <UserPlus className="inline w-4 h-4 mr-2" />
-                                            New Student (Automatically selected for {data.year_level})
+                                            <UserPlus className="inline w-4 h-4 text-green-600" />
+                                            <span className="font-medium">New Student</span>
                                         </>
                                     )}
-                                    {data.enrollment_type === 'transferee' && shouldBeTransferee && (
+
+                                    {computedEnrollmentType === 'returning' && (
                                         <>
-                                            <BookOpen className="inline w-4 h-4 mr-2" />
-                                            Transferee (Automatically selected for {data.year_level})
+                                            <RotateCcw className="inline w-4 h-4 text-gray-600" />
+                                            <span className="font-medium">Returning Student</span>
                                         </>
                                     )}
-                                    {!data.enrollment_type && (
-                                        <>Select year level to see enrollment type</>
+
+                                    {computedEnrollmentType === 'transferee' && (
+                                        <>
+                                            <BookOpen className="inline w-4 h-4 text-blue-600" />
+                                            <span className="font-medium">Transferee (From Another School)</span>
+                                        </>
+                                    )}
+
+                                    {computedEnrollmentType === 'shiftee' && (
+                                        <>
+                                            <FileText className="inline w-4 h-4 text-purple-600" />
+                                            <span className="font-medium">Course Shiftee (Changing Program)</span>
+                                        </>
+                                    )}
+
+                                    {!computedEnrollmentType && (
+                                        <span className="text-muted-foreground">Enrollment type will be determined from the student's academic info</span>
                                     )}
                                 </div>
-                            )}
+                            </div>
+
                             {errors.student_type && (
                                 <p className="text-red-500 text-sm mt-1">{errors.student_type}</p>
                             )}
-                            {(data.year_level === '1st Year' || data.year_level === 'Grade 11') && (
-                                <p className="text-xs text-blue-600 mt-1">
-                                    Enrollment type automatically set to "New Student" for {data.year_level} students
-                                </p>
+
+                            {computedEnrollmentType === 'new' && (
+                                <p className="text-xs text-blue-600 mt-1">Enrollment type determined as New Student for {data.year_level}</p>
                             )}
-                            {data.enrollment_type === 'new' && !(data.year_level === '1st Year' || data.year_level === 'Grade 11') && (
-                                <p className="text-xs text-green-600 mt-1">
-                                    ✓ Starting their college journey - System will track their progress
-                                </p>
+
+                            {computedEnrollmentType === 'returning' && (
+                                <p className="text-xs text-gray-600 mt-1">Continuing student - Regular re-enrollment</p>
                             )}
-                            {data.enrollment_type === 'returning' && (
-                                <p className="text-xs text-gray-600 mt-1">
-                                    Continuing student - Regular re-enrollment for next semester/year
-                                </p>
+
+                            {computedEnrollmentType === 'transferee' && (
+                                <p className="text-xs text-blue-600 mt-1">After registration, use "Transferee - Subject Credit Evaluation" to add credited subjects from previous school</p>
                             )}
-                            {data.enrollment_type === 'transferee' && (
-                                <p className="text-xs text-blue-600 mt-1">
-                                     After registration, use "Transferee - Subject Credit Evaluation" to add credited subjects from previous school
-                                </p>
+
+                            {computedEnrollmentType === 'shiftee' && (
+                                <p className="text-xs text-purple-600 mt-1">Program changed — this will be processed as a Course Shiftee</p>
                             )}
-                            {data.enrollment_type === 'shiftee' && (
-                                <p className="text-xs text-purple-600 mt-1">
-                                    Course shift detected - Use "Compare Subjects & Credits" to review transferred credits
-                                </p>
-                            )}
-                            {shouldBeTransferee && (
-                                <p className="text-xs text-purple-600 mt-1">
-                                     Enrollment type automatically set to "Transferee" for {data.year_level} students (not existing)
-                                </p>
-                            )}
+
                         </div>
                     </CardContent>
                 </Card>
@@ -2548,7 +2226,7 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                                             Transferee program fee will be calculated after determining the catch-up subjects they need to take before prelim payment.
                                         </p>
                                     </div>
-                                ) : data.student_type === 'irregular' ? (
+                                ) : (data.student_type === 'irregular' || data.enrollment_type === 'shiftee') ? (
                                     <div className="p-3 bg-gray-50 border border-gray-200 rounded-md">
                                         <p className="text-sm text-gray-600">
                                             Irregular students' program fee will be calculated after determining the catch-up subjects they need to take before prelim payment.

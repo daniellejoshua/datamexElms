@@ -513,8 +513,14 @@ class AcademicYearController extends Controller
             ]);
         }
 
-        // Proceed with archiving using the cached data
+        // Proceed with archiving using the cached data (allow final confirmation to override `force`)
         $validated = $archiveData;
+        // If the user toggled "Force" on the confirmation step, prefer that value over cached one.
+        if ($request->has('force')) {
+            $validated['force'] = filter_var($request->input('force'), FILTER_VALIDATE_BOOLEAN);
+        } else {
+            $validated['force'] = $archiveData['force'] ?? false;
+        }
 
         // Check if semester is already archived
         $archivedSemester = match ($validated['semester']) {

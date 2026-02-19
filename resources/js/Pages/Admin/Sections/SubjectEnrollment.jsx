@@ -14,6 +14,9 @@ export default function SubjectEnrollment({ section, student, availableSubjects,
     const [isRemoveModalOpen, setIsRemoveModalOpen] = useState(false);
     const [subjectToRemove, setSubjectToRemove] = useState(null);
 
+    // Determine view-only mode: controller sets `student.can_manage_subjects` for irregular students
+    const isViewOnly = !student?.can_manage_subjects;
+
     console.log('SubjectEnrollment props:', { section, student, availableSubjects, currentEnrollments }); 
 
     // Safe function to parse schedule days (handles both JSON strings and plain strings)

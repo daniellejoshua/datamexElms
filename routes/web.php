@@ -51,7 +51,7 @@ Route::middleware(['auth', 'verified', 'role:student'])->prefix('student')->grou
 });
 
 // Registrar Routes
-Route::middleware([])->prefix('registrar')->name('registrar.')->group(function () {
+Route::middleware(['auth', 'verified', 'role:registrar'])->prefix('registrar')->name('registrar.')->group(function () {
     Route::get('/dashboard', [RegistrarController::class, 'dashboard'])->name('dashboard');
     Route::match(['get', 'post'], '/dashboard/refresh', [RegistrarController::class, 'refreshDashboard'])->name('dashboard.refresh');
     Route::get('/dashboard/payment-details', [RegistrarController::class, 'getPaymentDetails'])->name('dashboard.payment-details');
@@ -127,6 +127,13 @@ Route::middleware(['auth', 'verified', 'role:super_admin'])->prefix('super-admin
     Route::get('/', [\App\Http\Controllers\SuperAdmin\SuperAdminDashboardController::class, 'index'])->name('dashboard');
     Route::get('/users', [\App\Http\Controllers\SuperAdmin\SuperAdminDashboardController::class, 'users'])->name('users');
     Route::post('/users/head-teacher', [\App\Http\Controllers\SuperAdmin\HeadTeacherController::class, 'store'])->name('users.head-teacher.store');
+
+    // Head teacher management (view / edit / update / delete)
+    Route::get('/users/{user}', [\App\Http\Controllers\SuperAdmin\HeadTeacherController::class, 'show'])->name('users.show');
+    Route::get('/users/{user}/edit', [\App\Http\Controllers\SuperAdmin\HeadTeacherController::class, 'edit'])->name('users.edit');
+    Route::put('/users/{user}', [\App\Http\Controllers\SuperAdmin\HeadTeacherController::class, 'update'])->name('users.update');
+    Route::delete('/users/{user}', [\App\Http\Controllers\SuperAdmin\HeadTeacherController::class, 'destroy'])->name('users.destroy');
+
     Route::get('/system-logs', [\App\Http\Controllers\SuperAdmin\SuperAdminDashboardController::class, 'systemLogs'])->name('system-logs');
 
     // Backup & Restore (basic upload/trigger endpoints)
@@ -163,7 +170,7 @@ Route::middleware(['auth', 'verified', 'role:teacher'])->prefix('teacher')->name
 
 // Admin Routes
 Route::middleware(['web', 'auth', 'verified'])->prefix('admin')->name('admin.')->group(function () {
-    Route::middleware('role:head_teacher,super_admin')->group(function () {
+    Route::middleware('role:head_teacher')->group(function () {
         // Dashboard
         Route::get('/dashboard', [AdminDashboardController::class, 'index'])->name('dashboard');
 

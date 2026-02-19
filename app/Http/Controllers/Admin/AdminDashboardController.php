@@ -113,7 +113,7 @@ class AdminDashboardController extends Controller
 
         // For college students - check if final grades are submitted for current semester
         // restrict to programs.education_level = 'college' and include per-section student counts
-        $collegePendingTeachers = \DB::table('section_subjects')
+        $collegePendingTeachers = DB::table('section_subjects')
             ->join('sections', 'section_subjects.section_id', '=', 'sections.id')
             ->join('programs', 'sections.program_id', '=', 'programs.id')
             ->join('student_enrollments', 'sections.id', '=', 'student_enrollments.section_id')
@@ -131,16 +131,16 @@ class AdminDashboardController extends Controller
             ->where('programs.education_level', 'college')
             ->select(
                 'section_subjects.teacher_id',
-                \DB::raw("CONCAT(COALESCE(programs.program_code, ''), '-', sections.year_level, sections.section_name) as formatted_section_name"),
+                DB::raw("CONCAT(COALESCE(programs.program_code, ''), '-', sections.year_level, sections.section_name) as formatted_section_name"),
                 'section_subjects.subject_id',
-                \DB::raw("(SELECT COUNT(*) FROM student_enrollments se WHERE se.section_id = sections.id AND se.status = 'active') as student_count")
+                DB::raw("(SELECT COUNT(*) FROM student_enrollments se WHERE se.section_id = sections.id AND se.status = 'active') as student_count")
             )
             ->distinct()
             ->get()
             ->groupBy('teacher_id');
 
         // For SHS students - check if fourth quarter grades are submitted (include per-section student counts)
-        $shsPendingTeachers = \DB::table('section_subjects')
+        $shsPendingTeachers = DB::table('section_subjects')
             ->join('sections', 'section_subjects.section_id', '=', 'sections.id')
             ->join('programs', 'sections.program_id', '=', 'programs.id')
             ->join('student_enrollments', 'sections.id', '=', 'student_enrollments.section_id')
@@ -159,9 +159,9 @@ class AdminDashboardController extends Controller
             ->whereNull('shs_student_grades.fourth_quarter_submitted_at')
             ->select(
                 'section_subjects.teacher_id',
-                \DB::raw("CONCAT(COALESCE(programs.program_code, ''), '-', sections.year_level, sections.section_name) as formatted_section_name"),
+                DB::raw("CONCAT(COALESCE(programs.program_code, ''), '-', sections.year_level, sections.section_name) as formatted_section_name"),
                 'section_subjects.subject_id',
-                \DB::raw("(SELECT COUNT(*) FROM student_enrollments se WHERE se.section_id = sections.id AND se.status = 'active') as student_count")
+                DB::raw("(SELECT COUNT(*) FROM student_enrollments se WHERE se.section_id = sections.id AND se.status = 'active') as student_count")
             )
             ->distinct()
             ->get()

@@ -1,9 +1,6 @@
 <?php
 
 use App\Models\User;
-use Illuminate\Foundation\Testing\RefreshDatabase;
-
-uses(RefreshDatabase::class);
 
 it('updates registrar and returns Inertia render for X-Inertia requests', function () {
     $admin = User::factory()->create(['role' => 'head_teacher']);

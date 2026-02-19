@@ -57,7 +57,22 @@ Route::middleware(['web', 'auth:web', 'throttle.api'])->group(function () {
                     'name' => $student->user?->name,
                     'email' => $student->user?->email,
                     'student_number' => $student->student_number,
-                    'year_level' => $student->year_level,
+                    // Normalize year level for the frontend: prefer numeric/current_year_level when available
+                    'year_level' => (function () use ($student) {
+                        // If the student has a numeric current_year_level, map it to a label
+                        if (! empty($student->current_year_level)) {
+                            if ($student->education_level === 'senior_high') {
+                                return $student->current_year_level === 12 ? 'Grade 12' : 'Grade 11';
+                            }
+
+                            $map = [1 => '1st Year', 2 => '2nd Year', 3 => '3rd Year', 4 => '4th Year', 5 => '5th Year'];
+
+                            return $map[$student->current_year_level] ?? $student->year_level ?? (string) $student->current_year_level;
+                        }
+
+                        // Fallback to stored string value (legacy)
+                        return $student->year_level ?? null;
+                    })(),
                     'program' => $student->program,
                     'curriculum' => $student->curriculum,
                     'curriculum_id' => $student->curriculum_id,
@@ -102,7 +117,20 @@ Route::middleware(['web', 'auth:web', 'throttle.api'])->group(function () {
                     'name' => $archivedStudent->first_name.' '.$archivedStudent->last_name,
                     'email' => $archivedStudent->user?->email,
                     'student_number' => $archivedStudent->student_number,
-                    'year_level' => $archivedStudent->year_level,
+                    // Normalize archived year level (prefer numeric values when present)
+                    'year_level' => (function () use ($archivedStudent) {
+                        if (! empty($archivedStudent->current_year_level)) {
+                            if ($archivedStudent->education_level === 'senior_high') {
+                                return $archivedStudent->current_year_level === 12 ? 'Grade 12' : 'Grade 11';
+                            }
+
+                            $map = [1 => '1st Year', 2 => '2nd Year', 3 => '3rd Year', 4 => '4th Year', 5 => '5th Year'];
+
+                            return $map[$archivedStudent->current_year_level] ?? $archivedStudent->year_level ?? (string) $archivedStudent->current_year_level;
+                        }
+
+                        return $archivedStudent->year_level ?? null;
+                    })(),
                     'program' => $archivedStudent->program,
                     'education_level' => $archivedStudent->education_level,
                     'student_type' => 'returning',
