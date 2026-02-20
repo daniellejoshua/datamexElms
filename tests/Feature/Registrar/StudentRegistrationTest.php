@@ -109,6 +109,48 @@ it('registers a new student with all required information', function () {
     expect($payment->status)->toBe('partial');
 });
 
+it('charges SHS Grade 12 new student and does not apply voucher', function () {
+    // Set current semester to 1st so student qualifies as new SHS
+    SchoolSetting::setCurrentAcademicPeriod('2024-2025', '1st');
+
+    $this->actingAs($this->user);
+
+    $shsProgram = Program::factory()->create(['education_level' => 'senior_high']);
+
+    $studentData = [
+        'first_name' => 'SHS',
+        'last_name' => 'Grade12',
+        'birth_date' => '2008-07-01',
+        'address' => '123 SHS St',
+        'phone' => '09120001122',
+        'email' => 'shs.grade12.'.uniqid().'@example.com',
+        'parent_contact' => '09330004455',
+        'program_id' => $shsProgram->id,
+        'year_level' => 'Grade 12',
+        'student_type' => 'regular',
+        'education_level' => 'senior_high',
+        'track' => null,
+        'strand' => null,
+        'enrollment_fee' => 12000.00,
+        'payment_amount' => 6000.00,
+        'confirm_course_shift' => false,
+    ];
+
+    $response = $this->post(route('registrar.students.store'), $studentData);
+    $response->assertRedirect(route('registrar.students'));
+    $response->assertSessionHas('success');
+
+    $student = Student::where('last_name', 'Grade12')->first();
+    expect($student)->not->toBeNull();
+    expect($student->education_level)->toBe('senior_high');
+
+    $payment = StudentSemesterPayment::where('student_id', $student->id)->first();
+    expect($payment)->not->toBeNull();
+    expect((float) $payment->enrollment_fee)->toBe(12000.00);
+    expect((float) $payment->total_paid)->toBe(6000.00);
+    expect((float) $payment->balance)->toBe(6000.00);
+});
+
 it('registers an irregular student', function () {
     // Set current semester to 1st to allow new student enrollment
     SchoolSetting::setCurrentAcademicPeriod('2024-2025', '1st');

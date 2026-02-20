@@ -1121,18 +1121,38 @@ export default function StudentsIndex({ students, programs, filters, auth, on_ho
                                                 {/* Voucher Information - Only show for SHS students */}
                                                 {selectedStudent.education_level === 'senior_high' && (
                                                     <div className="p-4 bg-gradient-to-r from-yellow-50 to-amber-50 rounded-lg border border-yellow-200">
-                                                        <div className="flex items-center gap-2 mb-2">
-                                                            <div className={`w-3 h-3 rounded-full ${
-                                                                selectedStudent.has_voucher && selectedStudent.voucher_status === 'active'
-                                                                    ? 'bg-green-500'
-                                                                    : selectedStudent.has_voucher && selectedStudent.voucher_status === 'invalid'
-                                                                    ? 'bg-red-500'
-                                                                    : 'bg-gray-400'
-                                                            }`}></div>
-                                                            <span className="text-sm font-medium text-yellow-800 uppercase tracking-wide">SHS Voucher</span>
-                                                        </div>
+                                                                {
+                                                                    // Treat transferees as not eligible for voucher display regardless of stored flags
+                                                                    (() => {
+                                                                        const isTransferee = selectedStudent.enrollment_type === 'transferee';
+                                                                        const colorClass = isTransferee
+                                                                            ? 'bg-gray-400'
+                                                                            : (selectedStudent.has_voucher && selectedStudent.voucher_status === 'active')
+                                                                                ? 'bg-green-500'
+                                                                                : selectedStudent.has_voucher && selectedStudent.voucher_status === 'invalid'
+                                                                                    ? 'bg-red-500'
+                                                                                    : 'bg-gray-400';
+
+                                                                        return (
+                                                                            <div className="flex items-center gap-2 mb-2">
+                                                                                <div className={`w-3 h-3 rounded-full ${colorClass}`}></div>
+                                                                                <span className="text-sm font-medium text-yellow-800 uppercase tracking-wide">SHS Voucher</span>
+                                                                            </div>
+                                                                        )
+                                                                    })()
+                                                                }
                                                         <div className="space-y-1">
-                                                            {selectedStudent.has_voucher ? (
+                                                            {selectedStudent.enrollment_type === 'transferee' ? (
+                                                                <div className="space-y-2">
+                                                                    <div className="flex items-center justify-between">
+                                                                        <span className="text-sm text-yellow-900">Voucher Eligibility:</span>
+                                                                        <Badge variant="secondary" className={'bg-gray-100 text-gray-800'}>Not eligible (Transferee)</Badge>
+                                                                    </div>
+                                                                    <div className="p-2 bg-yellow-50 rounded border border-yellow-100 text-sm text-yellow-800">
+                                                                        Transferees are not eligible for the SHS voucher program; fees should be collected normally.
+                                                                    </div>
+                                                                </div>
+                                                            ) : selectedStudent.has_voucher ? (
                                                                 <div className="space-y-2">
                                                                     <div className="flex items-center justify-between">
                                                                         <span className="text-sm text-yellow-900">Status:</span>

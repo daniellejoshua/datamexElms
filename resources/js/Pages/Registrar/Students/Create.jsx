@@ -97,6 +97,11 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
     const isQualifiedNewStudent = data.year_level === '1st Year' && currentSemester === '1st'
     const isShsNewStudent = (data.year_level === 'Grade 11' || data.year_level === '1') && currentSemester === '1st'
 
+    // voucher eligibility: only SHS Grade 11 incoming students get government voucher
+    const isShsVoucherEligible = data.education_level === 'senior_high' && (data.year_level === 'Grade 11' || data.year_level === '1');
+    // Vouchers do NOT apply to transferees — treat transferees as non-eligible
+    const isShsVoucherApplicable = isShsVoucherEligible && data.enrollment_type !== 'transferee'
+
     // Helper function to extract numeric year level
     const getNumericYearLevel = (yearLevel, educationLevel) => {
         const match = yearLevel.match(/(\d+)/)
@@ -228,6 +233,30 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
     const [subjectSearchQuery, setSubjectSearchQuery] = useState('')
     const [feeAdjustments, setFeeAdjustments] = useState({ creditedPassed: [], pastSubjectsToCatchUp: [], creditedFailed: [], isIrregular: undefined })
     const [invalidGrades, setInvalidGrades] = useState({}) // Track invalid grades by subject_id
+
+    // Auto-select Grade 11 subjects for SHS transferees when entering grading step (Step 2)
+    useEffect(() => {
+        if (creditModalStep !== 2 || !curriculumComparison) return
+
+        const shsTransfereeFiltering = isTransferee && (selectedProgram?.education_level === 'senior_high' || data.education_level === 'senior_high')
+
+        if (shsTransfereeFiltering) {
+            const grade11 = curriculumComparison.new_program?.curriculum?.subjects?.filter(s => s.year_level === 11) || []
+            const toAdd = grade11.filter(s => !creditedSubjects.some(cs => cs.subject_id === s.subject_id)).map(s => ({
+                subject_id: s.subject_id,
+                subject_code: s.subject_code,
+                subject_name: s.subject_name,
+                year_level: s.year_level,
+                semester: s.semester,
+                units: s.units,
+                grade: ''
+            }))
+
+            if (toAdd.length > 0) {
+                setCreditedSubjects(prev => [...prev, ...toAdd])
+            }
+        }
+    }, [creditModalStep, curriculumComparison, isTransferee, selectedProgram, data.education_level, creditedSubjects])
 
 
 
@@ -369,42 +398,55 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
         if (data.program_id && data.year_level && data.student_type) {
             const program = programs.find(p => p.id === parseInt(data.program_id))
 
-            // Check if this is a SHS student (voucher program)
-            const isShsStudent = program?.education_level === 'senior_high'
+                // determine if this student should receive the SHS voucher
+                // (only senior high Grade 11 newcomers are voucher-eligible). Vouchers don't apply to transferees.
+                const isShsVoucherStudent = program?.education_level === 'senior_high' && isShsVoucherApplicable
 
-            // Only auto-populate fee for regular students
-            if (data.student_type === 'regular') {
+                // Only auto-populate fee for regular students
+                if (data.student_type === 'regular') {
                 // Find the appropriate fee for this year level and student type
+                // Map human labels to numeric year levels expected by program_fees
+                const yearLevelMap = {
+                    '1st Year': 1,
+                    '2nd Year': 2,
+                    '3rd Year': 3,
+                    '4th Year': 4,
+                    'Grade 11': 1,
+                    'Grade 12': 2,
+                }
+                const numericYear = (yearLevelMap[data.year_level] ?? parseInt(data.year_level)) || getNumericYearLevel(data.year_level, program?.education_level)
+
                 const programFee = program?.program_fees?.find(fee =>
-                    fee.year_level === parseInt(data.year_level) &&
+                    fee.year_level === numericYear &&
                     fee.fee_type === 'regular'
                 )
                 
-                setData(prev => ({
-                    ...prev,
-                    education_level: program?.education_level || '',
-                    track: program?.track || '',
-                    strand: program?.strand || '',
-                    // SHS students with voucher get free tuition
-                    enrollment_fee: isShsStudent ? '0' : (programFee?.semester_fee || ''),
-                    // SHS students don't need to pay
-                    payment_amount: isShsStudent ? '0' : prev.payment_amount,
-                }))
+                    setData(prev => ({
+                        ...prev,
+                        education_level: program?.education_level || '',
+                        track: program?.track || '',
+                        strand: program?.strand || '',
+                        // only voucher-applicable SHS students get free tuition
+                        enrollment_fee: isShsVoucherStudent ? '0' : (programFee?.semester_fee || ''),
+                        // transferees will not be set to 0 because we used isShsVoucherApplicable
+                        payment_amount: isShsVoucherStudent ? '0' : prev.payment_amount,
+                    }))
             } else {
                 // For irregular students, don't auto-populate fee
-                setData(prev => ({
-                    ...prev,
-                    education_level: program?.education_level || '',
-                    track: program?.track || '',
-                    strand: program?.strand || '',
-                    // SHS students with voucher get free tuition
-                    enrollment_fee: isShsStudent ? '0' : prev.enrollment_fee,
-                    // SHS students don't need to pay
-                    payment_amount: isShsStudent ? '0' : prev.payment_amount,
-                }))
+                    setData(prev => ({
+                        ...prev,
+                        education_level: program?.education_level || '',
+                        track: program?.track || '',
+                        strand: program?.strand || '',
+                        // If this is a transferee into SHS who is NOT voucher-applicable, ensure we populate the regular program fee so registrar can collect payment
+                        enrollment_fee: (data.enrollment_type === 'transferee' && program?.education_level === 'senior_high' && !isShsVoucherApplicable)
+                            ? (program?.program_fees?.find(fee => fee.year_level === parseInt(data.year_level) && fee.fee_type === 'regular')?.semester_fee ?? prev.enrollment_fee)
+                            : (isShsVoucherStudent ? '0' : prev.enrollment_fee),
+                        payment_amount: isShsVoucherStudent ? '0' : prev.payment_amount,
+                    }))
             }
         }
-    }, [data.program_id, data.year_level, data.student_type])
+    }, [data.program_id, data.year_level, data.student_type, data.enrollment_type, isShsVoucherApplicable])
 
     useEffect(() => {
         const enrollmentFee = parseFloat(data.enrollment_fee) || 0
@@ -453,7 +495,36 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
         } else if (data.enrollment_type === 'transferee') {
             setIsTransferee(true)
             setIsShiftee(false)
-            setData(prev => ({ ...prev, enrollment_fee: '' })) // Clear fee for transferee - to be calculated
+            // For transferees, normally fee is calculated later. However,
+            // if the transferee is for Senior High (Grade 12) and NOT voucher-eligible,
+            // we need to show and collect the program fee immediately. Do not clear it.
+            const shsTransferee = (selectedProgram?.education_level === 'senior_high' || data.education_level === 'senior_high')
+            const shsVoucher = isShsVoucherApplicable
+
+            // Transferees must always have a program fee (they are not voucher-eligible).
+            // If this is a SHS transferee (e.g. Grade 12) and voucher does not apply,
+            // populate the program fee from the selected program if the current fee is empty or zero.
+            if (shsTransferee && !shsVoucher) {
+                const yearLevelMap = {
+                    '1st Year': 1,
+                    '2nd Year': 2,
+                    '3rd Year': 3,
+                    '4th Year': 4,
+                    'Grade 11': 1,
+                    'Grade 12': 2,
+                }
+                const numericYear = (yearLevelMap[data.year_level] ?? parseInt(data.year_level)) || getNumericYearLevel(data.year_level, selectedProgram?.education_level)
+                const programFee = selectedProgram?.program_fees?.find(f => f.year_level === numericYear && f.fee_type === 'regular')
+
+                setData(prev => ({
+                    ...prev,
+                    enrollment_fee: (!prev.enrollment_fee || prev.enrollment_fee === '' || parseFloat(prev.enrollment_fee) === 0)
+                        ? (programFee?.semester_fee ?? prev.enrollment_fee)
+                        : prev.enrollment_fee
+                }))
+            } else {
+                setData(prev => ({ ...prev, enrollment_fee: prev.enrollment_fee }))
+            }
             // Removed: setShowCreditModal(true) - will be triggered from confirmation modal instead
         } else {
             setIsTransferee(false)
@@ -2136,8 +2207,8 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                                 </div>
                             </>
                         )}
-                        {/* SHS Voucher Status Alert */}
-                        {data.education_level === 'senior_high' && (
+                        {/* SHS Voucher Status Alert - only show when voucher-applicable */}
+                        {data.education_level === 'senior_high' && isShsVoucherApplicable && (
                             <div className="bg-green-50 border border-green-200 rounded-lg p-4">
                                 <div className="flex items-start gap-3">
                                     <div className="bg-green-100 p-2 rounded-full">
@@ -2180,7 +2251,7 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                                     <p className="text-xs text-gray-500 mt-1">
                                         {(isTransferee || isShiftee) && feeAdjustments && feeAdjustments.isIrregular !== undefined
                                             ? 'Program fee will be calculated based on subjects enrolled in first term'
-                                            : data.education_level === 'senior_high'
+                                            : (data.education_level === 'senior_high' && isShsVoucherApplicable)
                                             ? '₱0.00 - Covered by SHS voucher program'
                                             : data.student_type === 'regular'
                                             ? 'Automatically set based on selected program and year level'
@@ -2195,7 +2266,7 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                                     <p className="text-red-500 text-sm">{errors.payment_amount}</p>
                                 )}
                                 <p className="text-xs text-gray-500 mt-1">
-                                    {data.education_level === 'senior_high'
+                                    {(data.education_level === 'senior_high' && isShsVoucherApplicable)
                                         ? 'No payment required - covered by voucher'
                                         : 'Amount paid today towards the program fee'
                                     }
@@ -2217,7 +2288,17 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                                     show the regular program-fee input so the registrar can
                                     collect/set the enrollment fee just like other regulars.
                                 */}
-                                {data.enrollment_type === 'transferee' && data.student_type !== 'regular' ? (
+                                {/* Show program fee input for SHS transferees so registrar can collect payment */}
+                                {data.enrollment_type === 'transferee' && (selectedProgram?.education_level === 'senior_high' || data.education_level === 'senior_high') ? (
+                                    <NumberInput
+                                        id="enrollment_fee"
+                                        placeholder="0.00"
+                                        value={data.enrollment_fee ?? ''}
+                                        onChange={(e) => setData('enrollment_fee', e.target.value)}
+                                        disabled={true}
+                                        className="text-lg font-semibold"
+                                    />
+                                ) : data.enrollment_type === 'transferee' && data.student_type !== 'regular' ? (
                                     <div className="p-3 bg-blue-50 border border-blue-200 rounded-md">
                                         <p className="text-sm text-blue-800 font-medium">
                                             To be calculated
@@ -2246,7 +2327,7 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                                         placeholder="0.00"
                                         value={data.enrollment_fee ?? ''}
                                         onChange={(e) => setData('enrollment_fee', e.target.value)}
-                                        disabled={data.education_level === 'senior_high' || (data.student_type === 'regular' && !isTransferee && !isShiftee)}
+                                        disabled={true}
                                         className="text-lg font-semibold"
                                     />
                                 )}
@@ -2261,15 +2342,34 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                                     id="payment_amount"
                                     placeholder="0.00"
                                     value={data.payment_amount ?? ''}
-                                    onChange={(e) => setData('payment_amount', e.target.value)}
-                                    disabled={!formUnlocked || data.education_level === 'senior_high'}
+                                    onChange={(e) => {
+                                        const raw = e.target.value
+                                        // allow empty
+                                        if (raw === '') {
+                                            setData('payment_amount', '')
+                                            return
+                                        }
+
+                                        const numeric = parseFloat(raw)
+                                        const fee = parseFloat(data.enrollment_fee) || 0
+
+                                        if (!isNaN(numeric) && fee > 0 && numeric > fee) {
+                                            // Prevent entering amount greater than program fee
+                                            toast.error('Payment cannot exceed the program fee')
+                                            setData('payment_amount', String(fee))
+                                            return
+                                        }
+
+                                        setData('payment_amount', raw)
+                                    }}
+                                    disabled={!formUnlocked || isShsVoucherApplicable}
                                     className="text-lg font-semibold"
                                 />
                             </div>
                         </div>
 
-                        {/* Balance Display */}
-                        {(isTransferee || isShiftee) && feeAdjustments && feeAdjustments.isIrregular !== undefined ? (
+                        {/* Balance Display - hide for SHS voucher-applicable students */}
+                        {!isShsVoucherApplicable && ((isTransferee || isShiftee) && feeAdjustments && feeAdjustments.isIrregular !== undefined ? (
                             <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg">
                                 <div className="flex justify-between items-center">
                                     <div>
@@ -2314,7 +2414,7 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                                     )}
                                 </div>
                             </div>
-                        )}
+                        ))}
                     </CardContent>
                 </Card>
 
@@ -3296,13 +3396,26 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
 
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-h-96 overflow-y-auto">
                                         {curriculumComparison.new_program?.curriculum?.subjects
-                                            ?.filter(subject =>
-                                                subject.subject_name.toLowerCase().includes(subjectSearchQuery.toLowerCase()) ||
-                                                subject.subject_code.toLowerCase().includes(subjectSearchQuery.toLowerCase())
-                                            )
+                                            ?.filter(subject => {
+                                                const matchesSearch = subject.subject_name.toLowerCase().includes(subjectSearchQuery.toLowerCase()) ||
+                                                    subject.subject_code.toLowerCase().includes(subjectSearchQuery.toLowerCase())
+
+                                                // If this is a transferee being registered into Senior High,
+                                                // only show Grade 11 subjects (do not show Grade 12 subjects).
+                                                const shsTransfereeFiltering = isTransferee && (selectedProgram?.education_level === 'senior_high' || data.education_level === 'senior_high')
+
+                                                if (shsTransfereeFiltering) {
+                                                    return matchesSearch && subject.year_level === 11
+                                                }
+
+                                                return matchesSearch
+                                            })
                                             .map((subject, index) => {
                                                 const isSelected = creditedSubjects.some(cs => cs.subject_id === subject.subject_id)
                                                 const selectedSubject = creditedSubjects.find(cs => cs.subject_id === subject.subject_id)
+
+                                                // Determine if this subject should be auto-checked and immutable
+                                                const isAutoChecked = isTransferee && (selectedProgram?.education_level === 'senior_high' || data.education_level === 'senior_high') && subject.year_level === 11
 
                                                 return (
                                                     <div
@@ -3310,6 +3423,23 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                                                         onClick={(e) => {
                                                             // Don't toggle if clicking on the input field
                                                             if (e.target.tagName === 'INPUT' && e.target.type === 'number') return
+
+                                                            // If auto-checked for SHS transferees, do not allow unchecking.
+                                                            if (isAutoChecked) {
+                                                                // Ensure it's present (defensive) but never remove it on click
+                                                                if (!isSelected) {
+                                                                    setCreditedSubjects(prev => [...prev, {
+                                                                        subject_id: subject.subject_id,
+                                                                        subject_code: subject.subject_code,
+                                                                        subject_name: subject.subject_name,
+                                                                        year_level: subject.year_level,
+                                                                        semester: subject.semester,
+                                                                        units: subject.units,
+                                                                        grade: ''
+                                                                    }])
+                                                                }
+                                                                return
+                                                            }
 
                                                             if (isSelected) {
                                                                 setCreditedSubjects(prev => prev.filter(cs => cs.subject_id !== subject.subject_id))
@@ -3717,6 +3847,22 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                                         
                                         // Step 2 validation
                                         if (creditModalStep === 2) {
+                                            // when first arriving to grading step, pre-check all grade 11
+                                            // subjects so registrar only needs to enter grades
+                                            if (creditedSubjects.length === 0 && curriculumComparison) {
+                                                const grade11 = curriculumComparison.new_program?.curriculum?.subjects?.filter(s => s.year_level === 11) || [];
+                                                const initial = grade11.map(s => ({
+                                                    subject_id: s.subject_id,
+                                                    subject_code: s.subject_code,
+                                                    subject_name: s.subject_name,
+                                                    year_level: s.year_level,
+                                                    semester: s.semester,
+                                                    units: s.units,
+                                                    grade: ''
+                                                }));
+                                                setCreditedSubjects(initial);
+                                            }
+
                                             if (creditedSubjects.length === 0) {
                                                 toast.error('Please select at least one subject')
                                                 return
@@ -3790,11 +3936,19 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                                                 if (!isIrregular) {
                                                     if (!resolvedEnrollmentFee || resolvedEnrollmentFee === '') {
                                                         const program = programs.find(p => p.id === parseInt(prev.program_id))
-                                                        const programFee = program?.program_fees?.find(fee =>
-                                                            fee.year_level === parseInt(prev.year_level) && fee.fee_type === 'regular'
-                                                        )
+                                                        const yearLevelMap = {
+                                                            '1st Year': 1,
+                                                            '2nd Year': 2,
+                                                            '3rd Year': 3,
+                                                            '4th Year': 4,
+                                                            'Grade 11': 1,
+                                                            'Grade 12': 2,
+                                                        }
+                                                        const numericYear = (yearLevelMap[prev.year_level] ?? parseInt(prev.year_level)) || getNumericYearLevel(prev.year_level, program?.education_level)
+                                                        const programFee = program?.program_fees?.find(fee => fee.year_level === numericYear && fee.fee_type === 'regular')
                                                         const isShsStudent = program?.education_level === 'senior_high'
-                                                        resolvedEnrollmentFee = isShsStudent ? '0' : (programFee?.semester_fee ?? '')
+                                                        // Only set fee to 0 for SHS when voucher-applicable (Grade 11 newcomers who are not transferees).
+                                                        resolvedEnrollmentFee = (isShsStudent && isShsVoucherApplicable) ? '0' : (programFee?.semester_fee ?? '')
                                                     }
                                                 }
 

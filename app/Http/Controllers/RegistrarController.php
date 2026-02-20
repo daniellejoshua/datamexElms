@@ -1121,7 +1121,8 @@ class RegistrarController extends Controller
             ];
 
             // SHS Voucher System: All SHS students automatically get voucher
-            if ($validated['education_level'] === 'senior_high') {
+            // but do NOT assign vouchers to transferees (they should pay like regular/college students)
+            if ($validated['education_level'] === 'senior_high' && (($validated['enrollment_type'] ?? null) !== 'transferee')) {
                 $studentData['has_voucher'] = true;
                 $studentData['voucher_id'] = 'shsvoucher('.$studentData['student_number'].')';
                 $studentData['voucher_status'] = 'active';
@@ -1260,96 +1261,147 @@ class RegistrarController extends Controller
 
             // Check if payment record already exists for this semester
             if ($validated['education_level'] === 'senior_high') {
-                // For SHS students, create yearly payment record (not quarterly)
-                $existingShsPayment = ShsStudentPayment::where([
-                    'student_id' => $student->id,
-                    'academic_year' => $academicYear,
-                    'semester' => 'annual', // Use 'annual' for yearly payments
-                ])->first();
-
-                if (! $existingShsPayment) {
-                    // Determine yearly fee based on grade level
-                    $yearlyFee = $this->getShsYearlyFee($validated['year_level'], $enrollmentFee);
-
-                    // Create SHS yearly payment record
-                    $shsPayment = ShsStudentPayment::create([
+                // If the SHS student is a transferee, treat enrollment/payment like college
+                if (($validated['enrollment_type'] ?? null) === 'transferee') {
+                    // For transferees, create a SHS yearly payment record so they appear in SHS payments index
+                    $existingShsPayment = ShsStudentPayment::where([
                         'student_id' => $student->id,
                         'academic_year' => $academicYear,
                         'semester' => 'annual',
-                        'first_quarter_amount' => 0, // Not used for yearly payments
-                        'second_quarter_amount' => 0,
-                        'third_quarter_amount' => 0,
-                        'fourth_quarter_amount' => 0,
-                        'total_semester_fee' => $yearlyFee,
-                        'total_paid' => 0,
-                        'balance' => $yearlyFee,
-                    ]);
-                } else {
-                    $shsPayment = $existingShsPayment;
-                }
+                    ])->first();
 
-                // For SHS, we don't create payment transactions the same way
-                // The payment logic is handled differently for yearly payments
-                $semesterPayment = null; // Not used for SHS
-
-                // Create enrollment transaction for SHS students
-                if ($paymentAmount > 0) {
-                    PaymentTransaction::create([
-                        'student_id' => $student->id,
-                        'payable_type' => ShsStudentPayment::class,
-                        'payable_id' => $shsPayment->id,
-                        'amount' => $paymentAmount,
-                        'payment_type' => 'enrollment_fee',
-                        'payment_method' => 'cash',
-                        'reference_number' => 'REG-'.now()->format('YmdHis').'-'.$student->id,
-                        'description' => 'Enrollment for '.$validated['year_level'],
-                        'payment_date' => now(),
-                        'status' => 'completed',
-                        'processed_by' => Auth::id(),
-                        'notes' => 'Payment made during SHS student enrollment',
-                    ]);
-
-                    // Update the SHS payment record with the payment
-                    $shsPayment->total_paid = $paymentAmount;
-                    $shsPayment->balance = $shsPayment->total_semester_fee - $paymentAmount;
-                    $shsPayment->save();
-                } else {
-                    // Create transaction record even for zero payment (enrollment record)
-                    // For voucher students, show the yearly fee amount that was covered
-                    $transactionAmount = 0;
-                    $transactionNotes = 'SHS student enrollment (voucher student)';
-                    $transactionDescription = 'Enrollment for '.$validated['year_level'];
-
-                    if ($validated['education_level'] === 'senior_high' &&
-                        ($studentData['has_voucher'] ?? false) &&
-                        ($studentData['voucher_status'] ?? null) === 'active') {
-                        $transactionAmount = $yearlyFee; // Show the yearly fee that was covered by voucher
-                        $transactionNotes = 'Fees covered by active voucher';
-                        $transactionDescription = 'Voucher Enrollment for '.$validated['year_level'];
+                    if (! $existingShsPayment) {
+                        $shsPayment = ShsStudentPayment::create([
+                            'student_id' => $student->id,
+                            'academic_year' => $academicYear,
+                            'semester' => 'annual',
+                            'first_quarter_amount' => 0,
+                            'second_quarter_amount' => 0,
+                            'third_quarter_amount' => 0,
+                            'fourth_quarter_amount' => 0,
+                            'total_semester_fee' => $enrollmentFee,
+                            'total_paid' => 0,
+                            'balance' => $enrollmentFee,
+                        ]);
+                    } else {
+                        $shsPayment = $existingShsPayment;
                     }
 
-                    PaymentTransaction::create([
-                        'student_id' => $student->id,
-                        'payable_type' => ShsStudentPayment::class,
-                        'payable_id' => $shsPayment->id,
-                        'amount' => $transactionAmount,
-                        'payment_type' => 'enrollment_fee',
-                        'payment_method' => 'voucher',
-                        'reference_number' => $studentData['voucher_id'] ?? 'REG-'.now()->format('YmdHis').'-'.$student->id,
-                        'description' => $transactionDescription,
-                        'payment_date' => now(),
-                        'status' => 'completed',
-                        'processed_by' => Auth::id(),
-                        'notes' => $transactionNotes,
-                    ]);
+                    // If there's an initial payment, create a payment transaction and update the SHS payment totals
+                    if ($paymentAmount > 0) {
+                        PaymentTransaction::create([
+                            'student_id' => $student->id,
+                            'payable_type' => ShsStudentPayment::class,
+                            'payable_id' => $shsPayment->id,
+                            'amount' => $paymentAmount,
+                            'payment_type' => 'enrollment_fee',
+                            'payment_method' => 'cash',
+                            'reference_number' => 'REG-'.now()->format('YmdHis').'-'.$student->id,
+                            'description' => 'Enrollment fee payment',
+                            'payment_date' => now(),
+                            'status' => 'completed',
+                            'processed_by' => Auth::id(),
+                            'notes' => 'Payment made during SHS transferee enrollment',
+                        ]);
 
-                    // For voucher students, mark the payment as fully paid since voucher covers the fee
-                    if ($validated['education_level'] === 'senior_high' &&
-                        ($studentData['has_voucher'] ?? false) &&
-                        ($studentData['voucher_status'] ?? null) === 'active') {
-                        $shsPayment->total_paid = $yearlyFee;
-                        $shsPayment->balance = 0;
+                        $shsPayment->total_paid = $paymentAmount;
+                        $shsPayment->balance = $shsPayment->total_semester_fee - $paymentAmount;
                         $shsPayment->save();
+                    }
+
+                    // Continue with the SHS flow (we created an SHS record for transferees so it shows in SHS views)
+                } else {
+                    // For SHS students (non-transferees), create yearly payment record (not quarterly)
+                    $existingShsPayment = ShsStudentPayment::where([
+                        'student_id' => $student->id,
+                        'academic_year' => $academicYear,
+                        'semester' => 'annual', // Use 'annual' for yearly payments
+                    ])->first();
+
+                    if (! $existingShsPayment) {
+                        // Determine yearly fee based on grade level
+                        $yearlyFee = $this->getShsYearlyFee($validated['year_level'], $enrollmentFee);
+
+                        // Create SHS yearly payment record
+                        $shsPayment = ShsStudentPayment::create([
+                            'student_id' => $student->id,
+                            'academic_year' => $academicYear,
+                            'semester' => 'annual',
+                            'first_quarter_amount' => 0, // Not used for yearly payments
+                            'second_quarter_amount' => 0,
+                            'third_quarter_amount' => 0,
+                            'fourth_quarter_amount' => 0,
+                            'total_semester_fee' => $yearlyFee,
+                            'total_paid' => 0,
+                            'balance' => $yearlyFee,
+                        ]);
+                    } else {
+                        $shsPayment = $existingShsPayment;
+                    }
+
+                    // For SHS, we don't create payment transactions the same way
+                    // The payment logic is handled differently for yearly payments
+                    $semesterPayment = null; // Not used for SHS
+
+                    // Create enrollment transaction for SHS students
+                    if ($paymentAmount > 0) {
+                        PaymentTransaction::create([
+                            'student_id' => $student->id,
+                            'payable_type' => ShsStudentPayment::class,
+                            'payable_id' => $shsPayment->id,
+                            'amount' => $paymentAmount,
+                            'payment_type' => 'enrollment_fee',
+                            'payment_method' => 'cash',
+                            'reference_number' => 'REG-'.now()->format('YmdHis').'-'.$student->id,
+                            'description' => 'Enrollment for '.$validated['year_level'],
+                            'payment_date' => now(),
+                            'status' => 'completed',
+                            'processed_by' => Auth::id(),
+                            'notes' => 'Payment made during SHS student enrollment',
+                        ]);
+
+                        // Update the SHS payment record with the payment
+                        $shsPayment->total_paid = $paymentAmount;
+                        $shsPayment->balance = $shsPayment->total_semester_fee - $paymentAmount;
+                        $shsPayment->save();
+                    } else {
+                        // Create transaction record even for zero payment (enrollment record)
+                        // For voucher students, show the yearly fee amount that was covered
+                        $transactionAmount = 0;
+                        $transactionNotes = 'SHS student enrollment (voucher student)';
+                        $transactionDescription = 'Enrollment for '.$validated['year_level'];
+
+                        if ($validated['education_level'] === 'senior_high' &&
+                            ($studentData['has_voucher'] ?? false) &&
+                            ($studentData['voucher_status'] ?? null) === 'active') {
+                            $transactionAmount = $yearlyFee; // Show the yearly fee that was covered by voucher
+                            $transactionNotes = 'Fees covered by active voucher';
+                            $transactionDescription = 'Voucher Enrollment for '.$validated['year_level'];
+                        }
+
+                        PaymentTransaction::create([
+                            'student_id' => $student->id,
+                            'payable_type' => ShsStudentPayment::class,
+                            'payable_id' => $shsPayment->id,
+                            'amount' => $transactionAmount,
+                            'payment_type' => 'enrollment_fee',
+                            'payment_method' => 'voucher',
+                            'reference_number' => $studentData['voucher_id'] ?? 'REG-'.now()->format('YmdHis').'-'.$student->id,
+                            'description' => $transactionDescription,
+                            'payment_date' => now(),
+                            'status' => 'completed',
+                            'processed_by' => Auth::id(),
+                            'notes' => $transactionNotes,
+                        ]);
+
+                        // For voucher students, mark the payment as fully paid since voucher covers the fee
+                        if ($validated['education_level'] === 'senior_high' &&
+                            ($studentData['has_voucher'] ?? false) &&
+                            ($studentData['voucher_status'] ?? null) === 'active') {
+                            $shsPayment->total_paid = $yearlyFee;
+                            $shsPayment->balance = 0;
+                            $shsPayment->save();
+                        }
                     }
                 }
             } else {

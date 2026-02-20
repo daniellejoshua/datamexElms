@@ -129,3 +129,44 @@ it('shows calculated balance on registrar payments index for transferees', funct
             ->where('payments.data.0.calculated_total_amount', fn ($v) => is_numeric($v))
     );
 });
+it('reduces balance when a college payment is recorded and updates status', function () {
+    $registrar = User::factory()->create(['role' => 'registrar']);
+    $program = Program::factory()->create(['education_level' => 'college']);
+
+    $studentUser = User::factory()->create(['role' => 'student']);
+    $student = Student::factory()->create([
+        'user_id' => $studentUser->id,
+        'program_id' => $program->id,
+        'student_type' => 'regular',
+    ]);
+
+    $academicYear = SchoolSetting::getCurrentAcademicYear();
+    $semester = SchoolSetting::getCurrentSemester();
+
+    $payment = StudentSemesterPayment::create([
+        'student_id' => $student->id,
+        'academic_year' => $academicYear,
+        'semester' => $semester,
+        'enrollment_fee' => 0,
+        'total_semester_fee' => 10000.00,
+        'total_paid' => 0,
+        'balance' => 10000.00,
+        'status' => 'pending',
+    ]);
+
+    $response = $this->actingAs($registrar)->post(route('registrar.payments.college.record', $payment), [
+        'amount_paid' => 2000.00,
+        'payment_date' => now()->toDateString(),
+        'term' => 'prelim',
+        'or_number' => 'OR123',
+        'notes' => 'test',
+    ]);
+
+    $response->assertRedirect();
+
+    $payment->refresh();
+    expect((float) $payment->total_paid)->toBe(2000.00);
+    expect((float) $payment->balance)->toBe(8000.00);
+    expect($payment->status)->toBe('partial');
+});
+

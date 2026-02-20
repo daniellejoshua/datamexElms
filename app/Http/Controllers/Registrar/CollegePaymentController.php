@@ -339,6 +339,17 @@ class CollegePaymentController extends Controller
             $payment->{$termField} = true;
         }
 
+        // update running totals and balance
+        $payment->total_paid = ($payment->total_paid ?? 0) + $validated['amount_paid'];
+        $payment->balance = max(0, ($payment->balance ?? 0) - $validated['amount_paid']);
+
+        // adjust status based on remaining balance
+        if ($payment->balance <= 0) {
+            $payment->status = 'paid';
+        } else {
+            $payment->status = 'partial';
+        }
+
         $payment->save();
 
         return back()->with('success', 'Payment of ₱'.number_format($validated['amount_paid'], 2).' recorded successfully. OR#: '.$validated['or_number']);
