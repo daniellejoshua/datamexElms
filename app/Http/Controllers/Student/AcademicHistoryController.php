@@ -206,6 +206,7 @@ class AcademicHistoryController extends Controller
             }
         }
 
+
         // Get enrolled subjects without grades (for current semester)
         $currentAcademicYear = \App\Models\SchoolSetting::getCurrentAcademicYear();
         $currentSemester = \App\Models\SchoolSetting::getCurrentSemester();
@@ -310,12 +311,50 @@ class AcademicHistoryController extends Controller
             return $grade['type'] === 'credited';
         });
 
-        // Get archived enrollments
+        // Get archived enrollments and annotate missing grade components
         $archivedEnrollments = \App\Models\ArchivedStudentEnrollment::where('student_id', $student->id)
             ->with('archivedSection.program')
             ->orderBy('academic_year', 'desc')
             ->orderByRaw("FIELD(semester, 'second', 'first', 'summer')")
-            ->get();
+            ->get()
+            ->map(function ($arch) {
+                $finals = $arch->final_grades ?? [];
+                $missing = [];
+                foreach (['prelim', 'midterm', 'prefinals', 'finals'] as $p) {
+                    if (empty($finals[$p])) {
+                        $missing[] = ucfirst($p);
+                    }
+                }
+                $arch->missing_grades = $missing;
+                return $arch;
+            });
+
+        // add placeholder entries for enrollments with missing grades
+        foreach ($archivedEnrollments as $arch) {
+            if ($arch->final_status === 'completed') {
+                $key = "archived_{$arch->id}";
+                if (! isset($subjectGradesMap[$key])) {
+                    $finals = $arch->final_grades ?? [];
+                    $missing = [];
+                    foreach (['prelim', 'midterm', 'prefinals', 'finals'] as $p) {
+                        if (empty($finals[$p])) {
+                            $missing[] = ucfirst($p);
+                        }
+                    }
+
+                    $subjectGradesMap[$key] = [
+                        'subject_code' => 'ARCHIVED',
+                        'subject_name' => 'Archived Enrollment',
+                        'type' => 'archived',
+                        'final_grades' => $finals,
+                        'final_semester_grade' => $arch->final_semester_grade,
+                        'final_status' => $arch->final_status,
+                        'missing_grades' => $missing,
+                        'is_complete' => empty($missing),
+                    ];
+                }
+            }
+        }
 
         return Inertia::render('Student/AcademicHistory', [
             'student' => $student,

@@ -7,6 +7,7 @@ use App\Models\ArchivedSection;
 use App\Models\ArchivedStudentEnrollment;
 use App\Models\StudentGrade;
 use App\Models\StudentSubjectCredit;
+use App\Models\ArchivedStudentSubject;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use Inertia\Inertia;
@@ -235,6 +236,65 @@ class ArchivedSectionsController extends Controller
         $archivedSection->load(['archivedEnrollments', 'program', 'curriculum']);
 
         // Filter out dropped students and process remaining enrollments to check grade status
+        // Try to use normalized archived subject rows for this specific subject first
+        $archivedEnrollmentIds = $archivedSection->archivedEnrollments->pluck('id')->filter()->values();
+        $enrollmentsWithStatus = collect();
+
+        if ($archivedEnrollmentIds->isNotEmpty()) {
+            $subjectMatchQuery = \App\Models\ArchivedStudentSubject::whereIn('archived_student_enrollment_id', $archivedEnrollmentIds);
+
+            // Match by subject_id or subject_code or section_subject_id
+            if (is_numeric($subjectId)) {
+                $subjectMatchQuery->where(function ($q) use ($subjectId) {
+                    $q->where('subject_id', (int) $subjectId)
+                      ->orWhere('subject_code', (string) $subjectId)
+                      ->orWhere('section_subject_id', (int) $subjectId);
+                });
+            } else {
+                $subjectMatchQuery->where('subject_code', (string) $subjectId);
+            }
+
+            $subjectRows = $subjectMatchQuery->get();
+
+            if ($subjectRows->isNotEmpty()) {
+                foreach ($subjectRows as $row) {
+                    $enrollment = $archivedSection->archivedEnrollments->firstWhere('id', $row->archived_student_enrollment_id);
+
+                    // Check missing per-period grades
+                    $missing = [];
+                    if (is_null($row->prelim_grade)) $missing[] = 'Prelim';
+                    if (is_null($row->midterm_grade)) $missing[] = 'Midterm';
+                    if (is_null($row->prefinal_grade)) $missing[] = 'Prefinal';
+                    if (is_null($row->final_grade)) $missing[] = 'Final';
+
+                    $gradeStatus = count($missing) > 0 ? 'Missing Grades' : 'Complete';
+
+                    $enrollmentsWithStatus->push([
+                        'id' => $row->archived_student_enrollment_id,
+                        'student_id' => $row->student_id,
+                        'student_data' => $enrollment?->student_data ?? [],
+                        'final_grades' => [
+                            'prelim' => $row->prelim_grade,
+                            'midterm' => $row->midterm_grade,
+                            'prefinals' => $row->prefinal_grade,
+                            'finals' => $row->final_grade,
+                        ],
+                        'final_semester_grade' => $row->semester_grade,
+                        'final_status' => $enrollment?->final_status ?? 'archived',
+                        'grade_status' => $gradeStatus,
+                        'missing_grades' => $missing,
+                    ]);
+                }
+
+                return Inertia::render('Teacher/ArchivedSections/SubjectGrades', [
+                    'archivedSection' => $archivedSection,
+                    'subject' => $subject,
+                    'enrollments' => $enrollmentsWithStatus->values(),
+                ]);
+            }
+        }
+
+        // Fallback to enrollment-level final_grades JSON if no normalized rows exist
         $enrollmentsWithStatus = $archivedSection->archivedEnrollments
             ->filter(function ($enrollment) {
                 return $enrollment->final_status !== 'dropped';
@@ -465,6 +525,42 @@ class ArchivedSectionsController extends Controller
                     }
                 }
             }
+        }
+
+        // Also keep normalized archived_subject rows in sync when possible
+        try {
+            $archivedSubjectQuery = ArchivedStudentSubject::where('archived_student_enrollment_id', $enrollment->id);
+
+            if ($request->section_subject_id) {
+                $archivedSubjectQuery->where('section_subject_id', $request->section_subject_id);
+            }
+
+            $archivedSubject = $archivedSubjectQuery->first();
+
+            if ($archivedSubject) {
+                // Map enrollment-level final_grades to normalized fields if present
+                if (isset($finalGrades['prelim'])) {
+                    $archivedSubject->prelim_grade = $finalGrades['prelim'];
+                }
+                if (isset($finalGrades['midterm'])) {
+                    $archivedSubject->midterm_grade = $finalGrades['midterm'];
+                }
+                if (isset($finalGrades['prefinals'])) {
+                    $archivedSubject->prefinal_grade = $finalGrades['prefinals'];
+                }
+                if (isset($finalGrades['finals'])) {
+                    $archivedSubject->final_grade = $finalGrades['finals'];
+                }
+
+                if ($enrollment->final_semester_grade !== null) {
+                    $archivedSubject->semester_grade = $enrollment->final_semester_grade;
+                }
+
+                $archivedSubject->save();
+            }
+        } catch (\Throwable $e) {
+            // Don't block UI if archived subject sync fails; log for investigation
+            \Log::warning('Failed to sync archived_student_subject after grades update', ['error' => $e->getMessage(), 'enrollment_id' => $enrollment->id]);
         }
 
         return back();

@@ -78,14 +78,12 @@ class CourseShiftComparisonController extends Controller
                     });
             })
             ->where('student_subject_enrollments.student_id', $student->id)
-            ->whereNotNull(DB::raw('COALESCE(student_grades.semester_grade, shs_student_grades.final_grade)'))
-            ->whereRaw('COALESCE(student_grades.semester_grade, shs_student_grades.final_grade) >= 75')
             ->select(
                 'subjects.id',
                 'subjects.subject_code',
                 'subjects.subject_name',
                 'subjects.description',
-                DB::raw('COALESCE(student_grades.semester_grade, shs_student_grades.final_grade) as grade'),
+                DB::raw('COALESCE(student_grades.semester_grade, student_grades.final_grade, student_grades.prefinal_grade, student_grades.midterm_grade, student_grades.prelim_grade, shs_student_grades.final_grade) as grade'),
                 'student_subject_enrollments.academic_year',
                 'student_subject_enrollments.semester'
             )
@@ -134,14 +132,16 @@ class CourseShiftComparisonController extends Controller
 
         // Merge with completed subjects from grades
         foreach ($completedSubjects as $completed) {
-            // Check if not already in credited subjects
+            // Attach source/flags and normalize grade
+            $gradeVal = is_null($completed->grade) ? null : (float) $completed->grade;
+            $completed->source = $completed->source ?? 'grade';
+            $completed->passed = is_numeric($gradeVal) ? ($gradeVal >= 75) : false;
+            $completed->is_partial = ($completed->source === 'grade' && $gradeVal !== null && $gradeVal < 100 && $gradeVal !== ($completed->semester ?? null));
+
+            // Check if not already in credited subjects (by code)
             if (! $allCreditedSubjects->contains(function ($credit) use ($completed) {
                 return strtoupper($credit->subject_code) === strtoupper($completed->subject_code);
             })) {
-                // Add source property if it doesn't have one
-                if (! isset($completed->source)) {
-                    $completed->source = 'grade';
-                }
                 $allCreditedSubjects->push($completed);
             }
         }
@@ -199,9 +199,14 @@ class CourseShiftComparisonController extends Controller
             $matched = false;
 
             foreach ($allCreditedSubjects as $completedSubject) {
+                $gradeVal = isset($completedSubject->grade) ? (float) $completedSubject->grade : null;
+
                 // Exact match by subject code
                 if (strtoupper($completedSubject->subject_code) === strtoupper($newSubject['subject_code'])) {
                     \Log::info('Match found: '.$completedSubject->subject_code.' = '.$newSubject['subject_code']);
+
+                    $isAutoCreditable = ($completedSubject->source !== 'grade' && in_array($completedSubject->source, ['credit_transfer','subject_credit'])) || ($gradeVal !== null && $gradeVal >= 75);
+
                     $credited[] = [
                         'old_subject' => [
                             'id' => $completedSubject->id,
@@ -209,9 +214,26 @@ class CourseShiftComparisonController extends Controller
                             'subject_name' => $completedSubject->subject_name,
                         ],
                         'new_subject' => $newSubject,
-                        'grade' => number_format($completedSubject->grade, 2),
+                        'grade' => is_numeric($gradeVal) ? number_format($gradeVal, 2) : null,
                         'match_reason' => 'Exact code match',
+                        'is_partial' => $completedSubject->is_partial ?? false,
+                        'auto_credit' => $isAutoCreditable,
+                        'requires_review' => ! $isAutoCreditable,
                     ];
+
+                    if (! $isAutoCreditable) {
+                        $similar[] = [
+                            'old_subject' => [
+                                'id' => $completedSubject->id,
+                                'subject_code' => $completedSubject->subject_code,
+                                'subject_name' => $completedSubject->subject_name,
+                            ],
+                            'new_subject' => $newSubject,
+                            'grade' => is_numeric($gradeVal) ? number_format($gradeVal, 2) : null,
+                            'note' => 'Matched but grade incomplete or below passing — requires review',
+                        ];
+                    }
+
                     $matched = true;
                     $newSubjectIds[] = $newSubject['id'];
                     break;
@@ -223,16 +245,19 @@ class CourseShiftComparisonController extends Controller
                 if (substr($oldCode, 0, 3) === substr($newCode, 0, 3) && strlen($oldCode) >= 3) {
                     $similarity = similar_text($oldCode, $newCode, $percent);
                     if ($percent >= 70) {
-                        $similar[] = [
-                            'old_subject' => [
-                                'id' => $completedSubject->id,
-                                'subject_code' => $completedSubject->subject_code,
-                                'subject_name' => $completedSubject->subject_name,
-                            ],
-                            'new_subject' => $newSubject,
-                            'grade' => number_format($completedSubject->grade, 2),
-                            'similarity_score' => round($percent, 0),
-                        ];
+                        if ($completedSubject->source !== 'grade' || ($gradeVal !== null && $gradeVal >= 75)) {
+                            $similar[] = [
+                                'old_subject' => [
+                                    'id' => $completedSubject->id,
+                                    'subject_code' => $completedSubject->subject_code,
+                                    'subject_name' => $completedSubject->subject_name,
+                                ],
+                                'new_subject' => $newSubject,
+                                'grade' => is_numeric($gradeVal) ? number_format($gradeVal, 2) : null,
+                                'similarity_score' => round($percent, 0),
+                            ];
+                        }
+
                         $matched = true;
                         $newSubjectIds[] = $newSubject['id'];
                         break;
@@ -248,16 +273,19 @@ class CourseShiftComparisonController extends Controller
                 );
 
                 if ($nameSimilarity >= 80) {
-                    $similar[] = [
-                        'old_subject' => [
-                            'id' => $completedSubject->id,
-                            'subject_code' => $completedSubject->subject_code,
-                            'subject_name' => $completedSubject->subject_name,
-                        ],
-                        'new_subject' => $newSubject,
-                        'grade' => number_format($completedSubject->grade, 2),
-                        'similarity_score' => round($nameSimilarity, 0),
-                    ];
+                    if ($completedSubject->source !== 'grade' || ($gradeVal !== null && $gradeVal >= 75)) {
+                        $similar[] = [
+                            'old_subject' => [
+                                'id' => $completedSubject->id,
+                                'subject_code' => $completedSubject->subject_code,
+                                'subject_name' => $completedSubject->subject_name,
+                            ],
+                            'new_subject' => $newSubject,
+                            'grade' => is_numeric($gradeVal) ? number_format($gradeVal, 2) : null,
+                            'similarity_score' => round($nameSimilarity, 0),
+                        ];
+                    }
+
                     $matched = true;
                     $newSubjectIds[] = $newSubject['id'];
                     break;

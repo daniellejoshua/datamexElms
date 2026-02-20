@@ -148,6 +148,155 @@ test('irregular student workflow: curriculum comparison identifies credits and c
 
     echo "\n✅ PHASE 1: Curriculum comparison successful\n";
     echo '   - Credited subjects: '.count($data['credited_subjects'])."\n";
+
+}); // Commented out RefreshDatabase to prevent data deletion
+
+
+test('course shift comparison matches subjects when curriculum codes differ but names align', function () {
+    $this->actingAs($this->registrar);
+
+    // Create a student and give them a completed subject in the previous program
+    $studentUser = User::factory()->create(['role' => 'student']);
+    $student = Student::factory()->create([
+        'user_id' => $studentUser->id,
+        'program_id' => $this->bsbaProgram->id,
+        'curriculum_id' => $this->bsbaCurriculum->id,
+        'student_number' => '2026-00002',
+        'year_level' => '2nd Year',
+        'current_year_level' => 2,
+    ]);
+
+    // Add a curriculum subject to previous (BSBA) curriculum that uses a different code but same subject (programming)
+    $prevCurriculumSubject = CurriculumSubject::create([
+        'curriculum_id' => $this->bsbaCurriculum->id,
+        'subject_id' => $this->programmingSubject->id,
+        'subject_code' => 'CS101',
+        'subject_name' => 'Introduction to Programming',
+        'units' => 3,
+        'year_level' => 1,
+        'semester' => '1st',
+    ]);
+
+    // Simulate student already completed that subject (create StudentSubjectCredit)
+    \App\Models\StudentSubjectCredit::create([
+        'student_id' => $student->id,
+        'curriculum_subject_id' => $prevCurriculumSubject->id,
+        'subject_id' => $this->programmingSubject->id,
+        'subject_code' => 'CS101',
+        'subject_name' => 'Introduction to Programming',
+        'units' => 3,
+        'year_level' => 1,
+        'semester' => '1st',
+        'credit_type' => 'transfer',
+        'credit_status' => 'credited',
+        'final_grade' => 85,
+        'credited_at' => now(),
+    ]);
+
+    // Trigger curriculum comparison with the student id present (shiftee flow)
+    $response = $this->postJson('/registrar/credit-transfers/compare', [
+        'previous_program_id' => $this->bsbaProgram->id,
+        'new_program_id' => $this->bsitProgram->id,
+        'student_year_level' => 2,
+        'student_id' => $student->id,
+    ]);
+
+    $response->assertSuccessful();
+    $data = $response->json('data');
+
+    // The BSIT curriculum has 'Introduction to Programming' as IT101; despite different previous code (CS101)
+    // the improved matching should identify it as creditable
+    expect($data['credited_subjects'])->not->toHaveCount(0);
+
+    $matched = collect($data['credited_subjects'])->first(fn($c) => strtolower($c['subject_code']) === 'it101');
+    expect($matched)->not->toBeNull();
+
+    echo "\n✅ Course shift subject-matching (code mismatch, name match) works\n";
+});
+
+
+test('course shift comparison matches subjects when student has partial grades (prelim only)', function () {
+    $this->actingAs($this->registrar);
+
+    // Create student and enrollment in previous program
+    $studentUser = User::factory()->create(['role' => 'student']);
+    $student = Student::factory()->create([
+        'user_id' => $studentUser->id,
+        'program_id' => $this->bsbaProgram->id,
+        'curriculum_id' => $this->bsbaCurriculum->id,
+        'student_number' => '2026-00003',
+        'year_level' => '2nd Year',
+        'current_year_level' => 2,
+    ]);
+
+    // Add the programming subject to previous curriculum (different code)
+    $prevCurriculumSubject = CurriculumSubject::create([
+        'curriculum_id' => $this->bsbaCurriculum->id,
+        'subject_id' => $this->programmingSubject->id,
+        'subject_code' => 'CS101',
+        'subject_name' => 'Introduction to Programming',
+        'units' => 3,
+        'year_level' => 1,
+        'semester' => '1st',
+    ]);
+
+    // Create a section in the previous program and enroll the student
+    $section = Section::create([
+        'program_id' => $this->bsbaProgram->id,
+        'section_name' => 'BSBA A',
+        'year_level' => 1,
+        'academic_year' => '2025-2026',
+        'semester' => '1st',
+        'status' => 'active',
+    ]);
+
+    $sectionSubject = SectionSubject::create([
+        'section_id' => $section->id,
+        'subject_id' => $this->programmingSubject->id,
+        'teacher_id' => $this->teacher->id,
+        'academic_year' => '2025-2026',
+        'semester' => '1st',
+    ]);
+
+    $enrollment = StudentEnrollment::create([
+        'student_id' => $student->id,
+        'section_id' => $section->id,
+        'academic_year' => '2025-2026',
+        'semester' => '1st',
+        'enrollment_date' => now(),
+        'status' => 'active',
+        'enrolled_by' => $this->registrar->id,
+    ]);
+
+    // Teacher submitted only PRELIM (partial) but it's a passing prelim
+    \App\Models\StudentGrade::create([
+        'student_enrollment_id' => $enrollment->id,
+        'section_subject_id' => $sectionSubject->id,
+        'teacher_id' => $this->teacher->id,
+        'prelim_grade' => 80,
+    ]);
+
+    // Trigger comparison (shiftee flow) — student_id present
+    $response = $this->postJson('/registrar/credit-transfers/compare', [
+        'previous_program_id' => $this->bsbaProgram->id,
+        'new_program_id' => $this->bsitProgram->id,
+        'student_year_level' => 2,
+        'student_id' => $student->id,
+    ]);
+
+    $response->assertSuccessful();
+    $data = $response->json('data');
+
+    // debug output (temporary)
+    file_put_contents('/tmp/ct_compare.json', json_encode($data, JSON_PRETTY_PRINT));
+
+    // Because the student has a passing PRELIM (partial) for the subject, the comparison should still show it as a match candidate
+    $matched = collect($data['credited_subjects'])->first(fn($c) => isset($c['new_subject']) && strtolower($c['new_subject']['subject_code']) === 'it101');
+
+    expect($matched)->not->toBeNull();
+    expect($matched['is_partial'] ?? false)->toBeTrue();
+
+    echo "\n✅ Course shift comparison includes partial-grade matches\n";
 }); // Commented out RefreshDatabase to prevent data deletion
 
 test('irregular student workflow: credit auto-approved when student passes all grading periods', function () {

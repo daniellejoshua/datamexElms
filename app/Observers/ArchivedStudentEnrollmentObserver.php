@@ -3,7 +3,10 @@
 namespace App\Observers;
 
 use App\Models\ArchivedStudentEnrollment;
+use App\Models\ArchivedStudentSubject;
 use App\Models\Student;
+use App\Models\StudentGrade;
+use App\Models\StudentSubjectEnrollment;
 
 class ArchivedStudentEnrollmentObserver
 {
@@ -22,6 +25,7 @@ class ArchivedStudentEnrollmentObserver
             return;
         }
 
+        // --- Update student's current year level (existing behavior) ---
         // Count completed archived semesters for this student
         $completedSemesters = ArchivedStudentEnrollment::where('student_id', $studentId)
             ->where('final_status', 'completed')
@@ -43,6 +47,72 @@ class ArchivedStudentEnrollmentObserver
         // Only update forward (never decrease)
         if ($allowedYearLevel > $current) {
             $student->update(['current_year_level' => $allowedYearLevel]);
+        }
+
+        // --- Create normalized archived subject rows for this archived enrollment ---
+        // Prefer using StudentGrade records (most accurate per-subject grades). If none
+        // found, fall back to StudentSubjectEnrollment to at least capture subject metadata.
+        $originalEnrollmentId = $archivedEnrollment->original_enrollment_id;
+
+        if ($originalEnrollmentId) {
+            $grades = StudentGrade::where('student_enrollment_id', $originalEnrollmentId)
+                ->with(['sectionSubject.subject'])
+                ->get();
+
+            if ($grades->isNotEmpty()) {
+                foreach ($grades as $grade) {
+                    $sectionSubject = $grade->sectionSubject;
+                    $subject = $sectionSubject?->subject;
+
+                    ArchivedStudentSubject::create([
+                        'archived_student_enrollment_id' => $archivedEnrollment->id,
+                        'student_id' => $studentId,
+                        'original_enrollment_id' => $originalEnrollmentId,
+                        'section_subject_id' => $grade->section_subject_id,
+                        'subject_id' => $subject?->id ?? null,
+                        'subject_code' => $subject?->subject_code ?? null,
+                        'subject_name' => $subject?->subject_name ?? ($sectionSubject?->subject?->subject_name ?? null),
+                        'units' => $subject?->units ?? null,
+                        'prelim_grade' => $grade->prelim_grade,
+                        'midterm_grade' => $grade->midterm_grade,
+                        'prefinal_grade' => $grade->prefinal_grade,
+                        'final_grade' => $grade->final_grade,
+                        'semester_grade' => $grade->semester_grade,
+                        'teacher_id' => $grade->teacher_id ?? $sectionSubject?->teacher_id ?? null,
+                    ]);
+                }
+
+                return; // done
+            }
+        }
+
+        // Fallback: capture subject enrollments (no fine-grained grades available)
+        $subjectEnrollments = StudentSubjectEnrollment::where('student_id', $studentId)
+            ->where('academic_year', $archivedEnrollment->academic_year)
+            ->where('semester', $archivedEnrollment->semester)
+            ->with(['sectionSubject.subject'])
+            ->get();
+
+        foreach ($subjectEnrollments as $se) {
+            $sectionSubject = $se->sectionSubject;
+            $subject = $sectionSubject?->subject;
+
+            ArchivedStudentSubject::create([
+                'archived_student_enrollment_id' => $archivedEnrollment->id,
+                'student_id' => $studentId,
+                'original_enrollment_id' => $originalEnrollmentId,
+                'section_subject_id' => $sectionSubject?->id,
+                'subject_id' => $subject?->id ?? null,
+                'subject_code' => $subject?->subject_code ?? null,
+                'subject_name' => $subject?->subject_name ?? ($sectionSubject?->subject?->subject_name ?? null),
+                'units' => $subject?->units ?? null,
+                'prelim_grade' => null,
+                'midterm_grade' => null,
+                'prefinal_grade' => null,
+                'final_grade' => null,
+                'semester_grade' => null,
+                'teacher_id' => $sectionSubject?->teacher_id ?? null,
+            ]);
         }
     }
 }

@@ -158,6 +158,8 @@ class CreditTransferController extends Controller
                                 'subject_name' => $credit->subject->subject_name,
                                 'final_grade' => $credit->final_grade,
                                 'units' => $credit->units,
+                                'source' => 'subject_credit',
+                                'passed' => is_numeric($credit->final_grade) ? ($credit->final_grade >= 75) : true,
                             ];
                         });
 
@@ -174,6 +176,8 @@ class CreditTransferController extends Controller
                                 'subject_name' => $transfer->subject->subject_name,
                                 'final_grade' => $transfer->grade ?? 'PASSED',
                                 'units' => $transfer->units ?? 3,
+                                'source' => 'credit_transfer',
+                                'passed' => is_numeric($transfer->grade) ? ($transfer->grade >= 75) : true,
                             ];
                         });
 
@@ -181,26 +185,59 @@ class CreditTransferController extends Controller
                     $gradedSubjectsQuery = \App\Models\StudentGrade::whereHas('studentEnrollment', function ($query) use ($student) {
                         $query->where('student_id', $student->id);
                     })
-                        ->whereNotNull('final_grade')
+                        // include partial grading records (prelim/midterm/prefinal/final/semester)
+                        ->where(function ($q) {
+                            $q->whereNotNull('prelim_grade')
+                                ->orWhereNotNull('midterm_grade')
+                                ->orWhereNotNull('prefinal_grade')
+                                ->orWhereNotNull('final_grade')
+                                ->orWhereNotNull('semester_grade');
+                        })
                         ->with('sectionSubject.subject')
                         ->get()
                         ->filter(function ($grade) {
                             return $grade->sectionSubject && $grade->sectionSubject->subject;
                         })
                         ->map(function ($grade) {
+                            // best available grade (prefer semester/final then prefinal/midterm/prelim)
+                            $best = $grade->semester_grade ?? $grade->final_grade ?? $grade->prefinal_grade ?? $grade->midterm_grade ?? $grade->prelim_grade;
+
                             return [
                                 'subject_id' => $grade->sectionSubject->subject_id,
                                 'subject_code' => $grade->sectionSubject->subject->subject_code,
                                 'subject_name' => $grade->sectionSubject->subject->subject_name,
-                                'final_grade' => $grade->final_grade,
+                                'final_grade' => $best,
                                 'units' => $grade->sectionSubject->subject->units ?? 3,
+                                'source' => 'grade',
+                                'is_partial' => is_null($grade->final_grade) && is_null($grade->semester_grade) && ($grade->prelim_grade || $grade->midterm_grade || $grade->prefinal_grade),
+                                'passed' => is_numeric($best) ? ($best >= 75) : false,
                             ];
                         });
 
                     // Combine all sources (same as Academic History)
                     $studentCompletedSubjects = $creditedSubjectsQuery
                         ->concat($creditTransfersQuery)
-                        ->concat($gradedSubjectsQuery)
+                        ->concat($gradedSubjectsQuery);
+
+                    // Also include active student subject enrollments (no dropped enrollments)
+                    $enrolledSubjects = \App\Models\StudentSubjectEnrollment::where('student_id', $student->id)
+                        ->where('status', '!=', 'dropped')
+                        ->with('sectionSubject.subject')
+                        ->get()
+                        ->map(function ($se) {
+                            return [
+                                'subject_id' => $se->sectionSubject->subject_id ?? null,
+                                'subject_code' => $se->sectionSubject->subject?->subject_code ?? null,
+                                'subject_name' => $se->sectionSubject->subject?->subject_name ?? null,
+                                'final_grade' => null,
+                                'units' => $se->sectionSubject->subject?->units ?? 3,
+                                'source' => 'enrolled',
+                                'is_partial' => true,
+                                'passed' => false,
+                            ];
+                        });
+
+                    $studentCompletedSubjects = $studentCompletedSubjects->concat($enrolledSubjects)
                         ->unique('subject_code'); // Remove duplicates by subject code
                 }
             }
@@ -210,21 +247,46 @@ class CreditTransferController extends Controller
                 // Get list of subjects student has completed
                 foreach ($studentCompletedSubjects as $completed) {
                     // Check if this completed subject exists in new curriculum
-                    // Prioritize name matching since same subjects often have different codes across programs
+                    // Use a more flexible matching strategy (name fuzzy/token/code numeric checks)
                     $matchingNewSubject = $newSubjects->first(function ($newSubject) use ($completed) {
-                        $newName = strtolower(trim($newSubject->subject_name));
-                        $completedName = strtolower(trim($completed['subject_name']));
-                        // Remove spaces from codes for comparison (e.g., "PE 3" vs "PE3")
-                        $newCode = strtolower(str_replace(' ', '', trim($newSubject->subject_code)));
-                        $completedCode = strtolower(str_replace(' ', '', trim($completed['subject_code'])));
+                        $normalize = fn($s) => strtolower(trim(preg_replace('/\s+/', ' ', preg_replace('/[^A-Za-z0-9 ]+/', ' ', (string) $s))));
 
-                        // Match by name (exact match) - most reliable since codes differ across programs
-                        if ($newName === $completedName) {
+                        $newName = $normalize($newSubject->subject_name);
+                        $completedName = $normalize($completed['subject_name']);
+
+                        // Normalized codes (remove non-alphanumeric)
+                        $normalizeCode = fn($c) => strtolower(preg_replace('/[^A-Za-z0-9]/', '', (string) $c));
+                        $newCode = $normalizeCode($newSubject->subject_code);
+                        $completedCode = $normalizeCode($completed['subject_code']);
+
+                        // 1) Exact name or exact code (fast path)
+                        if ($newName === $completedName || $newCode === $completedCode) {
                             return true;
                         }
 
-                        // Match by code (exact match, ignoring spaces) - secondary check
-                        if ($newCode === $completedCode) {
+                        // 2) Numeric-code match (e.g. MATH101 vs MATH-101A) — compare digits only
+                        $digits = fn($s) => preg_replace('/[^0-9]/', '', $s);
+                        if ($digits($newCode) !== '' && $digits($newCode) === $digits($completedCode)) {
+                            return true;
+                        }
+
+                        // 3) Token overlap (Jaccard-like) — handles name variants
+                        $tokens = fn($s) => array_values(array_filter(array_map(fn($t) => trim($t), preg_split('/\s+/', $s))));
+                        $newTokens = $tokens($newName);
+                        $oldTokens = $tokens($completedName);
+                        if (! empty($newTokens) && ! empty($oldTokens)) {
+                            $intersection = count(array_intersect($newTokens, $oldTokens));
+                            $union = count(array_unique(array_merge($newTokens, $oldTokens)));
+                            $overlap = $union > 0 ? $intersection / $union : 0;
+
+                            if ($overlap >= 0.6) {
+                                return true;
+                            }
+                        }
+
+                        // 4) Fuzzy name similarity using similar_text percentage
+                        similar_text($newName, $completedName, $percent);
+                        if ($percent >= 78) { // permissive threshold to catch common variants
                             return true;
                         }
 
@@ -233,11 +295,19 @@ class CreditTransferController extends Controller
 
                     // If exists in new curriculum, it will be transferred (regardless of year/semester)
                     if ($matchingNewSubject) {
+                        // Decide if this completed record is creditable (credit records always credit; grades need to be passing)
+                        $completedGrade = $completed['final_grade'] ?? null;
+                        $source = $completed['source'] ?? 'grade';
+
+                        // Only auto-credit previously approved credits (credit_transfer/subject_credit) or numeric passing grades
+                        $isAutoCreditable = in_array($source, ['credit_transfer','subject_credit']) || (is_numeric($completedGrade) && floatval($completedGrade) >= 75);
+
                         // Avoid duplicates
                         $alreadyAdded = collect($creditedSubjects)->contains(function ($credited) use ($matchingNewSubject) {
                             return $credited['subject_id'] === $matchingNewSubject->subject_id;
                         });
 
+                        // Always add matched subject as a candidate; mark whether it's auto-creditable or requires review
                         if (! $alreadyAdded) {
                             $creditedSubjects[] = [
                                 'subject_id' => $matchingNewSubject->subject_id,
@@ -246,8 +316,25 @@ class CreditTransferController extends Controller
                                 'units' => $matchingNewSubject->units,
                                 'year_level' => $matchingNewSubject->year_level,
                                 'semester' => $matchingNewSubject->semester,
-                                'grade' => $completed['final_grade'],
-                                'old_subject_code' => $completed['subject_code'], // Show the old code for reference
+                                'grade' => $completedGrade,
+                                'is_partial' => ($completed['source'] === 'grade' && ($completed['is_partial'] ?? false)) || ($completed['source'] === 'enrolled'),
+                                'old_subject_code' => $completed['subject_code'] ?? null,
+                                'match_reason' => ($completed['source'] !== 'grade' && $completed['source'] !== 'enrolled') ? 'Existing credit' : 'Matched by name/code',
+                                'auto_credit' => $isAutoCreditable,
+                                'requires_review' => ! $isAutoCreditable,
+                            ];
+                        }
+
+                        // If not auto-creditable and the source is grade/enrolled, mark in similar for visibility too
+                        if (! $isAutoCreditable) {
+                            $similar[] = [
+                                'old_subject' => [
+                                    'subject_code' => $completed['subject_code'] ?? null,
+                                    'subject_name' => $completed['subject_name'] ?? null,
+                                ],
+                                'new_subject' => $matchingNewSubject,
+                                'grade' => $completedGrade,
+                                'note' => 'Matched but requires manual review (partial grade or enrollment only)',
                             ];
                         }
                     }

@@ -904,9 +904,12 @@ class AcademicYearController extends Controller
                     'enrolled_date' => $enrollment->enrollment_date,
                     'completion_date' => now()->toDateString(),
                     'final_status' => $enrollment->status === 'active' ? 'completed' : $enrollment->status,
+                    // Preserve full grade breakdown (prelim, midterm, prefinals, finals)
                     'final_grades' => $finalGrade ? [
+                        'prelim' => $finalGrade->prelim_grade,
                         'midterm' => $finalGrade->midterm_grade,
-                        'final' => $finalGrade->final_grade,
+                        'prefinals' => $finalGrade->prefinal_grade,
+                        'finals' => $finalGrade->final_grade,
                         'overall' => $finalGrade->final_grade,
                     ] : null,
                     'final_semester_grade' => $finalGrade?->final_grade,

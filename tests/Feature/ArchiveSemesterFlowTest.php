@@ -6,6 +6,8 @@ use App\Models\Section;
 use App\Models\Student;
 use App\Models\StudentEnrollment;
 use App\Models\StudentGrade;
+use App\Models\Subject;
+use App\Models\SectionSubject;
 use App\Models\Teacher;
 use App\Models\User;
 use Illuminate\Support\Facades\Auth;
@@ -61,9 +63,21 @@ it('archives semester, creates archived records, updates progression and allows 
     // Ensure a teacher exists for grade records
     $teacher = \App\Models\Teacher::factory()->create();
 
+    // Create a subject and section_subject so grades are attached to a subject
+    $subject = Subject::factory()->create(['subject_code' => 'GEN101', 'subject_name' => 'General Subject']);
+    $sectionSubject = SectionSubject::create([
+        'section_id' => $section->id,
+        'subject_id' => $subject->id,
+        'teacher_id' => $teacher->id,
+        'academic_year' => '2024-2025',
+        'semester' => '1st',
+        'status' => 'active',
+    ]);
+
     // Add grade for en1 as well (some systems expect grades present)
     StudentGrade::create([
         'student_enrollment_id' => $en1->id,
+        'section_subject_id' => $sectionSubject->id,
         'midterm_grade' => 80,
         'final_grade' => 85,
         'teacher_id' => $teacher->id,
@@ -80,10 +94,13 @@ it('archives semester, creates archived records, updates progression and allows 
         'enrolled_by' => $admin->id,
     ]);
 
-    // Add grade for en2
+    // Add grade for en2 (include prelim + prefinal so we can verify archival preserves all periods)
     StudentGrade::create([
         'student_enrollment_id' => $en2->id,
+        'section_subject_id' => $sectionSubject->id,
+        'prelim_grade' => 80,
         'midterm_grade' => 85,
+        'prefinal_grade' => 88,
         'final_grade' => 90,
         'teacher_id' => $teacher->id,
     ]);
@@ -104,6 +121,32 @@ it('archives semester, creates archived records, updates progression and allows 
         ->exists();
 
     expect($archivedExists)->toBeTrue();
+
+    // Verify archived enrollment preserves full grade breakdown
+    $archivedEnrollment = \App\Models\ArchivedStudentEnrollment::where('original_enrollment_id', $en2->id)->first();
+    expect($archivedEnrollment)->not->toBeNull();
+
+    $finalGrades = $archivedEnrollment->final_grades;
+    expect($finalGrades['prelim'])->toBe(80);
+    expect($finalGrades['midterm'])->toBe(85);
+    expect($finalGrades['prefinals'])->toBe(88);
+    expect($finalGrades['finals'])->toBe(90);
+
+    // Archived subject rows should exist for the student's archived enrollment and preserve per-subject grades
+    $archivedEnrollmentSubjects = DB::table('archived_student_subjects')
+        ->where('student_id', $student->id)
+        ->where('archived_student_enrollment_id', $archivedEnrollment->id)
+        ->get();
+
+    expect($archivedEnrollmentSubjects->count())->toBeGreaterThan(0);
+
+    $subjectRow = DB::table('archived_student_subjects')
+        ->where('archived_student_enrollment_id', $archivedEnrollment->id)
+        ->where('subject_code', 'GEN101')
+        ->first();
+
+    expect($subjectRow)->not->toBeNull();
+    expect((float) $subjectRow->final_grade)->toBe(90.0);
 
     // Student current_year_level should have progressed if two semesters completed (we created one active in previous year and one now)
     $student->refresh();

@@ -88,9 +88,41 @@ class ArchivedGradesController extends Controller
 
         $section = $archivedEnrollments->first()?->archivedSection;
 
-        // If we have course_data with subjects, create subject entries from it
+        // Prefer normalized archived subject rows when available
         $subjectsFromCourseData = [];
-        if ($section && $section->course_data && is_array($section->course_data) && count($section->course_data) > 0) {
+
+        $archivedEnrollmentIds = $archivedEnrollments->pluck('id')->filter()->values();
+        $archivedSubjects = [];
+
+        if ($archivedEnrollmentIds->isNotEmpty()) {
+            $archivedSubjects = \App\Models\ArchivedStudentSubject::whereIn('archived_student_enrollment_id', $archivedEnrollmentIds)
+                ->orderBy('subject_code')
+                ->get();
+        }
+
+        if ($archivedSubjects->isNotEmpty()) {
+            // Build subject entries from normalized archived_subject rows
+            foreach ($archivedSubjects as $s) {
+                $enrollment = $archivedEnrollments->firstWhere('id', $s->archived_student_enrollment_id);
+
+                $subjectsFromCourseData[] = [
+                    'id' => $s->id,
+                    'subject_code' => $s->subject_code ?? 'N/A',
+                    'subject_name' => $s->subject_name ?? 'Unknown Subject',
+                    'credits' => $s->units ?? 0,
+                    'teacher_name' => $s->teacher_id ? optional(\App\Models\Teacher::find($s->teacher_id))->user->name : null,
+                    'final_grades' => [
+                        'prelim' => $s->prelim_grade,
+                        'midterm' => $s->midterm_grade,
+                        'prefinals' => $s->prefinal_grade,
+                        'finals' => $s->final_grade,
+                    ],
+                    'final_semester_grade' => $s->semester_grade,
+                    'final_status' => $enrollment?->final_status ?? 'archived',
+                    'letter_grade' => $enrollment?->letter_grade ?? null,
+                ];
+            }
+        } elseif ($section && $section->course_data && is_array($section->course_data) && count($section->course_data) > 0) {
             \Log::info('Course data found', ['count' => count($section->course_data)]);
 
             // Get enrollment data for grades
