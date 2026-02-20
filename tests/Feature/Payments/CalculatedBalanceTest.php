@@ -92,3 +92,40 @@ it('shows calculated balance on registrar payment show for transferees with cred
         ->where('student.previous_school', fn ($v) => ! empty($v))
     );
 });
+
+it('shows calculated balance on registrar payments index for transferees', function () {
+    $academicYear = SchoolSetting::getCurrentAcademicYear();
+    $semester = SchoolSetting::getCurrentSemester();
+
+    $registrar = User::factory()->create(['role' => 'registrar']);
+
+    $program = Program::factory()->create(['education_level' => 'college']);
+
+    $studentUser = User::factory()->create(['role' => 'student']);
+    $student = Student::factory()->create([
+        'user_id' => $studentUser->id,
+        'program_id' => $program->id,
+        'student_type' => 'regular',
+        'previous_school' => 'Old School',
+    ]);
+
+    StudentSemesterPayment::create([
+        'student_id' => $student->id,
+        'academic_year' => $academicYear,
+        'semester' => $semester,
+        'enrollment_fee' => 0,
+        'total_semester_fee' => 0, // will trigger calculation path
+        'total_paid' => 0,
+        'balance' => 0,
+        'status' => 'pending',
+    ]);
+
+    $response = $this->actingAs($registrar)->get(route('registrar.payments.college.index'));
+    $response->assertSuccessful();
+
+    $response->assertInertia(fn (Assert $page) =>
+        $page->component('Registrar/Payments/College/Index')
+            ->has('payments')
+            ->where('payments.data.0.calculated_total_amount', fn ($v) => is_numeric($v))
+    );
+});

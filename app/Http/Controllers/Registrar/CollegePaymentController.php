@@ -39,8 +39,10 @@ class CollegePaymentController extends Controller
             ->where('academic_year', $filterAcademicYear)
             ->where('semester', $filterSemester);
 
+        $paymentService = app(\App\Services\StudentPaymentService::class);
+
         $payments = $query->get()
-            ->map(function ($payment) {
+            ->map(function ($payment) use ($paymentService) {
                 // Get the enrollment for this payment period to find section
                 // Prefer enrollments that have sections (section_id is not null)
                 $enrollment = StudentEnrollment::with(['section.program'])
@@ -52,6 +54,29 @@ class CollegePaymentController extends Controller
                     ->first();
 
                 $payment->section = $enrollment?->section;
+
+                // if student is irregular or a transferee, make sure the stored
+                // calculated total is up-to-date so the index can show it
+                $student = $payment->student;
+                $hasCreditTransfers = $student->creditTransfers()->exists() || (bool) $student->previous_school;
+
+                if (($student->student_type === 'irregular' || $hasCreditTransfers) && ! $payment->is_balance_calculated) {
+                    try {
+                        $calc = $paymentService->calculateIrregularBalance($payment);
+                        $payment->calculated_total_amount = $calc['calculated_balance'] ?? $payment->total_semester_fee;
+                        // also update balance fields so the table reflects the new amount
+                        $payment->balance = $payment->calculated_total_amount;
+                        $payment->total_semester_fee = $payment->calculated_total_amount;
+                    } catch (\Exception $e) {
+                        // leave original values if calculation fails
+                    }
+                }
+
+                // if we already have a calculated amount, use it for display
+                if ($payment->calculated_total_amount) {
+                    $payment->balance = $payment->calculated_total_amount;
+                    $payment->total_semester_fee = $payment->calculated_total_amount;
+                }
 
                 return $payment;
             });

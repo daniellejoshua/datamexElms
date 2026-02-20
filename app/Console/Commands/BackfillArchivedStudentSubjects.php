@@ -111,59 +111,64 @@ class BackfillArchivedStudentSubjects extends Command
                 }
 
                 // Fallback: use StudentSubjectEnrollment to at least capture subject metadata
-                if ($createdForEnrollment === 0) {
-                    $subjectEnrollments = StudentSubjectEnrollment::where('student_id', $archived->student_id)
+// match semester variants to cover stored forms
+                $semesterValues = match ($archived->semester) {
+                    'first' => ['1st', 'first'],
+                    'second' => ['2nd', 'second'],
+                    default => [$archived->semester],
+                };
+
+                $subjectEnrollments = StudentSubjectEnrollment::where('student_id', $archived->student_id)
                         ->where('academic_year', $archived->academic_year)
-                        ->where('semester', $archived->semester)
-                        ->with(['sectionSubject.subject'])
-                        ->get();
+                        ->whereIn('semester', $semesterValues)
+                    ->with(['sectionSubject.subject'])
+                    ->get();
 
-                    foreach ($subjectEnrollments as $se) {
-                        $sectionSubject = $se->sectionSubject;
-                        $subject = $sectionSubject?->subject;
+                foreach ($subjectEnrollments as $se) {
+                    $sectionSubject = $se->sectionSubject;
+                    $subject = $sectionSubject?->subject;
 
-                        $exists = ArchivedStudentSubject::where('archived_student_enrollment_id', $archived->id)
-                            ->where(function ($q) use ($sectionSubject, $subject) {
-                                if ($sectionSubject?->id) {
-                                    $q->where('section_subject_id', $sectionSubject->id);
-                                }
-                                if ($subject?->subject_code) {
-                                    $q->orWhere('subject_code', $subject->subject_code);
-                                }
-                            })->exists();
+                    $exists = ArchivedStudentSubject::where('archived_student_enrollment_id', $archived->id)
+                        ->where(function ($q) use ($sectionSubject, $subject) {
+                            if ($sectionSubject?->id) {
+                                $q->orWhere('section_subject_id', $sectionSubject->id);
+                            }
+                            if ($subject?->subject_code) {
+                                $q->orWhere('subject_code', $subject->subject_code);
+                            }
+                        })->exists();
 
-                        if ($exists) {
-                            continue;
-                        }
-
-                        $row = [
-                            'archived_student_enrollment_id' => $archived->id,
-                            'student_id' => $archived->student_id,
-                            'original_enrollment_id' => $archived->original_enrollment_id,
-                            'section_subject_id' => $sectionSubject?->id,
-                            'subject_id' => $subject?->id ?? null,
-                            'subject_code' => $subject?->subject_code ?? null,
-                            'subject_name' => $subject?->subject_name ?? ($sectionSubject?->subject?->subject_name ?? null),
-                            'units' => $subject?->units ?? null,
-                            'prelim_grade' => null,
-                            'midterm_grade' => null,
-                            'prefinal_grade' => null,
-                            'final_grade' => null,
-                            'semester_grade' => null,
-                            'teacher_id' => $sectionSubject?->teacher_id ?? null,
-                            'created_at' => now(),
-                            'updated_at' => now(),
-                        ];
-
-                        if ($isDryRun) {
-                            $this->line("[DRY] Would insert archived subject metadata for archived_enrollment={$archived->id}, section_subject_id={$sectionSubject?->id}");
-                        } else {
-                            DB::table('archived_student_subjects')->insert($row);
-                        }
-
-                        $createdForEnrollment++;
-                        $totalInserted++;
+                    if ($exists) {
+                        continue;
                     }
+
+                    $row = [
+                        'archived_student_enrollment_id' => $archived->id,
+                        'student_id' => $archived->student_id,
+                        'original_enrollment_id' => $archived->original_enrollment_id,
+                        'section_subject_id' => $sectionSubject?->id,
+                        'subject_id' => $subject?->id ?? null,
+                        'subject_code' => $subject?->subject_code ?? null,
+                        'subject_name' => $subject?->subject_name ?? ($sectionSubject?->subject?->subject_name ?? null),
+                        'units' => $subject?->units ?? null,
+                        'prelim_grade' => null,
+                        'midterm_grade' => null,
+                        'prefinal_grade' => null,
+                        'final_grade' => null,
+                        'semester_grade' => null,
+                        'teacher_id' => $sectionSubject?->teacher_id ?? null,
+                        'created_at' => now(),
+                        'updated_at' => now(),
+                    ];
+
+                    if ($isDryRun) {
+                        $this->line("[DRY] Would insert archived subject metadata for archived_enrollment={$archived->id}, section_subject_id={$sectionSubject?->id}");
+                    } else {
+                        DB::table('archived_student_subjects')->insert($row);
+                    }
+
+                    $createdForEnrollment++;
+                    $totalInserted++;
                 }
 
                 if ($createdForEnrollment === 0) {

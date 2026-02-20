@@ -46,6 +46,14 @@ class ArchivedStudentEnrollment extends Model
         return $this->belongsTo(Student::class);
     }
 
+    /**
+     * Get all normalized subject rows attached to this archived enrollment.
+     */
+    public function archivedStudentSubjects(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->hasMany(\App\Models\ArchivedStudentSubject::class);
+    }
+
     public function scopeByStatus($query, string $status)
     {
         return $query->where('final_status', $status);

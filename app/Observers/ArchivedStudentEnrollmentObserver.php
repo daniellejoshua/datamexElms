@@ -81,21 +81,44 @@ class ArchivedStudentEnrollmentObserver
                         'teacher_id' => $grade->teacher_id ?? $sectionSubject?->teacher_id ?? null,
                     ]);
                 }
-
-                return; // done
+                // do NOT return here; fall back below to capture any subjects that lacked grades
             }
         }
 
         // Fallback: capture subject enrollments (no fine-grained grades available)
+        // archivedEnrollment.semester may be stored as 'first'/'second',
+        // but student subject enrollments use '1st'/'2nd' (and sometimes 'first').
+        $semesterValues = match ($archivedEnrollment->semester) {
+            'first' => ['1st', 'first'],
+            'second' => ['2nd', 'second'],
+            default => [$archivedEnrollment->semester],
+        };
+
         $subjectEnrollments = StudentSubjectEnrollment::where('student_id', $studentId)
             ->where('academic_year', $archivedEnrollment->academic_year)
-            ->where('semester', $archivedEnrollment->semester)
+            ->whereIn('semester', $semesterValues)
             ->with(['sectionSubject.subject'])
             ->get();
 
         foreach ($subjectEnrollments as $se) {
             $sectionSubject = $se->sectionSubject;
             $subject = $sectionSubject?->subject;
+
+            // skip if row already exists to avoid duplicates (may have been added above via grades)
+            $exists = ArchivedStudentSubject::where('archived_student_enrollment_id', $archivedEnrollment->id)
+                ->where(function ($q) use ($sectionSubject, $subject) {
+                    if ($sectionSubject?->id) {
+                        $q->orWhere('section_subject_id', $sectionSubject->id);
+                    }
+                    if ($subject?->subject_code) {
+                        $q->orWhere('subject_code', $subject->subject_code);
+                    }
+                })
+                ->exists();
+
+            if ($exists) {
+                continue;
+            }
 
             ArchivedStudentSubject::create([
                 'archived_student_enrollment_id' => $archivedEnrollment->id,

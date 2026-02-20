@@ -50,11 +50,11 @@ it('includes placeholders and missing grades for completed archived enrollments 
     $response = $this->actingAs($user)->get(route('student.academic-history'));
     $response->assertOk();
 
-    // archived enrollments / placeholders are intentionally removed from the student academic history
+    // archived enrollments / placeholders are now returned to the student page
     $pageProps = $response->original->getData()['page']['props'];
 
-    // ensure archivedEnrollments prop is not provided to the student page
-    $this->assertArrayNotHasKey('archivedEnrollments', $pageProps);
+    // archivedEnrollments prop should be provided (even if empty)
+    $this->assertArrayHasKey('archivedEnrollments', $pageProps);
 
     // ensure no placeholder archived subject entries are included in subjectGrades
     $subjectGrades = collect($pageProps['subjectGrades'] ?? []);

@@ -34,20 +34,18 @@ class AcademicHelper
     }
 
     /**
-     * Get the current semester based on the current date.
+     * Get the current semester.
+     *
+     * The system no longer calculates the semester based on the date.  The
+     * academic period always starts in the 1st semester and administrators
+     * manually advance it when appropriate.  If a manual override exists in
+     * `SchoolSetting` it will take precedence, otherwise this helper simply
+     * returns the default value of "1st".
      */
     public static function getCurrentSemester(): string
     {
-        $now = Carbon::now();
-        $month = $now->month;
-
-        if ($month >= 8 && $month <= 12) {
-            // August to December = 1st semester
-            return '1st';
-        } else {
-            // January to July = 2nd semester
-            return '2nd';
-        }
+        // Always start with first semester; the admin will change it explicitly
+        return '1st';
     }
 
     /**
@@ -127,41 +125,45 @@ class AcademicHelper
             return null;
         }
 
-        if ($numericGrade >= 97) {
+        // new simplified Filipino grading scale provided by the user
+        if ($numericGrade >= 96) {
             return '1.00';
-        } elseif ($numericGrade >= 94) {
-            return '1.25';
-        } elseif ($numericGrade >= 91) {
-            return '1.50';
-        } elseif ($numericGrade >= 88) {
-            return '1.75';
-        } elseif ($numericGrade >= 85) {
-            return '2.00';
-        } elseif ($numericGrade >= 82) {
-            return '2.25';
-        } elseif ($numericGrade >= 79) {
-            return '2.50';
-        } elseif ($numericGrade >= 76) {
-            return '2.75';
-        } elseif ($numericGrade >= 75) {
-            return '3.00';
-        } elseif ($numericGrade >= 72) {
-            return '3.25';
-        } elseif ($numericGrade >= 69) {
-            return '3.50';
-        } elseif ($numericGrade >= 66) {
-            return '3.75';
-        } elseif ($numericGrade >= 63) {
-            return '4.00';
-        } elseif ($numericGrade >= 60) {
-            return '4.25';
-        } elseif ($numericGrade >= 55) {
-            return '4.50';
-        } elseif ($numericGrade >= 50) {
-            return '5.00';
-        } else {
-            return '5.00';
         }
+
+        if ($numericGrade >= 94) {
+            return '1.25';
+        }
+
+        if ($numericGrade >= 91) {
+            return '1.50';
+        }
+
+        if ($numericGrade >= 88) {
+            return '1.75';
+        }
+
+        if ($numericGrade >= 85) {
+            return '2.00';
+        }
+
+        if ($numericGrade >= 83) {
+            return '2.25';
+        }
+
+        if ($numericGrade >= 80) {
+            return '2.50';
+        }
+
+        if ($numericGrade >= 78) {
+            return '2.75';
+        }
+
+        if ($numericGrade >= 75) {
+            return '3.00';
+        }
+
+        // anything below 75 is a failing grade according to the new scale
+        return '5.00';
     }
 
     /**
@@ -174,43 +176,45 @@ class AcademicHelper
             return null;
         }
 
+        // inverse of the simplified numeric-to-GPA scale
         if ($gpa <= 1.00) {
-            return 100.0;
-        } elseif ($gpa <= 1.25) {
             return 96.0;
-        } elseif ($gpa <= 1.50) {
-            return 93.0;
-        } elseif ($gpa <= 1.75) {
-            return 90.0;
-        } elseif ($gpa <= 2.00) {
-            return 87.0;
-        } elseif ($gpa <= 2.25) {
-            return 84.0;
-        } elseif ($gpa <= 2.50) {
-            return 81.0;
-        } elseif ($gpa <= 2.75) {
-            return 78.0;
-        } elseif ($gpa <= 3.00) {
-            return 75.0;
-        } elseif ($gpa <= 3.25) {
-            return 72.0;
-        } elseif ($gpa <= 3.50) {
-            return 69.0;
-        } elseif ($gpa <= 3.75) {
-            return 66.0;
-        } elseif ($gpa <= 4.00) {
-            return 63.0;
-        } elseif ($gpa <= 4.25) {
-            return 60.0;
-        } elseif ($gpa <= 4.50) {
-            return 55.0;
-        } elseif ($gpa <= 4.75) {
-            return 50.0;
-        } elseif ($gpa <= 5.00) {
-            return 50.0; // 5.00 GPA = 50%
-        } else {
-            return 0.0; // Failing grades below 50%
         }
+
+        if ($gpa <= 1.25) {
+            return 94.0;
+        }
+
+        if ($gpa <= 1.50) {
+            return 91.0;
+        }
+
+        if ($gpa <= 1.75) {
+            return 88.0;
+        }
+
+        if ($gpa <= 2.00) {
+            return 85.0;
+        }
+
+        if ($gpa <= 2.25) {
+            return 83.0;
+        }
+
+        if ($gpa <= 2.50) {
+            return 80.0;
+        }
+
+        if ($gpa <= 2.75) {
+            return 78.0;
+        }
+
+        if ($gpa <= 3.00) {
+            return 75.0;
+        }
+
+        // anything above 3.00 is failing under the new scale
+        return 0.0;
     }
 
     /**

@@ -23,7 +23,7 @@ import {
 } from 'lucide-react'
 import { useState } from 'react'
 
-export default function AcademicHistory({ student, curriculumSubjects, completedSubjects, subjectGrades, creditedSubjects, completionStats }) {
+export default function AcademicHistory({ student, curriculumSubjects, completedSubjects, subjectGrades, creditedSubjects, completionStats, archivedEnrollments = [] }) {
     const [creditedSubjectsPage, setCreditedSubjectsPage] = useState(1)
     const itemsPerPage = 5
 
@@ -224,6 +224,8 @@ export default function AcademicHistory({ student, curriculumSubjects, completed
                                                                         ? 'bg-green-50 border-green-200 shadow-sm'
                                                                         : isEnrolled
                                                                         ? 'bg-blue-50 border-blue-200 shadow-sm'
+                                                                        : gradeInfo?.type === 'archived' && !hasMissingGrades
+                                                                        ? 'bg-gray-100 border-dashed border-gray-400'
                                                                         : hasMissingGrades
                                                                         ? 'bg-yellow-50 border-yellow-200'
                                                                         : 'hover:shadow-md border-gray-200'
@@ -295,7 +297,7 @@ export default function AcademicHistory({ student, curriculumSubjects, completed
                                                                                     </div>
                                                                                     <div className="flex flex-wrap gap-1">
                                                                                         {gradeInfo.missing_grades.map((grade, idx) => (
-                                                                                            <Badge key={idx} variant="outline" className={`text-xs ${
+                                                                                            <Badge key={idx} variant="outline" className={`text-[10px] leading-none py-0.5 px-2 ${
                                                                                                 isEnrolled 
                                                                                                     ? 'bg-blue-100 text-blue-800 border-blue-300' 
                                                                                                     : 'bg-yellow-100 text-yellow-800 border-yellow-300'
@@ -335,6 +337,7 @@ export default function AcademicHistory({ student, curriculumSubjects, completed
                         )}
                     </CardContent>
                 </Card>
+
 
                 {/* Credited Subjects */}
                 {(() => {

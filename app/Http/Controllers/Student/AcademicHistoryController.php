@@ -304,17 +304,9 @@ class AcademicHistoryController extends Controller
 
         $completionPercentage = $totalSubjects > 0 ? round(($completedCurriculumSubjects / $totalSubjects) * 100) : 0;
 
-        // Convert map to array
-        $subjectGrades = array_values($subjectGradesMap);
-
-        // Separate credited subjects for pagination
-        $creditedSubjectsOnly = array_filter($subjectGrades, function ($grade) {
-            return $grade['type'] === 'credited';
-        });
-
-        // Get archived enrollments and annotate missing grade components
+        // Get archived enrollments along with their normalized subject rows
         $archivedEnrollments = \App\Models\ArchivedStudentEnrollment::where('student_id', $student->id)
-            ->with('archivedSection.program')
+            ->with(['archivedSection.program', 'archivedStudentSubjects'])
             ->orderBy('academic_year', 'desc')
             ->orderByRaw("FIELD(semester, 'second', 'first', 'summer')")
             ->get()
@@ -327,6 +319,43 @@ class AcademicHistoryController extends Controller
                     }
                 }
                 $arch->missing_grades = $missing;
+
+                // add list of subject rows for easier rendering
+                $arch->subjects = $arch->archivedStudentSubjects->map(function ($s) use ($arch) {
+                    $isShs = optional($arch->archivedSection->program)->education_level === 'shs';
+                    $missingGrades = [];
+                    if ($isShs) {
+                        if (is_null($s->prelim_grade)) {
+                            $missingGrades[] = 'Q1';
+                        }
+                        if (is_null($s->midterm_grade)) {
+                            $missingGrades[] = 'Q2';
+                        }
+                    } else {
+                        if (is_null($s->prelim_grade)) {
+                            $missingGrades[] = 'Prelim';
+                        }
+                        if (is_null($s->midterm_grade)) {
+                            $missingGrades[] = 'Midterm';
+                        }
+                        if (is_null($s->prefinal_grade)) {
+                            $missingGrades[] = 'Prefinal';
+                        }
+                        if (is_null($s->final_grade)) {
+                            $missingGrades[] = 'Final';
+                        }
+                    }
+
+                    return [
+                        'subject_code' => $s->subject_code,
+                        'subject_name' => $s->subject_name,
+                        'final_grade' => $s->final_grade,
+                        'semester_grade' => $s->semester_grade,
+                        'missing' => is_null($s->semester_grade),
+                        'missing_grades' => $missingGrades,
+                    ];
+                })->toArray();
+
                 return $arch;
             });
 
@@ -357,6 +386,35 @@ class AcademicHistoryController extends Controller
             }
         }
 
+        // also add each archived subject individually so it appears on the timeline
+        foreach ($archivedEnrollments as $arch) {
+            foreach ($arch->subjects ?? [] as $s) {
+                if (isset($subjectGradesMap[$s['subject_code']])) {
+                    continue;
+                }
+
+                $subjectGradesMap[$s['subject_code']] = [
+                    'subject_id' => null,
+                    'subject_code' => $s['subject_code'],
+                    'subject_name' => $s['subject_name'],
+                    'type' => 'archived',
+                    'teacher_name' => null,
+                    'final_grade' => $s['final_grade'] ?? null,
+                    'semester_grade' => $s['semester_grade'] ?? null,
+                    'missing_grades' => $s['missing_grades'] ?? [],
+                    'is_complete' => empty($s['missing_grades']),
+                ];
+            }
+        }
+
+        // Convert map to array now that we included archived entries
+        $subjectGrades = array_values($subjectGradesMap);
+
+        // Separate credited subjects for pagination
+        $creditedSubjectsOnly = array_filter($subjectGrades, function ($grade) {
+            return $grade['type'] === 'credited';
+        });
+
         $inertiaData = [
             'student' => $student,
             'curriculumSubjects' => $curriculumSubjects,
@@ -368,6 +426,8 @@ class AcademicHistoryController extends Controller
                 'completedSubjects' => $completedCurriculumSubjects,
                 'completionPercentage' => $completionPercentage,
             ],
+            // send archived enrollments so frontend can render them
+            'archivedEnrollments' => $archivedEnrollments,
         ];
 
         // Return Inertia page
@@ -604,6 +664,7 @@ class AcademicHistoryController extends Controller
                 'completedSubjects' => $completedCurriculumSubjects,
                 'completionPercentage' => $completionPercentage,
             ],
+            'archivedEnrollments' => $archivedEnrollments,
         ];
 
         $pdf = Pdf::loadView('pdf.academic-history', $data);

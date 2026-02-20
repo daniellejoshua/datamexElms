@@ -62,6 +62,8 @@ Route::middleware(['auth', 'verified', 'role:registrar'])->prefix('registrar')->
     Route::post('/students', [RegistrarController::class, 'store'])->name('students.store');
     Route::put('/students/{student}', [RegistrarController::class, 'update'])->name('students.update');
     Route::get('/students/{student}/academic-history', [RegistrarController::class, 'academicHistory'])->name('students.academic-history');
+    // Export academic history (PDF) for a specific student
+    Route::get('/students/{student}/academic-history/export', [RegistrarController::class, 'exportAcademicHistory'])->name('students.academic-history.export');
     Route::get('/enrollments', [RegistrarController::class, 'students'])->name('enrollments.index');
 
     // SHS Voucher Management

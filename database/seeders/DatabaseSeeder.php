@@ -25,5 +25,11 @@ class DatabaseSeeder extends Seeder
             HomeEconomicsCurriculumSeeder::class,
             YearLevelCurriculumGuideSeeder::class,
         ]);
+
+        // ensure the academic period starts in the first semester by default
+        \App\Models\SchoolSetting::setCurrentAcademicPeriod(
+            \App\Models\SchoolSetting::getCurrentAcademicYear(),
+            '1st'
+        );
     }
 }

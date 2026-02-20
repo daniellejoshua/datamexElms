@@ -9,6 +9,7 @@ use App\Models\Program;
 use App\Models\Student;
 use App\Models\StudentEnrollment;
 use App\Models\StudentGrade;
+use App\Models\StudentSubjectEnrollment;
 use App\Models\Subject;
 use App\Models\Teacher;
 use App\Models\User;
@@ -122,6 +123,151 @@ it('backfills missing archived_student_subjects from StudentGrade and is idempot
     expect($rowsAfter->count())->toBe($rows->count());
 });
 
+it('archives ungraded subjects alongside graded ones when observing enrollment creation', function () {
+    $admin = User::factory()->create(['role' => 'head_teacher']);
+
+    $user = User::factory()->create(['role' => 'student']);
+    $student = Student::factory()->create(['user_id' => $user->id]);
+
+    $program = Program::factory()->create(['education_level' => 'college']);
+
+    $teacher = Teacher::factory()->create();
+    $subject1 = Subject::factory()->create(['subject_code' => 'GRA101', 'subject_name' => 'Graded']);
+    $subject2 = Subject::factory()->create(['subject_code' => 'NO_GRADE', 'subject_name' => 'Ungraded']);
+
+    $section = Section::create([
+        'program_id' => $program->id,
+        'section_name' => 'Mix Section',
+        'year_level' => 1,
+        'academic_year' => '2024-2025',
+        'semester' => '1st',
+        'status' => 'active',
+    ]);
+
+    $archivedSection = ArchivedSection::create([
+        'original_section_id' => 'MIX-1',
+        'program_id' => $program->id,
+        'year_level' => 1,
+        'section_name' => 'Mix Section',
+        'academic_year' => '2024-2025',
+        'semester' => 'first',
+        'status' => 'completed',
+        'course_data' => [],
+        'total_enrolled_students' => 0,
+        'completed_students' => 0,
+        'dropped_students' => 0,
+        'section_average_grade' => null,
+        'archived_at' => now(),
+        'archived_by' => $admin->id,
+    ]);
+
+    $sectionSub1 = SectionSubject::create([
+        'section_id' => $section->id,
+        'subject_id' => $subject1->id,
+        'teacher_id' => $teacher->id,
+        'academic_year' => '2024-2025',
+        'semester' => '1st',
+    ]);
+    $sectionSub2 = SectionSubject::create([
+        'section_id' => $section->id,
+        'subject_id' => $subject2->id,
+        'teacher_id' => null, // no teacher assigned
+        'academic_year' => '2024-2025',
+        'semester' => '1st',
+    ]);
+
+    $enrollment = StudentEnrollment::create([
+        'student_id' => $student->id,
+        'section_id' => $section->id,
+        'enrollment_date' => now(),
+        'status' => 'active',
+        'academic_year' => '2024-2025',
+        'semester' => '1st',
+        'enrolled_by' => $admin->id,
+    ]);
+
+    // create both subject enrollments
+    StudentSubjectEnrollment::create([
+        'student_id' => $student->id,
+        'section_subject_id' => $sectionSub1->id,
+        'enrollment_type' => 'regular',
+        'academic_year' => '2024-2025',
+        'semester' => '1st',
+        'status' => 'active',
+        'enrollment_date' => now(),
+        'enrolled_by' => $admin->id,
+    ]);
+    StudentSubjectEnrollment::create([
+        'student_id' => $student->id,
+        'section_subject_id' => $sectionSub2->id,
+        'enrollment_type' => 'regular',
+        'academic_year' => '2024-2025',
+        'semester' => '1st',
+        'status' => 'active',
+        'enrollment_date' => now(),
+        'enrolled_by' => $admin->id,
+    ]);
+
+    // only grade the first subject
+    StudentGrade::create([
+        'student_enrollment_id' => $enrollment->id,
+        'section_subject_id' => $sectionSub1->id,
+        'prelim_grade' => 80,
+        'midterm_grade' => 85,
+        'prefinal_grade' => 88,
+        'final_grade' => 90,
+        'teacher_id' => $teacher->id,
+    ]);
+
+    // sanity check: both student subject enrollments should exist before archiving
+    $semesterValuesCheck = ['1st', 'first'];
+    $found = StudentSubjectEnrollment::where('student_id', $student->id)
+        ->where('academic_year', '2024-2025')
+        ->whereIn('semester', $semesterValuesCheck)
+        ->pluck('section_subject_id')
+        ->toArray();
+    expect(in_array($sectionSub1->id, $found))->toBeTrue();
+    expect(in_array($sectionSub2->id, $found))->toBeTrue();
+
+    $archived = ArchivedStudentEnrollment::create([
+        'archived_section_id' => $archivedSection->id,
+        'student_id' => $student->id,
+        'original_enrollment_id' => (string) $enrollment->id,
+        'academic_year' => '2024-2025',
+        'semester' => 'first',
+        'enrolled_date' => now(),
+        'completion_date' => now(),
+        'final_status' => 'completed',
+        'final_grades' => null,
+        'student_data' => [
+            'name' => $student->user->name,
+            'student_number' => $student->student_number,
+        ],
+    ]);
+
+    // archived process should not delete original subject enrollments
+    $laterEnrolls = StudentSubjectEnrollment::where('student_id', $student->id)
+        ->where('academic_year', '2024-2025')
+        ->whereIn('semester', ['1st','first'])
+        ->pluck('section_subject_id')
+        ->toArray();
+    expect(in_array($sectionSub1->id, $laterEnrolls))->toBeTrue();
+    expect(in_array($sectionSub2->id, $laterEnrolls))->toBeTrue();
+
+
+
+    // now both subjects should be present in archived_student_subjects
+    $rows = DB::table('archived_student_subjects')
+        ->where('archived_student_enrollment_id', $archived->id)
+        ->get();
+
+    // expect two rows: one graded and one ungraded
+    expect($rows->count())->toBe(2);
+
+    $codes = $rows->pluck('subject_code')->toArray();
+    expect(in_array('GRA101', $codes))->toBeTrue();
+    expect(in_array('NO_GRADE', $codes))->toBeTrue();
+});
 it('respects --dry-run and does not insert rows', function () {
     $user = User::factory()->create(['role' => 'student']);
     $student = Student::factory()->create(['user_id' => $user->id]);

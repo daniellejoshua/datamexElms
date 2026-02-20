@@ -5,28 +5,28 @@
     <title>Academic History - {{ $student->user->name }}</title>
     <style>
         /* aggressive compaction to fit on a single page */
-        @page { size: A4 portrait; margin: 4mm; }
-        body { font-family: 'DejaVu Sans', sans-serif; color:#111; margin:4px; font-size:8px; line-height:1; }
-        .header { padding-bottom:2px; margin-bottom:6px; border-bottom:1px solid #800000; text-align:center; }
+        @page { size: A4 portrait; margin: 3mm; }
+        body { font-family: 'DejaVu Sans', sans-serif; color:#111; margin:2px; font-size:7px; line-height:1; }
+        .header { padding-bottom:1px; margin-bottom:4px; border-bottom:1px solid #800000; text-align:center; }
         /* logo and school name inline to save vertical space */
-        .logo { display:inline-block; vertical-align:middle; margin:0 8px 0 0; max-width:36px; height:auto; }
+        .logo { display:inline-block; vertical-align:middle; margin:0 6px 0 0; max-width:30px; height:auto; }
         .header-content { display:inline-block; vertical-align:middle; text-align:center; margin-left:0; }
         /* single-line school name + title */
-        .school-line { display:inline-flex; gap:6px; align-items:baseline; white-space:nowrap; }
-        .school-line .school-name { font-size:11px; font-weight:700; color:#800000; margin:0; }
-        .school-line .title { font-size:9px; font-weight:600; color:#374151; margin:0; }
-        .school-sub { font-size:8px; color:#555; margin:1px 0; }
-        .meta { margin-top:3px; font-size:8px; color:#374151; display:block; text-align:center }
-        .meta div { display:inline-block; margin-right:6px; }
-        .section { margin-top:4px; }
-        table { width:92%; margin:0 auto; border-collapse:collapse; font-size:7.5px; table-layout: fixed; }
-        th, td { border:1px solid #e5e7eb; padding:1px 2px; text-align:left; vertical-align:middle; }
-        th { background:#f8fafc; color:#111827; font-weight:700; font-size:8px }
-        .year-header { background:#f1f5f9; padding:2px; margin-top:4px; border-left:2px solid #ef4444; font-size:9px; }
-        .semester-title { font-weight:700; color:#0f172a; margin-bottom:2px; font-size:8.5px }
-        .small { font-size:7px; color:#6b7280 }
-        .col-unit, .col-grade { font-size:7px; }
-        .subject-name { display:block; white-space:normal; overflow:visible; word-break:break-word; max-height:3.6em; line-height:1.1em; max-width: {{ $subjectMaxCh ?? 40 }}ch; }
+        .school-line { display:inline-flex; gap:4px; align-items:baseline; white-space:nowrap; }
+        .school-line .school-name { font-size:10px; font-weight:700; color:#800000; margin:0; }
+        .school-line .title { font-size:8px; font-weight:600; color:#374151; margin:0; }
+        .school-sub { font-size:7px; color:#555; margin:1px 0; }
+        .meta { margin-top:2px; font-size:7px; color:#374151; display:block; text-align:center }
+        .meta div { display:inline-block; margin-right:4px; }
+        .section { margin-top:2px; }
+        table { width:90%; margin:0 auto; border-collapse:collapse; font-size:7px; table-layout: fixed; }
+        th, td { border:1px solid #e5e7eb; padding:1px 1px; text-align:left; vertical-align:middle; }
+        th { background:#f8fafc; color:#111827; font-weight:700; font-size:7px }
+        .year-header { background:#f1f5f9; padding:1px 2px; margin-top:2px; border-left:2px solid #ef4444; font-size:9px; }
+        .semester-title { font-weight:700; color:#0f172a; margin-bottom:1px; font-size:7px }
+        .small { font-size:6px; color:#6b7280 }
+        .col-unit, .col-grade { font-size:6px; }
+        .subject-name { display:block; white-space:normal; overflow:visible; word-break:break-word; max-height:3.6em; line-height:1.1em; max-width: {{ $subjectMaxCh ?? 35 }}ch; }
 
         /* reduce row heights and avoid page breaks inside rows */
         tr { page-break-inside: avoid; }
