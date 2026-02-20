@@ -36,6 +36,7 @@ Route::middleware(['auth', 'verified', 'role:student'])->prefix('student')->grou
     Route::get('/dashboard', [StudentDashboardController::class, 'index'])->name('student.dashboard');
     Route::get('/subjects', [StudentSubjectController::class, 'index'])->name('student.subjects');
     Route::get('/grades', [\App\Http\Controllers\Student\GradesController::class, 'index'])->name('student.grades');
+    Route::get('/grades/export', [\App\Http\Controllers\Student\GradesController::class, 'exportPdf'])->name('student.grades.export');
     Route::get('/payments', [\App\Http\Controllers\Student\PaymentsController::class, 'index'])->name('student.payments');
     Route::get('/payments/{payment}/calculate-irregular', [\App\Http\Controllers\Student\PaymentsController::class, 'index'])->name('student.payments.calculate-irregular');
     Route::get('/academic-history', [\App\Http\Controllers\Student\AcademicHistoryController::class, 'index'])->name('student.academic-history');

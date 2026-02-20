@@ -28,6 +28,7 @@ export default function CollegePaymentsIndex({ payments, stats, filters, current
     const [selectedPayment, setSelectedPayment] = useState(null)
     const [calculatedBalance, setCalculatedBalance] = useState(null)
     const [isCalculating, setIsCalculating] = useState(false)
+    const [amountError, setAmountError] = useState('')
     const [paymentForm, setPaymentForm] = useState({
         amount_paid: '',
         payment_date: new Date().toISOString().split('T')[0],
@@ -35,6 +36,13 @@ export default function CollegePaymentsIndex({ payments, stats, filters, current
         or_number: '',
         notes: ''
     })
+
+    const getCurrentBalance = (payment) => {
+        if (payment?.student?.student_type === 'irregular' && !payment.prelim_paid && payment.total_semester_fee === 0) {
+            return calculatedBalance ?? 0
+        }
+        return payment?.balance ?? 0
+    }
 
     const handleFilterChange = () => {
         // Get current page from URL if it exists
@@ -117,6 +125,8 @@ export default function CollegePaymentsIndex({ payments, stats, filters, current
                     toast.success('Balance Calculated', {
                         description: `Irregular student balance calculated: ₱${data.calculated_balance.toFixed(2)}`,
                     })
+                    // refresh table so new amounts are visible
+                    router.reload()
                 } else {
                     toast.error('Calculation Failed', {
                         description: data.message || 'Failed to calculate irregular student balance.',
@@ -143,10 +153,18 @@ export default function CollegePaymentsIndex({ payments, stats, filters, current
     }
 
     const submitPayment = () => {
+        const numeric = parseFloat(paymentForm.amount_paid || 0)
+        const bal = getCurrentBalance(selectedPayment)
+        if (numeric > bal) {
+            toast.error('Amount exceeds remaining balance')
+            return
+        }
         router.post(route('registrar.payments.college.record', selectedPayment.id), paymentForm, {
             onSuccess: () => {
                 setShowPaymentModal(false)
                 setSelectedPayment(null)
+                // when payment is saved, reload so amount due and status update
+                router.reload()
             },
             onError: (errors) => {
                 toast.error('Failed to record payment', {
@@ -351,9 +369,9 @@ export default function CollegePaymentsIndex({ payments, stats, filters, current
                             <table className="w-full">
                                 <thead>
                                     <tr className="border-b">
-                                        <th className="text-left py-3 px-4">Student</th>
-                                        <th className="text-left py-3 px-4">Section</th>
-                                        <th className="text-left py-3 px-4">
+                                        <th className="text-left py-3 px-4 whitespace-nowrap">Student</th>
+                                        <th className="text-left py-3 px-4 whitespace-nowrap">Section</th>
+                                        <th className="text-left py-3 px-4 whitespace-nowrap">
                                             <TooltipProvider>
                                                 <Tooltip>
                                                     <TooltipTrigger asChild>
@@ -365,10 +383,10 @@ export default function CollegePaymentsIndex({ payments, stats, filters, current
                                                 </Tooltip>
                                             </TooltipProvider>
                                         </th>
-                                        <th className="text-left py-3 px-4">Amount Due</th>
-                                        <th className="text-left py-3 px-4">Balance</th>
-                                        <th className="text-left py-3 px-4">Status</th>
-                                        <th className="text-right py-3 px-4">Actions</th>
+                                        <th className="text-left py-3 px-4 whitespace-nowrap">Amount Due</th>
+                                        <th className="text-left py-3 px-4 whitespace-nowrap">Balance</th>
+                                        <th className="text-left py-3 px-4 whitespace-nowrap">Status</th>
+                                        <th className="text-right py-3 px-4 whitespace-nowrap">Actions</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -387,7 +405,7 @@ export default function CollegePaymentsIndex({ payments, stats, filters, current
                                                     </div>
                                                 </div>
                                             </td>
-                                            <td className="py-3 px-4">
+                                            <td className="py-3 px-4 whitespace-nowrap">
                                                 <div>
                                                     {payment.student?.student_type === 'irregular' ? (
                                                         <div className="text-center">
@@ -413,10 +431,10 @@ export default function CollegePaymentsIndex({ payments, stats, filters, current
                                                     </span>
                                                 </div>
                                             </td>
-                                            <td className="py-3 px-4 font-medium">
+                                            <td className="py-3 px-4 font-medium whitespace-nowrap">
                                                 {formatCurrency(payment.calculated_total_amount ?? payment.total_semester_fee)}
                                             </td>
-                                            <td className="py-3 px-4">
+                                            <td className="py-3 px-4 whitespace-nowrap">
                                                 {payment.student?.student_type === 'irregular' && !payment.prelim_paid && payment.total_semester_fee === 0 ? (
                                                     <span className="text-orange-600 font-medium italic">
                                                         To be calculated
@@ -429,7 +447,7 @@ export default function CollegePaymentsIndex({ payments, stats, filters, current
                                                     </span>
                                                 )}
                                             </td>
-                                            <td className="py-3 px-4">
+                                            <td className="py-3 px-4 whitespace-nowrap">
                                                 <Badge 
                                                     variant="secondary"
                                                     className={getStatusColor(payment.status)}
@@ -437,7 +455,7 @@ export default function CollegePaymentsIndex({ payments, stats, filters, current
                                                     {payment.status?.charAt(0).toUpperCase() + payment.status?.slice(1)}
                                                 </Badge>
                                             </td>
-                                            <td className="py-3 px-4">
+                                            <td className="py-3 px-4 whitespace-nowrap">
                                                 <div className="flex justify-end gap-2">
                                                     <Button
                                                         size="sm"
@@ -511,8 +529,8 @@ export default function CollegePaymentsIndex({ payments, stats, filters, current
             {showPaymentModal && (
                 <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
                     <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-                        {/* Gradient Header */}
-                        <div className="bg-gradient-to-r from-blue-600 to-purple-600 text-white p-6 rounded-t-xl">
+                        {/* Header (no gradient) */}
+                        <div className="bg-blue-600 text-white p-6 rounded-t-xl">
                             <div className="flex items-center justify-between">
                                 <div className="flex items-center gap-3">
                                     <div className="p-2 bg-white bg-opacity-20 rounded-lg">
@@ -660,7 +678,7 @@ export default function CollegePaymentsIndex({ payments, stats, filters, current
                                 </Button>
                                 <Button
                                     onClick={submitPayment}
-                                    disabled={!paymentForm.amount_paid || !paymentForm.or_number}
+                                    disabled={!paymentForm.amount_paid || !paymentForm.or_number || amountError}
                                     className="flex-1 bg-blue-600 hover:bg-blue-700 text-white"
                                 >
                                     <CreditCard className="w-4 h-4 mr-2" />

@@ -535,6 +535,18 @@ export default function Show({ section, sectionSubject, enrollments, isCollegeLe
             header={
                 <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
+                        {/* back button on left */}
+                        <button
+                            onClick={() => router.visit(route('teacher.sections.college'), {
+                                method: 'get',
+                                preserveState: false,
+                                preserveScroll: false
+                            })}
+                            className="inline-flex items-center text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 mr-2"
+                        >
+                            <ArrowLeft className="h-4 w-4 mr-1" />
+                            Back to Sections
+                        </button>
                         <div className="bg-blue-100 p-1.5 rounded-md">
                             <BookOpen className="w-4 h-4 text-blue-600" />
                         </div>
@@ -543,17 +555,6 @@ export default function Show({ section, sectionSubject, enrollments, isCollegeLe
                             <p className="text-xs text-gray-500 mt-0.5">{getSimplifiedSectionName()} • {section.academic_year} - Semester {section.semester}</p>
                         </div>
                     </div>
-                    <button
-                        onClick={() => router.visit(route('teacher.sections.college'), {
-                            method: 'get',
-                            preserveState: false,
-                            preserveScroll: false
-                        })}
-                        className="inline-flex items-center text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100"
-                    >
-                        <ArrowLeft className="h-4 w-4 mr-1" />
-                        Back to Sections
-                    </button>
                 </div>
             }
         >

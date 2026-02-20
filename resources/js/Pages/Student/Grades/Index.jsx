@@ -6,6 +6,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import {
     TrendingUp,
     BookOpen,
@@ -19,7 +21,8 @@ import {
     AlertCircle,
     Clock,
     Star,
-    BarChart3
+    BarChart3,
+    Download
 } from 'lucide-react';
 
 // Helper function to format section name
@@ -113,10 +116,17 @@ const getVisibleGrades = (paymentStatus) => {
     return { prelim: false, midterm: false, prefinal: false, final: false, semester: false };
 };
 
-const Index = ({ auth, student, currentGrades, paymentStatus, visibleGradePeriods, stats }) => {
+const Index = ({ auth, student, currentGrades, paymentStatus, visibleGradePeriods, stats, academicYear, semester }) => {
     // ensure safe defaults
     const grades = Array.isArray(currentGrades) ? currentGrades : [];
+    // academic period values may be undefined when no grades exist
+    academicYear = academicYear || '';
+    semester = semester || '';
+    // use backend‑computed visibility based on payment status
     const visible = visibleGradePeriods || { prelim: true, midterm: true, prefinal: true, final: true, semester: true };
+
+    // user can toggle how grades are displayed
+    const [gradeType, setGradeType] = React.useState('gpa');
 
     return (
         <AuthenticatedLayout
@@ -124,16 +134,21 @@ const Index = ({ auth, student, currentGrades, paymentStatus, visibleGradePeriod
             header={
                 <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
-                        <button 
-                            onClick={() => router.visit(route('student.dashboard'))}
-                            className="flex items-center gap-2 px-3 py-1.5 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-md transition-colors"
-                        >
-                            <ArrowLeft className="w-4 h-4" />
-                            <span className="hidden sm:inline">Back to Dashboard</span>
-                        </button>
+                        <Button asChild variant="ghost" size="sm">
+                            <Link href={route('student.dashboard')} className="flex items-center gap-2">
+                                <ArrowLeft className="w-4 h-4" />
+                                <span className="hidden sm:inline">Back to Dashboard</span>
+                            </Link>
+                        </Button>
                         <div className="h-6 w-px bg-gray-300"></div>
                         <div>
-                            <h2 className="text-2xl font-bold text-gray-900">My Grades</h2>
+                            <h2 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
+                                <GraduationCap className="w-6 h-6 text-blue-600" />
+                                My Grades
+                            </h2>
+                            <p className="text-sm text-blue-600 font-medium mt-1">
+                                Review your grades for the current academic term
+                            </p>
                         </div>
                     </div>
                 </div>
@@ -143,17 +158,62 @@ const Index = ({ auth, student, currentGrades, paymentStatus, visibleGradePeriod
 
             {grades.length > 0 ? (
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-                    <table className="min-w-full divide-y divide-gray-200">
+                    {/* grade display toggle and export */}
+                    <div className="flex justify-between items-center mb-4">
+                        <div>
+                            <label className="flex items-center gap-2 text-sm">
+                                <span>View As:</span>
+                                <Select value={gradeType} onValueChange={setGradeType}>
+                                    <SelectTrigger className="w-32 h-8">
+                                        <SelectValue placeholder="Numeric" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="numeric">Numeric</SelectItem>
+                                        <SelectItem value="gpa">GPA</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                            </label>
+                        </div>
+                        <a
+                            href={route('student.grades.export')}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center px-3 py-1.5 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50"
+                        >
+                            <Download className="w-4 h-4 mr-2" />
+                            Export PDF
+                        </a>
+                    </div>
+
+                    {/* academic period and quick stats */}
+                    <div className="flex flex-col md:flex-row md:justify-between items-start md:items-center mb-4 space-y-2 md:space-y-0">
+                        <div className="text-sm text-gray-600">
+                            Academic Year: <span className="font-semibold">{academicYear}</span> &nbsp;|&nbsp; Semester: <span className="font-semibold">{semester}</span>
+                        </div>
+                        {stats && (
+                            <div className="flex gap-2">
+                                <Badge variant="secondary" className="bg-blue-100 text-blue-800">
+                                    {stats.totalSubjects} subject{stats.totalSubjects !== 1 ? 's' : ''}
+                                </Badge>
+                                <Badge variant="secondary" className="bg-blue-100 text-blue-800">
+                                    Avg. grade: {stats.averageGrade ? stats.averageGrade.toFixed(2) : '—'}
+                                </Badge>
+                            </div>
+                        )}
+                    </div>
+
+                    <Card>
+                        <CardContent className="p-0 overflow-x-auto">
+                            <table className="min-w-full divide-y divide-gray-200">
+
                         <thead className="bg-gray-50">
                             <tr>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500">Subject Code</th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500">Subject Name</th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500">Section</th>
-                                {visible.prelim && <th className="px-6 py-3 text-left text-xs font-medium text-gray-500">Prelim</th>}
-                                {visible.midterm && <th className="px-6 py-3 text-left text-xs font-medium text-gray-500">Midterm</th>}
-                                {visible.prefinal && <th className="px-6 py-3 text-left text-xs font-medium text-gray-500">Prefinal</th>}
-                                {visible.final && <th className="px-6 py-3 text-left text-xs font-medium text-gray-500">Final</th>}
-                                {visible.semester && <th className="px-6 py-3 text-left text-xs font-medium text-gray-500">Semester</th>}
+                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500">Subject</th>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500">Prelim</th>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500">Midterm</th>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500">Prefinal</th>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500">Final</th>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500">Semester</th>
                                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500">Status</th>
                             </tr>
                         </thead>
@@ -170,20 +230,87 @@ const Index = ({ auth, student, currentGrades, paymentStatus, visibleGradePeriod
 
                                 return (
                                     <tr key={grade.id ?? idx} className="hover:bg-gray-50">
-                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{subject?.subject_code || 'N/A'}</td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{subject?.subject_name || 'N/A'}</td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{formatSectionName(section)}</td>
-                                        {visible.prelim && <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{displayGrade(prelim)}</td>}
-                                        {visible.midterm && <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{displayGrade(midterm)}</td>}
-                                        {visible.prefinal && <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{displayGrade(prefinal)}</td>}
-                                        {visible.final && <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{displayGrade(finalg)}</td>}
-                                        {visible.semester && <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{displayGrade(semester)}</td>}
+                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                            <TooltipProvider>
+                                                <Tooltip>
+                                                    <TooltipTrigger asChild>
+                                                        <span className="cursor-help">{subject?.subject_code || 'N/A'}</span>
+                                                    </TooltipTrigger>
+                                                    <TooltipContent>
+                                                        <p>{subject?.subject_name || 'N/A'}</p>
+                                                    </TooltipContent>
+                                                </Tooltip>
+                                            </TooltipProvider>
+                                        </td>
+                                        {/* term cells show grade, locked indicator, or link */}
+                                        {/* Prelim */}
+                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                            {visible.prelim ? (
+                                                isValidGrade(prelim)
+                                                    ? (gradeType === 'gpa' ? getGradePointEquivalence(prelim) : displayGrade(prelim))
+                                                    : (!paymentStatus?.prelim_paid && paymentStatus?.balance > 0)
+                                                        ? <Link href={route('student.payments')} className="text-red-600 underline">Pay Prelim</Link>
+                                                        : '—'
+                                            ) : (
+                                                isValidGrade(prelim) ? <span className="text-gray-400">Grade hidden</span> : '—'
+                                            )}
+                                        </td>
+                                        {/* Midterm */}
+                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                            {visible.midterm ? (
+                                                isValidGrade(midterm)
+                                                    ? (gradeType === 'gpa' ? getGradePointEquivalence(midterm) : displayGrade(midterm))
+                                                    : (!paymentStatus?.midterm_paid && paymentStatus?.balance > 0)
+                                                        ? <Link href={route('student.payments')} className="text-red-600 underline">Pay Midterm</Link>
+                                                        : '—'
+                                            ) : (
+                                                isValidGrade(midterm) ? <span className="text-gray-400">Grade hidden</span> : '—'
+                                            )}
+                                        </td>
+                                        {/* Prefinal */}
+                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                            {visible.prefinal ? (
+                                                isValidGrade(prefinal)
+                                                    ? (gradeType === 'gpa' ? getGradePointEquivalence(prefinal) : displayGrade(prefinal))
+                                                    : (!paymentStatus?.prefinal_paid && paymentStatus?.balance > 0)
+                                                        ? <Link href={route('student.payments')} className="text-red-600 underline">Pay Pre-final</Link>
+                                                        : '—'
+                                            ) : (
+                                                isValidGrade(prefinal) ? <span className="text-gray-400">Grade hidden</span> : '—'
+                                            )}
+                                        </td>
+                                        {/* Final */}
+                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                            {visible.final ? (
+                                                isValidGrade(finalg)
+                                                    ? (gradeType === 'gpa' ? getGradePointEquivalence(finalg) : displayGrade(finalg))
+                                                    : (!paymentStatus?.final_paid && paymentStatus?.balance > 0)
+                                                        ? <Link href={route('student.payments')} className="text-red-600 underline">Pay Final</Link>
+                                                        : '—'
+                                            ) : (
+                                                isValidGrade(finalg) ? <span className="text-gray-400">Grade hidden</span> : '—'
+                                            )}
+                                        </td>
+                                        {/* Semester */}
+                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                            {visible.semester ? (
+                                                isValidGrade(semester)
+                                                    ? (gradeType === 'gpa' ? getGradePointEquivalence(semester) : displayGrade(semester))
+                                                    : (paymentStatus?.balance === 0)
+                                                        ? '—'
+                                                        : <Link href={route('student.payments')} className="text-red-600 underline">Pay Semester</Link>
+                                            ) : (
+                                                isValidGrade(semester) ? <span className="text-gray-400">Grade hidden</span> : '—'
+                                            )}
+                                        </td>
                                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{status}</td>
                                     </tr>
                                 );
                             })}
                         </tbody>
                     </table>
+                        </CardContent>
+                    </Card>
                     {/* pagination placeholder - kept for future use
                     {currentGrades.links && currentGrades.links.length > 3 && (
                         <div className="mt-6 flex justify-center">
