@@ -71,5 +71,6 @@ it('shows archived subject rows from `archived_student_subjects` to the student'
 
     $response = $this->actingAs($user)->get(route('student.archived-grades.section', ['section' => $archivedSection->id, 'academic_year' => '2024-2025', 'semester' => 'first']));
 
-    $response->assertOk()->assertInertia(fn ($page) => $page->has('archivedEnrollments')->where('archivedEnrollments.0.subject_code', 'AS101'));
+    // section page now redirects back to the period overview
+    $response->assertRedirect(route('student.archived-grades.period', ['academic_year' => '2024-2025', 'semester' => 'first']));
 });

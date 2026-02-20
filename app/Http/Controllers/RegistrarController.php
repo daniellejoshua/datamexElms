@@ -579,6 +579,17 @@ class RegistrarController extends Controller
             $student->current_section = $enrollment?->section;
             $student->is_currently_enrolled = $enrollment !== null;
 
+            // If a section exists but its year level doesn't match the
+            // student's current year level we treat it as no section. This
+            // frequently happens for irregular students who may still be
+            // linked to an older section. (frontend helper also guards
+            // against this, but normalizing here makes behavior easier to
+            // assert in tests.)
+            if ($student->current_section &&
+                $student->current_section->year_level != (string) $student->year_level) {
+                $student->current_section = null;
+            }
+
             return $student;
         });
 

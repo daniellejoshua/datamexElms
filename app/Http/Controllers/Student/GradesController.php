@@ -158,6 +158,7 @@ class GradesController extends Controller
             }
         }
 
+
         return Inertia::render('Student/Grades/Index', [
             'currentGrades' => $currentGrades,
             'paymentStatus' => $paymentStatus,

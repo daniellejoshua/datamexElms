@@ -1,6 +1,7 @@
 <?php
 
 use App\Models\User;
+use App\Models\SchoolSetting;
 
 // use Illuminate\Foundation\Testing\RefreshDatabase;
 
@@ -61,6 +62,45 @@ it('allows registrar to view students list', function () {
 
     $response->assertSuccessful();
     $response->assertInertia(fn ($page) => $page->component('Registrar/Students/Index'));
+});
+
+it('does not expose a section when year levels mismatch', function () {
+    $registrar = User::factory()->create(['role' => 'registrar']);
+
+    $currentYear = SchoolSetting::getCurrentAcademicYear();
+    $currentSem = SchoolSetting::getCurrentSemester();
+
+    // create a section with a different year level than the student
+    $section = \App\Models\Section::factory()->create([
+        'year_level' => '12',
+        'academic_year' => $currentYear,
+        'semester' => $currentSem,
+    ]);
+
+    $student = \App\Models\Student::factory()->create([
+        'year_level' => '11',
+        'student_type' => 'irregular',
+    ]);
+
+    // enrollment tying the student to the mismatched section
+    \App\Models\StudentEnrollment::factory()->create([
+        'student_id' => $student->id,
+        'section_id' => $section->id,
+        'academic_year' => $currentYear,
+        'semester' => $currentSem,
+        'status' => 'active',
+    ]);
+
+    $response = $this->actingAs($registrar)->get(route('registrar.students'));
+
+    $response->assertSuccessful();
+    $response->assertInertia(fn ($page) =>
+        $page->where('students.data', function ($students) use ($student) {
+            $found = collect($students)->firstWhere('id', $student->id);
+            // student should exist and have no current_section due to year mismatch
+            return $found && $found['current_section'] === null;
+        })
+    );
 });
 
 it('redirects to registrar dashboard after login for registrar users', function () {

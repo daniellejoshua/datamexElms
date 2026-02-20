@@ -14,6 +14,15 @@ export default function SubjectEnrollment({ section, student, availableSubjects,
     const [isRemoveModalOpen, setIsRemoveModalOpen] = useState(false);
     const [subjectToRemove, setSubjectToRemove] = useState(null);
 
+    // pagination for credited subjects
+    const [creditedPage, setCreditedPage] = useState(1);
+    const creditedPerPage = 5; // adjust as needed
+
+    // reset page when list changes to avoid out-of-range issues
+    React.useEffect(() => {
+        setCreditedPage(1);
+    }, [creditedSubjects]);
+
     // Determine view-only mode: controller sets `student.can_manage_subjects` for irregular students
     const isViewOnly = !student?.can_manage_subjects;
 
@@ -173,6 +182,13 @@ export default function SubjectEnrollment({ section, student, availableSubjects,
         }
         return section.section_name || `Section ${section.id}`;
     };
+
+    // pagination calculations
+    const totalCredited = creditedSubjects.length;
+    const totalCreditedPages = Math.ceil(totalCredited / creditedPerPage);
+    const creditedStart = (creditedPage - 1) * creditedPerPage;
+    const creditedEnd = Math.min(creditedStart + creditedPerPage, totalCredited);
+    const paginatedCredited = creditedSubjects.slice(creditedStart, creditedEnd);
 
     const getBackUrl = () => {
         return route('admin.sections.students', section.id);
@@ -398,13 +414,13 @@ export default function SubjectEnrollment({ section, student, availableSubjects,
                     </div>
 
                     {/* Subjects Already Credited */}
-                    {creditedSubjects && creditedSubjects.length > 0 && (
+                    {creditedSubjects && totalCredited > 0 && (
                         <div className="bg-white rounded-lg shadow-sm border overflow-hidden mt-6">
                             <div className="bg-blue-50 px-4 py-3 border-b border-blue-100">
                                 <div className="flex items-center gap-2">
                                     <Check className="h-4 w-4 text-blue-600" />
                                     <h2 className="font-medium text-gray-900">
-                                        Subjects Already Credited ({creditedSubjects.length})
+                                        Subjects Already Credited ({totalCredited})
                                     </h2>
                                 </div>
                                 <p className="text-sm text-gray-600 mt-1">
@@ -413,7 +429,7 @@ export default function SubjectEnrollment({ section, student, availableSubjects,
                             </div>
                             <div className="p-4">
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                    {creditedSubjects.map((sectionSubject) => (
+                                    {paginatedCredited.map((sectionSubject) => (
                                         <div 
                                             key={sectionSubject.id} 
                                             className="flex items-start p-3 bg-blue-50 border border-blue-200 rounded"
@@ -441,6 +457,34 @@ export default function SubjectEnrollment({ section, student, availableSubjects,
                                     ))}
                                 </div>
                             </div>
+
+                            {/* pagination controls */}
+                            {totalCreditedPages > 1 && (
+                                <div className="px-4 py-3 bg-gray-50 border-t flex items-center justify-between">
+                                    <div className="text-sm text-gray-600">
+                                        Showing {creditedStart + 1} to {creditedEnd} of {totalCredited} subjects
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <button
+                                            onClick={() => setCreditedPage(prev => Math.max(prev - 1, 1))}
+                                            disabled={creditedPage === 1}
+                                            className="px-2 py-1 text-xs rounded border hover:bg-gray-100 disabled:opacity-50"
+                                        >
+                                            Previous
+                                        </button>
+                                        <span className="text-xs">
+                                            Page {creditedPage} of {totalCreditedPages}
+                                        </span>
+                                        <button
+                                            onClick={() => setCreditedPage(prev => Math.min(prev + 1, totalCreditedPages))}
+                                            disabled={creditedPage === totalCreditedPages}
+                                            className="px-2 py-1 text-xs rounded border hover:bg-gray-100 disabled:opacity-50"
+                                        >
+                                            Next
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     )}
 

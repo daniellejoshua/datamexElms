@@ -14,10 +14,17 @@ import { useState, useEffect } from 'react'
 import { ChevronDown, ChevronUp } from 'lucide-react'
 
 // Helper function to format section name
-const formatSectionName = (section, isCurrentlyEnrolled) => {
-    if (!section) {
+// `studentYearLevel` is optional but when provided we treat a section with a
+// different year level as if there is no section (see irregular students).
+const formatSectionName = (section, isCurrentlyEnrolled, studentYearLevel) => {
+    // If there is no section *or* the section year doesn't match the student's
+    // current year level then display the enrolled/not enrolled message. This
+    // covers the case where irregular students may be assigned an old section
+    // that doesn't correspond to their current year.
+    if (!section || (studentYearLevel && section.year_level != String(studentYearLevel))) {
         return isCurrentlyEnrolled ? 'Enrolled (No Section)' : 'Not Enrolled';
     }
+
     if (section.program?.program_code && section.year_level) {
         const identifier = section.section_name;
         return `${section.program.program_code}-${section.year_level}${identifier}`;
@@ -398,12 +405,7 @@ export default function StudentsIndex({ students, programs, filters, auth, on_ho
                                                             Active
                                                         </div>
                                                     </SelectItem>
-                                                    <SelectItem value="inactive">
-                                                        <div className="flex items-center gap-2">
-                                                            <div className="w-2 h-2 bg-red-500 rounded-full"></div>
-                                                            Inactive
-                                                        </div>
-                                                    </SelectItem>
+                                                   
                                                     <SelectItem value="graduated">
                                                         <div className="flex items-center gap-2">
                                                             <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
@@ -544,7 +546,7 @@ export default function StudentsIndex({ students, programs, filters, auth, on_ho
                                                 <td className="py-3 px-4">
                                                     <div>
                                                         <div className="font-medium text-blue-600">
-                                                            {student.student_type === 'irregular' ? 'Irregular' : formatSectionName(student.current_section, student.is_currently_enrolled)}
+                                                            {formatSectionName(student.current_section, student.is_currently_enrolled, student.year_level)}
                                                         </div>
                                                     </div>
                                                 </td>
@@ -1242,7 +1244,7 @@ export default function StudentsIndex({ students, programs, filters, auth, on_ho
                                                 <span className="text-sm font-medium text-blue-700 uppercase tracking-wide">Current Section</span>
                                             </div>
                                             <div className="text-lg font-bold text-blue-900 mb-1">
-                                                {selectedStudent.student_type === 'irregular' ? 'Irregular' : formatSectionName(selectedStudent.current_section, selectedStudent.is_currently_enrolled)}
+                                                {formatSectionName(selectedStudent.current_section, selectedStudent.is_currently_enrolled, selectedStudent.year_level)}
                                             </div>
                                             {selectedStudent.current_section && (
                                                 <div className="text-sm text-blue-700">
