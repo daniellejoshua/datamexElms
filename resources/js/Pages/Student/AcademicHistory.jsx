@@ -18,11 +18,12 @@ import {
     School,
     AlertCircle,
     ChevronLeft,
-    ChevronRight
+    ChevronRight,
+    Download
 } from 'lucide-react'
 import { useState } from 'react'
 
-export default function AcademicHistory({ student, curriculumSubjects, completedSubjects, subjectGrades, creditedSubjects, archivedEnrollments, completionStats }) {
+export default function AcademicHistory({ student, curriculumSubjects, completedSubjects, subjectGrades, creditedSubjects, completionStats }) {
     const [creditedSubjectsPage, setCreditedSubjectsPage] = useState(1)
     const itemsPerPage = 5
 
@@ -101,12 +102,25 @@ export default function AcademicHistory({ student, curriculumSubjects, completed
                             <p className="text-sm text-blue-600 font-medium mt-1">View your complete academic record and progress</p>
                         </div>
                     </div>
+
                 </div>
             }
         >
             <Head title="Academic History" />
 
             <div className="p-6 space-y-6">
+                <div className="flex justify-end -mt-2">
+                    <a
+                        href={route('student.academic-history.export')}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        title="Export academic history as PDF"
+                        className="inline-flex items-center gap-2 px-3 py-1.5 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 shadow-sm"
+                    >
+                        <Download className="w-4 h-4 text-red-600" />
+                        <span>Export PDF</span>
+                    </a>
+                </div>
                 {/* Student Overview Card */}
                 <Card className="border-t-4 border-t-blue-500">
                     <CardContent className="pt-6">
@@ -437,65 +451,7 @@ export default function AcademicHistory({ student, curriculumSubjects, completed
                     );
                 })()}
 
-                {/* Enrollment History Timeline */}
-                {archivedEnrollments && archivedEnrollments.length > 0 && (
-                    <Card>
-                        <CardHeader>
-                            <CardTitle className="flex items-center gap-2">
-                                <Clock className="w-5 h-5" />
-                                Enrollment History Timeline
-                            </CardTitle>
-                            <p className="text-sm text-gray-600">Complete record of past semester enrollments</p>
-                        </CardHeader>
-                        <CardContent>
-                            <div className="space-y-4">
-                                {archivedEnrollments.map((enrollment, index) => (
-                                    <div key={index} className="relative">
-                                        {/* Timeline connector */}
-                                        {index < archivedEnrollments.length - 1 && (
-                                            <div className="absolute left-6 top-16 w-0.5 h-full bg-gray-200"></div>
-                                        )}
 
-                                        <div className="flex gap-4">
-                                            {/* Timeline dot */}
-                                            <div className={`w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0 ${
-                                                enrollment.final_status === 'completed'
-                                                    ? 'bg-green-100 text-green-600'
-                                                    : enrollment.final_status === 'dropped'
-                                                    ? 'bg-yellow-100 text-yellow-600'
-                                                    : 'bg-red-100 text-red-600'
-                                            }`}>
-                                                <span className="text-sm font-bold">
-                                                    {enrollment.semester === '1st' || enrollment.semester === 'first' ? '1' : 
-                                                     enrollment.semester === '2nd' || enrollment.semester === 'second' ? '2' : 'S'}
-                                                </span>
-                                            </div>
-
-                                            {/* Enrollment details */}
-                                            <div className="flex-1 pb-8">
-                                                <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
-                                                    <div className="mb-2">
-                                                        <h4 className="font-semibold text-gray-900">
-                                                            {enrollment.academic_year} - {enrollment.semester} Semester
-                                                        </h4>
-                                                        <p className="text-sm text-gray-600">
-                                                            Section: {formatSectionName(enrollment.archived_section)}
-                                                        </p>
-                                                    </div>
-                                                    {enrollment.total_units && (
-                                                        <div className="text-sm text-gray-600">
-                                                            Total Units: {enrollment.total_units}
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        </CardContent>
-                    </Card>
-                )}
             </div>
         </AuthenticatedLayout>
     )

@@ -38,8 +38,9 @@ Route::middleware(['auth', 'verified', 'role:student'])->prefix('student')->grou
     Route::get('/grades', [\App\Http\Controllers\Student\GradesController::class, 'index'])->name('student.grades');
     Route::get('/grades/export', [\App\Http\Controllers\Student\GradesController::class, 'exportPdf'])->name('student.grades.export');
     Route::get('/payments', [\App\Http\Controllers\Student\PaymentsController::class, 'index'])->name('student.payments');
-    Route::get('/payments/{payment}/calculate-irregular', [\App\Http\Controllers\Student\PaymentsController::class, 'index'])->name('student.payments.calculate-irregular');
+    Route::get('/payments/{payment}/calculate-irregular', [\App\Http\Controllers\Student\PaymentsController::class, 'calculateIrregularBalance'])->name('student.payments.calculate-irregular');
     Route::get('/academic-history', [\App\Http\Controllers\Student\AcademicHistoryController::class, 'index'])->name('student.academic-history');
+    Route::get('/academic-history/export', [\App\Http\Controllers\Student\AcademicHistoryController::class, 'exportPdf'])->name('student.academic-history.export');
     Route::get('/materials/{material}/download', [StudentSubjectController::class, 'downloadMaterial'])->name('student.materials.download');
     Route::post('/materials/{material}/mark-viewed', [StudentSubjectController::class, 'markMaterialAsViewed'])->name('student.materials.mark-viewed');
     Route::get('/archived-grades', [\App\Http\Controllers\Student\ArchivedGradesController::class, 'index'])->name('student.archived-grades');

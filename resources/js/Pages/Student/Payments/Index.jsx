@@ -167,7 +167,7 @@ const Index = ({ currentPayment, paymentHistory, stats, currentAcademicInfo, stu
                             <CreditCard className="w-4 h-4 text-blue-600" />
                         </div>
                         <div>
-                            <h2 className="text-lg font-semibold text-gray-900">My Payment Details</h2>
+                            <h2 className="text-lg font-semibold text-gray-900">Student Payment Details</h2>
                             <p className="text-xs text-gray-500 mt-0.5">View comprehensive payment records and transaction history</p>
                         </div>
                     </div>
@@ -185,8 +185,8 @@ const Index = ({ currentPayment, paymentHistory, stats, currentAcademicInfo, stu
                                 <GraduationCap className="w-4 h-4 text-white" />
                             </div>
                             <div>
-                                <CardTitle className="text-lg">My Information</CardTitle>
-                                <CardDescription>Personal and enrollment details</CardDescription>
+                                <CardTitle className="text-lg">Student Information</CardTitle>
+                                <CardDescription>Complete student profile and enrollment details</CardDescription>
                             </div>
                         </div>
                     </CardHeader>

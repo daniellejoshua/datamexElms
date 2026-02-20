@@ -48,15 +48,17 @@ it('includes placeholders and missing grades for completed archived enrollments 
     ]);
 
     $response = $this->actingAs($user)->get(route('student.academic-history'));
-    $response->assertOk()->assertInertia(fn ($page) =>
-        $page->has('subjectGrades', 1) // at least the archived placeholder
-            ->where('subjectGrades.0.type', 'archived')
-            ->where('subjectGrades.0.subject_code', 'ARCHIVED')
-            ->where('subjectGrades.0.missing_grades', ['Midterm', 'Prefinals', 'Finals'])
-    );
+    $response->assertOk();
 
-    // also timeline should carry prop for missing_grades
+    // archived enrollments / placeholders are intentionally removed from the student academic history
     $pageProps = $response->original->getData()['page']['props'];
-    $timeline = collect($pageProps['archivedEnrollments']);
-    expect($timeline->first()['missing_grades'])->toEqual(['Midterm', 'Prefinals', 'Finals']);
+
+    // ensure archivedEnrollments prop is not provided to the student page
+    $this->assertArrayNotHasKey('archivedEnrollments', $pageProps);
+
+    // ensure no placeholder archived subject entries are included in subjectGrades
+    $subjectGrades = collect($pageProps['subjectGrades'] ?? []);
+    expect($subjectGrades->contains('type', 'archived'))->toBeFalse();
+
+
 });

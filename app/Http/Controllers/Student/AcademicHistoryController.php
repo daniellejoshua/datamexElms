@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Student;
 use App\Http\Controllers\Controller;
 use App\Models\Student;
 use Inertia\Inertia;
+use PDF;
 
 class AcademicHistoryController extends Controller
 {
@@ -356,18 +357,258 @@ class AcademicHistoryController extends Controller
             }
         }
 
-        return Inertia::render('Student/AcademicHistory', [
+        $inertiaData = [
             'student' => $student,
             'curriculumSubjects' => $curriculumSubjects,
             'completedSubjects' => $completedSubjects,
             'subjectGrades' => $subjectGrades,
             'creditedSubjects' => $creditedSubjectsOnly,
-            'archivedEnrollments' => $archivedEnrollments,
             'completionStats' => [
                 'totalSubjects' => $totalSubjects,
                 'completedSubjects' => $completedCurriculumSubjects,
                 'completionPercentage' => $completionPercentage,
             ],
-        ]);
+        ];
+
+        // Return Inertia page
+        $response = Inertia::render('Student/AcademicHistory', $inertiaData);
+
+        // Also attach an export route for convenience (client-side link will hit this)
+        $inertiaData['exportRoute'] = route('student.academic-history.export');
+
+        // Keep returning the Inertia response (client will receive data)
+        // but we'll also add a separate exportPdf() method below for PDF generation.
+        return $response;
+    }
+
+    /**
+     * Export the student's academic history as PDF.
+     */
+    public function exportPdf()
+    {
+        $student = auth()->user()->student;
+
+        if (! $student) {
+            abort(404, 'Student record not found');
+        }
+
+        // Reuse the same data-gathering logic from index()
+        $student->load(['user', 'program', 'curriculum']);
+
+        $curriculumSubjects = [];
+        if ($student->curriculum_id) {
+            $curriculumSubjects = \App\Models\CurriculumSubject::where('curriculum_id', $student->curriculum_id)
+                ->orderBy('year_level')
+                ->orderByRaw("FIELD(semester, '1st', '2nd', 'summer')")
+                ->get();
+        }
+
+        // Build subject grades map (same as index)
+        $subjectGradesMap = [];
+        $completedSubjects = [];
+
+        $gradesQuery = \App\Models\StudentGrade::whereHas('studentEnrollment', function ($query) use ($student) {
+            $query->where('student_id', $student->id);
+        })
+            ->with(['sectionSubject.subject', 'sectionSubject.teacher.user'])
+            ->get();
+
+        foreach ($gradesQuery as $grade) {
+            if ($grade->sectionSubject && $grade->sectionSubject->subject) {
+                $subject = $grade->sectionSubject->subject;
+                $teacher = $grade->sectionSubject->teacher;
+
+                if (isset($subjectGradesMap[$subject->subject_code])) {
+                    continue;
+                }
+
+                $missingGrades = [];
+                if (is_null($grade->prelim_grade)) { $missingGrades[] = 'Prelim'; }
+                if (is_null($grade->midterm_grade)) { $missingGrades[] = 'Midterm'; }
+                if (is_null($grade->prefinal_grade)) { $missingGrades[] = 'Prefinal'; }
+                if (is_null($grade->final_grade)) { $missingGrades[] = 'Final'; }
+
+                $gradeInfo = [
+                    'subject_id' => $subject->id,
+                    'subject_code' => $subject->subject_code,
+                    'subject_name' => $subject->subject_name,
+                    'type' => 'graded',
+                    'teacher_name' => $teacher ? $teacher->user->name : null,
+                    'prelim_grade' => $grade->prelim_grade,
+                    'midterm_grade' => $grade->midterm_grade,
+                    'prefinal_grade' => $grade->prefinal_grade,
+                    'final_grade' => $grade->final_grade,
+                    'semester_grade' => $grade->semester_grade,
+                    'missing_grades' => $missingGrades,
+                    'is_complete' => ! empty($grade->final_grade),
+                ];
+
+                $subjectGradesMap[$subject->subject_code] = $gradeInfo;
+
+                if ($grade->final_grade) {
+                    $completedSubjects[] = [
+                        'subject_id' => $subject->id,
+                        'subject_code' => $subject->subject_code,
+                        'subject_name' => $subject->subject_name,
+                        'type' => 'graded',
+                    ];
+                }
+            }
+        }
+
+        // Credited subjects (StudentSubjectCredit + StudentCreditTransfer)
+        $creditedSubjects = \App\Models\StudentSubjectCredit::where('student_id', $student->id)
+            ->where('credit_status', 'credited')
+            ->with(['subject', 'studentCreditTransfer'])
+            ->get();
+
+        $creditTransfers = \App\Models\StudentCreditTransfer::where('student_id', $student->id)
+            ->where('credit_status', 'credited')
+            ->with(['subject'])
+            ->get();
+
+        foreach ($creditedSubjects as $credited) {
+            if ($credited->subject) {
+                if (isset($subjectGradesMap[$credited->subject->subject_code])) {
+                    continue;
+                }
+
+                $creditInfo = [
+                    'subject_id' => $credited->subject->id,
+                    'subject_code' => $credited->subject->subject_code,
+                    'subject_name' => $credited->subject->subject_name,
+                    'type' => 'credited',
+                    'credit_type' => $credited->credit_type,
+                    'final_grade' => $credited->final_grade,
+                    'final_gpa' => \App\Helpers\AcademicHelper::convertToGPA($credited->final_grade),
+                    'credited_from' => $credited->studentCreditTransfer ? $credited->studentCreditTransfer->previous_school : null,
+                    'credited_at' => $credited->credited_at,
+                    'is_complete' => true,
+                ];
+
+                $subjectGradesMap[$credited->subject->subject_code] = $creditInfo;
+            }
+        }
+
+        foreach ($creditTransfers as $transfer) {
+            if ($transfer->subject) {
+                if (isset($subjectGradesMap[$transfer->subject->subject_code])) {
+                    continue;
+                }
+
+                $creditInfo = [
+                    'subject_id' => $transfer->subject->id,
+                    'subject_code' => $transfer->subject->subject_code,
+                    'subject_name' => $transfer->subject->subject_name,
+                    'type' => 'credited',
+                    'credit_type' => $transfer->transfer_type,
+                    'final_grade' => $transfer->verified_semester_grade,
+                    'final_gpa' => \App\Helpers\AcademicHelper::convertToGPA($transfer->verified_semester_grade),
+                    'credited_from' => $transfer->previous_school,
+                    'credited_at' => $transfer->approved_at,
+                    'is_complete' => true,
+                ];
+
+                $subjectGradesMap[$transfer->subject->subject_code] = $creditInfo;
+            }
+        }
+
+        // Enrolled subjects without grades (current semester)
+        $currentAcademicYear = \App\Models\SchoolSetting::getCurrentAcademicYear();
+        $currentSemester = \App\Models\SchoolSetting::getCurrentSemester();
+
+        $enrolledSubjects = \App\Models\StudentEnrollment::where('student_id', $student->id)
+            ->where('status', 'active')
+            ->whereHas('section', function ($query) use ($currentAcademicYear, $currentSemester) {
+                $query->where('academic_year', $currentAcademicYear)
+                    ->where('semester', $currentSemester);
+            })
+            ->with(['section.sectionSubjects.subject'])
+            ->get();
+
+        foreach ($enrolledSubjects as $enrollment) {
+            if ($enrollment->section && $enrollment->section->sectionSubjects) {
+                foreach ($enrollment->section->sectionSubjects as $sectionSubject) {
+                    if ($sectionSubject->subject) {
+                        $subject = $sectionSubject->subject;
+                        if (isset($subjectGradesMap[$subject->subject_code])) {
+                            continue;
+                        }
+
+                        $isSHS = $student->current_year_level >= 11 && $student->current_year_level <= 12;
+                        $missingGrades = $isSHS ? ['Q1', 'Q2'] : ['Prelim', 'Midterm', 'Prefinal', 'Final'];
+
+                        $gradeInfo = [
+                            'subject_id' => $subject->id,
+                            'subject_code' => $subject->subject_code,
+                            'subject_name' => $subject->subject_name,
+                            'type' => 'enrolled',
+                            'teacher_name' => $sectionSubject->teacher ? $sectionSubject->teacher->user->name : null,
+                            'missing_grades' => $missingGrades,
+                            'is_complete' => false,
+                        ];
+
+                        $subjectGradesMap[$subject->subject_code] = $gradeInfo;
+                    }
+                }
+            }
+        }
+
+        $subjectGrades = array_values($subjectGradesMap);
+
+        $totalSubjects = count($curriculumSubjects);
+        $completedCurriculumSubjects = 0;
+        foreach ($curriculumSubjects as $curriculumSubject) {
+            $subjectCode = $curriculumSubject->subject_code;
+            $isCompleted = false;
+
+            foreach ($completedSubjects as $completed) {
+                if ($completed['type'] === 'graded' && ($completed['subject_code'] === $subjectCode || $completed['subject_id'] == $curriculumSubject->subject_id)) {
+                    $isCompleted = true;
+                    break;
+                }
+            }
+
+            if (! $isCompleted) {
+                foreach ($subjectGradesMap as $grade) {
+                    if ($grade['subject_code'] === $subjectCode && $grade['type'] === 'credited') {
+                        $gradeValue = $grade['final_grade'];
+                        $isTransfereeCredit = ! is_null($grade['credited_from']);
+                        if (is_null($gradeValue) || $gradeValue === 'CR') {
+                            $isCompleted = true;
+                        } elseif (is_numeric($gradeValue)) {
+                            $numericGrade = (float) $gradeValue;
+                            if ($isTransfereeCredit) {
+                                $isCompleted = $numericGrade <= 3.0;
+                            } else {
+                                $isCompleted = $numericGrade >= 75;
+                            }
+                        }
+                        if ($isCompleted) break;
+                    }
+                }
+            }
+
+            if ($isCompleted) $completedCurriculumSubjects++;
+        }
+
+        $completionPercentage = $totalSubjects > 0 ? round(($completedCurriculumSubjects / $totalSubjects) * 100) : 0;
+
+        $data = [
+            'student' => $student,
+            'curriculumSubjects' => $curriculumSubjects,
+            'subjectGrades' => $subjectGrades,
+            'creditedSubjects' => $creditedSubjects,
+            'completionStats' => [
+                'totalSubjects' => $totalSubjects,
+                'completedSubjects' => $completedCurriculumSubjects,
+                'completionPercentage' => $completionPercentage,
+            ],
+        ];
+
+        $pdf = Pdf::loadView('pdf.academic-history', $data);
+
+        return $pdf->download('academic-history-'.str_replace(' ', '-', $student->user->name).'-'.now('Asia/Manila')->format('Y-m-d-H-i-s').'.pdf');
     }
 }
+
