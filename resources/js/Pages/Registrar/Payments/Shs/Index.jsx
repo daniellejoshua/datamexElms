@@ -150,6 +150,20 @@ export default function ShsPaymentsIndex({ payments, stats, filters, currentAcad
         return 'text-gray-600';
     };
 
+    // Detect voucher payments either from student flags or from transaction entries
+    const isVoucherPayment = (payment) => {
+        const student = payment?.student;
+        if (student && student.has_voucher && student.voucher_status === 'active') return true;
+        if (payment?.payment_transactions && Array.isArray(payment.payment_transactions)) {
+            return payment.payment_transactions.some(t => {
+                const typeCheck = (t.type === 'voucher' || t.payment_type === 'voucher');
+                const descCheck = t.description && t.description.toLowerCase().includes('voucher');
+                return typeCheck || descCheck;
+            });
+        }
+        return false;
+    }
+
     const getPaymentStatusText = (balance, student) => {
         const isShs = student?.education_level === 'senior_high';
         const hasVoucher = student?.has_voucher;
@@ -385,29 +399,33 @@ export default function ShsPaymentsIndex({ payments, stats, filters, currentAcad
                                                     )}
                                                 </div>
                                             </td>
-                                            <td className="py-3 px-4">{formatCurrency(payment.student?.has_voucher && payment.student?.voucher_status === 'active' ? 0 : payment.total_semester_fee)}</td>
-                                            <td className="py-3 px-4 text-green-600">{formatCurrency(payment.total_paid || 0)}</td>
-                                            <td className="py-3 px-4 text-orange-600">{formatCurrency(payment.student?.has_voucher && payment.student?.voucher_status === 'active' ? 0 : payment.balance || 0)}</td>
+                                            <td className="py-3 px-4">{formatCurrency(isVoucherPayment(payment) ? 0 : payment.total_semester_fee)}</td>
+                                            <td className="py-3 px-4 text-green-600">{formatCurrency(isVoucherPayment(payment) ? 0 : (payment.total_paid || 0))}</td>
+                                            <td className="py-3 px-4 text-orange-600">{formatCurrency(isVoucherPayment(payment) ? 0 : (payment.balance || 0))}</td>
                                             <td className="py-3 px-4">
-                                                {payment.student?.has_voucher && payment.student?.voucher_status === 'active' ? (
-                                                    <Badge className="bg-blue-100 text-blue-800 border-blue-200 text-sm px-3 py-1">
-                                                        Voucher
+                                                {isVoucherPayment(payment) ? (
+                                                    <Badge className={`bg-blue-100 text-blue-800 text-sm px-3 py-1`}>Voucher</Badge>
+                                                ) : (
+                                                    <Badge className={`${getPaymentStatusBadge(payment.balance, payment.student)} text-sm px-3 py-1`}>
+                                                        {getPaymentStatusText(payment.balance, payment.student)}
                                                     </Badge>
-                                                ) : null}
+                                                )}
                                             </td>
                                             <td className="py-3 px-4 text-right">
-                                                {!(payment.student?.has_voucher && payment.student?.voucher_status === 'active') && (
-                                                    <Button onClick={() => handleRecordPayment(payment)} className="bg-green-600 hover:bg-green-700 mr-2" disabled={getAvailableQuarters(payment).length === 0}>
-                                                        <CreditCard className="w-4 h-4 mr-2" />
-                                                        {getAvailableQuarters(payment).length === 0 ? 'Fully Paid' : 'Record Payment'}
-                                                    </Button>
-                                                )}
-                                                <Link href={route('registrar.payments.shs.show', payment.student.id)}>
-                                                    <Button variant="outline">
-                                                        <Eye className="w-4 h-4 mr-2" />
-                                                        View Details
-                                                    </Button>
-                                                </Link>
+                                                <div className="flex items-center justify-end gap-2">
+                                                    {!isVoucherPayment(payment) && (
+                                                        <Button onClick={() => handleRecordPayment(payment)} className="bg-green-600 hover:bg-green-700" disabled={getAvailableQuarters(payment).length === 0}>
+                                                            <CreditCard className="w-4 h-4 mr-2" />
+                                                            {getAvailableQuarters(payment).length === 0 ? 'Fully Paid' : 'Record Payment'}
+                                                        </Button>
+                                                    )}
+
+                                                    <Link href={route('registrar.payments.shs.show', payment.student.id)}>
+                                                        <Button variant="outline" className="p-2">
+                                                            <Eye className="w-4 h-4" />
+                                                        </Button>
+                                                    </Link>
+                                                </div>
                                             </td>
                                         </tr>
                                     ))}
@@ -462,22 +480,25 @@ export default function ShsPaymentsIndex({ payments, stats, filters, currentAcad
             {/* SHS Payment Recording Modal */}
             {showPaymentModal && (
                 <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-                    <div className="bg-white rounded-lg p-6 w-full max-w-md">
+                    <div className="bg-white rounded-lg p-6 w-full max-w-2xl">
                         <h3 className="text-lg font-semibold mb-4">Record SHS Payment</h3>
-                        <div className="space-y-4">
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-2">
-                                    Student: {selectedPayment?.student?.user?.name}
-                                </label>
-                                <p className="text-sm text-gray-500">
-                                    Grade {selectedPayment?.student?.year_level} - {selectedPayment?.student?.track}
-                                </p>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="md:col-span-2">
+                                <label className="block text-sm font-medium text-gray-700 mb-2">Student:</label>
+                                <div className="flex items-center justify-between">
+                                    <div>
+                                        <p className="font-medium">{selectedPayment?.student?.user?.name}</p>
+                                        <p className="text-sm text-gray-500">Grade {selectedPayment?.student?.year_level} - {selectedPayment?.student?.track}</p>
+                                    </div>
+                                    <div className="text-right">
+                                        <p className="text-sm text-gray-500">Remaining Balance</p>
+                                        <p className="font-semibold">{formatCurrency(selectedPayment?.balance || 0)}</p>
+                                    </div>
+                                </div>
                             </div>
-                            
+
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-2">
-                                    Payment Type
-                                </label>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">Payment Type</label>
                                 <select
                                     value={paymentForm.quarter}
                                     onChange={(e) => setPaymentForm({...paymentForm, quarter: e.target.value})}
@@ -488,16 +509,12 @@ export default function ShsPaymentsIndex({ payments, stats, filters, currentAcad
                                     ))}
                                 </select>
                                 {selectedPayment && getAvailableQuarters(selectedPayment).length === 0 && (
-                                    <p className="text-sm text-red-500 mt-1">
-                                        Payment is fully paid.
-                                    </p>
+                                    <p className="text-sm text-red-500 mt-1">Payment is fully paid.</p>
                                 )}
                             </div>
 
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-2">
-                                    Amount Paid
-                                </label>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">Amount Paid</label>
                                 <Input
                                     type="number"
                                     step="0.01"
@@ -505,17 +522,10 @@ export default function ShsPaymentsIndex({ payments, stats, filters, currentAcad
                                     onChange={(e) => setPaymentForm({...paymentForm, amount_paid: e.target.value})}
                                     placeholder="Enter amount"
                                 />
-                                {selectedPayment && (
-                                    <p className="text-sm text-gray-500 mt-1">
-                                        Remaining Balance: {formatCurrency(selectedPayment.balance)}
-                                    </p>
-                                )}
                             </div>
 
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-2">
-                                    Payment Date
-                                </label>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">Payment Date</label>
                                 <Input
                                     type="date"
                                     value={paymentForm.payment_date}
@@ -524,9 +534,7 @@ export default function ShsPaymentsIndex({ payments, stats, filters, currentAcad
                             </div>
 
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-2">
-                                    OR Number (Optional)
-                                </label>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">OR Number (Optional)</label>
                                 <Input
                                     value={paymentForm.or_number}
                                     onChange={(e) => setPaymentForm({...paymentForm, or_number: e.target.value})}
@@ -535,9 +543,7 @@ export default function ShsPaymentsIndex({ payments, stats, filters, currentAcad
                             </div>
 
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-2">
-                                    Notes (Optional)
-                                </label>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">Notes (Optional)</label>
                                 <Input
                                     value={paymentForm.notes}
                                     onChange={(e) => setPaymentForm({...paymentForm, notes: e.target.value})}
@@ -547,20 +553,8 @@ export default function ShsPaymentsIndex({ payments, stats, filters, currentAcad
                         </div>
 
                         <div className="flex gap-2 mt-6">
-                            <Button
-                                variant="outline"
-                                onClick={() => setShowPaymentModal(false)}
-                                className="flex-1"
-                            >
-                                Cancel
-                            </Button>
-                            <Button
-                                onClick={submitPayment}
-                                disabled={!paymentForm.amount_paid}
-                                className="flex-1 bg-green-600 hover:bg-green-700"
-                            >
-                                Record Payment
-                            </Button>
+                            <Button variant="outline" onClick={() => setShowPaymentModal(false)} className="flex-1">Cancel</Button>
+                            <Button onClick={submitPayment} disabled={!paymentForm.amount_paid || !paymentForm.or_number} className="flex-1 bg-green-600 hover:bg-green-700">Record Payment</Button>
                         </div>
                     </div>
                 </div>

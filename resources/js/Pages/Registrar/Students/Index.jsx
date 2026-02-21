@@ -1124,12 +1124,13 @@ export default function StudentsIndex({ students, programs, filters, auth, on_ho
                                                                 {
                                                                     // Treat transferees as not eligible for voucher display regardless of stored flags
                                                                     (() => {
-                                                                        const isTransferee = selectedStudent.enrollment_type === 'transferee';
+                                                                        // Detect transferee by previous_school or previous_program_id (enrollment_type isn't persisted)
+                                                                        const isTransferee = Boolean(selectedStudent?.previous_school || selectedStudent?.previous_program_id);
                                                                         const colorClass = isTransferee
                                                                             ? 'bg-gray-400'
-                                                                            : (selectedStudent.has_voucher && selectedStudent.voucher_status === 'active')
+                                                                            : (selectedStudent?.has_voucher && selectedStudent?.voucher_status === 'active')
                                                                                 ? 'bg-green-500'
-                                                                                : selectedStudent.has_voucher && selectedStudent.voucher_status === 'invalid'
+                                                                                : selectedStudent?.has_voucher && selectedStudent?.voucher_status === 'invalid'
                                                                                     ? 'bg-red-500'
                                                                                     : 'bg-gray-400';
 
@@ -1142,7 +1143,7 @@ export default function StudentsIndex({ students, programs, filters, auth, on_ho
                                                                     })()
                                                                 }
                                                         <div className="space-y-1">
-                                                            {selectedStudent.enrollment_type === 'transferee' ? (
+                                                            { (selectedStudent?.previous_school || selectedStudent?.previous_program_id) ? (
                                                                 <div className="space-y-2">
                                                                     <div className="flex items-center justify-between">
                                                                         <span className="text-sm text-yellow-900">Voucher Eligibility:</span>

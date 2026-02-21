@@ -65,6 +65,7 @@ class ShsPaymentController extends Controller
         $payments->getCollection()->transform(function ($payment) {
             if ($payment->student && $payment->student->has_voucher && $payment->student->voucher_status === 'active') {
                 $payment->total_semester_fee = 0;
+                $payment->total_paid = 0; // Ensure total paid is zero for voucher students
                 $payment->balance = 0; // Set balance to 0 for voucher students
             }
 
@@ -158,6 +159,7 @@ class ShsPaymentController extends Controller
         $payments->transform(function ($payment) use ($student) {
             if ($student->has_voucher && $student->voucher_status === 'active') {
                 $payment->total_semester_fee = 0;
+                $payment->total_paid = 0; // Ensure total paid is zero for voucher students
                 $payment->balance = 0; // Set balance to 0 for voucher students
             }
 
@@ -253,7 +255,7 @@ class ShsPaymentController extends Controller
             'payable_type' => \App\Models\ShsStudentPayment::class,
             'payable_id' => $payment->id,
             'amount' => $validated['amount_paid'],
-            'payment_type' => 'tuition_fee',
+            'payment_type' => 'enrollment_fee',
             'payment_method' => 'cash',
             'reference_number' => $validated['or_number'] ?? 'PAY-'.now()->format('YmdHis').'-'.$payment->id,
             'description' => 'Tuition payment for '.$payment->academic_year.' - '.$payment->semester,

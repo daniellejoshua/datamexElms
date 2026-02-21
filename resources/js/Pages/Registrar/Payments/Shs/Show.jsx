@@ -197,9 +197,11 @@ export default function ShsPaymentShow({ student, payments, auth }) {
                                                     <p className="font-semibold text-gray-900">
                                                         {payment.academic_year} Academic Year
                                                     </p>
-                                                    <p className="text-sm text-gray-500">
-                                                        Total: {formatCurrency(payment.total_semester_fee)} • Paid: {formatCurrency(payment.total_paid)}
-                                                    </p>
+                                                    {student.has_voucher && student.voucher_status === 'active' ? (
+                                                        <p className="text-sm text-gray-500">Voucher • Paid: {formatCurrency(0)}</p>
+                                                    ) : (
+                                                        <p className="text-sm text-gray-500">Total: {formatCurrency(payment.total_semester_fee)} • Paid: {formatCurrency(payment.total_paid)}</p>
+                                                    )}
                                                 </div>
                                             </div>
                                             <div className="flex items-center gap-2">
@@ -221,7 +223,14 @@ export default function ShsPaymentShow({ student, payments, auth }) {
                                                 </div>
                                                 <div>
                                                     <p className="text-sm text-gray-500">Total Paid</p>
-                                                    <p className="text-lg font-bold text-green-600">{formatCurrency(payment.total_paid)}</p>
+                                                        {student.has_voucher && student.voucher_status === 'active' ? (
+                                                            <div className="flex items-center gap-3">
+                                                                <Badge className="bg-blue-100 text-blue-800 text-sm px-3 py-1">Voucher</Badge>
+                                                                <p className="text-lg font-bold text-green-600">{formatCurrency(0)}</p>
+                                                            </div>
+                                                        ) : (
+                                                            <p className="text-lg font-bold text-green-600">{formatCurrency(payment.total_paid)}</p>
+                                                        )}
                                                 </div>
                                                 <div>
                                                     <p className="text-sm text-gray-500">Balance</p>
