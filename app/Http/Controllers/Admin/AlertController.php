@@ -14,10 +14,19 @@ class AlertController extends Controller
 {
     public function index(): Response
     {
-        // Get all low enrollment sections
-        $lowEnrollmentSections = Section::with(['program', 'studentEnrollments' => function ($query) {
-            $query->where('status', 'active');
+        // determine current academic period for filtering
+        $currentAcademicYear = config('school_settings.current_academic_year');
+        $currentSemester = config('school_settings.current_semester');
+
+        // Get all low enrollment sections for the current term
+        $lowEnrollmentSections = Section::with(['program', 'studentEnrollments' => function ($query) use ($currentAcademicYear, $currentSemester) {
+            $query->where('status', 'active')
+                  ->where('academic_year', $currentAcademicYear)
+                  ->where('semester', $currentSemester);
         }])
+            ->where('academic_year', $currentAcademicYear)
+            ->where('semester', $currentSemester)
+            ->where('status', 'active')
             ->get()
             ->filter(function ($section) {
                 return $section->studentEnrollments->count() < 20;
@@ -32,10 +41,20 @@ class AlertController extends Controller
                 ];
             });
 
-        // Get all students without sections
-        $studentsWithoutSections = Student::whereDoesntHave('enrollments', function ($query) {
-            $query->where('status', 'active');
+        // Get all students who are enrolled in the current term but lack an
+        // *active* section assignment. We first ensure there is at least one
+        // enrollment record for the current academic year/semester, then filter
+        // out those whose active enrollments in the term have a section (i.e.
+        // status `active`).
+        $studentsWithoutSections = Student::whereDoesntHave('enrollments', function ($query) use ($currentAcademicYear, $currentSemester) {
+            $query->where('status', 'active')
+                  ->where('academic_year', $currentAcademicYear)
+                  ->where('semester', $currentSemester);
         })
+            ->whereHas('enrollments', function ($query) use ($currentAcademicYear, $currentSemester) {
+                $query->where('academic_year', $currentAcademicYear)
+                      ->where('semester', $currentSemester);
+            })
             ->with(['user', 'program'])
             ->get()
             ->map(function ($student) {
@@ -44,15 +63,19 @@ class AlertController extends Controller
                     'student_number' => $student->student_number,
                     'name' => $student->user->name ?? 'Unknown',
                     'program_name' => $student->program->program_name ?? 'Unknown',
+                    'program_code' => $student->program->program_code ?? null,
                     'education_level' => $student->education_level,
                     'year_level' => $student->year_level,
                 ];
             });
 
-        // Get all sections with unassigned subjects
+        // Get all sections with unassigned subjects for the current term
         $sectionsWithoutTeachers = Section::with(['program', 'sectionSubjects' => function ($query) {
             $query->whereNull('teacher_id')->where('status', 'active');
         }])
+            ->where('academic_year', $currentAcademicYear)
+            ->where('semester', $currentSemester)
+            ->where('status', 'active')
             ->whereHas('sectionSubjects', function ($query) {
                 $query->whereNull('teacher_id')->where('status', 'active');
             })
@@ -73,8 +96,6 @@ class AlertController extends Controller
             });
 
         // Get teachers with pending grade submissions
-        $currentAcademicYear = config('school_settings.current_academic_year', '2026-2027');
-        $currentSemester = config('school_settings.current_semester', '1st');
 
         // For college students - check if final grades are submitted
         // restrict to programs marked as 'college' to avoid picking up SHS sections

@@ -12,7 +12,8 @@ it('does not duplicate a teacher when they have pending grades across SHS and Co
     config(['school_settings.current_academic_year' => '2024-2025']);
     config(['school_settings.current_semester' => '1st']);
 
-    $admin = User::factory()->create(['role' => 'super_admin']);
+    // head_teacher can access alerts
+    $admin = User::factory()->create(['role' => 'head_teacher']);
     $this->actingAs($admin);
 
     $teacher = Teacher::factory()->create();
@@ -83,7 +84,7 @@ it('shows only SHS for a teacher who only teaches SHS and returns student counts
     config(['school_settings.current_academic_year' => '2024-2025']);
     config(['school_settings.current_semester' => '1st']);
 
-    $admin = User::factory()->create(['role' => 'super_admin']);
+    $admin = User::factory()->create(['role' => 'head_teacher']);
     $this->actingAs($admin);
 
     $teacher = Teacher::factory()->create();
@@ -136,11 +137,101 @@ it('shows only SHS for a teacher who only teaches SHS and returns student counts
     );
 });
 
+
+it('limits alerts to the configured academic year and semester', function () {
+    config(['school_settings.current_academic_year' => '2024-2025']);
+    config(['school_settings.current_semester' => '1st']);
+
+    $admin = User::factory()->create(['role' => 'head_teacher']);
+    $this->actingAs($admin);
+
+    // section in current term with low enrollment (should appear)
+    $program = Program::factory()->create(['education_level' => 'college']);
+    $currentSection = Section::factory()->create([
+        'program_id' => $program->id,
+        'academic_year' => '2024-2025',
+        'semester' => '1st',
+        'year_level' => 1,
+        'section_name' => 'C',
+    ]);
+    StudentEnrollment::factory()->count(5)->create([
+        'section_id' => $currentSection->id,
+        'status' => 'active',
+        'academic_year' => '2024-2025',
+        'semester' => '1st',
+    ]);
+
+    // section in previous term with low enrollment (should be ignored)
+    $oldSection = Section::factory()->create([
+        'program_id' => $program->id,
+        'academic_year' => '2023-2024',
+        'semester' => '2nd',
+        'year_level' => 1,
+        'section_name' => 'D',
+    ]);
+    StudentEnrollment::factory()->count(3)->create([
+        'section_id' => $oldSection->id,
+        'status' => 'active',
+        'academic_year' => '2023-2024',
+        'semester' => '2nd',
+    ]);
+
+    // unassigned student with no enrollments (now ignored by the query)
+    $unassigned = Student::factory()->create();
+
+    // student with only old-term enrollment (should also be ignored)
+    $otherStudent = Student::factory()->create();
+    StudentEnrollment::factory()->create([
+        'student_id' => $otherStudent->id,
+        'section_id' => $oldSection->id,
+        'status' => 'active',
+        'academic_year' => '2023-2024',
+        'semester' => '2nd',
+    ]);
+
+    // section with unassigned subject in current term
+    $sectionWithNoTeacher = Section::factory()->create([
+        'program_id' => $program->id,
+        'academic_year' => '2024-2025',
+        'semester' => '1st',
+        'year_level' => 1,
+        'section_name' => 'E',
+    ]);
+    SectionSubject::factory()->create([
+        'section_id' => $sectionWithNoTeacher->id,
+        'teacher_id' => null,
+        'status' => 'active',
+    ]);
+
+    // section with unassigned subject in old term (should be ignored)
+    $oldSectionWithNoTeacher = Section::factory()->create([
+        'program_id' => $program->id,
+        'academic_year' => '2023-2024',
+        'semester' => '2nd',
+        'year_level' => 1,
+        'section_name' => 'F',
+    ]);
+    SectionSubject::factory()->create([
+        'section_id' => $oldSectionWithNoTeacher->id,
+        'teacher_id' => null,
+        'status' => 'active',
+    ]);
+
+    $response = $this->get(route('admin.alerts.index'));
+    $response->assertOk()->assertInertia(fn ($page) =>
+        // we should see two low-enrollment sections, no unassigned students
+        // (none with a current-term enrollment), and one section with missing teacher
+        $page->has('lowEnrollmentSections.data', 2)
+            ->has('studentsWithoutSections.data', 0)
+            ->has('sectionsWithoutTeachers.data', 1)
+    );
+});
+
 it('returns incomplete grade rows for a teacher (used by admin pending-grades modal)', function () {
     config(['school_settings.current_academic_year' => '2024-2025']);
     config(['school_settings.current_semester' => '1st']);
 
-    $admin = User::factory()->create(['role' => 'super_admin']);
+    $admin = User::factory()->create(['role' => 'head_teacher']);
     $this->actingAs($admin);
 
     $teacher = Teacher::factory()->create();
@@ -205,7 +296,7 @@ it('paginates pending grades modal with 5 items per page', function () {
     config(['school_settings.current_academic_year' => '2024-2025']);
     config(['school_settings.current_semester' => '1st']);
 
-    $admin = User::factory()->create(['role' => 'super_admin']);
+    $admin = User::factory()->create(['role' => 'head_teacher']);
     $this->actingAs($admin);
 
     $teacher = Teacher::factory()->create();

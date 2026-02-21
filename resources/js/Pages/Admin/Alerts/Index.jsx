@@ -283,22 +283,14 @@ export default function AlertsIndex({
                                                     <div className="min-w-0">
                                                         <p className="font-semibold text-sm text-gray-900 truncate">{student.name}</p>
                                                         <p className="text-xs text-gray-600 truncate mt-1">
-                                                            {student.student_number} • {student.program_name} • Year {student.year_level}
+                                                            {student.student_number} • {student.program_code || student.program_name}
                                                         </p>
                                                     </div>
 
-                                                    <div className="mt-4 flex items-center justify-between">
-                                                        <div className="flex flex-col text-right">
-                                                            <div className="text-xs text-gray-500">Year</div>
-                                                            <div className="text-sm font-semibold text-gray-900">{student.year_level}</div>
-                                                        </div>
-
-                                                        <div className="flex items-center gap-2">
-                                                            <Badge variant="outline" className="text-xs text-red-700 border-red-300 bg-red-50">
-                                                                {student.education_level === 'senior_high' ? 'SHS' : 'College'}
-                                                            </Badge>
-                                                            <Badge variant="outline" className="text-xs text-gray-500">View</Badge>
-                                                        </div>
+                                                    <div className="mt-4 flex items-center justify-start">
+                                                        <Badge variant="outline" className="text-xs text-red-700 border-red-300 bg-red-50">
+                                                            {student.education_level === 'senior_high' ? 'SHS' : 'College'}
+                                                        </Badge>
                                                     </div>
                                                 </Card>
                                             </Link>
