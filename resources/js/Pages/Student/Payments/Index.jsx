@@ -342,7 +342,7 @@ const Index = ({ currentPayment, paymentHistory, stats, currentAcademicInfo, stu
                                                 </div>
                                             </div>
                                             {/* Balance Calculation Button - show for irregular students OR transferees with credit transfers/previous_school */}
-                                            {(student.student_type !== 'regular' || student.previous_school || (student.creditTransfers && student.creditTransfers.length > 0)) && (
+                                            {student.education_level !== 'senior_high' && (student.student_type !== 'regular' || student.previous_school || (student.creditTransfers && student.creditTransfers.length > 0)) && (
                                                 <div className="flex justify-center">
                                                     <Button
                                                         onClick={() => handleShowCalculation(payment)}

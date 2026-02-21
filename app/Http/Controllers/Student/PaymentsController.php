@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Student;
 use App\Http\Controllers\Controller;
 use App\Models\SchoolSetting;
 use App\Models\StudentSemesterPayment;
+use App\Models\ShsStudentPayment;
 use App\Services\StudentPaymentService;
 use Illuminate\Http\Request;
 
@@ -18,26 +19,45 @@ class PaymentsController extends Controller
         $currentYear = SchoolSetting::getCurrentAcademicYear();
         $currentSemester = SchoolSetting::getCurrentSemester();
 
-        $currentPayment = $student->studentSemesterPayments()
-            ->where('academic_year', $currentYear)
-            ->where('semester', $currentSemester)
-            ->first();
+        if ($student->education_level === 'senior_high') {
+            // Use SHS payments model for Senior High students (annual payments)
+            $currentPayment = ShsStudentPayment::where('student_id', $student->id)
+                ->where('academic_year', $currentYear)
+                ->when($currentSemester !== '', function ($q) use ($currentSemester) {
+                    // only apply semester when provided; SHS often uses 'annual'
+                    return $q->where('semester', $currentSemester);
+                })
+                ->with('paymentTransactions')
+                ->first();
 
-        // Get payment history
-        $paymentHistory = $student->studentSemesterPayments()
-            ->with('paymentTransactions')
-            ->orderBy('academic_year', 'desc')
-            ->orderBy('semester', 'desc')
-            ->get();
+            $paymentHistory = ShsStudentPayment::where('student_id', $student->id)
+                ->with('paymentTransactions')
+                ->orderBy('academic_year', 'desc')
+                ->orderBy('semester', 'desc')
+                ->get();
+        } else {
+            $currentPayment = $student->studentSemesterPayments()
+                ->where('academic_year', $currentYear)
+                ->where('semester', $currentSemester)
+                ->first();
+
+            // Get payment history
+            $paymentHistory = $student->studentSemesterPayments()
+                ->with('paymentTransactions')
+                ->orderBy('academic_year', 'desc')
+                ->orderBy('semester', 'desc')
+                ->get();
+        }
 
         // Calculate proper total amounts for irregular students
         $hasCreditTransfers = $student->creditTransfers()->exists() || (bool) $student->previous_school;
 
         $paymentHistory->transform(function ($payment) use ($student, $hasCreditTransfers) {
-            // Compute a calculated total amount for:
-            // - irregular students
-            // - transferees who have credit transfers / previous_school (show calculation even if regular)
-            if ($student->student_type === 'irregular' || $hasCreditTransfers) {
+            // Compute a calculated total amount for irregular payments only when the
+            // payment model matches `StudentSemesterPayment` — the service expects
+            // that type. SHS uses `ShsStudentPayment` (annual) so skip the
+            // irregular balance calculation for SHS payments.
+            if ($payment instanceof StudentSemesterPayment && ($student->student_type === 'irregular' || $hasCreditTransfers)) {
                 // Check if balance has already been calculated and stored
                 if ($payment->is_balance_calculated && $payment->calculated_total_amount) {
                     // Use stored calculated amount

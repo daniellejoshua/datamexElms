@@ -12,6 +12,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
+use Illuminate\Support\Facades\Log;
 
 class CollegePaymentController extends Controller
 {
@@ -64,18 +65,24 @@ class CollegePaymentController extends Controller
                     try {
                         $calc = $paymentService->calculateIrregularBalance($payment);
                         $payment->calculated_total_amount = $calc['calculated_balance'] ?? $payment->total_semester_fee;
-                        // also update balance fields so the table reflects the new amount
-                        $payment->balance = $payment->calculated_total_amount;
+
+                        // Apply calculated total as the effective semester fee, then
+                        // recompute totals from transactions so the displayed balance
+                        // reflects already-recorded payments.
                         $payment->total_semester_fee = $payment->calculated_total_amount;
+                        $payment->total_paid = $payment->calculateTotalPaid();
+                        $payment->balance = max(0, $payment->total_semester_fee - $payment->total_paid);
                     } catch (\Exception $e) {
                         // leave original values if calculation fails
                     }
                 }
 
-                // if we already have a calculated amount, use it for display
+                // if we already have a calculated amount, use it for display and
+                // ensure we deduct any completed transactions from the balance
                 if ($payment->calculated_total_amount) {
-                    $payment->balance = $payment->calculated_total_amount;
                     $payment->total_semester_fee = $payment->calculated_total_amount;
+                    $payment->total_paid = $payment->calculateTotalPaid();
+                    $payment->balance = max(0, $payment->total_semester_fee - $payment->total_paid);
                 }
 
                 return $payment;
@@ -92,6 +99,18 @@ class CollegePaymentController extends Controller
             $currentPage,
             ['path' => request()->url(), 'pageName' => 'page']
         );
+
+        // Compute stats. Use the in-memory $payments collection for balance-related
+        // statistics so any calculated totals for irregular/transferee students
+        // (which are applied to the collection but not persisted) are reflected
+        // accurately when viewing filtered results.
+        $studentsWithBalanceCount = $payments->filter(function ($p) {
+            return (float) ($p->balance ?? 0) > 0;
+        })->count();
+
+        $totalOutstandingBalance = $payments->reduce(function ($carry, $p) {
+            return $carry + (float) ($p->balance ?? 0);
+        }, 0);
 
         $stats = [
             'total_students' => Student::where('education_level', 'college')
@@ -110,25 +129,8 @@ class CollegePaymentController extends Controller
                         ->whereNotNull('section_id');
                 })
                 ->count(),
-            'students_with_balance' => StudentSemesterPayment::whereHas('student', function ($query) use ($filterStudentType) {
-                $query->where('education_level', 'college');
-                if ($filterStudentType !== 'all') {
-                    $query->where('student_type', $filterStudentType);
-                }
-            })
-                ->where('academic_year', $filterAcademicYear)
-                ->where('semester', $filterSemester)
-                ->where('balance', '>', 0)
-                ->count(),
-            'total_outstanding_balance' => StudentSemesterPayment::whereHas('student', function ($query) use ($filterStudentType) {
-                $query->where('education_level', 'college');
-                if ($filterStudentType !== 'all') {
-                    $query->where('student_type', $filterStudentType);
-                }
-            })
-                ->where('academic_year', $filterAcademicYear)
-                ->where('semester', $filterSemester)
-                ->sum('balance'),
+            'students_with_balance' => $studentsWithBalanceCount,
+            'total_outstanding_balance' => $totalOutstandingBalance,
         ];
 
         // Generate academic years list (current and archived years only)
@@ -280,9 +282,36 @@ class CollegePaymentController extends Controller
             return back()->withErrors(['amount_paid' => 'Payment amount cannot exceed remaining balance.']);
         }
 
-        // Check if the term is already fully paid
+        // Determine term fields
         $termPaidField = $validated['term'].'_paid';
-        if ($payment->{$termPaidField}) {
+
+        // Determine fee field for the term (enrollment uses 'enrollment_fee')
+        $termFeeField = $validated['term'].'_amount';
+        if ($validated['term'] === 'enrollment') {
+            $termFeeField = 'enrollment_fee';
+        }
+
+        // Recalculate total paid for this term from transactions to avoid relying
+        // on a potentially stale boolean flag. This ensures we compare against
+        // the current term fee (which may have been recalculated for irregulars).
+        $termTotalPaid = \App\Models\PaymentTransaction::where('payable_id', $payment->id)
+            ->where('payable_type', \App\Models\StudentSemesterPayment::class)
+            ->where('payment_type', $validated['term'] === 'enrollment' ? 'enrollment_fee' : ($validated['term'].'_payment'))
+            ->where('status', 'completed')
+            ->sum('amount');
+
+        // Determine the nominal fee for this term. If the per-term fee field
+        // is not defined (common for irregular/custom plans), fall back to
+        // using the remaining balance as the effective term fee so checks
+        // reflect actual outstanding amounts.
+        $termFee = $payment->{$termFeeField} ?? 0;
+        if ($termFee <= 0) {
+            $effectiveTotal = $payment->calculated_total_amount ?? $payment->total_semester_fee;
+            $alreadyPaid = $payment->paymentTransactions()->where('status', 'completed')->sum('amount');
+            $termFee = max(0, $effectiveTotal - $alreadyPaid);
+        }
+
+        if ($termTotalPaid >= $termFee && $termFee > 0) {
             return back()->withErrors(['term' => 'This term has already been fully paid.']);
         }
 
@@ -334,8 +363,12 @@ class CollegePaymentController extends Controller
             ->where('status', 'completed')
             ->sum('amount');
 
+        // Only mark the specific term paid when that term has a defined fee
+        // and the transactions for that term meet or exceed it. For custom
+        ///irregular plans where per-term amounts are not defined, avoid
+        // forcing term flags; overall balance/status will still be updated.
         $termFee = $payment->{$termFeeField} ?? 0;
-        if ($termTotalPaid >= $termFee) {
+        if ($termFee > 0 && $termTotalPaid >= $termFee) {
             $payment->{$termField} = true;
         }
 
@@ -388,7 +421,7 @@ class CollegePaymentController extends Controller
                 ],
             ]);
         } catch (\Exception $e) {
-            \Log::error('Error calculating irregular student balance: '.$e->getMessage(), [
+            Log::error('Error calculating irregular student balance: '.$e->getMessage(), [
                 'payment_id' => $payment->id,
                 'student_id' => $payment->student_id,
                 'trace' => $e->getTraceAsString(),

@@ -279,8 +279,11 @@ class StudentPaymentService
         $academicYear = $payment->academic_year;
         $semester = $payment->semester;
 
-        // Get student's current year level
-        $currentYearLevel = $student->current_year_level ?? $student->year_level;
+        // Determine the student's year level for the payment's academic period.
+        // Use the enrollment record for that academic year/semester if available,
+        // otherwise fall back to the student's current/year_level values.
+        $enrollmentForPeriod = $this->getStudentEnrollment($student, $academicYear, $semester);
+        $currentYearLevel = $enrollmentForPeriod->year_level ?? $student->current_year_level ?? $student->year_level;
         if (is_string($currentYearLevel)) {
             // Extract number from string like "1st Year" -> 1
             preg_match('/\d+/', $currentYearLevel, $matches);

@@ -22,7 +22,7 @@ const formatSectionName = (section, isCurrentlyEnrolled, studentYearLevel) => {
     // covers the case where irregular students may be assigned an old section
     // that doesn't correspond to their current year.
     if (!section || (studentYearLevel && section.year_level != String(studentYearLevel))) {
-        return isCurrentlyEnrolled ? 'Enrolled (No Section)' : 'Not Enrolled';
+        return isCurrentlyEnrolled ? '(No Section)' : 'Not Enrolled';
     }
 
     if (section.program?.program_code && section.year_level) {
@@ -1264,7 +1264,7 @@ export default function StudentsIndex({ students, programs, filters, auth, on_ho
                                                 <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
                                                 <span className="text-sm font-medium text-blue-700 uppercase tracking-wide">Current Section</span>
                                             </div>
-                                            <div className="text-lg font-bold text-blue-900 mb-1">
+                                            <div className="text-sm font-bold text-blue-900 mb-1">
                                                 {formatSectionName(selectedStudent.current_section, selectedStudent.is_currently_enrolled, selectedStudent.year_level)}
                                             </div>
                                             {selectedStudent.current_section && (

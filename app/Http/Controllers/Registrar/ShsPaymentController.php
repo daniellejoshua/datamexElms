@@ -24,7 +24,8 @@ class ShsPaymentController extends Controller
 
         // Get filter parameters from request, defaulting to current values
         $filterAcademicYear = request('academic_year', $currentAcademicYear);
-        $filterSemester = request('semester', $currentSemester);
+        // Do not default semester to current; allow frontend to leave it empty to mean "all semesters"
+        $filterSemester = request('semester', '');
         $filterStudentType = request('student_type', 'all');
         $searchTerm = request('search', '');
 
@@ -32,9 +33,11 @@ class ShsPaymentController extends Controller
             $query->select(['id', 'user_id', 'student_number', 'first_name', 'last_name', 'year_level', 'track', 'strand', 'has_voucher', 'voucher_status', 'voucher_id', 'program_id'])
                 ->with('user:id,name')
                 ->with(['enrollments' => function ($enrollmentQuery) use ($filterAcademicYear, $filterSemester) {
-                    $enrollmentQuery->where('academic_year', $filterAcademicYear)
-                        ->where('semester', $filterSemester)
-                        ->where('status', 'active')
+                        $enrollmentQuery->where('academic_year', $filterAcademicYear)
+                            ->when($filterSemester !== '', function ($q) use ($filterSemester) {
+                                $q->where('semester', $filterSemester);
+                            })
+                            ->where('status', 'active')
                         ->with('section:id,section_name,year_level,program_id')
                         ->with('section.program:id,program_code');
                 }]);
@@ -46,8 +49,12 @@ class ShsPaymentController extends Controller
                     $q->where('student_type', $filterStudentType);
                 }
             })
-            ->where('academic_year', $filterAcademicYear)
-            ->where('semester', 'annual'); // SHS payments are always annual
+            ->where('academic_year', $filterAcademicYear);
+
+        // Apply semester filter only when explicitly provided (non-empty)
+        if (request()->has('semester') && $filterSemester !== '') {
+            $query->where('semester', $filterSemester);
+        }
 
         // Add search functionality
         if (! empty($searchTerm)) {
@@ -94,13 +101,17 @@ class ShsPaymentController extends Controller
                 if ($filterStudentType !== 'all') {
                     $query->where('student_type', $filterStudentType);
                 }
-            })->where('academic_year', $filterAcademicYear)->where('semester', 'annual')->where('balance', '>', 0)->count(),
+            })->where('academic_year', $filterAcademicYear)->when(request()->has('semester') && $filterSemester !== '', function ($q) use ($filterSemester) {
+                return $q->where('semester', $filterSemester);
+            })->where('balance', '>', 0)->count(),
             'total_outstanding_balance' => ShsStudentPayment::whereHas('student', function ($query) use ($filterStudentType) {
                 $query->where('education_level', 'senior_high');
                 if ($filterStudentType !== 'all') {
                     $query->where('student_type', $filterStudentType);
                 }
-            })->where('academic_year', $filterAcademicYear)->where('semester', 'annual')->sum('balance'),
+            })->where('academic_year', $filterAcademicYear)->when(request()->has('semester') && $filterSemester !== '', function ($q) use ($filterSemester) {
+                return $q->where('semester', $filterSemester);
+            })->sum('balance'),
         ];
 
         // Generate academic years list
