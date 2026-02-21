@@ -64,7 +64,7 @@ Route::middleware('auth')->group(function () {
         ->name('password.update');
 
     Route::post('password/verify-pin', [PasswordController::class, 'verifyPin'])
-        ->middleware('throttle.pin_verification:10,1')
+        ->middleware('throttle.pin_verification')
         ->name('password.verify-pin');
 
     Route::post('logout', [AuthenticatedSessionController::class, 'destroy'])
