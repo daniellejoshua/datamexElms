@@ -97,6 +97,10 @@ class ArchivedStudentEnrollmentObserver
         $subjectEnrollments = StudentSubjectEnrollment::where('student_id', $studentId)
             ->where('academic_year', $archivedEnrollment->academic_year)
             ->whereIn('semester', $semesterValues)
+            ->where('status', 'active')
+            ->when($archivedEnrollment->archivedSection?->original_section_id, function ($q, $secId) {
+                $q->whereHas('sectionSubject', fn ($q2) => $q2->where('section_id', $secId));
+            })
             ->with(['sectionSubject.subject'])
             ->get();
 

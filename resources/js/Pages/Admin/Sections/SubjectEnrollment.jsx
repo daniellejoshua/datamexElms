@@ -26,6 +26,14 @@ export default function SubjectEnrollment({ section, student, availableSubjects,
     // Determine view-only mode: controller sets `student.can_manage_subjects` for irregular students
     const isViewOnly = !student?.can_manage_subjects;
 
+    // If an irregular student belongs to the same program & year level as the
+    // section, treat them like a regular student for removals (they're auto‑enrolled
+    // in every available subject).
+    const disableRemovalsForIrregular = student?.student_type === 'irregular'
+        && student?.program_id === section?.program_id
+        && student?.current_year_level != null
+        && student?.current_year_level === section?.year_level;
+
     console.log('SubjectEnrollment props:', { section, student, availableSubjects, currentEnrollments }); 
 
     // Safe function to parse schedule days (handles both JSON strings and plain strings)
@@ -295,7 +303,7 @@ export default function SubjectEnrollment({ section, student, availableSubjects,
                                                     </div>
                                                 </div>
                                                 <div className="flex items-center gap-2 ml-3">
-                                                        {!isViewOnly && (
+                                                        {!isViewOnly && !disableRemovalsForIrregular && (
                                                         <button
                                                             onClick={(e) => {
                                                                 e.stopPropagation();
@@ -309,6 +317,9 @@ export default function SubjectEnrollment({ section, student, availableSubjects,
                                                     )}
                                                     {isViewOnly && (
                                                         <span className="text-xs text-gray-400">Read-only</span>
+                                                    )}
+                                                    {!isViewOnly && disableRemovalsForIrregular && (
+                                                        <span className="text-xs text-gray-400">Removal disabled</span>
                                                     )}
                                                 </div>
                                             </div>

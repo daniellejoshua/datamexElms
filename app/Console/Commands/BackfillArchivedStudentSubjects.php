@@ -29,7 +29,8 @@ class BackfillArchivedStudentSubjects extends Command
             $this->info('DRY RUN — no changes will be made');
         }
 
-        $query = ArchivedStudentEnrollment::query()->orderBy('id');
+        // load the archivedSection relation so we can access original_section_id without hitting the database repeatedly
+        $query = ArchivedStudentEnrollment::with('archivedSection')->orderBy('id');
         if ($startId) {
             $query->where('id', '>=', $startId);
         }
@@ -111,7 +112,12 @@ class BackfillArchivedStudentSubjects extends Command
                 }
 
                 // Fallback: use StudentSubjectEnrollment to at least capture subject metadata
-// match semester variants to cover stored forms
+                // Limit the query to the section that was archived.  irregular students may have
+                // multiple active enrollments during the same academic year/semester; the old code
+                // only filtered by student/year/semester which pulled subjects from every such
+                // enrollment, leading to duplicated rows in the archive.
+
+                // match semester variants to cover stored forms
                 $semesterValues = match ($archived->semester) {
                     'first' => ['1st', 'first'],
                     'second' => ['2nd', 'second'],
@@ -121,8 +127,11 @@ class BackfillArchivedStudentSubjects extends Command
                 $subjectEnrollments = StudentSubjectEnrollment::where('student_id', $archived->student_id)
                         ->where('academic_year', $archived->academic_year)
                         ->whereIn('semester', $semesterValues)
-                    ->with(['sectionSubject.subject'])
-                    ->get();
+                        ->when($archived->archivedSection?->original_section_id, function ($q, $secId) {
+                            $q->whereHas('sectionSubject', fn ($q2) => $q2->where('section_id', $secId));
+                        })
+                        ->with(['sectionSubject.subject'])
+                        ->get();
 
                 foreach ($subjectEnrollments as $se) {
                     $sectionSubject = $se->sectionSubject;

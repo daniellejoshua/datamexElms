@@ -66,4 +66,9 @@ class ArchivedStudentSubject extends Model
     {
         return $this->belongsTo(Student::class);
     }
+
+    public function teacher(): BelongsTo
+    {
+        return $this->belongsTo(\App\Models\Teacher::class);
+    }
 }

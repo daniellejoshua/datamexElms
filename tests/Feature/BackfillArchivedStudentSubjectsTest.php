@@ -123,6 +123,153 @@ it('backfills missing archived_student_subjects from StudentGrade and is idempot
     expect($rowsAfter->count())->toBe($rows->count());
 });
 
+it('does not mix subjects when a student has multiple enrollments in the same period', function () {
+    $admin = User::factory()->create(['role' => 'head_teacher']);
+
+    $user = User::factory()->create(['role' => 'student']);
+    $student = Student::factory()->create(['user_id' => $user->id]);
+
+    $program = Program::factory()->create(['education_level' => 'college']);
+    $teacher = Teacher::factory()->create();
+
+    // two sections representing different year levels but same academic period
+    $section1 = Section::create([
+        'program_id' => $program->id,
+        'section_name' => 'Year1-A',
+        'year_level' => 1,
+        'academic_year' => '2024-2025',
+        'semester' => '1st',
+        'status' => 'active',
+    ]);
+    $section2 = Section::create([
+        'program_id' => $program->id,
+        'section_name' => 'Year2-B',
+        'year_level' => 2,
+        'academic_year' => '2024-2025',
+        'semester' => '1st',
+        'status' => 'active',
+    ]);
+
+    $subject1 = Subject::factory()->create(['subject_code' => 'SUB1', 'subject_name' => 'First Year']);
+    $subject2 = Subject::factory()->create(['subject_code' => 'SUB2', 'subject_name' => 'Second Year']);
+
+    $secSub1 = SectionSubject::create([
+        'section_id' => $section1->id,
+        'subject_id' => $subject1->id,
+        'teacher_id' => $teacher->id,
+        'academic_year' => '2024-2025',
+        'semester' => '1st',
+    ]);
+    $secSub2 = SectionSubject::create([
+        'section_id' => $section2->id,
+        'subject_id' => $subject2->id,
+        'teacher_id' => $teacher->id,
+        'academic_year' => '2024-2025',
+        'semester' => '1st',
+    ]);
+
+    $en1 = StudentEnrollment::create([
+        'student_id' => $student->id,
+        'section_id' => $section1->id,
+        'enrollment_date' => now(),
+        'status' => 'active',
+        'academic_year' => '2024-2025',
+        'semester' => '1st',
+        'enrolled_by' => $admin->id,
+    ]);
+
+    $en2 = StudentEnrollment::create([
+        'student_id' => $student->id,
+        'section_id' => $section2->id,
+        'enrollment_date' => now(),
+        'status' => 'active',
+        'academic_year' => '2024-2025',
+        'semester' => '1st',
+        'enrolled_by' => $admin->id,
+    ]);
+
+    // only give a grade for each enrollment's respective subject
+    StudentGrade::create([
+        'student_enrollment_id' => $en1->id,
+        'section_subject_id' => $secSub1->id,
+        'final_grade' => 80,
+        'teacher_id' => $teacher->id,
+    ]);
+    StudentGrade::create([
+        'student_enrollment_id' => $en2->id,
+        'section_subject_id' => $secSub2->id,
+        'final_grade' => 90,
+        'teacher_id' => $teacher->id,
+    ]);
+
+    $arch1 = ArchivedStudentEnrollment::create([
+        'archived_section_id' => ArchivedSection::create([
+            'original_section_id' => 'S1',
+            'program_id' => $program->id,
+            'year_level' => 1,
+            'section_name' => 'Year1-A',
+            'academic_year' => '2024-2025',
+            'semester' => 'first',
+            'status' => 'completed',
+            'course_data' => [],
+            'total_enrolled_students' => 0,
+            'completed_students' => 0,
+            'dropped_students' => 0,
+            'section_average_grade' => null,
+            'archived_at' => now(),
+            'archived_by' => $admin->id,
+        ])->id,
+        'student_id' => $student->id,
+        'original_enrollment_id' => (string) $en1->id,
+        'academic_year' => '2024-2025',
+        'semester' => 'first',
+        'enrolled_date' => now(),
+        'completion_date' => now(),
+        'final_status' => 'completed',
+        'final_grades' => null,
+        'student_data' => ['name' => $student->user->name, 'student_number' => $student->student_number],
+    ]);
+
+    $arch2 = ArchivedStudentEnrollment::create([
+        'archived_section_id' => ArchivedSection::create([
+            'original_section_id' => 'S2',
+            'program_id' => $program->id,
+            'year_level' => 2,
+            'section_name' => 'Year2-B',
+            'academic_year' => '2024-2025',
+            'semester' => 'first',
+            'status' => 'completed',
+            'course_data' => [],
+            'total_enrolled_students' => 0,
+            'completed_students' => 0,
+            'dropped_students' => 0,
+            'section_average_grade' => null,
+            'archived_at' => now(),
+            'archived_by' => $admin->id,
+        ])->id,
+        'student_id' => $student->id,
+        'original_enrollment_id' => (string) $en2->id,
+        'academic_year' => '2024-2025',
+        'semester' => 'first',
+        'enrolled_date' => now(),
+        'completion_date' => now(),
+        'final_status' => 'completed',
+        'final_grades' => null,
+        'student_data' => ['name' => $student->user->name, 'student_number' => $student->student_number],
+    ]);
+
+    // clear any pre-existing archived rows
+    DB::table('archived_student_subjects')->whereIn('archived_student_enrollment_id', [$arch1->id, $arch2->id])->delete();
+
+    $this->artisan('app:backfill-archived-student-subjects')->assertExitCode(0);
+
+    $codes1 = DB::table('archived_student_subjects')->where('archived_student_enrollment_id', $arch1->id)->pluck('subject_code')->toArray();
+    $codes2 = DB::table('archived_student_subjects')->where('archived_student_enrollment_id', $arch2->id)->pluck('subject_code')->toArray();
+
+    expect($codes1)->toBe(['SUB1']);
+    expect($codes2)->toBe(['SUB2']);
+});
+
 it('archives ungraded subjects alongside graded ones when observing enrollment creation', function () {
     $admin = User::factory()->create(['role' => 'head_teacher']);
 

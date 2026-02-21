@@ -46,15 +46,35 @@ class ArchivedGradesController extends Controller
         $subjects = [];
         if ($enrollmentIds->isNotEmpty()) {
             $subjects = \App\Models\ArchivedStudentSubject::whereIn('archived_student_enrollment_id', $enrollmentIds)
+                ->with('teacher.user')
                 ->orderBy('subject_code')
                 ->get()
                 ->map(function ($s) use ($archivedEnrollments) {
                     $en = $archivedEnrollments->firstWhere('id', $s->archived_student_enrollment_id);
+
+                    $archivedSection = $en?->archivedSection;
+                    $programCode = $archivedSection?->program?->program_code;
+                    $yearLevel = $archivedSection?->year_level;
+
                     return [
                         'id' => $s->id,
                         'subject_code' => $s->subject_code,
                         'subject_name' => $s->subject_name,
-                        'section_name' => optional($en->archivedSection)->section_name,
+                        'teacher_name' => optional(optional($s->teacher)->user)->name,
+                        'section_name' => $archivedSection?->section_name,
+
+                        // include archived section metadata so frontend can build labels
+                        'archived_section' => $archivedSection ? [
+                            'id' => $archivedSection->id,
+                            'section_name' => $archivedSection->section_name,
+                            'name' => $archivedSection->section_name,
+                            'year_level' => $yearLevel,
+                            'program_code' => $programCode,
+                        ] : null,
+                        // duplicate at top level for convenience
+                        'program_code' => $programCode,
+                        'year_level' => $yearLevel,
+
                         'final_grades' => [
                             'prelim' => $s->prelim_grade,
                             'midterm' => $s->midterm_grade,

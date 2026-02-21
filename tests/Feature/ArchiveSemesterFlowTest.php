@@ -6,6 +6,7 @@ use App\Models\Section;
 use App\Models\Student;
 use App\Models\StudentEnrollment;
 use App\Models\StudentGrade;
+use App\Models\StudentSubjectEnrollment;
 use App\Models\Subject;
 use App\Models\SectionSubject;
 use App\Models\Teacher;
@@ -139,6 +140,68 @@ it('archives semester, creates archived records, updates progression and allows 
         ->get();
 
     expect($archivedEnrollmentSubjects->count())->toBeGreaterThan(0);
+
+    // ------------------------------------------------
+    // Additional regression test: dropped enrollments are ignored
+    // Create a second subject and make the student drop it before archiving
+    $subjectB = Subject::factory()->create(['subject_code' => 'DROPPED', 'subject_name' => 'Dropped Subject']);
+    $sectionSubjectB = SectionSubject::create([
+        'section_id' => $section->id,
+        'subject_id' => $subjectB->id,
+        'teacher_id' => $teacher->id,
+        'academic_year' => '2025-2026',
+        'semester' => '2nd',
+    ]);
+    $enB = StudentSubjectEnrollment::create([
+        'student_id' => $student->id,
+        'section_subject_id' => $sectionSubjectB->id,
+        'enrollment_type' => 'regular',
+        'academic_year' => '2025-2026',
+        'semester' => '2nd',
+        'status' => 'active',
+        'enrollment_date' => now(),
+        'enrolled_by' => $admin->id,
+    ]);
+    // then drop it
+    $enB->update(['status' => 'dropped']);
+
+    // run archive again on new enrollment
+    $en2 = StudentEnrollment::create([
+        'student_id' => $student->id,
+        'section_id' => $section->id,
+        'enrollment_date' => now()->subMonths(3),
+        'status' => 'active',
+        'academic_year' => '2025-2026',
+        'semester' => '2nd',
+        'enrolled_by' => $admin->id,
+    ]);
+    StudentGrade::create([
+        'student_enrollment_id' => $en2->id,
+        'section_subject_id' => $sectionSubject->id,
+        'prelim_grade' => 70,
+        'midterm_grade' => 75,
+        'prefinal_grade' => 80,
+        'final_grade' => 85,
+        'teacher_id' => $teacher->id,
+    ]);
+
+    // perform archive again
+    $controller = new \App\Http\Controllers\Admin\AcademicYearController;
+    Auth::login($admin);
+    $method = new \ReflectionMethod($controller, 'archiveSemesterSections');
+    $method->setAccessible(true);
+    $method->invoke($controller, '2025-2026', '2nd', 'Second archive');
+
+    $archivedEnrollment2 = \App\Models\ArchivedStudentEnrollment::where('original_enrollment_id', $en2->id)->first();
+    $archivedSubjects2 = DB::table('archived_student_subjects')
+        ->where('archived_student_enrollment_id', $archivedEnrollment2->id)
+        ->pluck('subject_code')
+        ->toArray();
+
+    // ensure the dropped subject does NOT appear
+    expect(in_array('DROPPED', $archivedSubjects2))->toBeFalse();
+    expect(in_array('GEN101', $archivedSubjects2))->toBeTrue();
+    // ------------------------------------------------
 
     $subjectRow = DB::table('archived_student_subjects')
         ->where('archived_student_enrollment_id', $archivedEnrollment->id)
