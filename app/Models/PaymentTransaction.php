@@ -5,9 +5,22 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
+use Illuminate\Support\Str;
+use App\Traits\SyncsToCloud;
 
 class PaymentTransaction extends Model
 {
+    use SyncsToCloud;
+
+    protected static function booted(): void
+    {
+        static::creating(function (PaymentTransaction $tx) {
+            if (empty($tx->uuid)) {
+                $tx->uuid = (string) Str::uuid();
+            }
+        });
+    }
+
     protected $fillable = [
         'student_id',
         'payable_type',

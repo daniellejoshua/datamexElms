@@ -24,6 +24,12 @@ export default function CollegePaymentsIndex({ payments, stats, filters, current
     const [academicYear, setAcademicYear] = useState(filters?.academic_year || currentAcademicYear)
     const [semester, setSemester] = useState(filters?.semester || currentSemester)
     const [studentType, setStudentType] = useState(filters?.student_type || 'all')
+
+    // when the page is filtered to a term other than the current one we
+    // consider the view "past"; payments in that mode are treated as follow-
+    // up transactions instead of being assigned to a specific term.
+    const isPastFilter = academicYear !== currentAcademicYear || semester !== currentSemester;
+
     const [showPaymentModal, setShowPaymentModal] = useState(false)
     const [selectedPayment, setSelectedPayment] = useState(null)
     const [calculatedBalance, setCalculatedBalance] = useState(null)
@@ -32,14 +38,10 @@ export default function CollegePaymentsIndex({ payments, stats, filters, current
     const [paymentForm, setPaymentForm] = useState({
         amount_paid: '',
         payment_date: new Date().toISOString().split('T')[0],
-        term: 'prelim',
+        term: isPastFilter ? 'followup' : 'prelim',
         or_number: '',
         notes: ''
     })
-
-    // Note: do not treat a different semester as a special "past" filter —
-    // always allow term selection when recording payments.
-    const isPastFilter = false;
 
     const getCurrentBalance = (payment) => {
         if (payment?.student?.student_type === 'irregular' && !payment.prelim_paid && payment.total_semester_fee === 0) {
@@ -94,6 +96,11 @@ export default function CollegePaymentsIndex({ payments, stats, filters, current
     }
 
     const getAvailableTerms = (payment) => {
+        // when viewing a past semester we don't allow term selection at all
+        if (isPastFilter) {
+            return [];
+        }
+
         // Return all terms - user can choose any term to pay
         return [
             {value: 'prelim', label: 'Prelim'},
@@ -114,6 +121,16 @@ export default function CollegePaymentsIndex({ payments, stats, filters, current
         
         setSelectedPayment(payment)
         
+        // prepare default form values; use followup term when viewing past semester
+        const defaultTerm = isPastFilter ? 'followup' : 'prelim'
+        setPaymentForm({
+            amount_paid: '',
+            payment_date: new Date().toISOString().split('T')[0],
+            term: defaultTerm,
+            or_number: '',
+            notes: ''
+        })
+
         // If irregular student and prelim not paid yet and balance hasn't been calculated, calculate balance first
         if (payment.student?.student_type === 'irregular' && !payment.prelim_paid && payment.total_semester_fee === 0) {
             setIsCalculating(true)
@@ -147,13 +164,6 @@ export default function CollegePaymentsIndex({ payments, stats, filters, current
         }
         
         setShowPaymentModal(true)
-        setPaymentForm({
-            amount_paid: '',
-            payment_date: new Date().toISOString().split('T')[0],
-            term: 'prelim', // Default to prelim
-            or_number: '',
-            notes: ''
-        })
     }
 
     const submitPayment = () => {
@@ -548,8 +558,14 @@ export default function CollegePaymentsIndex({ payments, stats, filters, current
                                         <CreditCard className="w-6 h-6" />
                                     </div>
                                     <div>
-                                        <h3 className="text-xl font-bold">Record Payment</h3>
-                                        <p className="text-blue-100 text-sm">Process student payment transaction</p>
+                                        <h3 className="text-xl font-bold">
+                                            {isPastFilter ? 'Record Follow-up Payment' : 'Record Payment'}
+                                        </h3>
+                                        <p className="text-blue-100 text-sm">
+                                            {isPastFilter
+                                                ? 'Apply payment toward outstanding balance without term selection'
+                                                : 'Process student payment transaction'}
+                                        </p>
                                     </div>
                                 </div>
                                 <button
@@ -578,24 +594,32 @@ export default function CollegePaymentsIndex({ payments, stats, filters, current
 
                             {/* Payment Term Selection or past-semester notice */}
                             <div className="mb-6">
-                                <label className="block text-sm font-semibold text-gray-900 mb-4">
-                                    Select Payment Term
-                                </label>
-                                <div className="grid grid-cols-2 gap-3">
-                                    {selectedPayment && getAvailableTerms(selectedPayment).map(term => (
-                                        <label key={term.value} className="flex items-center gap-3 p-4 border-2 border-gray-200 rounded-lg hover:border-blue-300 transition-all duration-200 cursor-pointer">
-                                            <input
-                                                type="radio"
-                                                name="paymentTerm"
-                                                value={term.value}
-                                                checked={paymentForm.term === term.value}
-                                                onChange={(e) => setPaymentForm({...paymentForm, term: e.target.value})}
-                                                className="w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500"
-                                            />
-                                            <span className="text-sm font-medium text-gray-900">{term.label}</span>
+                                {isPastFilter ? (
+                                    <p className="text-sm font-medium text-gray-900">
+                                        Follow‑up payment for past semester (no term specified)
+                                    </p>
+                                ) : (
+                                    <>
+                                        <label className="block text-sm font-semibold text-gray-900 mb-4">
+                                            Select Payment Term
                                         </label>
-                                    ))}
-                                </div>
+                                        <div className="grid grid-cols-2 gap-3">
+                                            {selectedPayment && getAvailableTerms(selectedPayment).map(term => (
+                                                <label key={term.value} className="flex items-center gap-3 p-4 border-2 border-gray-200 rounded-lg hover:border-blue-300 transition-all duration-200 cursor-pointer">
+                                                    <input
+                                                        type="radio"
+                                                        name="paymentTerm"
+                                                        value={term.value}
+                                                        checked={paymentForm.term === term.value}
+                                                        onChange={(e) => setPaymentForm({...paymentForm, term: e.target.value})}
+                                                        className="w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500"
+                                                    />
+                                                    <span className="text-sm font-medium text-gray-900">{term.label}</span>
+                                                </label>
+                                            ))}
+                                        </div>
+                                    </>
+                                )}
                             </div>
 
                             {/* Amount and Date Row */}
@@ -693,7 +717,7 @@ export default function CollegePaymentsIndex({ payments, stats, filters, current
                                     className="flex-1 bg-blue-600 hover:bg-blue-700 text-white"
                                 >
                                     <CreditCard className="w-4 h-4 mr-2" />
-                                    Record Payment
+                                    {isPastFilter ? 'Record Follow-up' : 'Record Payment'}
                                 </Button>
                             </div>
                         </div>

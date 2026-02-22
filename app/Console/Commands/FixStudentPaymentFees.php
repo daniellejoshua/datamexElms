@@ -13,7 +13,7 @@ class FixStudentPaymentFees extends Command
      *
      * @var string
      */
-    protected $signature = 'app:fix-student-payment-fees {--dry-run : Show what would be changed without making changes}';
+    protected $signature = 'app:fix-student-payment-fees {--dry-run : Show what would be changed without making changes} {--all : Include payments for students regardless of status (dangerous)}';
 
     /**
      * The console command description.
@@ -33,10 +33,28 @@ class FixStudentPaymentFees extends Command
             $this->info('DRY RUN MODE - No changes will be made');
         }
 
-        $payments = StudentSemesterPayment::with('student.program')->get();
+        $allFlag = $this->option('all');
+
+        // by default we only fix active students so that dropped/inactive/graduate
+        // records retain the fees they were originally created with.  passing
+        // --all overrides that behaviour and processes every payment.
+        // start with college semester payments
+        $collegePayments = StudentSemesterPayment::with('student.program')
+            ->when(!$allFlag, fn($q) => $q->whereHas('student', function ($q) {
+                $q->where('status', 'active');
+            }))
+            ->get();
+
+        // also include SHS payments so the same freeze behaviour applies
+        $shsPayments = \App\Models\ShsStudentPayment::with('student.program')
+            ->when(!$allFlag, fn($q) => $q->whereHas('student', function ($q) {
+                $q->where('status', 'active');
+            }))
+            ->get();
+
         $fixed = 0;
 
-        foreach ($payments as $payment) {
+        foreach ($collegePayments->concat($shsPayments) as $payment) {
             $student = $payment->student;
 
             // Get current year level

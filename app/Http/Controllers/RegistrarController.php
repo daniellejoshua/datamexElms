@@ -863,6 +863,11 @@ class RegistrarController extends Controller
                     'role' => 'student',
                     'is_active' => true,
                 ]);
+
+                // newly created student should verify their email; send notification
+                if (method_exists($user, 'sendEmailVerificationNotification')) {
+                    $user->sendEmailVerificationNotification();
+                }
             }
 
             // Generate student number for new students only (after user is created)

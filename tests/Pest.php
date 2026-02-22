@@ -17,7 +17,8 @@ pest()->extend(Tests\TestCase::class)
 
 // Ensure important default data exists before running tests (non-destructive — uses updateOrCreate)
 beforeAll(function () {
-    \Illuminate\Support\Facades\Artisan::call('db:seed', ['--class' => 'DatabaseSeeder', '--no-interaction' => true]);
+    // rebuild the database from scratch so new migrations are applied
+    \Illuminate\Support\Facades\Artisan::call('migrate:fresh', ['--seed' => true, '--force' => true]);
 });
 
 /*

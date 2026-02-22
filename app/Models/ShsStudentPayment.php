@@ -3,10 +3,16 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Support\Str;
+use App\Traits\SyncsToCloud;
 
 class ShsStudentPayment extends Model
 {
+    use HasFactory, SyncsToCloud;
+
+
     protected $fillable = [
         'student_id',
         'academic_year',
@@ -44,6 +50,7 @@ class ShsStudentPayment extends Model
         'second_quarter_payment_date' => 'date',
         'third_quarter_payment_date' => 'date',
         'fourth_quarter_payment_date' => 'date',
+        'fee_finalized' => 'boolean',
     ];
 
     public function student(): BelongsTo
@@ -175,6 +182,12 @@ class ShsStudentPayment extends Model
      */
     protected static function booted(): void
     {
+        static::creating(function (ShsStudentPayment $p) {
+            if (empty($p->uuid)) {
+                $p->uuid = (string) Str::uuid();
+            }
+        });
+
         static::saving(function (ShsStudentPayment $payment) {
             $payment->total_paid = $payment->calculateTotalPaid();
             $payment->balance = $payment->calculateBalance();

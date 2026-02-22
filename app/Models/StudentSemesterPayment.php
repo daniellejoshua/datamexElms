@@ -67,6 +67,7 @@ class StudentSemesterPayment extends Model
             'calculated_total_amount' => 'decimal:2',
             'irregular_balance_breakdown' => 'array',
             'is_balance_calculated' => 'boolean',
+            'fee_finalized' => 'boolean',
         ];
     }
 

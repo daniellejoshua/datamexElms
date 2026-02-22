@@ -6,11 +6,23 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Str;
+use App\Traits\SyncsToCloud;
 
 class StudentEnrollment extends Model
 {
+    use SyncsToCloud;
     /** @use HasFactory<\Database\Factories\StudentEnrollmentFactory> */
     use HasFactory;
+
+    protected static function booted(): void
+    {
+        static::creating(function (StudentEnrollment $e) {
+            if (empty($e->uuid)) {
+                $e->uuid = (string) Str::uuid();
+            }
+        });
+    }
 
     protected $fillable = [
         'student_id',

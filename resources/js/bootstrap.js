@@ -78,3 +78,43 @@ window.axios.interceptors.response.use(
         return Promise.reject(error);
     }
 );
+
+// -----------------------------------------------------------------------------
+// Laravel Echo configuration for LAN websocket server
+// -----------------------------------------------------------------------------
+import Echo from 'laravel-echo';
+import Pusher from 'pusher-js';
+
+window.Pusher = Pusher;
+
+// default behaviour: connect back to the same host the page was loaded from
+// this allows a phone on the same LAN to connect to the headteacher's machine
+window.Echo = new Echo({
+    broadcaster: 'pusher',
+    key: import.meta.env.VITE_PUSHER_APP_KEY || 'local',
+    cluster: import.meta.env.VITE_PUSHER_APP_CLUSTER || 'mt1',
+    wsHost: import.meta.env.VITE_PUSHER_HOST || window.location.hostname,
+    wsPort: import.meta.env.VITE_PUSHER_PORT || 6001,
+    wssPort: import.meta.env.VITE_PUSHER_PORT || 6001,
+    forceTLS: false,
+    disableStats: true,
+    enabledTransports: ['ws', 'wss'],
+});
+
+// -----------------------------------------------------------------------------
+// If you choose to run a standalone Node/socket.io server instead of
+// the Laravel websockets package, the client can connect directly here and
+// listen for events.  The LAN guide shows how to run `socket-server.js`.
+// -----------------------------------------------------------------------------
+import { io } from 'socket.io-client';
+
+window.Socket = io(`http://${window.location.hostname}:6001`, {
+    transports: ['websocket'],
+});
+
+// forward socket.io events into browser custom events for ease of use
+window.Socket.on('PaymentRecorded', (data) => {
+    window.dispatchEvent(
+        new CustomEvent('payment-recorded', { detail: data }),
+    );
+});

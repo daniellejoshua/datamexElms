@@ -73,7 +73,7 @@ class StudentPaymentService
             $termPayment = $remainingBalance / 4; // Divide among 4 terms
         }
 
-        return StudentSemesterPayment::create([
+        $payment = StudentSemesterPayment::create([
             'student_id' => $student->id,
             'academic_year' => $academicYear,
             'semester' => $semester,
@@ -95,6 +95,18 @@ class StudentPaymentService
             'payment_plan' => $isIrregular ? 'custom' : 'installment',
             'status' => 'pending',
         ]);
+
+        // if the student is irregular or a transferee we calculate and persist
+        // their balance immediately. this prevents later program fee updates
+        // (or viewing the page for a dropped student) from recomputing the
+        // fee using the current program rate.
+        if ($student->student_type === 'irregular' ||
+            $student->creditTransfers()->exists() ||
+            $student->previous_school) {
+            $this->calculateIrregularBalance($payment);
+        }
+
+        return $payment;
     }
 
     /**

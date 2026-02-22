@@ -18,6 +18,6 @@ it('adds a past-semester notice when filters point to an earlier academic period
 
     $response->assertSuccessful();
 
-    // our component renders a hidden notice when viewing a past filter
-    $response->assertSeeText('past semester');
+    // server indicates past filter via prop; frontend renders hidden notice
+    $response->assertInertia(fn ($page) => $page->where('isPastFilter', true));
 });

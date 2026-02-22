@@ -374,3 +374,6 @@ Route::middleware(['web', 'auth:web', 'throttle.api'])->group(function () {
         'compare',
     ])->middleware(['role:registrar'])->name('api.students.course-shift-comparison');
 });
+
+// Route used by LAN instance to push changes to cloud
+Route::post('/sync', [\App\Http\Controllers\Api\CloudSyncController::class, 'handle']);

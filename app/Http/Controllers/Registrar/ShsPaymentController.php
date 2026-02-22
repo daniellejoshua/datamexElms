@@ -261,7 +261,7 @@ class ShsPaymentController extends Controller
         ]);
 
         // Create PaymentTransaction record
-        \App\Models\PaymentTransaction::create([
+        $transaction = \App\Models\PaymentTransaction::create([
             'student_id' => $payment->student_id,
             'payable_type' => \App\Models\ShsStudentPayment::class,
             'payable_id' => $payment->id,
@@ -275,6 +275,9 @@ class ShsPaymentController extends Controller
             'processed_by' => \Illuminate\Support\Facades\Auth::id(),
             'notes' => $validated['notes'],
         ]);
+
+        // fire a broadcast event for realtime listeners
+        event(new \App\Events\PaymentRecorded($payment));
 
         // Clear dashboard cache since payment data changed
         \Illuminate\Support\Facades\Cache::forget('registrar.dashboard.stats');

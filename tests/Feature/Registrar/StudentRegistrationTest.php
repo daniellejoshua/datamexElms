@@ -109,6 +109,34 @@ it('registers a new student with all required information', function () {
     expect($payment->status)->toBe('partial');
 });
 
+it('sends email verification when a new student is created', function () {
+    SchoolSetting::setCurrentAcademicPeriod('2024-2025', '1st');
+    $this->actingAs($this->user);
+
+    // fake notifications
+    Notification::fake();
+
+    $studentData = [
+        'first_name' => 'Alice',
+        'last_name' => 'Wonder',
+        'birth_date' => '2001-02-03',
+        'email' => 'alice.'.uniqid().'@example.com',
+        'program_id' => $this->program->id,
+        'year_level' => '1st Year',
+        'student_type' => 'regular',
+        'education_level' => 'college',
+        'enrollment_fee' => 0,
+        'payment_amount' => 0,
+    ];
+
+    $this->post(route('registrar.students.store'), $studentData);
+
+    $user = User::where('email', $studentData['email'])->first();
+    expect($user)->not->toBeNull();
+
+    Notification::assertSentTo($user, \Illuminate\Auth\Notifications\VerifyEmail::class);
+});
+
 it('charges SHS Grade 12 new student and does not apply voucher', function () {
     // Set current semester to 1st so student qualifies as new SHS
     SchoolSetting::setCurrentAcademicPeriod('2024-2025', '1st');

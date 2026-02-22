@@ -56,12 +56,17 @@ class CollegePaymentController extends Controller
 
                 $payment->section = $enrollment?->section;
 
-                // if student is irregular or a transferee, make sure the stored
-                // calculated total is up-to-date so the index can show it
+                // only recalc irregular/transferee fees for students who are
+                // still active; once a student is dropped/inactive/graduate we
+                // should trust the existing stored fee. (the payment itself
+                // carries the snapshot of the amount when it was calculated.)
                 $student = $payment->student;
                 $hasCreditTransfers = $student->creditTransfers()->exists() || (bool) $student->previous_school;
 
-                if (($student->student_type === 'irregular' || $hasCreditTransfers) && ! $payment->is_balance_calculated) {
+                if ($student->status === 'active' &&
+                    ! $payment->fee_finalized &&
+                    ($student->student_type === 'irregular' || $hasCreditTransfers) &&
+                    ! $payment->is_balance_calculated) {
                     try {
                         $calc = $paymentService->calculateIrregularBalance($payment);
                         $payment->calculated_total_amount = $calc['calculated_balance'] ?? $payment->total_semester_fee;
@@ -150,6 +155,8 @@ class CollegePaymentController extends Controller
             sort($academicYears);
         }
 
+        $isPastFilter = ($filterAcademicYear !== $currentAcademicYear) || ($filterSemester !== $currentSemester);
+
         return Inertia::render('Registrar/Payments/College/Index', [
             'payments' => $paginatedPayments->toArray(),
             'stats' => $stats,
@@ -161,6 +168,7 @@ class CollegePaymentController extends Controller
             'currentAcademicYear' => $currentAcademicYear,
             'currentSemester' => $currentSemester,
             'academicYears' => $academicYears,
+            'isPastFilter' => $isPastFilter,
         ]);
     }
 
@@ -186,11 +194,18 @@ class CollegePaymentController extends Controller
             abort(404, 'Student education level not supported.');
         }
 
-        // Pre-calculate irregular/transferee balances for display when applicable
+        // Pre-calculate irregular/transferee balances for display when applicable **and**
+        // only for active students.  Dropped/graduated records should remain frozen
+        // at their original fee regardless of current program rates.
         $hasCreditTransfers = $student->creditTransfers()->exists() || (bool) $student->previous_school;
-        if ($student->student_type === 'irregular' || $hasCreditTransfers) {
+        if ($student->status === 'active' && ($student->student_type === 'irregular' || $hasCreditTransfers)) {
             $paymentService = app(\App\Services\StudentPaymentService::class);
             foreach ($payments as $payment) {
+                // do not recalc if the payment has been finalized
+                if ($payment->fee_finalized) {
+                    continue;
+                }
+
                 try {
                     $calc = $paymentService->calculateIrregularBalance($payment);
                     $payment->calculated_total_amount = $calc['calculated_balance'] ?? $payment->total_semester_fee;
@@ -268,7 +283,10 @@ class CollegePaymentController extends Controller
         $validated = $request->validate([
             'amount_paid' => 'required|numeric|min:0.01',
             'payment_date' => 'required|date',
-            'term' => 'required|string',
+            // 'followup' term is used for payments on past semesters; backend
+            // treats it as an uncategorized transaction that simply reduces
+            // the balance without mapping to a specific term.
+            'term' => 'required|string|in:enrollment,prelim,midterm,prefinal,final,followup',
             'or_number' => 'required|string|max:50',
             'notes' => 'nullable|string',
         ]);
@@ -282,7 +300,20 @@ class CollegePaymentController extends Controller
             return back()->withErrors(['amount_paid' => 'Payment amount cannot exceed remaining balance.']);
         }
 
-        // Determine term fields
+        // if the student payment record itself belongs to a previous
+        // academic year/semester compared with the current settings we treat
+        // any incoming transaction as a "follow‑up" regardless of what the
+        // client submitted.  this guards against stale front-end state and
+        // ensures descriptions/types are always correct.
+        $currentYear = \App\Models\SchoolSetting::getCurrentAcademicYear();
+        $currentSemester = \App\Models\SchoolSetting::getCurrentSemester();
+
+        if ($payment->academic_year !== $currentYear || $payment->semester !== $currentSemester) {
+            // force followup on past semesters
+            $validated['term'] = 'followup';
+        }
+
+        // Determine term fields (used later to mark payment)
         $termPaidField = $validated['term'].'_paid';
 
         // Determine fee field for the term (enrollment uses 'enrollment_fee')
@@ -291,28 +322,37 @@ class CollegePaymentController extends Controller
             $termFeeField = 'enrollment_fee';
         }
 
-        // Recalculate total paid for this term from transactions to avoid relying
-        // on a potentially stale boolean flag. This ensures we compare against
-        // the current term fee (which may have been recalculated for irregulars).
-        $termTotalPaid = \App\Models\PaymentTransaction::where('payable_id', $payment->id)
-            ->where('payable_type', \App\Models\StudentSemesterPayment::class)
-            ->where('payment_type', $validated['term'] === 'enrollment' ? 'enrollment_fee' : ($validated['term'].'_payment'))
-            ->where('status', 'completed')
-            ->sum('amount');
+        // For followup payments we skip the term-old checks; the goal is simply
+        // to reduce the balance and record a generic transaction.  All the
+        // code below assumes a named term, so return early.
+        if ($validated['term'] === 'followup') {
+            // no need to check existing term payment or calculate fees
+            $termTotalPaid = 0;
+            $termFee = 0;
+        } else {
+            // Recalculate total paid for this term from transactions to avoid relying
+            // on a potentially stale boolean flag. This ensures we compare against
+            // the current term fee (which may have been recalculated for irregulars).
+            $termTotalPaid = \App\Models\PaymentTransaction::where('payable_id', $payment->id)
+                ->where('payable_type', \App\Models\StudentSemesterPayment::class)
+                ->where('payment_type', $validated['term'] === 'enrollment' ? 'enrollment_fee' : ($validated['term'].'_payment'))
+                ->where('status', 'completed')
+                ->sum('amount');
 
-        // Determine the nominal fee for this term. If the per-term fee field
-        // is not defined (common for irregular/custom plans), fall back to
-        // using the remaining balance as the effective term fee so checks
-        // reflect actual outstanding amounts.
-        $termFee = $payment->{$termFeeField} ?? 0;
-        if ($termFee <= 0) {
-            $effectiveTotal = $payment->calculated_total_amount ?? $payment->total_semester_fee;
-            $alreadyPaid = $payment->paymentTransactions()->where('status', 'completed')->sum('amount');
-            $termFee = max(0, $effectiveTotal - $alreadyPaid);
-        }
+            // Determine the nominal fee for this term. If the per-term fee field
+            // is not defined (common for irregular/custom plans), fall back to
+            // using the remaining balance as the effective term fee so checks
+            // reflect actual outstanding amounts.
+            $termFee = $payment->{$termFeeField} ?? 0;
+            if ($termFee <= 0) {
+                $effectiveTotal = $payment->calculated_total_amount ?? $payment->total_semester_fee;
+                $alreadyPaid = $payment->paymentTransactions()->where('status', 'completed')->sum('amount');
+                $termFee = max(0, $effectiveTotal - $alreadyPaid);
+            }
 
-        if ($termTotalPaid >= $termFee && $termFee > 0) {
-            return back()->withErrors(['term' => 'This term has already been fully paid.']);
+            if ($termTotalPaid >= $termFee && $termFee > 0) {
+                return back()->withErrors(['term' => 'This term has already been fully paid.']);
+            }
         }
 
         // Map term to payment_type enum value
@@ -322,11 +362,16 @@ class CollegePaymentController extends Controller
             'midterm' => 'midterm_payment',
             'prefinal' => 'prefinal_payment',
             'final' => 'final_payment',
+            'followup' => 'followup_payment',
         ];
 
         $paymentType = $paymentTypeMap[$validated['term']] ?? 'enrollment_fee';
 
         // Create PaymentTransaction record
+        $description = $validated['term'] === 'followup'
+            ? 'Follow-up payment'
+            : ucfirst($validated['term']).' payment';
+
         \App\Models\PaymentTransaction::create([
             'student_id' => $payment->student_id,
             'payable_type' => \App\Models\StudentSemesterPayment::class,
@@ -335,20 +380,20 @@ class CollegePaymentController extends Controller
             'payment_type' => $paymentType,
             'payment_method' => 'cash',
             'reference_number' => $validated['or_number'],
-            'description' => ucfirst($validated['term']).' payment',
+            'description' => $description,
             'payment_date' => $validated['payment_date'],
             'status' => 'completed',
             'processed_by' => \Illuminate\Support\Facades\Auth::id(),
             'notes' => $validated['notes'],
         ]);
 
-        // Update the corresponding term payment flag
-        $termField = $validated['term'].'_paid';
-        $termDateField = $validated['term'].'_payment_date';
-
-        // Refresh and recalculate totals
+        // Update the corresponding term payment flag (unless followup)
         $payment->refresh();
-        $payment->{$termDateField} = $validated['payment_date'];
+        if ($validated['term'] !== 'followup') {
+            $termField = $validated['term'].'_paid';
+            $termDateField = $validated['term'].'_payment_date';
+            $payment->{$termDateField} = $validated['payment_date'];
+        }
 
         // Check if this term is now fully paid
         $termFeeField = $validated['term'].'_amount';
@@ -393,17 +438,33 @@ class CollegePaymentController extends Controller
      */
     public function calculateIrregularBalance(StudentSemesterPayment $payment)
     {
+        // if the existing record has been frozen, simply return its current
+        // total without invoking the service. this ensures the UI cannot show
+        // a newer fee after reactivating a previously dropped/graduate student.
+        if ($payment->fee_finalized) {
+            return response()->json([
+                'success' => true,
+                'calculated_balance' => $payment->total_semester_fee,
+                'breakdown' => $payment->irregular_balance_breakdown['breakdown'] ?? null,
+                'details' => $payment->irregular_balance_breakdown ?? [],
+            ]);
+        }
+
         try {
             $paymentService = app(\App\Services\StudentPaymentService::class);
             $calculation = $paymentService->calculateIrregularBalance($payment);
 
-            // Update the payment record with calculated balance
-            $payment->update([
-                'total_semester_fee' => $calculation['calculated_balance'],
-                'balance' => $calculation['calculated_balance'],
-                'irregular_subject_fee' => 300.00,
-                'irregular_subjects_count' => $calculation['past_year_subjects_count'],
-            ]);
+            // Only persist the new calculated fee when the payment has not
+            // been finalized and the student is still active.  If the student
+            // has been dropped/graduate we leave the original fee in place.
+            if (! $payment->fee_finalized && $payment->student && $payment->student->status === 'active') {
+                $payment->update([
+                    'total_semester_fee' => $calculation['calculated_balance'],
+                    'balance' => $calculation['calculated_balance'],
+                    'irregular_subject_fee' => 300.00,
+                    'irregular_subjects_count' => $calculation['past_year_subjects_count'],
+                ]);
+            }
 
             return response()->json([
                 'success' => true,

@@ -67,6 +67,29 @@ export default function ShsPaymentsIndex({ payments, stats, filters, currentAcad
         return () => clearTimeout(timer)
     }, [searchTerm])
 
+    // Listen for real‑time events.  we dispatch a custom `payment-recorded`
+    // event when the socket.io client receives a message from the LAN server.
+    // Echo is left installed for compatibility but is not required.
+    useEffect(() => {
+        const update = () => handleFilterChange();
+
+        window.addEventListener('payment-recorded', update);
+
+        if (window.Echo) {
+            const channel = window.Echo.channel('payments');
+            channel.listen('PaymentRecorded', update);
+
+            return () => {
+                channel.stopListening('PaymentRecorded');
+                window.removeEventListener('payment-recorded', update);
+            };
+        }
+
+        return () => {
+            window.removeEventListener('payment-recorded', update);
+        };
+    }, []);
+
     const getAvailableQuarters = (payment) => {
         // For yearly payments, check if payment is fully paid
         if (payment.balance <= 0) {
