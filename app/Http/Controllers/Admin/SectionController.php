@@ -1095,7 +1095,8 @@ class SectionController extends Controller
                     'academic_year' => $section->academic_year,
                     'semester' => $section->semester,
                     'status' => 'active',
-                ])->first();
+                ])->whereNotNull('section_id')
+                  ->first();
 
                 if ($existingEnrollment) {
                     $conflictSection = Section::with('program')->find($existingEnrollment->section_id);

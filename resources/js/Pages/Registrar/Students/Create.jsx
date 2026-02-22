@@ -2815,15 +2815,29 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                                     <div className="max-h-64 overflow-y-auto bg-white">
                                         {courseShiftComparison.credited_subjects?.length > 0 ? (
                                             <div className="divide-y">
-                                                {courseShiftComparison.credited_subjects.map((subject, idx) => (
-                                                    <div key={idx} className="p-3 hover:bg-green-50">
+                                                {courseShiftComparison.credited_subjects.map((subject, idx) => {
+                                                    const rowKey = `${subject.subject_id}-${subject.old_subject_code || ''}-${idx}`;
+                                                    return (
+                                                        <div key={rowKey} className="p-3 hover:bg-green-50">
                                                         <div className="flex items-center gap-2">
                                                             <span className="font-medium text-sm text-gray-900">{subject.subject_code}</span>
-                                                            {subject.old_subject_code && subject.old_subject_code !== subject.subject_code && (
-                                                                <span className="text-xs text-gray-400">(was {subject.old_subject_code})</span>
+                                                            {subject.old_subject_code &&
+                                                                // only show "was" if codes differ after removing
+                                                                // non-alphanumeric characters (ignore spaces/hyphens)
+                                                                subject.old_subject_code.replace(/[^A-Za-z0-9]/g, '').toLowerCase() !==
+                                                                    subject.subject_code.replace(/[^A-Za-z0-9]/g, '').toLowerCase() && (
+                                                                    <span className="text-xs text-gray-400">(was {subject.old_subject_code.trim()})</span>
+                                                                )}
+                                                        </div>
+                                                        <div className="text-xs text-gray-600 line-clamp-1">
+                                                            {subject.subject_name}
+                                                            {subject.old_subject_code &&
+                                                                subject.old_subject_code.replace(/[^A-Za-z0-9]/g, '').toLowerCase() !==
+                                                                    subject.subject_code.replace(/[^A-Za-z0-9]/g, '').toLowerCase() &&
+                                                                subject.old_subject_name && (
+                                                                <span className="text-xs text-gray-400"> (was {subject.old_subject_name.trim()})</span>
                                                             )}
                                                         </div>
-                                                        <div className="text-xs text-gray-600 line-clamp-1">{subject.subject_name}</div>
                                                         <div className="flex items-center gap-2 mt-1">
                                                             <span className="text-xs text-gray-500">{subject.units} units</span>
                                                             <span className="text-xs text-green-600 font-medium">Grade: {subject.grade}</span>

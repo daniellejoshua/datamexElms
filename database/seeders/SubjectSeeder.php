@@ -418,6 +418,10 @@ class SubjectSeeder extends Seeder
         $this->command->info('Seeding subjects...');
 
         foreach ($subjects as $subjectData) {
+            // ensure uppercase code/name
+            $subjectData['subject_code'] = strtoupper(trim($subjectData['subject_code']));
+            $subjectData['subject_name'] = strtoupper(trim($subjectData['subject_name']));
+
             try {
                 Subject::create($subjectData);
                 $this->command->info("Created subject: {$subjectData['subject_code']} - {$subjectData['subject_name']}");

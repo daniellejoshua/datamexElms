@@ -142,6 +142,9 @@ test('irregular student workflow: curriculum comparison identifies credits and c
     $response->assertSuccessful();
     $data = $response->json('data');
 
+    // dump to the console for inspection
+    echo '\nDEBUGDATA: ' . json_encode($data) . '\n';
+
     // For shiftees, curriculum comparison no longer automatically identifies credits
     // Credits are determined during actual enrollment based on academic history
     expect($data['credited_subjects'])->toHaveCount(0);
@@ -298,6 +301,89 @@ test('course shift comparison matches subjects when student has partial grades (
 
     echo "\n✅ Course shift comparison includes partial-grade matches\n";
 }); // Commented out RefreshDatabase to prevent data deletion
+
+// mixed-status subjects
+it('course shift comparison finds every eligible subject despite mixed completion status', function () {
+    $this->actingAs($this->registrar);
+
+    // student setup in previous program (BSBA)
+    $studentUser = User::factory()->create(['role' => 'student']);
+    $student = Student::factory()->create([
+        'user_id' => $studentUser->id,
+        'program_id' => $this->bsbaProgram->id,
+        'curriculum_id' => $this->bsbaCurriculum->id,
+        'student_number' => '2026-00010',
+        'year_level' => '2nd Year',
+        'current_year_level' => 2,
+    ]);
+
+    // 1. English subject grade
+    $enroll1 = App\Models\StudentEnrollment::factory()->create(['student_id' => $student->id]);
+    $section1 = App\Models\SectionSubject::factory()->create([
+        'subject_id' => $this->englishSubject->id,
+    ]);
+    App\Models\StudentSubjectEnrollment::create([
+        'student_id' => $student->id,
+        'section_subject_id' => $section1->id,
+        'enrollment_date' => now(),
+        'academic_year' => '2024-2025',
+        'semester' => '1st',
+        'enrolled_by' => $this->registrar->id,
+    ]);
+    App\Models\StudentGrade::create([
+        'student_enrollment_id' => $enroll1->id,
+        'section_subject_id' => $section1->id,
+        'final_grade' => 88,
+        'teacher_id' => $this->teacher->id,
+    ]);
+
+    // 2. Math credit
+    \App\Models\StudentSubjectCredit::create([
+        'student_id' => $student->id,
+        'curriculum_subject_id' => null,
+        'subject_id' => $this->mathSubject->id,
+        'subject_code' => $this->mathSubject->subject_code,
+        'subject_name' => $this->mathSubject->subject_name,
+        'units' => $this->mathSubject->units,
+        'year_level' => 1,
+        'semester' => '1st',
+        'credit_type' => 'transfer',
+        'credit_status' => 'credited',
+        'final_grade' => 92,
+        'credited_at' => now(),
+    ]);
+
+    // 3. Programming enrollment no grade
+    $enroll2 = App\Models\StudentEnrollment::factory()->create(['student_id' => $student->id]);
+    $section2 = App\Models\SectionSubject::factory()->create([
+        'subject_id' => $this->programmingSubject->id,
+    ]);
+    App\Models\StudentSubjectEnrollment::create([
+        'student_id' => $student->id,
+        'section_subject_id' => $section2->id,
+        'enrollment_date' => now(),
+        'academic_year' => '2024-2025',
+        'semester' => '1st',
+        'enrolled_by' => $this->registrar->id,
+    ]);
+
+    $response = $this->postJson('/registrar/credit-transfers/compare', [
+        'previous_program_id' => $this->bsbaProgram->id,
+        'new_program_id' => $this->bsitProgram->id,
+        'student_year_level' => 2,
+        'student_id' => $student->id,
+    ]);
+
+    $response->assertSuccessful();
+    $data = $response->json('data');
+
+    $codes = collect($data['credited_subjects'])->pluck('new_subject.subject_code')->map(fn($c) => strtolower($c))->all();
+    expect($codes)->toContain('eng101');
+    expect($codes)->toContain('math101');
+    expect($codes)->toContain('it101');
+
+    echo "\n✅ Mixed-status subjects are all detected\n";
+});
 
 test('irregular student workflow: credit auto-approved when student passes all grading periods', function () {
     $this->actingAs($this->registrar);

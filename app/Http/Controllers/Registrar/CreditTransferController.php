@@ -239,13 +239,35 @@ class CreditTransferController extends Controller
 
                     $studentCompletedSubjects = $studentCompletedSubjects->concat($enrolledSubjects)
                         ->unique('subject_code'); // Remove duplicates by subject code
+
+                    // simplified list of completed codes/names for debugging
+                    $simplifiedCompleted = $studentCompletedSubjects->map(fn($c) => [
+                        'subject_code' => $c['subject_code'] ?? null,
+                        'subject_name' => $c['subject_name'] ?? null, // original name from credit record
+                    ])->unique()->values()->toArray();
                 }
             }
 
             // For shiftees: Find transferred subjects and catch-up subjects
             if ($request->previous_program_id && $previousSubjects->isNotEmpty() && $request->student_id) {
+                // prepare a set of minor (non-major) codes from the old curriculum; we only
+                // attempt to transfer those subjects since major courses are never moved
+                $minorCodes = $previousSubjects->filter(function ($sub) {
+                    return strtolower($sub->subject_type) !== 'major';
+                })->pluck('subject_code')
+                  ->map(fn($c) => strtolower(preg_replace('/[^A-Za-z0-9]/', '', $c)))
+                  ->unique()
+                  ->toArray();
+
                 // Get list of subjects student has completed
                 foreach ($studentCompletedSubjects as $completed) {
+                    // if the completed record has a code and it's not one of the minors,
+                    // skip it entirely; this prevents majors from being matched by fuzzy
+                    // logic later
+                    $compCodeNorm = strtolower(preg_replace('/[^A-Za-z0-9]/', '', (string)($completed['subject_code'] ?? '')));
+                    if ($compCodeNorm !== '' && ! in_array($compCodeNorm, $minorCodes, true)) {
+                        continue;
+                    }
                     // Check if this completed subject exists in new curriculum
                     // Use a more flexible matching strategy (name fuzzy/token/code numeric checks)
                     $matchingNewSubject = $newSubjects->first(function ($newSubject) use ($completed) {
@@ -264,10 +286,23 @@ class CreditTransferController extends Controller
                             return true;
                         }
 
-                        // 2) Numeric-code match (e.g. MATH101 vs MATH-101A) — compare digits only
+                        // 2) Numeric-code match (e.g. MATH101 vs MATH-101A) — compare digits only but
+                        // require alphabetic prefix to match as well to avoid cases like PE4/THC4.
                         $digits = fn($s) => preg_replace('/[^0-9]/', '', $s);
+                        $letters = fn($s) => preg_replace('/[^A-Za-z]/', '', $s);
                         if ($digits($newCode) !== '' && $digits($newCode) === $digits($completedCode)) {
-                            return true;
+                            if (strtolower($letters($newCode)) === strtolower($letters($completedCode))) {
+                                return true;
+                            }
+                        }
+
+                        // before we attempt fuzzy name logic, make sure the numeric portion of
+                        // the names themselves matches. this stops "NSTP 2" from being treated
+                        // as a token overlap with "NSTP 1" even though all other words line up.
+                        $numericInName = fn($s) => preg_replace('/[^0-9]/', '', $s);
+                        if ($numericInName($newName) !== '' && $numericInName($completedName) !== ''
+                            && $numericInName($newName) !== $numericInName($completedName)) {
+                            return false;
                         }
 
                         // 3) Token overlap (Jaccard-like) — handles name variants
@@ -302,9 +337,12 @@ class CreditTransferController extends Controller
                         // Only auto-credit previously approved credits (credit_transfer/subject_credit) or numeric passing grades
                         $isAutoCreditable = in_array($source, ['credit_transfer','subject_credit']) || (is_numeric($completedGrade) && floatval($completedGrade) >= 75);
 
-                        // Avoid duplicates
-                        $alreadyAdded = collect($creditedSubjects)->contains(function ($credited) use ($matchingNewSubject) {
-                            return $credited['subject_id'] === $matchingNewSubject->subject_id;
+                        // Avoid exact duplicates; however, if the same new subject is matched
+                        // from two different old subject codes we still want both entries so the
+                        // registrar can review them separately.
+                        $alreadyAdded = collect($creditedSubjects)->contains(function ($credited) use ($matchingNewSubject, $completed) {
+                            return $credited['subject_id'] === $matchingNewSubject->subject_id 
+                                && ($credited['old_subject_code'] ?? null) === ($completed['subject_code'] ?? null);
                         });
 
                         // Always add matched subject as a candidate; mark whether it's auto-creditable or requires review
@@ -318,7 +356,8 @@ class CreditTransferController extends Controller
                                 'semester' => $matchingNewSubject->semester,
                                 'grade' => $completedGrade,
                                 'is_partial' => ($completed['source'] === 'grade' && ($completed['is_partial'] ?? false)) || ($completed['source'] === 'enrolled'),
-                                'old_subject_code' => $completed['subject_code'] ?? null,
+                                'old_subject_code' => is_string($completed['subject_code']) ? trim($completed['subject_code']) : null,
+                            'old_subject_name' => is_string($completed['subject_name']) ? trim($completed['subject_name']) : null,
                                 'match_reason' => ($completed['source'] !== 'grade' && $completed['source'] !== 'enrolled') ? 'Existing credit' : 'Matched by name/code',
                                 'auto_credit' => $isAutoCreditable,
                                 'requires_review' => ! $isAutoCreditable,
@@ -330,7 +369,7 @@ class CreditTransferController extends Controller
                             $similar[] = [
                                 'old_subject' => [
                                     'subject_code' => $completed['subject_code'] ?? null,
-                                    'subject_name' => $completed['subject_name'] ?? null,
+                                    'subject_name' => is_string($completed['subject_name']) ? trim($completed['subject_name']) : null,
                                 ],
                                 'new_subject' => $matchingNewSubject,
                                 'grade' => $completedGrade,
@@ -359,8 +398,8 @@ class CreditTransferController extends Controller
                             'units' => $matchingSubject->units,
                             'year_level' => $matchingSubject->year_level,
                             'semester' => $matchingSubject->semester,
-                            'original_subject_code' => $externalCredit['subject_code'],
-                            'original_subject_name' => $externalCredit['subject_name'],
+                            'original_subject_code' => is_string($externalCredit['subject_code']) ? trim($externalCredit['subject_code']) : null,
+                            'original_subject_name' => is_string($externalCredit['subject_name']) ? trim($externalCredit['subject_name']) : null,
                             'previous_school' => $externalCredit['previous_school'] ?? null,
                         ];
                     }
@@ -398,6 +437,7 @@ class CreditTransferController extends Controller
                         ],
                     ],
                     'credited_subjects' => $creditedSubjects,
+                    'completed_subjects' => $simplifiedCompleted ?? [],
                 ],
             ];
 
