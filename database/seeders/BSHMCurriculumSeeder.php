@@ -112,8 +112,8 @@ class BSHMCurriculumSeeder extends Seeder
         ];
 
         foreach ($subjects as $subjectData) {
-            // uppercase code/name for consistency
-            $subjectData['code'] = strtoupper(trim($subjectData['code']));
+            // uppercase code/name for consistency and remove all whitespace from codes
+            $subjectData['code'] = strtoupper(preg_replace('/\s+/', '', $subjectData['code']));
             $subjectData['name'] = strtoupper(trim($subjectData['name']));
 
             // Check if subject already exists by code (subject_code is unique globally)
@@ -122,7 +122,7 @@ class BSHMCurriculumSeeder extends Seeder
             // If subject doesn't exist, create it
             if (! $subject) {
                 $subject = Subject::create([
-                    'subject_code' => strtoupper($subjectData['code']),
+                    'subject_code' => strtoupper(preg_replace('/\s+/','',$subjectData['code'])),
                     'program_id' => $program->id,
                     'subject_name' => strtoupper($subjectData['name']),
                     'description' => strtoupper($subjectData['name']),

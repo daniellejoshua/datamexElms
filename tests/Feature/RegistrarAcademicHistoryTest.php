@@ -131,3 +131,64 @@ it('returns archived enrollments with subjects for registrar academic history', 
             ->where('archivedEnrollments.0.subjects.0.missing_grades', ['Prelim','Midterm','Prefinal','Final'])
     );
 });
+
+it('still shows credits in the curriculum grid after a course shift (shiftee)', function () {
+    SchoolSetting::setCurrentAcademicPeriod('2024-2025', '1st');
+
+    $registrar = User::factory()->create(['role' => 'registrar']);
+
+    // original program/curriculum has nothing special
+    $programA = Program::factory()->create(['education_level' => 'college']);
+    $currA = \App\Models\Curriculum::factory()->create(['program_id' => $programA->id, 'is_current' => true]);
+
+    // new program has an empty curriculum (no subjects)
+    $programB = Program::factory()->create(['education_level' => 'college']);
+    $currB = \App\Models\Curriculum::factory()->create(['program_id' => $programB->id, 'is_current' => true]);
+
+    $subjectB = \App\Models\Subject::factory()->create([
+        'program_id' => $programB->id,
+        'subject_code' => 'B101',
+        'subject_name' => 'Shifted Subject',
+    ]);
+
+    $studentUser = User::factory()->create(['role' => 'student']);
+    $student = Student::factory()->create([
+        'user_id' => $studentUser->id,
+        'program_id' => $programA->id,
+        'curriculum_id' => $currA->id,
+    ]);
+
+    // create a credit record for the new program subject (simulating pre-shift completion)
+    \App\Models\StudentSubjectCredit::create([
+        'student_id' => $student->id,
+        'subject_id' => $subjectB->id,
+        'subject_code' => $subjectB->subject_code,
+        'subject_name' => $subjectB->subject_name,
+        'units' => 3,
+        'year_level' => 1,
+        'semester' => '1st',
+        'credit_status' => 'credited',
+        'credit_type' => 'transfer',
+    ]);
+
+    // perform course shift by updating primary program/curriculum fields
+    $student->update([
+        'previous_program_id' => $programA->id,
+        'previous_curriculum_id' => $currA->id,
+        'program_id' => $programB->id,
+        'curriculum_id' => $currB->id,
+        'course_shifted_at' => now(),
+    ]);
+
+    $response = $this->actingAs($registrar)->get(route('registrar.students.academic-history', $student));
+    $response->assertSuccessful();
+
+    // curriculumSubjects should now include the credited B101 subject
+    $response->assertInertia(fn (Assert $page) =>
+        $page->component('Registrar/Students/AcademicHistory')
+            ->has('curriculumSubjects.0')
+            ->where('curriculumSubjects.0.subject_code', 'B101')
+            ->has('subjectGrades.0')
+            ->where('subjectGrades.0.subject_code', 'B101')
+    );
+});

@@ -79,10 +79,19 @@ class ProgramSeeder extends Seeder
         ];
 
         foreach ($programs as $program) {
-            Program::updateOrCreate(
+            $prog = Program::updateOrCreate(
                 ['program_code' => $program['program_code']],
                 $program
             );
+
+            // ensure default regular fees: 10k per semester/year level
+            $years = $prog->total_years ?? 1;
+            for ($yr = 1; $yr <= $years; $yr++) {
+                $prog->programFees()->updateOrCreate(
+                    ['year_level' => $yr, 'fee_type' => 'regular'],
+                    ['education_level' => $prog->education_level === 'senior_high' ? 'shs' : 'college', 'semester_fee' => 10000]
+                );
+            }
         }
     }
 }

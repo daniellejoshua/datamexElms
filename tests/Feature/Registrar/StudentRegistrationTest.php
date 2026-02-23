@@ -109,11 +109,11 @@ it('registers a new student with all required information', function () {
     expect($payment->status)->toBe('partial');
 });
 
-it('sends email verification when a new student is created', function () {
+it('creates a student account with email already verified and does not send verification', function () {
     SchoolSetting::setCurrentAcademicPeriod('2024-2025', '1st');
     $this->actingAs($this->user);
 
-    // fake notifications
+    // fake notifications so we can assert nothing was sent
     Notification::fake();
 
     $studentData = [
@@ -133,8 +133,9 @@ it('sends email verification when a new student is created', function () {
 
     $user = User::where('email', $studentData['email'])->first();
     expect($user)->not->toBeNull();
+    expect($user->email_verified_at)->not->toBeNull();
 
-    Notification::assertSentTo($user, \Illuminate\Auth\Notifications\VerifyEmail::class);
+    Notification::assertNothingSent();
 });
 
 it('charges SHS Grade 12 new student and does not apply voucher', function () {
@@ -792,6 +793,13 @@ it('marks student as irregular when shifting courses', function () {
 
     // Check that success message mentions course shifting
     $response->assertSessionHas('success', fn ($message) => str_contains($message, 'course shifting'));
+
+    // fetch academic history and ensure it’s not blank and includes the matched subject
+    $history = $this->actingAs($this->user)->get(route('registrar.students.academic-history', $student));
+    $history->assertSuccessful();
+    $history->assertInertia(fn (Assert $page) =>
+        $page->has('subjectGrades')->where('subjectGrades.0.subject_code', strtolower($matchingCode))
+    );
 });
 
 it('requires confirmation for course shifting', function () {
@@ -804,9 +812,54 @@ it('requires confirmation for course shifting', function () {
         'education_level' => 'college',
     ]);
 
+    // ensure both programs have curricula and at least one matching subject code so the
+    // comparison returns a transferable subject
+    $oldCurriculum = \App\Models\Curriculum::factory()->create([
+        'program_id' => $this->program->id,
+        'is_current' => true,
+    ]);
+    $newCurriculum = \App\Models\Curriculum::factory()->create([
+        'program_id' => $differentProgram->id,
+        'is_current' => true,
+    ]);
+
+    $matchingCode = 'MATH101';
+    $oldSubject = \App\Models\Subject::factory()->create([
+        'program_id' => $this->program->id,
+        'subject_code' => $matchingCode,
+        'subject_name' => 'Math Old',
+    ]);
+    $newSubject = \App\Models\Subject::factory()->create([
+        'program_id' => $differentProgram->id,
+        'subject_code' => $matchingCode,
+        'subject_name' => 'Math New',
+    ]);
+
+    \App\Models\CurriculumSubject::create([
+        'curriculum_id' => $oldCurriculum->id,
+        'subject_id' => $oldSubject->id,
+        'subject_code' => $oldSubject->subject_code,
+        'subject_name' => $oldSubject->subject_name,
+        'program_id' => $this->program->id,
+        'units' => 3,
+        'year_level' => 1,
+        'semester' => '1st',
+    ]);
+    \App\Models\CurriculumSubject::create([
+        'curriculum_id' => $newCurriculum->id,
+        'subject_id' => $newSubject->id,
+        'subject_code' => $newSubject->subject_code,
+        'subject_name' => $newSubject->subject_name,
+        'program_id' => $differentProgram->id,
+        'units' => 3,
+        'year_level' => 1,
+        'semester' => '1st',
+    ]);
+
     // Create a student who was enrolled in a previous semester with one program
     $student = Student::factory()->create([
         'program_id' => $this->program->id,
+        'curriculum_id' => $oldCurriculum->id,
         'student_type' => 'regular',
         'year_level' => '1st Year',
         'current_year_level' => 1,

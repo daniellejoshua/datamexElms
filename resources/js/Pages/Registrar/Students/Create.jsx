@@ -2822,8 +2822,8 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                                                         <div className="flex items-center gap-2">
                                                             <span className="font-medium text-sm text-gray-900">{subject.subject_code}</span>
                                                             {subject.old_subject_code &&
-                                                                // only show "was" if codes differ after removing
-                                                                // non-alphanumeric characters (ignore spaces/hyphens)
+                                                                /* only show "was" if codes differ after removing
+                                                                   non-alphanumeric characters (ignore spaces/hyphens) */
                                                                 subject.old_subject_code.replace(/[^A-Za-z0-9]/g, '').toLowerCase() !==
                                                                     subject.subject_code.replace(/[^A-Za-z0-9]/g, '').toLowerCase() && (
                                                                     <span className="text-xs text-gray-400">(was {subject.old_subject_code.trim()})</span>
@@ -2843,7 +2843,8 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                                                             <span className="text-xs text-green-600 font-medium">Grade: {subject.grade}</span>
                                                         </div>
                                                     </div>
-                                                ))}
+                                                );
+                                            })}
                                             </div>
                                         ) : (
                                             <div className="p-6 text-center text-gray-500 text-sm">

@@ -59,7 +59,7 @@ export default function AcademicHistory({ student, curriculumSubjects, completed
     }
 
     // Group curriculum subjects by year and semester
-    const groupedSubjects = curriculumSubjects?.reduce((acc, subject) => {
+    let groupedSubjects = curriculumSubjects?.reduce((acc, subject) => {
         const yearKey = `Year ${subject.year_level}`
         const semesterKey = subject.semester === '1st' ? '1st Semester' : '2nd Semester'
 
@@ -72,6 +72,16 @@ export default function AcademicHistory({ student, curriculumSubjects, completed
         acc[yearKey][semesterKey].push(subject)
         return acc
     }, {}) || {}
+
+    const semesterOrder = ['1st Semester', '2nd Semester', 'summer']
+    groupedSubjects = Object.fromEntries(
+        Object.entries(groupedSubjects).map(([year, sems]) => {
+            const sorted = Object.entries(sems).sort((a, b) => {
+                return semesterOrder.indexOf(a[0]) - semesterOrder.indexOf(b[0])
+            })
+            return [year, Object.fromEntries(sorted)]
+        })
+    )
 
     // Calculate completion statistics (excluding credited subjects)
     const totalSubjects = completionStats?.totalSubjects || 0

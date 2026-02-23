@@ -269,6 +269,13 @@ export default function AcademicHistory({ student, curriculumSubjects, completed
                                                                             }`}>
                                                                                 {subject.subject_name}
                                                                             </h5>
+                                                                            {/* original subject from old program (mapped during course shift) */}
+                                                                            {gradeInfo?.original_subject_code && (
+                                                                                <div className="text-xs text-gray-500 mt-1">
+                                                                                    <span className="font-medium">Previously:</span> {gradeInfo.original_subject_code}
+                                                                                    {gradeInfo.original_subject_name ? ` – ${gradeInfo.original_subject_name}` : ''}
+                                                                                </div>
+                                                                            )}
                                                                             
                                                                             {/* Teacher Info */}
                                                                             {gradeInfo?.teacher_name && (
@@ -368,8 +375,7 @@ export default function AcademicHistory({ student, curriculumSubjects, completed
                                     <table className="w-full border-collapse">
                                         <thead>
                                             <tr className="border-b">
-                                                <th className="text-left py-3 px-4 font-medium text-gray-700">Subject Code</th>
-                                                <th className="text-left py-3 px-4 font-medium text-gray-700">Subject Name</th>
+                                                <th className="text-left py-3 px-4 font-medium text-gray-700">Subject Code</th>                                                <th className="text-left py-3 px-4 font-medium text-gray-700">Original Code</th>                                                <th className="text-left py-3 px-4 font-medium text-gray-700">Subject Name</th>
                                                 <th className="text-left py-3 px-4 font-medium text-gray-700">Units</th>
                                                 <th className="text-left py-3 px-4 font-medium text-gray-700">Grade</th>
                                                 <th className="text-left py-3 px-4 font-medium text-gray-700">Credit Type</th>
@@ -384,6 +390,9 @@ export default function AcademicHistory({ student, curriculumSubjects, completed
                                                         <Badge variant="outline" className="font-mono text-xs">
                                                             {subject.subject_code}
                                                         </Badge>
+                                                    </td>
+                                                    <td className="py-3 px-4 text-sm text-gray-600">
+                                                        {subject.original_subject_code || '-'}
                                                     </td>
                                                     <td className="py-3 px-4">
                                                         <div className="font-medium text-gray-900">{subject.subject_name}</div>

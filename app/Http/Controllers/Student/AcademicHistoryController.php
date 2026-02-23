@@ -27,6 +27,15 @@ class AcademicHistoryController extends Controller
                 ->orderBy('year_level')
                 ->orderByRaw("FIELD(semester, '1st', '2nd', 'summer')")
                 ->get();
+
+            $curriculumSubjects = collect($curriculumSubjects)
+                ->sortBy([
+                    ['year_level', 'asc'],
+                    function ($item) {
+                        $order = ['1st' => 1, '2nd' => 2, 'summer' => 3];
+                        return $order[$item->semester] ?? 99;
+                    },
+                ])->values()->all();
         }
 
         // Get all subject grades with details (completed and incomplete)
@@ -106,6 +115,118 @@ class AcademicHistoryController extends Controller
             ->where('credit_status', 'credited')
             ->with(['subject'])
             ->get();
+
+        $prevProgramId = $student->previous_program_id;
+        if (empty($prevProgramId)) {
+            $previousEnrollment = \App\Models\StudentEnrollment::where('student_id', $student->id)
+                ->whereHas('section', function ($q) use ($student) {
+                    $q->where('program_id', '!=', $student->program_id);
+                })
+                ->orderBy('academic_year', 'desc')
+                ->first();
+
+            if ($previousEnrollment && $previousEnrollment->section) {
+                $prevProgramId = $previousEnrollment->section->program_id;
+            }
+        }
+
+        if ($prevProgramId) {
+            $compRequest = new \Illuminate\Http\Request();
+            $compRequest->replace([
+                'previous_program_id' => $prevProgramId,
+                'new_program_id' => $student->program_id,
+                'student_year_level' => $student->current_year_level ?: 1,
+                'student_id' => $student->id,
+            ]);
+
+            $compController = app(\App\Http\Controllers\Registrar\CreditTransferController::class);
+            $compResponse = $compController->compareCurricula($compRequest);
+            if ($compResponse instanceof \Illuminate\Http\JsonResponse) {
+                $compData = $compResponse->getData(true);
+                if (! empty($compData['data']['credited_subjects'])) {
+                    foreach ($compData['data']['credited_subjects'] as $credit) {
+                        $code = $credit['subject_code'] ?? null;
+                        if (! $code) continue;
+
+                        if (! isset($subjectGradesMap[$code])) {
+                            $subjectGradesMap[$code] = [
+                                'subject_id' => $credit['subject_id'] ?? null,
+                                'subject_code' => $code,
+                                'subject_name' => $credit['subject_name'] ?? null,
+                                'type' => 'credited',
+                                'credit_type' => $credit['credit_type'] ?? 'transfer',
+                                'final_grade' => $credit['grade'] ?? null,
+                                'credited_from' => null,
+                                'credited_at' => null,
+                                'is_complete' => true,
+                                'original_subject_code' => $credit['old_subject_code'] ?? null,
+                                'original_subject_name' => $credit['old_subject_name'] ?? null,
+                                'units' => $credit['units'] ?? null,
+                                'year_level' => $credit['year_level'] ?? null,
+                                'semester' => $credit['semester'] ?? null,
+                            ];
+                        }
+
+                        $completedSubjects[] = [
+                            'subject_id' => $credit['subject_id'] ?? null,
+                            'subject_code' => $code,
+                            'subject_name' => $credit['subject_name'] ?? null,
+                            'type' => 'credited',
+                        ];
+
+                        $exists = collect($curriculumSubjects)->contains(function ($cs) use ($code) {
+                            return $cs->subject_code === $code;
+                        });
+
+                        if (! $exists) {
+                            $curriculumSubjects[] = (object) [
+                                'id' => $credit['subject_id'] ?? null,
+                                'subject_code' => $code,
+                                'subject_name' => $credit['subject_name'] ?? null,
+                                'units' => $credit['units'] ?? null,
+                                'year_level' => $credit['year_level'] ?? 0,
+                                'semester' => $credit['semester'] ?? '1st',
+                            ];
+                        }
+                    }
+                }
+            }
+        }
+
+        // ensure curriculumSubjects contains credited subjects so shifting doesn't clear the view
+        $allCredits = $creditedSubjects->concat($creditTransfers);
+        foreach ($allCredits as $credit) {
+            $sub = $credit->subject;
+            if (! $sub) {
+                continue;
+            }
+
+            $exists = collect($curriculumSubjects)->contains(function ($cs) use ($sub) {
+                return $cs->subject_code === $sub->subject_code;
+            });
+
+            if (! $exists) {
+                $yearLevel = $credit->year_level ?? 0;
+                $semester   = $credit->semester ?? '1st';
+
+                $curriculumSubjects[] = (object) [
+                    'id' => $sub->id,
+                    'subject_code' => $sub->subject_code,
+                    'subject_name' => $sub->subject_name,
+                    'units' => $credit->units ?? $sub->units ?? null,
+                    'year_level' => $yearLevel,
+                    'semester' => $semester,
+                ];
+            }
+        }
+
+        $curriculumSubjects = collect($curriculumSubjects)
+            ->sortBy([['year_level', 'asc'], function ($item) {
+                $order = ['1st' => 1, '2nd' => 2, 'summer' => 3];
+                return $order[$item->semester] ?? 99;
+            }])
+            ->values()
+            ->all();
 
         foreach ($creditedSubjects as $credited) {
             if ($credited->subject) {
