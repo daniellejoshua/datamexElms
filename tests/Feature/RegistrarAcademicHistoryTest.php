@@ -206,10 +206,11 @@ it('still shows credits in the curriculum grid after a course shift (shiftee)', 
         'status' => 'active',
     ]);
 
+    $sectionTeacher = Teacher::factory()->create();
     $sectionSub = SectionSubject::create([
         'section_id' => $section->id,
         'subject_id' => $subjectA->id,
-        'teacher_id' => Teacher::factory()->create()->id,
+        'teacher_id' => $sectionTeacher->id,
         'academic_year' => '2024-2025',
         'semester' => '1st',
     ]);
@@ -257,8 +258,7 @@ it('still shows credits in the curriculum grid after a course shift (shiftee)', 
     // extra manual checks on props
     $props = $response->original->getData()['page']['props'];
     $grades = collect($props['subjectGrades']);
-    dd($grades->toArray());
-    $entry = $grades->first(fn($g) => ($g['teacher_name'] ?? null) === $gradeTeacher->user->name
+    $entry = $grades->first(fn($g) => ($g['teacher_name'] ?? null) === $sectionTeacher->user->name
         && ($g['missing_grades'] ?? []) === ['Prelim','Midterm','Prefinal','Final']
         && ($g['is_complete'] ?? true) === false
     );

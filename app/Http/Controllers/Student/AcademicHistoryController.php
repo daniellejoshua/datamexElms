@@ -410,6 +410,11 @@ class AcademicHistoryController extends Controller
             if (! $isCompleted) {
                 foreach ($subjectGradesMap as $grade) {
                     if ($grade['subject_code'] === $subjectCode && $grade['type'] === 'credited') {
+                        // don't count incomplete credit records (partial/old-program matches)
+                        if (empty($grade['is_complete'])) {
+                            continue;
+                        }
+
                         $gradeValue = $grade['final_grade'];
                         $isTransfereeCredit = ! is_null($grade['credited_from']);
                         if (is_null($gradeValue) || $gradeValue === 'CR') {
@@ -682,6 +687,31 @@ class AcademicHistoryController extends Controller
                 ];
 
                 $subjectGradesMap[$credited->subject->subject_code] = $creditInfo;
+
+                // mirror registrar behaviour by adding to completedSubjects if passing
+                $gradeValue = $credited->final_grade;
+                $isTransfereeCredit = $credited->studentCreditTransfer !== null;
+                $isPassing = false;
+
+                if (is_null($gradeValue) || $gradeValue === 'CR') {
+                    $isPassing = true;
+                } elseif (is_numeric($gradeValue)) {
+                    $numericGrade = (float) $gradeValue;
+                    if ($isTransfereeCredit) {
+                        $isPassing = $numericGrade <= 3.0;
+                    } else {
+                        $isPassing = $numericGrade >= 75;
+                    }
+                }
+
+                if ($isPassing) {
+                    $completedSubjects[] = [
+                        'subject_id' => $credited->subject->id,
+                        'subject_code' => $credited->subject->subject_code,
+                        'subject_name' => $credited->subject->subject_name,
+                        'type' => 'credited',
+                    ];
+                }
             }
         }
 
@@ -705,6 +735,25 @@ class AcademicHistoryController extends Controller
                 ];
 
                 $subjectGradesMap[$transfer->subject->subject_code] = $creditInfo;
+
+                // add to completedSubjects if passing
+                $gradeValue = $transfer->verified_semester_grade;
+                $isPassing = false;
+                if (is_null($gradeValue) || $gradeValue === 'CR') {
+                    $isPassing = true;
+                } elseif (is_numeric($gradeValue)) {
+                    $numericGrade = (float) $gradeValue;
+                    $isPassing = $numericGrade <= 3.0; // always transferee logic
+                }
+
+                if ($isPassing) {
+                    $completedSubjects[] = [
+                        'subject_id' => $transfer->subject->id,
+                        'subject_code' => $transfer->subject->subject_code,
+                        'subject_name' => $transfer->subject->subject_name,
+                        'type' => 'credited',
+                    ];
+                }
             }
         }
 

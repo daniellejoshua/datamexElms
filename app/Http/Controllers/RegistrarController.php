@@ -2669,6 +2669,11 @@ class RegistrarController extends Controller
             if (! $isCompleted) {
                 foreach ($subjectGradesMap as $grade) {
                     if ($grade['subject_code'] === $subjectCode && $grade['type'] === 'credited') {
+                        // skip credits that are not yet marked complete (e.g. partial from old program)
+                        if (empty($grade['is_complete'])) {
+                            continue;
+                        }
+
                         $gradeValue = $grade['final_grade'];
                         $isTransfereeCredit = ! is_null($grade['credited_from'] ?? null);
                         if (is_null($gradeValue) || $gradeValue === 'CR') {
