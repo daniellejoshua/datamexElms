@@ -176,10 +176,17 @@ it('limits alerts to the configured academic year and semester', function () {
         'semester' => '2nd',
     ]);
 
-    // unassigned student with no enrollments (now ignored by the query)
+    // student with an active enrollment but no section assigned (should be counted)
     $unassigned = Student::factory()->create();
+    StudentEnrollment::factory()->create([
+        'student_id' => $unassigned->id,
+        'section_id' => null,
+        'status' => 'active',
+        'academic_year' => '2024-2025',
+        'semester' => '1st',
+    ]);
 
-    // student with only old-term enrollment (should also be ignored)
+    // student with only old-term enrollment (should still be ignored)
     $otherStudent = Student::factory()->create();
     StudentEnrollment::factory()->create([
         'student_id' => $otherStudent->id,
@@ -219,10 +226,10 @@ it('limits alerts to the configured academic year and semester', function () {
 
     $response = $this->get(route('admin.alerts.index'));
     $response->assertOk()->assertInertia(fn ($page) =>
-        // we should see two low-enrollment sections, no unassigned students
-        // (none with a current-term enrollment), and one section with missing teacher
+        // we should see two low-enrollment sections, one unassigned student
+        // (active enrollment but no section), and one section with missing teacher
         $page->has('lowEnrollmentSections.data', 2)
-            ->has('studentsWithoutSections.data', 0)
+            ->has('studentsWithoutSections.data', 1)
             ->has('sectionsWithoutTeachers.data', 1)
     );
 });

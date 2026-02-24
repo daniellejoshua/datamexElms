@@ -204,6 +204,7 @@ export default function StudentsIndex({ students, programs, filters, auth, on_ho
                 first_name: student.first_name || '',
                 last_name: student.last_name || '',
                 middle_name: student.middle_name || '',
+                gender: student.gender || '',
                 birth_date: student.birth_date || '',
                 address: student.address || '',
                 street: student.street || '',
@@ -229,6 +230,7 @@ export default function StudentsIndex({ students, programs, filters, auth, on_ho
                 first_name: student.first_name || '',
                 last_name: student.last_name || '',
                 middle_name: student.middle_name || '',
+                gender: student.gender || '',
                 suffix: student.suffix || '',
                 birth_date: student.birth_date ? new Date(student.birth_date).toISOString().split('T')[0] : '',
                 address: student.address || '',
@@ -837,6 +839,21 @@ export default function StudentsIndex({ students, programs, filters, auth, on_ho
                                                         />
                                                     </div>
                                                     <div>
+                                                        <label className="text-sm font-medium text-gray-700 mb-1 block">Gender</label>
+                                                        <Select
+                                                            value={editFormData.gender || ''}
+                                                            onValueChange={(value) => setEditFormData({...editFormData, gender: value})}
+                                                        >
+                                                            <SelectTrigger className="h-9">
+                                                                <SelectValue placeholder="Select" />
+                                                            </SelectTrigger>
+                                                            <SelectContent>
+                                                                <SelectItem value="male">Male</SelectItem>
+                                                                <SelectItem value="female">Female</SelectItem>
+                                                            </SelectContent>
+                                                        </Select>
+                                                    </div>
+                                                    <div>
                                                         <label className="text-sm font-medium text-gray-700 mb-1 block">Phone</label>
                                                         <Input
                                                             value={editFormData.phone}
@@ -896,6 +913,16 @@ export default function StudentsIndex({ students, programs, filters, auth, on_ho
                                                                 day: 'numeric'
                                                             })}
                                                         </span>
+                                                    </div>
+                                                )}
+
+                                                {selectedStudent.gender && (
+                                                    <div className="flex items-center justify-between p-3 bg-indigo-50 rounded-lg">
+                                                        <div className="flex items-center gap-3">
+                                                            <User className="w-5 h-5 text-indigo-600" />
+                                                            <span className="text-sm font-medium text-gray-700">Gender</span>
+                                                        </div>
+                                                        <span className="text-sm text-gray-900 capitalize">{selectedStudent.gender}</span>
                                                     </div>
                                                 )}
 

@@ -35,6 +35,7 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
         middle_name: old.middle_name ?? '',
         suffix: old.suffix ?? '',
         birth_date: old.birth_date ?? '',
+        gender: old.gender ?? '',
         street: old.street ?? '',
         barangay: old.barangay ?? '',
         city: old.city ?? '',
@@ -64,6 +65,7 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
         middle_name: '',
         suffix: '',
         birth_date: '',
+        gender: '',
         street: '',
         barangay: '',
         city: '',
@@ -765,6 +767,7 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                     student_type: result.student.student_type || 'regular',
                     curriculum_id: result.student.curriculum_id || '',
                     birth_date: formatDateForInput(result.student.birth_date) || '',
+                    gender: result.student.gender || '',
                     phone: result.student.phone || '',
                     parent_contact: result.student.parent_contact || '',
                     street: addressParts[0] || '',
@@ -838,6 +841,7 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                     enrollment_type: 'returning',
                     student_type: 'returning',
                     birth_date: formatDateForInput(result.archived.birth_date) || '',
+                    gender: result.archived.gender || '',
                     phone: result.archived.phone || '',
                     parent_contact: result.archived.parent_contact || '',
                     street: result.archived.address?.split(',')[0]?.trim() || '',
@@ -1671,6 +1675,26 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                             </div>
 
                             <div>
+                                <Label htmlFor="gender">Gender</Label>
+                                <Select
+                                    value={data.gender || ''}
+                                    onValueChange={value => setData('gender', value)}
+                                    disabled={!formUnlocked || isExistingStudent}
+                                >
+                                    <SelectTrigger>
+                                        <SelectValue placeholder="Select gender" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="male">Male</SelectItem>
+                                        <SelectItem value="female">Female</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                                {errors.gender && (
+                                    <p className="text-red-500 text-sm mt-1">{errors.gender}</p>
+                                )}
+                            </div>
+
+                            <div>
                                 <Label htmlFor="email">Email Address *</Label>
                                 <div className="relative">
                                     <Input 
@@ -1746,6 +1770,7 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                                                     last_name: archivedStudent.last_name,
                                                     middle_name: archivedStudent.middle_name || '',
                                                     birth_date: archivedStudent.birth_date || '',
+                                                    gender: archivedStudent.gender || '',
                                                     phone: archivedStudent.phone || '',
                                                     parent_contact: archivedStudent.parent_contact || '',
                                                     education_level: archivedStudent.education_level || '',
@@ -3146,6 +3171,10 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                             <div>
                                 <span className="text-sm font-medium text-gray-600">Birth Date</span>
                                 <p className="text-sm">{data.birth_date ? new Date(data.birth_date).toLocaleDateString() : 'Not provided'}</p>
+                            </div>
+                            <div>
+                                <span className="text-sm font-medium text-gray-600">Gender</span>
+                                <p className="text-sm capitalize">{data.gender || 'Not specified'}</p>
                             </div>
                             <div>
                                 <span className="text-sm font-medium text-gray-600">Phone</span>

@@ -21,7 +21,7 @@ import {
 } from 'lucide-react'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 
 export default function AlertsIndex({
     lowEnrollmentSections,
@@ -33,9 +33,12 @@ export default function AlertsIndex({
     const [showPendingModal, setShowPendingModal] = useState(false);
     const [selectedTeacher, setSelectedTeacher] = useState(null);
     const [pendingDetails, setPendingDetails] = useState(null); // paginator object
+
     const [isLoadingPendingDetails, setIsLoadingPendingDetails] = useState(false);
     const [pendingPage, setPendingPage] = useState(1);
     const PENDING_PER_PAGE = 5;
+
+    const [activeTab, setActiveTab] = useState('low-enrollment');
 
     const fetchPendingDetails = async (teacherId, page = 1) => {
         setIsLoadingPendingDetails(true);
@@ -43,10 +46,47 @@ export default function AlertsIndex({
         setPendingPage(page);
 
         try {
-            const res = await fetch(`/admin/alerts/pending-grades/${teacherId}?page=${page}&per_page=${PENDING_PER_PAGE}`);
+            // Temporarily hit the debug endpoint so the server returns raw rows for debugging
+            const url = `/admin/alerts/pending-grades/${teacherId}?page=${page}&per_page=${PENDING_PER_PAGE}&debug=1`;
+            // eslint-disable-next-line no-console
+            console.log('Fetching pending grades URL:', url);
+
+            const res = await fetch(url);
+            // eslint-disable-next-line no-console
+            console.log('Pending grades response status:', res.status);
             if (!res.ok) throw new Error('Failed to fetch');
             const data = await res.json();
-            setPendingDetails(data ?? null);
+            // eslint-disable-next-line no-console
+            console.log('Pending grades response data:', data);
+
+            // If server returned debug wrapper, use the paginator inside it so the modal displays rows
+            if (data && data.debug && data.paginator) {
+                setPendingDetails(data.paginator ?? null);
+            } else if (data && data.data && Array.isArray(data.data)) {
+                setPendingDetails(data ?? null);
+            } else if (data && data.rows && Array.isArray(data.rows)) {
+                // If raw rows returned without paginator, normalize into a paginator-like object
+                const per_page = data.per_page ?? data.rows.length ?? PENDING_PER_PAGE;
+                const current_page = data.page ?? page ?? 1;
+                const total = data.total ?? data.rows.length;
+                const last_page = Math.max(1, Math.ceil(total / per_page));
+                const from = total > 0 ? (current_page - 1) * per_page + 1 : null;
+                const to = total > 0 ? Math.min(current_page * per_page, total) : null;
+
+                setPendingDetails({
+                    data: data.rows,
+                    total,
+                    per_page,
+                    current_page,
+                    last_page,
+                    from,
+                    to,
+                    prev_page_url: current_page > 1 ? null : null,
+                    next_page_url: current_page < last_page ? null : null,
+                });
+            } else {
+                setPendingDetails(data ?? null);
+            }
         } catch (e) {
             setPendingDetails({ data: [] });
             console.error(e);
@@ -58,8 +98,38 @@ export default function AlertsIndex({
     const openPendingModal = (teacher) => {
         setSelectedTeacher(teacher);
         setShowPendingModal(true);
+        const debugUrl = `/admin/alerts/pending-grades/${teacher.id}?page=1&per_page=${PENDING_PER_PAGE}&debug=1`;
+        // Helpful debug output: copy this URL from the console and open in a new tab
+        // to inspect the server's JSON response directly.
+        // eslint-disable-next-line no-console
+        console.log('Pending grades debug URL:', debugUrl);
         fetchPendingDetails(teacher.id, 1);
     };
+
+    // Auto-select the first tab that has data so users see items immediately
+    useEffect(() => {
+        if (lowEnrollmentSections?.data?.length > 0) {
+            setActiveTab('low-enrollment');
+            return;
+        }
+
+        if (studentsWithoutSections?.data?.length > 0) {
+            setActiveTab('unassigned-students');
+            return;
+        }
+
+        if (sectionsWithoutTeachers?.data?.length > 0) {
+            setActiveTab('unassigned-subjects');
+            return;
+        }
+
+        if (pendingGradeTeachers?.data?.length > 0) {
+            setActiveTab('pending-grades');
+            return;
+        }
+
+        // default remains low-enrollment when everything is empty
+    }, [lowEnrollmentSections, studentsWithoutSections, sectionsWithoutTeachers, pendingGradeTeachers]);
 
     return (
         <AuthenticatedLayout
@@ -148,7 +218,7 @@ export default function AlertsIndex({
                 </div>
 
                 {/* Detailed Alerts Tabs */}
-                <Tabs defaultValue="low-enrollment" className="space-y-4">
+                <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
                     <TabsList className="flex gap-2 w-full overflow-x-auto -mx-4 px-4 py-2 sm:grid sm:grid-cols-4 sm:overflow-visible sm:mx-0 sm:px-0">
                         <TabsTrigger
                             value="low-enrollment"
@@ -207,6 +277,9 @@ export default function AlertsIndex({
                                     <div className="text-center py-8 text-gray-500">
                                         <School className="w-12 h-12 mx-auto mb-4 text-gray-300" />
                                         <p>No sections with low enrollment found.</p>
+                                        {alertsSummary.low_enrollment_count > 0 && (
+                                            <p className="text-xs text-gray-400 mt-2">(server total: {lowEnrollmentSections.total}, page: {lowEnrollmentSections.current_page})</p>
+                                        )}
                                     </div>
                                 ) : (
                                     <>
@@ -273,13 +346,21 @@ export default function AlertsIndex({
                                     <div className="text-center py-8 text-gray-500">
                                         <Users className="w-12 h-12 mx-auto mb-4 text-gray-300" />
                                         <p>All students are properly assigned to sections.</p>
+                                        {alertsSummary.unassigned_students_count > 0 && (
+                                            <p className="text-xs text-gray-400 mt-2">
+                                                (summary card shows {alertsSummary.unassigned_students_count} alert{alertsSummary.unassigned_students_count > 1 ? 's' : ''})
+                                            </p>
+                                        )}
+                                            {studentsWithoutSections.total > 0 && (
+                                                <p className="text-xs text-gray-400 mt-2">(server total: {studentsWithoutSections.total}, page: {studentsWithoutSections.current_page})</p>
+                                            )}
                                     </div>
                                 ) : (
                                     <>
                                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                                         {studentsWithoutSections.data.map((student, index) => (
-                                            <Link key={student.id ?? index} href={route('registrar.students')} className="block">
-                                                <Card className="h-full p-4 border border-red-200 bg-white/80 hover:bg-white hover:shadow-sm transition-all duration-200 cursor-pointer flex flex-col justify-between">
+                                            <div key={student.id ?? index} className="block">
+                                                <Card className="h-full p-4 border border-red-200 bg-white/80 flex flex-col justify-between" aria-disabled="true">
                                                     <div className="min-w-0">
                                                         <p className="font-semibold text-sm text-gray-900 truncate">{student.name}</p>
                                                         <p className="text-xs text-gray-600 truncate mt-1">
@@ -293,7 +374,7 @@ export default function AlertsIndex({
                                                         </Badge>
                                                     </div>
                                                 </Card>
-                                            </Link>
+                                            </div>
                                         ))}
                                     </div>
 
@@ -337,6 +418,9 @@ export default function AlertsIndex({
                                     <div className="text-center py-8 text-gray-500">
                                         <BookOpen className="w-12 h-12 mx-auto mb-4 text-gray-300" />
                                         <p>All section subjects have assigned teachers.</p>
+                                            {sectionsWithoutTeachers.total > 0 && (
+                                                <p className="text-xs text-gray-400 mt-2">(server total: {sectionsWithoutTeachers.total}, page: {sectionsWithoutTeachers.current_page})</p>
+                                            )}
                                     </div>
                                 ) : (
                                     <>
@@ -415,6 +499,9 @@ export default function AlertsIndex({
                                     <div className="text-center py-8 text-gray-500">
                                         <GraduationCap className="w-12 h-12 mx-auto mb-4 text-gray-300" />
                                         <p>All teachers have submitted their grades.</p>
+                                            {pendingGradeTeachers.total > 0 && (
+                                                <p className="text-xs text-gray-400 mt-2">(server total: {pendingGradeTeachers.total}, page: {pendingGradeTeachers.current_page})</p>
+                                            )}
                                     </div>
                                 ) : (
                                     <>
@@ -532,14 +619,16 @@ export default function AlertsIndex({
                                                     </tr>
                                                 </thead>
                                                 <tbody className="divide-y divide-gray-200">
-                                                    {pendingDetails.data.map((item, idx) => (
-                                                        <tr key={`pending-${idx}`} className="hover:bg-gray-50 transition-colors">
-                                                            <td className="px-3 py-3 text-gray-600 font-medium">{pendingDetails.from + idx}</td>
+                                                    {pendingDetails.data.map((item, idx) => {
+                                                                    const offset = ((pendingDetails.current_page || 1) - 1) * (pendingDetails.per_page || pendingDetails.data.length || 0);
+                                                                    return (
+                                                                    <tr key={`pending-${idx}`} className="hover:bg-gray-50 transition-colors">
+                                                                        <td className="px-3 py-3 text-gray-600 font-medium">{offset + idx + 1}</td>
                                                             <td className="px-3 py-3">
                                                                 <span className="font-medium text-gray-900">{item.student}</span>
                                                             </td>
                                                             <td className="px-3 py-3 text-gray-700">{item.subject}</td>
-                                                            <td className="px-3 py-3 text-gray-700">{item.section}</td>
+                                                            <td className="px-3 py-3 text-gray-700">{item.formatted_section_name ?? item.section}</td>
                                                             <td className="px-3 py-3 text-gray-700">{item.academic_year}</td>
                                                             <td className="px-3 py-3">
                                                                 <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800">{item.semester}</span>
@@ -551,23 +640,24 @@ export default function AlertsIndex({
                                                                 <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-800">{item.missing_grades}</span>
                                                             </td>
                                                         </tr>
-                                                    ))}
+                                                                    );
+                                                    })}
                                                 </tbody>
                                             </table>
                                         </div>
                                     </div>
 
-                                    {pendingDetails.total > pendingDetails.per_page && (
+                                    {pendingDetails.last_page > 1 && (
                                         <div className="mt-4 flex items-center justify-between">
-                                            <div className="text-sm text-gray-500">Showing {pendingDetails.from}–{pendingDetails.to} of {pendingDetails.total}</div>
+                                            <div className="text-sm text-gray-500">Showing {pendingDetails.from ?? ((pendingDetails.current_page - 1) * pendingDetails.per_page + 1)}–{pendingDetails.to ?? Math.min(pendingDetails.current_page * pendingDetails.per_page, pendingDetails.total)} of {pendingDetails.total}</div>
                                             <div className="flex items-center gap-2">
-                                                <Button size="sm" variant="outline" disabled={!pendingDetails.prev_page_url} onClick={() => fetchPendingDetails(selectedTeacher.id, pendingDetails.current_page - 1)}>
+                                                <Button size="sm" variant="outline" disabled={(pendingDetails.current_page || 1) <= 1} onClick={() => fetchPendingDetails(selectedTeacher.id, (pendingDetails.current_page || 1) - 1)}>
                                                     Previous
                                                 </Button>
 
                                                 <div className="text-sm text-gray-600">Page {pendingDetails.current_page} of {pendingDetails.last_page}</div>
 
-                                                <Button size="sm" variant="outline" disabled={!pendingDetails.next_page_url} onClick={() => fetchPendingDetails(selectedTeacher.id, pendingDetails.current_page + 1)}>
+                                                <Button size="sm" variant="outline" disabled={(pendingDetails.current_page || 1) >= (pendingDetails.last_page || 1)} onClick={() => fetchPendingDetails(selectedTeacher.id, (pendingDetails.current_page || 1) + 1)}>
                                                     Next
                                                 </Button>
                                             </div>

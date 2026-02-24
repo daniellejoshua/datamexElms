@@ -699,6 +699,7 @@ class RegistrarController extends Controller
             'phone' => ['nullable', 'string', 'max:20'],
             'email' => ['required', 'email'],
             'parent_contact' => ['nullable', 'string', 'max:20'],
+            'gender' => ['nullable', Rule::in(['male','female'])],
 
             // Academic Information
             'program_id' => ['required', 'exists:programs,id'],
@@ -1111,6 +1112,7 @@ class RegistrarController extends Controller
                 'middle_name' => $validated['middle_name'] ?? null,
                 'suffix' => $validated['suffix'] ?? null,
                 'birth_date' => $validated['birth_date'],
+                'gender' => $validated['gender'] ?? null,
                 'address' => $address,
                 'phone' => $validated['phone'] ?? null,
                 'parent_contact' => $validated['parent_contact'] ?? null,

@@ -58,6 +58,7 @@ it('registers a new student with all required information', function () {
         'first_name' => 'John',
         'last_name' => 'Doe',
         'middle_name' => 'Smith',
+        'gender' => 'male',
         'birth_date' => '2000-01-15',
         'address' => '123 Main St, City',
         'phone' => '09123456789',
@@ -96,6 +97,7 @@ it('registers a new student with all required information', function () {
         ->first();
 
     expect($student)->not->toBeNull();
+    expect($student->gender)->toBe('male');
     expect($student->student_type)->toBe('regular');
     expect($student->status)->toBe('active');
     expect($student->student_number)->toContain('COL');
@@ -119,6 +121,7 @@ it('creates a student account with email already verified and does not send veri
     $studentData = [
         'first_name' => 'Alice',
         'last_name' => 'Wonder',
+        'gender' => 'female',
         'birth_date' => '2001-02-03',
         'email' => 'alice.'.uniqid().'@example.com',
         'program_id' => $this->program->id,
@@ -149,6 +152,7 @@ it('charges SHS Grade 12 new student and does not apply voucher', function () {
     $studentData = [
         'first_name' => 'SHS',
         'last_name' => 'Grade12',
+        'gender' => 'female',
         'birth_date' => '2008-07-01',
         'address' => '123 SHS St',
         'phone' => '09120001122',
@@ -189,6 +193,7 @@ it('registers an irregular student', function () {
     $studentData = [
         'first_name' => 'Jane',
         'last_name' => 'Smith',
+        'gender' => 'female',
         'middle_name' => null,
         'birth_date' => '1999-05-20',
         'address' => '456 Oak Ave',
@@ -242,6 +247,7 @@ it('returns normalized year_level label for existing student check', function ()
     $payload = $response->json();
     expect($payload['exists'])->toBeTrue();
     expect($payload['student']['year_level'])->toBe('3rd Year');
+    expect(array_key_exists('gender', $payload['student']))->toBeTrue();
 
     // SHS mapping
     $shsProgram = Program::factory()->create(['education_level' => 'senior_high']);
@@ -266,6 +272,7 @@ it('creates user account with password123 as default password', function () {
     $studentData = [
         'first_name' => 'Test',
         'last_name' => 'Student',
+        'gender' => 'female',
         'middle_name' => null,
         'birth_date' => '2001-03-10',
         'address' => '123 Test St, City',
@@ -301,6 +308,7 @@ it('generates unique student numbers', function () {
     $studentData1 = [
         'first_name' => 'Student',
         'last_name' => 'One',
+        'gender' => 'male',
         'middle_name' => null,
         'birth_date' => '2000-01-01',
         'email' => 'student1@example.com',
@@ -315,6 +323,7 @@ it('generates unique student numbers', function () {
     $studentData2 = [
         'first_name' => 'Student',
         'last_name' => 'Two',
+        'gender' => 'female',
         'middle_name' => null,
         'birth_date' => '2000-02-02',
         'email' => 'student2@example.com',
