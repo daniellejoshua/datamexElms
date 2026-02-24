@@ -1020,8 +1020,11 @@ class SectionController extends Controller
                 ]);
             }
 
-            // Get all archived students for display
+            // Get all archived students for display.  we intentionally exclude
+            // students whose final status was "dropped" so they are not offered
+            // again and to avoid duplicate enrollment attempts.
             $archivedStudents = $archivedSection->archivedEnrollments
+                ->where('final_status', '!=', 'dropped')
                 ->map(function ($enrollment) {
                     return [
                         'id' => $enrollment->student_id,
@@ -1039,8 +1042,9 @@ class SectionController extends Controller
             $notEnrolledStudents = [];
             $yearLevelMismatch = [];
 
-            // Get all students who were enrolled in the archived section
+            // Get all students who were enrolled in the archived section (excluding dropped)
             $archivedStudentIds = $archivedSection->archivedEnrollments
+                ->where('final_status', '!=', 'dropped')
                 ->pluck('student_id')
                 ->unique()
                 ->toArray();
@@ -1058,9 +1062,13 @@ class SectionController extends Controller
                     continue;
                 }
 
-                // Check if student's current year level matches the section's year level
-                // This is important for progression - students who progressed should match
-                if ($student->current_year_level != $section->year_level && $student->student_type !== 'irregular') {
+                // For regular students, require the year to match exactly.  Irregular
+                // students bypass this check since they may be placed in a lower or
+                // higher level section by design.
+                $studentYear = (int) ($student->current_year_level ?? 0);
+                $sectionYear = (int) $section->year_level;
+
+                if ($student->student_type !== 'irregular' && $studentYear !== $sectionYear) {
                     $yearLevelMismatch[] = [
                         'id' => $student->id,
                         'name' => $student->user->name,
@@ -1070,6 +1078,21 @@ class SectionController extends Controller
                     ];
 
                     continue;
+                }
+
+                // If the irregular student has already completed all required
+                // subjects for this year level then they should not be carried
+                // forward, regardless of year mismatch.
+                if ($student->student_type === 'irregular') {
+                    $hasCompletedAllSubjectsForYearLevel = $this->hasCompletedAllSubjectsForYearLevel($student, $sectionYear);
+                    if ($hasCompletedAllSubjectsForYearLevel) {
+                        $skippedStudents[] = [
+                            'id' => $student->id,
+                            'name' => $student->user->name,
+                            'reason' => 'already completed all subjects for year level',
+                        ];
+                        continue;
+                    }
                 }
 
                 // Skip students who are not enrolled in the current semester OR are already in a current section
@@ -1089,7 +1112,74 @@ class SectionController extends Controller
                     continue;
                 }
 
+                // Before doing anything, if the student is irregular we must
+                // ensure there are still subjects they can take in the target
+                // section.  We basically re-run the availability filter used when
+                // rendering the section page.  If no subjects remain, skip them.
+                if ($student->student_type === 'irregular') {
+                    $enrolledSubjectCodes = \App\Models\StudentSubjectEnrollment::where('student_id', $studentId)
+                        ->where('status', 'active')
+                        ->pluck('section_subject_id')
+                        ->map(fn($id) => SectionSubject::find($id)?->subject?->subject_code)
+                        ->filter()
+                        ->unique()
+                        ->toArray();
+
+                    $creditedSubjectCodes = \App\Models\StudentSubjectCredit::where('student_id', $studentId)
+                        ->where('credit_status', 'credited')
+                        ->pluck('subject_code')
+                        ->toArray();
+
+                    $creditTransferSubjectCodes = \App\Models\StudentCreditTransfer::where('student_id', $studentId)
+                        ->where('credit_status', 'credited')
+                        ->pluck('subject_code')
+                        ->toArray();
+
+                    $allCreditedCodes = array_merge($creditedSubjectCodes, $creditTransferSubjectCodes);
+
+                    $sectionSubjectsQuery = \App\Models\SectionSubject::where('section_id', $section->id)
+                        ->where('status', 'active')
+                        ->whereHas('subject', function ($q) use ($allCreditedCodes, $enrolledSubjectCodes) {
+                            $q->whereNotIn('subject_code', array_merge($allCreditedCodes, $enrolledSubjectCodes));
+                        });
+
+                    // extra curriculum filter if coming from different program
+                    if ($student->program_id !== $section->program_id && $student->curriculum_id) {
+                        $studentCurriculumCodes = \App\Models\CurriculumSubject::where('curriculum_id', $student->curriculum_id)
+                            ->where('year_level', $section->year_level)
+                            ->pluck('subject_code')
+                            ->toArray();
+
+                        if (! empty($studentCurriculumCodes)) {
+                            $sectionSubjectsQuery->whereHas('subject', function ($q) use ($studentCurriculumCodes) {
+                                $q->whereIn('subject_code', $studentCurriculumCodes);
+                            });
+                        } else {
+                            // nothing available
+                            $skippedStudents[] = [
+                                'id' => $student->id,
+                                'name' => $student->user->name,
+                                'reason' => 'no available subjects',
+                            ];
+                            continue;
+                        }
+                    }
+
+                    if (! $sectionSubjectsQuery->exists()) {
+                        $skippedStudents[] = [
+                            'id' => $student->id,
+                            'name' => $student->user->name,
+                            'reason' => 'no available subjects',
+                        ];
+                        continue;
+                    }
+                }
+
                 // Check if student is already enrolled in any section for the current semester
+                // Regular students cannot be carried forward if they have *any* other
+                // active section. Irregular students are allowed to come from other
+                // sections, but we still prevent duplicates if they are already in
+                // the *target* section itself.
                 $existingEnrollment = StudentEnrollment::where([
                     'student_id' => $studentId,
                     'academic_year' => $section->academic_year,
@@ -1099,14 +1189,32 @@ class SectionController extends Controller
                   ->first();
 
                 if ($existingEnrollment) {
-                    $conflictSection = Section::with('program')->find($existingEnrollment->section_id);
-                    $skippedStudents[] = [
-                        'id' => $student->id,
-                        'name' => $student->user->name,
-                        'reason' => 'already enrolled in '.($conflictSection ? $conflictSection->section_name : 'another section'),
-                    ];
+                    // If it's the same section, skip regardless of student type.
+                    if ($existingEnrollment->section_id === $section->id) {
+                        $formatted = $section->program->program_code.'-'.$section->year_level.$section->section_name;
+                        $skippedStudents[] = [
+                            'id' => $student->id,
+                            'name' => $student->user->name,
+                            'reason' => 'already enrolled in '.$formatted,
+                        ];
+                        continue;
+                    }
 
-                    continue;
+                    // If the student is regular and enrolled elsewhere, skip.
+                    if ($student->student_type !== 'irregular') {
+                        $conflictSection = Section::with('program')->find($existingEnrollment->section_id);
+                        $formatted = $conflictSection
+                            ? ($conflictSection->program->program_code.'-'.$conflictSection->year_level.$conflictSection->section_name)
+                            : 'another section';
+
+                        $skippedStudents[] = [
+                            'id' => $student->id,
+                            'name' => $student->user->name,
+                            'reason' => 'already enrolled in '.$formatted,
+                        ];
+                        continue;
+                    }
+                    // irregular student with other section enrollment is fine; carry forward
                 }
 
                 // Create the enrollment record
@@ -1120,30 +1228,34 @@ class SectionController extends Controller
                     'status' => 'active',
                 ]);
 
-                // Automatically enroll student in all section subjects
-                $sectionSubjects = SectionSubject::where('section_id', $section->id)
-                    ->where('status', 'active')
-                    ->get();
+                // Only automatically enroll in subjects when the student is a
+                // regular enrollee; irregular students choose subjects manually
+                // so carrying them forward should not mass‑assign every subject.
+                if ($student->student_type !== 'irregular') {
+                    $sectionSubjects = SectionSubject::where('section_id', $section->id)
+                        ->where('status', 'active')
+                        ->get();
 
-                foreach ($sectionSubjects as $sectionSubject) {
-                    $existingSubjectEnrollment = StudentSubjectEnrollment::where([
-                        'student_id' => $studentId,
-                        'section_subject_id' => $sectionSubject->id,
-                        'academic_year' => $section->academic_year,
-                        'semester' => $section->semester,
-                    ])->first();
-
-                    if (! $existingSubjectEnrollment) {
-                        StudentSubjectEnrollment::create([
+                    foreach ($sectionSubjects as $sectionSubject) {
+                        $existingSubjectEnrollment = StudentSubjectEnrollment::where([
                             'student_id' => $studentId,
                             'section_subject_id' => $sectionSubject->id,
-                            'enrollment_type' => 'regular',
                             'academic_year' => $section->academic_year,
                             'semester' => $section->semester,
-                            'status' => 'active',
-                            'enrollment_date' => now(),
-                            'enrolled_by' => Auth::id(),
-                        ]);
+                        ])->first();
+
+                        if (! $existingSubjectEnrollment) {
+                            StudentSubjectEnrollment::create([
+                                'student_id' => $studentId,
+                                'section_subject_id' => $sectionSubject->id,
+                                'enrollment_type' => 'regular',
+                                'academic_year' => $section->academic_year,
+                                'semester' => $section->semester,
+                                'status' => 'active',
+                                'enrollment_date' => now(),
+                                'enrolled_by' => Auth::id(),
+                            ]);
+                        }
                     }
                 }
 

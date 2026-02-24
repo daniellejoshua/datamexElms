@@ -45,6 +45,14 @@ class StudentEnrollmentObserver
             return;
         }
 
+        // Do not automatically create subject enrollments for irregular students
+        // — they need to select subjects manually. This covers both new
+        // enrollments and carries when the observer fires after section change.
+        $student = $enrollment->student;
+        if ($student && $student->student_type === 'irregular') {
+            return;
+        }
+
         $sectionSubjects = SectionSubject::where('section_id', $sectionId)
             ->where('status', 'active')
             ->get();
