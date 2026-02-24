@@ -71,11 +71,6 @@ export default function AcademicHistory({ student, curriculumSubjects, completed
     const isShiftee = student?.transfer_type === 'shiftee';
     const isTransferee = student?.transfer_type === 'transferee';
 
-    // credits originating from inside the school (no external source) should
-    // display professor name instead of credit type / source badge.  this mirrors
-    // the logic used in the registrar view so the two tables line up visually.
-    const isInternalCredit = (subject) => !subject.credited_from;
-
     // Group curriculum subjects by year and semester
     let groupedSubjects = curriculumSubjects?.reduce((acc, subject) => {
         const yearKey = `Year ${subject.year_level}`
@@ -104,8 +99,13 @@ export default function AcademicHistory({ student, curriculumSubjects, completed
     // Calculate completion statistics (excluding credited subjects)
     const totalSubjects = completionStats?.totalSubjects || 0
     const completedCount = completionStats?.completedSubjects || 0
-    // Count credited subjects that backend has already marked as completed
-    const creditedCount = completedSubjects?.filter(subject => subject.type === 'credited').length || 0
+    // Count credited subjects with passing grades (>= 75)
+    const creditedCount = subjectGrades?.filter(grade => {
+        if (grade.type !== 'credited') return false;
+        const gradeValue = parseFloat(grade.final_grade);
+        // Include subjects with no grade (CR) or grades >= 75
+        return isNaN(gradeValue) || gradeValue >= 75;
+    }).length || 0
     const completionPercentage = completionStats?.completionPercentage || 0
 
     return (
@@ -159,13 +159,13 @@ export default function AcademicHistory({ student, curriculumSubjects, completed
                                 <div className="flex justify-center mb-2">
                                     <CheckCircle2 className="w-8 h-8 text-green-600" />
                                 </div>
-                                <div className="text-2xl font-bold text-green-900">{completedCount + creditedCount} / {totalSubjects}</div>
+                                <div className="text-2xl font-bold text-green-900">{completedCount} / {totalSubjects}</div>
                                 <div className="text-sm text-green-600">
                                     Subjects Completed
                                 </div>
                                 {creditedCount > 0 && (
                                     <div className="text-xs text-green-700 mt-2">
-                                        {completedCount} graded + {creditedCount} credited from other schools
+                                        {creditedCount} credited from other schools
                                     </div>
                                 )}
                             </div>
@@ -398,10 +398,7 @@ export default function AcademicHistory({ student, curriculumSubjects, completed
                                                 <th className="text-left py-3 px-4 font-medium text-gray-700">Grade</th>
                                                 <th className="text-left py-3 px-4 font-medium text-gray-700">Professor</th>
                                                 <th className="text-left py-3 px-4 font-medium text-gray-700">Source</th>
-                                                {/* date column shown only for external credits (hide when shiftee) */}
-                                                {!isShiftee && (
-                                                    <th className="text-left py-3 px-4 font-medium text-gray-700">Date Credited</th>
-                                                )}
+                                                <th className="text-left py-3 px-4 font-medium text-gray-700">Date Credited</th>
                                             </tr>
                                         </thead>
                                         <tbody>
@@ -447,7 +444,7 @@ export default function AcademicHistory({ student, curriculumSubjects, completed
                                                             <span className="text-sm text-gray-500">Internal</span>
                                                         )}
                                                     </td>
-                                                    {!isShiftee && (
+                                                    {!isInternalCredit(subject) && (
                                                         <td className="py-3 px-4 text-sm text-gray-600">
                                                             {subject.credited_at ? new Date(subject.credited_at).toLocaleDateString() : 'N/A'}
                                                         </td>

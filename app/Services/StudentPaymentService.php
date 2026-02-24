@@ -325,6 +325,14 @@ class StudentPaymentService
         $pastYearSubjects = [];
 
         foreach ($subjectEnrollments as $enrollment) {
+            // only count subjects that were taken irregularly; regular past subjects
+            // should not incur extra fees even if the student later becomes
+            // irregular/transfer.  this keeps the calculation aligned with
+            // registrar behavior.
+            if (($enrollment->enrollment_type ?? null) !== 'irregular') {
+                continue;
+            }
+
             $subjectYearLevel = $enrollment->sectionSubject->section->year_level ?? $currentYearLevel;
 
             // If subject is from a past/lower year level

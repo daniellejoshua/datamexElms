@@ -52,14 +52,25 @@ class PaymentsController extends Controller
         // Calculate proper total amounts for irregular students
         $hasCreditTransfers = $student->creditTransfers()->exists() || (bool) $student->previous_school;
 
-        $paymentHistory->transform(function ($payment) use ($student, $hasCreditTransfers) {
+        $currentYear = SchoolSetting::getCurrentAcademicYear();
+        $currentSemester = SchoolSetting::getCurrentSemester();
+
+        $paymentHistory->transform(function ($payment) use ($student, $hasCreditTransfers, $currentYear, $currentSemester) {
             // Compute a calculated total amount for irregular payments only when the
             // payment model matches `StudentSemesterPayment` — the service expects
             // that type. SHS uses `ShsStudentPayment` (annual) so skip the
             // irregular balance calculation for SHS payments.
             if ($payment instanceof StudentSemesterPayment && ($student->student_type === 'irregular' || $hasCreditTransfers)) {
-                // Check if balance has already been calculated and stored
-                if ($payment->is_balance_calculated && $payment->calculated_total_amount) {
+                // If it's a past term (before current academic period) we never
+                // perform a calculation. previous values remain null unless already
+                // stored; this keeps earlier semesters frozen.
+                $isPast = $payment->academic_year < $currentYear
+                    || ($payment->academic_year === $currentYear && in_array($payment->semester, ['1st','2nd','summer']) &&
+                        ($payment->semester !== $currentSemester));
+
+                if ($isPast) {
+                    // leave whatever is already on the model (possibly null)
+                } elseif ($payment->is_balance_calculated && $payment->calculated_total_amount) {
                     // Use stored calculated amount
                     $payment->calculated_total_amount = $payment->calculated_total_amount;
                 } else {

@@ -228,23 +228,10 @@ class CreditTransferController extends Controller
 
                     // also merge any archived grades (teacher info may live here)
                     $archivedSubjectsQuery = \App\Models\ArchivedStudentSubject::where('student_id', $student->id)
+                        ->whereNotNull('final_grade')
                         ->with('teacher.user')
                         ->get()
                         ->map(function ($s) {
-                            // treat any record without a semester or final grade as partial
-                            $isPartial = is_null($s->semester_grade) && is_null($s->final_grade);
-
-                            // treat passing the same way as regular grades when present
-                            $passed = false;
-                            if (! is_null($s->semester_grade) || ! is_null($s->final_grade)) {
-                                $gradeVal = $s->semester_grade ?? $s->final_grade;
-                                if (is_numeric($gradeVal)) {
-                                    $passed = $gradeVal >= 75;
-                                } else {
-                                    $passed = true; // CR or non-numeric treated as pass
-                                }
-                            }
-
                             return [
                                 'subject_id' => $s->subject_id,
                                 'subject_code' => $s->subject_code,
@@ -252,8 +239,8 @@ class CreditTransferController extends Controller
                                 'final_grade' => $s->final_grade,
                                 'units' => $s->units,
                                 'source' => 'archived',
-                                'is_partial' => $isPartial,
-                                'passed' => $passed,
+                                'is_partial' => false,
+                                'passed' => is_numeric($s->final_grade) ? ($s->final_grade >= 75) : true,
                                 'teacher_name' => $s->teacher?->user?->name,
                             ];
                         });

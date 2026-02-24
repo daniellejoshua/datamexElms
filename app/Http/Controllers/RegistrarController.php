@@ -2572,8 +2572,6 @@ class RegistrarController extends Controller
                         'semester_grade' => $s->semester_grade,
                         'missing' => $isMissing,
                         'missing_grades' => $missingGrades,
-                        // capture professor from archived record so the frontend can use it
-                        'teacher_name' => $s->teacher?->user?->name,
                     ];
                 })->toArray();
 
@@ -2638,7 +2636,7 @@ class RegistrarController extends Controller
                     'subject_code' => $s['subject_code'],
                     'subject_name' => $s['subject_name'],
                     'type' => 'archived',
-                    'teacher_name' => $s['teacher_name'] ?? null,
+                    'teacher_name' => null,
                     'final_grade' => $s['final_grade'] ?? null,
                     'semester_grade' => $s['semester_grade'] ?? null,
                     // prefer explicit per-term missing badges when available; fall back to generic 'Grade'
@@ -2669,11 +2667,6 @@ class RegistrarController extends Controller
             if (! $isCompleted) {
                 foreach ($subjectGradesMap as $grade) {
                     if ($grade['subject_code'] === $subjectCode && $grade['type'] === 'credited') {
-                        // skip credits that are not yet marked complete (e.g. partial from old program)
-                        if (empty($grade['is_complete'])) {
-                            continue;
-                        }
-
                         $gradeValue = $grade['final_grade'];
                         $isTransfereeCredit = ! is_null($grade['credited_from'] ?? null);
                         if (is_null($gradeValue) || $gradeValue === 'CR') {

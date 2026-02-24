@@ -55,6 +55,95 @@ it('shows calculated balance on student payments page for transferees with credi
     );
 });
 
+it('does not calculate balance for past semester payments', function () {
+    $academicYear = SchoolSetting::getCurrentAcademicYear();
+    $semester = SchoolSetting::getCurrentSemester();
+
+    $program = Program::factory()->create(['education_level' => 'college']);
+    $user = User::factory()->create(['role' => 'student']);
+    $student = Student::factory()->create([
+        'user_id' => $user->id,
+        'program_id' => $program->id,
+        'student_type' => 'regular',
+        'previous_school' => 'Previous College',
+    ]);
+
+    // create a payment from a previous academic period
+    StudentSemesterPayment::create([
+        'student_id' => $student->id,
+        'academic_year' => '2023-2024',
+        'semester' => '2nd',
+        'enrollment_fee' => 0,
+        'total_semester_fee' => 0,
+        'total_paid' => 0,
+        'balance' => 0,
+        'status' => 'pending',
+    ]);
+
+    $response = $this->actingAs($user)->get(route('student.payments'));
+    $response->assertSuccessful();
+    $response->assertInertia(fn (Assert $page) =>
+        $page->component('Student/Payments/Index')
+            ->has('paymentHistory')
+            ->where('paymentHistory.0.calculated_total_amount', null)
+    );
+});
+
+// regression: regular subjects taken in earlier years should not contribute
+// to irregular fee when the student becomes irregular in a later year.
+it('does not charge past regular subjects once student becomes irregular', function () {
+    $academicYear = SchoolSetting::getCurrentAcademicYear();
+    $semester = SchoolSetting::getCurrentSemester();
+
+    $program = Program::factory()->create(['education_level' => 'college']);
+    $user = User::factory()->create(['role' => 'student']);
+    $student = Student::factory()->create([
+        'user_id' => $user->id,
+        'program_id' => $program->id,
+        'student_type' => 'regular',
+    ]);
+
+    // create a regular subject enrollment from previous year
+    $oldSection = \App\Models\Section::factory()->create([
+        'program_id' => $program->id,
+        'year_level' => 1,
+    ]);
+    $oldSectionSubject = \App\Models\SectionSubject::factory()->create([
+        'section_id' => $oldSection->id,
+        'subject_id' => \App\Models\Subject::factory()->create(['program_id' => $program->id])->id,
+        'teacher_id' => \App\Models\Teacher::factory()->create()->id,
+        'status' => 'active',
+    ]);
+    \App\Models\StudentSubjectEnrollment::create([
+        'student_id' => $student->id,
+        'section_subject_id' => $oldSectionSubject->id,
+        'academic_year' => '2023-2024',
+        'semester' => '1st',
+        'status' => 'completed',
+        'enrollment_type' => 'regular',
+        'enrollment_date' => now(),
+        'enrolled_by' => $user->id,
+    ]);
+
+    // now mark student irregular and add current payment record
+    $student->update(['student_type' => 'irregular']);
+    $payment = StudentSemesterPayment::create([
+        'student_id' => $student->id,
+        'academic_year' => $academicYear,
+        'semester' => $semester,
+        'enrollment_fee' => 0,
+        'total_semester_fee' => 0,
+        'total_paid' => 0,
+        'balance' => 0,
+        'status' => 'pending',
+    ]);
+
+    // instead of inspecting the Inertia props we hit the calculation route directly
+    $calc = $this->actingAs($user)->get(route('student.payments.calculate-irregular', $payment->id));
+    $calc->assertSuccessful();
+    $calc->assertJsonPath('details.past_year_subjects_count', 0);
+});
+
 it('shows calculated balance on registrar payment show for transferees with credits', function () {
     $academicYear = SchoolSetting::getCurrentAcademicYear();
     $semester = SchoolSetting::getCurrentSemester();
