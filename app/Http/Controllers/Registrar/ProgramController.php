@@ -198,6 +198,22 @@ class ProgramController extends Controller
             );
         }
 
+        // After changing fees, freeze any existing student payments for this
+        // program that belong to past academic years/semesters.  This ensures
+        // irregular students created before the freeze logic won't see their
+        // stored amounts change when we recalc or touch them elsewhere.
+        $currentYear = \App\Models\SchoolSetting::getCurrentAcademicYear();
+        $currentSemester = \App\Models\SchoolSetting::getCurrentSemester();
+
+        \App\Models\StudentSemesterPayment::whereHas('student', function ($q) use ($program) {
+            $q->where('program_id', $program->id);
+        })
+        ->where(function ($q) use ($currentYear, $currentSemester) {
+            $q->where('academic_year', '!=', $currentYear)
+              ->orWhere('semester', '!=', $currentSemester);
+        })
+        ->update(['fee_finalized' => true]);
+
         if ($request->has('modal')) {
             return response()->json([
                 'program' => $program->load(['subjects', 'sections', 'students', 'programFees']),

@@ -55,7 +55,25 @@ class FixStudentPaymentFees extends Command
         $fixed = 0;
 
         foreach ($collegePayments->concat($shsPayments) as $payment) {
+            // skip finalized payments by default to avoid changing historical
+            // records; pass --all to override this behaviour.
+            if (! $allFlag && ($payment->fee_finalized ?? false)) {
+                continue;
+            }
+
             $student = $payment->student;
+
+            // automatically freeze payments that belong to past academic periods
+            // this makes it easier to catch rows created before the freeze logic
+            // was introduced in the service layer.
+            $currentYear = \App\Models\SchoolSetting::getCurrentAcademicYear();
+            $currentSemester = \App\Models\SchoolSetting::getCurrentSemester();
+            if ($payment->academic_year !== $currentYear || $payment->semester !== $currentSemester) {
+                if (! $dryRun) {
+                    $payment->fee_finalized = true;
+                    $payment->save();
+                }
+            }
 
             // Get current year level
             $currentYearLevel = $student->current_year_level ?? $student->year_level;

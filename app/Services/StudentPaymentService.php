@@ -94,6 +94,12 @@ class StudentPaymentService
             'balance' => $totalSemesterFee,
             'payment_plan' => $isIrregular ? 'custom' : 'installment',
             'status' => 'pending',
+            // Mark payments for past/future (non-current) academic periods as finalized
+            // so subsequent program fee updates do not alter historical records.
+            'fee_finalized' => (
+                $academicYear !== \App\Models\SchoolSetting::getCurrentAcademicYear() ||
+                $semester !== \App\Models\SchoolSetting::getCurrentSemester()
+            ),
         ]);
 
         // if the student is irregular or a transferee we calculate and persist

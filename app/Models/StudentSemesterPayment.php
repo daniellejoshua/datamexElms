@@ -38,6 +38,7 @@ class StudentSemesterPayment extends Model
         'is_balance_calculated',
         'payment_plan',
         'status',
+        'fee_finalized',
     ];
 
     protected function casts(): array
@@ -255,6 +256,24 @@ class StudentSemesterPayment extends Model
     protected static function booted(): void
     {
         static::saving(function (StudentSemesterPayment $payment) {
+            // If the payment has been finalized, prevent changes to fee-related fields
+            if ($payment->fee_finalized) {
+                $feeFields = [
+                    'total_semester_fee',
+                    'irregular_subject_fee',
+                    'irregular_subjects_count',
+                    'credit_transfer_deduction',
+                    'calculated_total_amount',
+                    'balance',
+                ];
+
+                foreach ($feeFields as $field) {
+                    if ($payment->isDirty($field)) {
+                        $payment->{$field} = $payment->getOriginal($field);
+                    }
+                }
+            }
+
             $payment->total_paid = $payment->calculateTotalPaid();
             $payment->balance = $payment->calculateBalance();
 

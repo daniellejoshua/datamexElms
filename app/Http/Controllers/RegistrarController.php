@@ -1431,6 +1431,11 @@ class RegistrarController extends Controller
                         'enrollment_payment_date' => null,
                         'total_semester_fee' => $enrollmentFee,
                         'payment_plan' => 'installment',
+                        // mark frozen if not current period
+                        'fee_finalized' => (
+                            $academicYear !== \App\Models\SchoolSetting::getCurrentAcademicYear() ||
+                            $semester !== \App\Models\SchoolSetting::getCurrentSemester()
+                        ),
                         // Note: total_paid and balance will be calculated by the model's booted() method
                     ]);
                 } else {

@@ -257,6 +257,10 @@ class CollegePaymentController extends Controller
             'balance' => $totalDue,
             'status' => 'pending',
             'payment_plan' => 'full',
+            'fee_finalized' => (
+                $validated['academic_year'] !== \App\Models\SchoolSetting::getCurrentAcademicYear() ||
+                $validated['semester'] !== \App\Models\SchoolSetting::getCurrentSemester()
+            ),
         ]);
 
         // Remove PaymentItem creation as it doesn't exist in StudentSemesterPayment
