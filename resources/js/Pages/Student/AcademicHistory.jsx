@@ -58,6 +58,19 @@ export default function AcademicHistory({ student, curriculumSubjects, completed
         return section.section_name || 'N/A'
     }
 
+    const renderGradeBadge = (subject) => {
+        if (subject.final_grade) {
+            return <Badge className="bg-green-500 text-white">{subject.final_grade}</Badge>
+        }
+        if (subject.credit_type) {
+            return <Badge variant="outline" className="text-gray-600">CR</Badge>
+        }
+        return <span className="text-gray-400">-</span>
+    }
+
+    const isShiftee = student?.transfer_type === 'shiftee';
+    const isTransferee = student?.transfer_type === 'transferee';
+
     // Group curriculum subjects by year and semester
     let groupedSubjects = curriculumSubjects?.reduce((acc, subject) => {
         const yearKey = `Year ${subject.year_level}`
@@ -377,10 +390,13 @@ export default function AcademicHistory({ student, curriculumSubjects, completed
                                         <thead>
                                             <tr className="border-b">
                                                 <th className="text-left py-3 px-4 font-medium text-gray-700">Subject Code</th>
+                                                {!isTransferee && (
+                                                    <th className="text-left py-3 px-4 font-medium text-gray-700">Original Code</th>
+                                                )}
                                                 <th className="text-left py-3 px-4 font-medium text-gray-700">Subject Name</th>
                                                 <th className="text-left py-3 px-4 font-medium text-gray-700">Units</th>
                                                 <th className="text-left py-3 px-4 font-medium text-gray-700">Grade</th>
-                                                <th className="text-left py-3 px-4 font-medium text-gray-700">Credit Type</th>
+                                                <th className="text-left py-3 px-4 font-medium text-gray-700">Professor</th>
                                                 <th className="text-left py-3 px-4 font-medium text-gray-700">Source</th>
                                                 <th className="text-left py-3 px-4 font-medium text-gray-700">Date Credited</th>
                                             </tr>
@@ -393,6 +409,11 @@ export default function AcademicHistory({ student, curriculumSubjects, completed
                                                             {subject.subject_code}
                                                         </Badge>
                                                     </td>
+                                                    {!isTransferee && (
+                                                        <td className="py-3 px-4 text-sm text-gray-600">
+                                                            {subject.original_subject_code || '-'}
+                                                        </td>
+                                                    )}
                                                     <td className="py-3 px-4">
                                                         <div className="font-medium text-gray-900">{subject.subject_name}</div>
                                                     </td>
@@ -400,15 +421,19 @@ export default function AcademicHistory({ student, curriculumSubjects, completed
                                                         {curriculumSubjects?.find(curr => curr.subject_code === subject.subject_code)?.units || 'N/A'} units
                                                     </td>
                                                     <td className="py-3 px-4">
-                                                        <Badge className="bg-blue-500 text-white">
-                                                            {subject.final_grade || 'CR'}
-                                                        </Badge>
+                                                        {renderGradeBadge(subject)}
                                                     </td>
-                                                    <td className="py-3 px-4">
-                                                        <Badge variant="outline" className="capitalize">
-                                                            {subject.credit_type || 'Transfer'}
-                                                        </Badge>
-                                                    </td>
+                                                    {isInternalCredit(subject) ? (
+                                                        <td className="py-3 px-4 text-sm text-gray-700">
+                                                            {subject.teacher_name || '—'}
+                                                        </td>
+                                                    ) : (
+                                                        <td className="py-3 px-4">
+                                                            <Badge variant="outline" className="capitalize">
+                                                                {subject.credit_type || 'Transfer'}
+                                                            </Badge>
+                                                        </td>
+                                                    )}
                                                     <td className="py-3 px-4">
                                                         {subject.credited_from ? (
                                                             <div className="flex items-center gap-2">
@@ -419,9 +444,11 @@ export default function AcademicHistory({ student, curriculumSubjects, completed
                                                             <span className="text-sm text-gray-500">Internal</span>
                                                         )}
                                                     </td>
-                                                    <td className="py-3 px-4 text-sm text-gray-600">
-                                                        {subject.credited_at ? new Date(subject.credited_at).toLocaleDateString() : 'N/A'}
-                                                    </td>
+                                                    {!isInternalCredit(subject) && (
+                                                        <td className="py-3 px-4 text-sm text-gray-600">
+                                                            {subject.credited_at ? new Date(subject.credited_at).toLocaleDateString() : 'N/A'}
+                                                        </td>
+                                                    )}
                                                 </tr>
                                             ))}
                                         </tbody>

@@ -2310,6 +2310,18 @@ class RegistrarController extends Controller
                         if (! $code) continue;
 
                         if (! isset($subjectGradesMap[$code])) {
+                            // determine if this credit came from a partial grade (no final/semester yet)
+                            $isPartial = ! empty($credit['is_partial']) || is_null($credit['grade']);
+
+                            // compute missing grades list when partial so UI can show warning
+                            $missingGrades = [];
+                            if ($isPartial) {
+                                $isSHS = $student->current_year_level >= 11 && $student->current_year_level <= 12;
+                                $missingGrades = $isSHS
+                                    ? ['Q1', 'Q2']
+                                    : ['Prelim', 'Midterm', 'Prefinal', 'Final'];
+                            }
+
                             $subjectGradesMap[$code] = [
                                 'subject_id' => $credit['subject_id'] ?? null,
                                 'subject_code' => $code,
@@ -2319,12 +2331,14 @@ class RegistrarController extends Controller
                                 'final_grade' => $credit['grade'] ?? null,
                                 'credited_from' => null,
                                 'credited_at' => null,
-                                'is_complete' => true,
+                                'is_complete' => ! $isPartial,
+                                'missing_grades' => $missingGrades,
                                 // indicate this row came from a prior program comparison
                                 'from_old_program' => true,
                                 // carry old program details when available
                                 'original_subject_code' => $credit['old_subject_code'] ?? null,
                                 'original_subject_name' => $credit['old_subject_name'] ?? null,
+                                'teacher_name' => $credit['teacher_name'] ?? null,
                                 // cache helpful curriculum metadata so UI can render units/semester
                                 'units' => $credit['units'] ?? null,
                                 'year_level' => $credit['year_level'] ?? null,
@@ -2332,13 +2346,15 @@ class RegistrarController extends Controller
                             ];
                         }
 
-                        // ensure it appears in completed list
-                        $completedSubjects[] = [
-                            'subject_id' => $credit['subject_id'] ?? null,
-                            'subject_code' => $code,
-                            'subject_name' => $credit['subject_name'] ?? null,
-                            'type' => 'credited',
-                        ];
+                        // ensure it appears in completed list (but skip partials)
+                        if (empty($isPartial)) {
+                            $completedSubjects[] = [
+                                'subject_id' => $credit['subject_id'] ?? null,
+                                'subject_code' => $code,
+                                'subject_name' => $credit['subject_name'] ?? null,
+                                'type' => 'credited',
+                            ];
+                        }
 
                         // if the matched subject doesn't exist yet in the curriculum list,
                         // add an entry so the UI grid remains populated for shiftees even
@@ -2556,6 +2572,8 @@ class RegistrarController extends Controller
                         'semester_grade' => $s->semester_grade,
                         'missing' => $isMissing,
                         'missing_grades' => $missingGrades,
+                        // capture professor from archived record so the frontend can use it
+                        'teacher_name' => $s->teacher?->user?->name,
                     ];
                 })->toArray();
 
@@ -2620,7 +2638,7 @@ class RegistrarController extends Controller
                     'subject_code' => $s['subject_code'],
                     'subject_name' => $s['subject_name'],
                     'type' => 'archived',
-                    'teacher_name' => null,
+                    'teacher_name' => $s['teacher_name'] ?? null,
                     'final_grade' => $s['final_grade'] ?? null,
                     'semester_grade' => $s['semester_grade'] ?? null,
                     // prefer explicit per-term missing badges when available; fall back to generic 'Grade'

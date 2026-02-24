@@ -193,7 +193,7 @@ class CreditTransferController extends Controller
                                 ->orWhereNotNull('final_grade')
                                 ->orWhereNotNull('semester_grade');
                         })
-                        ->with('sectionSubject.subject')
+                        ->with(['sectionSubject.subject', 'sectionSubject.teacher.user'])
                         ->get()
                         ->filter(function ($grade) {
                             return $grade->sectionSubject && $grade->sectionSubject->subject;
@@ -201,6 +201,12 @@ class CreditTransferController extends Controller
                         ->map(function ($grade) {
                             // best available grade (prefer semester/final then prefinal/midterm/prelim)
                             $best = $grade->semester_grade ?? $grade->final_grade ?? $grade->prefinal_grade ?? $grade->midterm_grade ?? $grade->prelim_grade;
+
+                            // gather teacher name if available
+                            $teacherName = null;
+                            if ($grade->sectionSubject && $grade->sectionSubject->teacher && $grade->sectionSubject->teacher->user) {
+                                $teacherName = $grade->sectionSubject->teacher->user->name;
+                            }
 
                             return [
                                 'subject_id' => $grade->sectionSubject->subject_id,
@@ -211,6 +217,7 @@ class CreditTransferController extends Controller
                                 'source' => 'grade',
                                 'is_partial' => is_null($grade->final_grade) && is_null($grade->semester_grade) && ($grade->prelim_grade || $grade->midterm_grade || $grade->prefinal_grade),
                                 'passed' => is_numeric($best) ? ($best >= 75) : false,
+                                'teacher_name' => $teacherName,
                             ];
                         });
 
@@ -218,6 +225,40 @@ class CreditTransferController extends Controller
                     $studentCompletedSubjects = $creditedSubjectsQuery
                         ->concat($creditTransfersQuery)
                         ->concat($gradedSubjectsQuery);
+
+                    // also merge any archived grades (teacher info may live here)
+                    $archivedSubjectsQuery = \App\Models\ArchivedStudentSubject::where('student_id', $student->id)
+                        ->with('teacher.user')
+                        ->get()
+                        ->map(function ($s) {
+                            // treat any record without a semester or final grade as partial
+                            $isPartial = is_null($s->semester_grade) && is_null($s->final_grade);
+
+                            // treat passing the same way as regular grades when present
+                            $passed = false;
+                            if (! is_null($s->semester_grade) || ! is_null($s->final_grade)) {
+                                $gradeVal = $s->semester_grade ?? $s->final_grade;
+                                if (is_numeric($gradeVal)) {
+                                    $passed = $gradeVal >= 75;
+                                } else {
+                                    $passed = true; // CR or non-numeric treated as pass
+                                }
+                            }
+
+                            return [
+                                'subject_id' => $s->subject_id,
+                                'subject_code' => $s->subject_code,
+                                'subject_name' => $s->subject_name,
+                                'final_grade' => $s->final_grade,
+                                'units' => $s->units,
+                                'source' => 'archived',
+                                'is_partial' => $isPartial,
+                                'passed' => $passed,
+                                'teacher_name' => $s->teacher?->user?->name,
+                            ];
+                        });
+
+                    $studentCompletedSubjects = $studentCompletedSubjects->concat($archivedSubjectsQuery);
 
                     // Also include active student subject enrollments (no dropped enrollments)
                     $enrolledSubjects = \App\Models\StudentSubjectEnrollment::where('student_id', $student->id)
@@ -250,11 +291,11 @@ class CreditTransferController extends Controller
 
             // For shiftees: Find transferred subjects and catch-up subjects
             if ($request->previous_program_id && $previousSubjects->isNotEmpty() && $request->student_id) {
-                // prepare a set of minor (non-major) codes from the old curriculum; we only
-                // attempt to transfer those subjects since major courses are never moved
-                $minorCodes = $previousSubjects->filter(function ($sub) {
-                    return strtolower($sub->subject_type) !== 'major';
-                })->pluck('subject_code')
+                // prepare a set of subject codes from the old curriculum.  earlier
+                // logic limited this to "minor" courses only, but it turns out shiftees
+                // expect all completed subjects to carry over (including majors) so
+                // we'll stop filtering by subject_type here.
+                $minorCodes = $previousSubjects->pluck('subject_code')
                   ->map(fn($c) => strtolower(preg_replace('/[^A-Za-z0-9]/', '', $c)))
                   ->unique()
                   ->toArray();
@@ -358,6 +399,7 @@ class CreditTransferController extends Controller
                                 'is_partial' => ($completed['source'] === 'grade' && ($completed['is_partial'] ?? false)) || ($completed['source'] === 'enrolled'),
                                 'old_subject_code' => is_string($completed['subject_code']) ? trim($completed['subject_code']) : null,
                             'old_subject_name' => is_string($completed['subject_name']) ? trim($completed['subject_name']) : null,
+                                'teacher_name' => $completed['teacher_name'] ?? null,
                                 'match_reason' => ($completed['source'] !== 'grade' && $completed['source'] !== 'enrolled') ? 'Existing credit' : 'Matched by name/code',
                                 'auto_credit' => $isAutoCreditable,
                                 'requires_review' => ! $isAutoCreditable,

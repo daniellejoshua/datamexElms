@@ -149,6 +149,16 @@ class AcademicHistoryController extends Controller
                         if (! $code) continue;
 
                         if (! isset($subjectGradesMap[$code])) {
+                            // detect partial status and missing grades same as registrar logic
+                            $isPartial = ! empty($credit['is_partial']) || is_null($credit['grade']);
+                            $missingGrades = [];
+                            if ($isPartial) {
+                                $isSHS = $student->current_year_level >= 11 && $student->current_year_level <= 12;
+                                $missingGrades = $isSHS
+                                    ? ['Q1', 'Q2']
+                                    : ['Prelim', 'Midterm', 'Prefinal', 'Final'];
+                            }
+
                             $subjectGradesMap[$code] = [
                                 'subject_id' => $credit['subject_id'] ?? null,
                                 'subject_code' => $code,
@@ -158,21 +168,25 @@ class AcademicHistoryController extends Controller
                                 'final_grade' => $credit['grade'] ?? null,
                                 'credited_from' => null,
                                 'credited_at' => null,
-                                'is_complete' => true,
+                                'is_complete' => ! $isPartial,
+                                'missing_grades' => $missingGrades,
                                 'original_subject_code' => $credit['old_subject_code'] ?? null,
                                 'original_subject_name' => $credit['old_subject_name'] ?? null,
+                                'teacher_name' => $credit['teacher_name'] ?? null,
                                 'units' => $credit['units'] ?? null,
                                 'year_level' => $credit['year_level'] ?? null,
                                 'semester' => $credit['semester'] ?? null,
                             ];
                         }
 
-                        $completedSubjects[] = [
-                            'subject_id' => $credit['subject_id'] ?? null,
-                            'subject_code' => $code,
-                            'subject_name' => $credit['subject_name'] ?? null,
-                            'type' => 'credited',
-                        ];
+                        if (empty($isPartial)) {
+                            $completedSubjects[] = [
+                                'subject_id' => $credit['subject_id'] ?? null,
+                                'subject_code' => $code,
+                                'subject_name' => $credit['subject_name'] ?? null,
+                                'type' => 'credited',
+                            ];
+                        }
 
                         $exists = collect($curriculumSubjects)->contains(function ($cs) use ($code) {
                             return $cs->subject_code === $code;

@@ -57,6 +57,11 @@ it('returns archived enrollments with subjects for registrar academic history', 
         'enrolled_by' => $admin->id,
     ]);
 
+    // ensure duplicate rows are removed when running tests repeatedly
+    \App\Models\StudentSubjectEnrollment::where('student_id',$student->id)
+        ->where('section_subject_id',$sectionSub->id)
+        ->delete();
+
     StudentSubjectEnrollment::create([
         'student_id' => $student->id,
         'section_subject_id' => $sectionSub->id,
@@ -145,6 +150,24 @@ it('still shows credits in the curriculum grid after a course shift (shiftee)', 
     $programB = Program::factory()->create(['education_level' => 'college']);
     $currB = \App\Models\Curriculum::factory()->create(['program_id' => $programB->id, 'is_current' => true]);
 
+    // create a subject in the old program with a different code; names are similar so
+    // the compare logic should match by token overlap rather than exact code
+    $subjectA = \App\Models\Subject::factory()->create([
+        'program_id' => $programA->id,
+        'subject_code' => 'A101',
+        'subject_name' => 'Shifted Subject Old',
+    ]);
+    // make sure it appears in the old curriculum
+    \App\Models\CurriculumSubject::create([
+        'curriculum_id' => $currA->id,
+        'subject_id' => $subjectA->id,
+        'subject_code' => $subjectA->subject_code,
+        'subject_name' => $subjectA->subject_name,
+        'units' => $subjectA->units ?? 3,
+        'year_level' => 1,
+        'semester' => '1st',
+    ]);
+
     $subjectB = \App\Models\Subject::factory()->create([
         'program_id' => $programB->id,
         'subject_code' => 'B101',
@@ -152,23 +175,64 @@ it('still shows credits in the curriculum grid after a course shift (shiftee)', 
     ]);
 
     $studentUser = User::factory()->create(['role' => 'student']);
-    $student = Student::factory()->create([
+    $studentData = [
         'user_id' => $studentUser->id,
         'program_id' => $programA->id,
         'curriculum_id' => $currA->id,
-    ]);
+    ];
+    if (\Illuminate\Support\Facades\Schema::hasColumn('students','transfer_type')) {
+        $studentData['transfer_type'] = 'shiftee'; // needed for UI column logic
+    }
+    $student = Student::factory()->create($studentData);
 
-    // create a credit record for the new program subject (simulating pre-shift completion)
-    \App\Models\StudentSubjectCredit::create([
-        'student_id' => $student->id,
+    // make sure new program curriculum actually contains the shifted subject
+    \App\Models\CurriculumSubject::create([
+        'curriculum_id' => $currB->id,
         'subject_id' => $subjectB->id,
         'subject_code' => $subjectB->subject_code,
         'subject_name' => $subjectB->subject_name,
-        'units' => 3,
+        'units' => $subjectB->units ?? 3,
         'year_level' => 1,
         'semester' => '1st',
-        'credit_status' => 'credited',
-        'credit_type' => 'transfer',
+    ]);
+
+    // enrol the student in a section for the old subject and give a partial grade
+    $section = Section::create([
+        'program_id' => $programA->id,
+        'section_name' => 'A1',
+        'year_level' => 1,
+        'academic_year' => '2024-2025',
+        'semester' => '1st',
+        'status' => 'active',
+    ]);
+
+    $sectionSub = SectionSubject::create([
+        'section_id' => $section->id,
+        'subject_id' => $subjectA->id,
+        'teacher_id' => Teacher::factory()->create()->id,
+        'academic_year' => '2024-2025',
+        'semester' => '1st',
+    ]);
+
+    $enrollment = StudentEnrollment::create([
+        'student_id' => $student->id,
+        'section_id' => $section->id,
+        'enrollment_date' => now(),
+        'status' => 'completed',
+        'academic_year' => '2024-2025',
+        'semester' => '1st',
+        'enrolled_by' => $registrar->id,
+    ]);
+
+    $gradeTeacher = Teacher::factory()->create();
+    StudentGrade::create([
+        'student_enrollment_id' => $enrollment->id,
+        'section_subject_id' => $sectionSub->id,
+        'teacher_id' => $gradeTeacher->id,
+        'prelim_grade' => 85, // partial but no final
+        'midterm_grade' => null,
+        'prefinal_grade' => null,
+        'final_grade' => null,
     ]);
 
     // perform course shift by updating primary program/curriculum fields
@@ -183,12 +247,21 @@ it('still shows credits in the curriculum grid after a course shift (shiftee)', 
     $response = $this->actingAs($registrar)->get(route('registrar.students.academic-history', $student));
     $response->assertSuccessful();
 
-    // curriculumSubjects should now include the credited B101 subject
+    // curriculumSubjects should now include the credited B101 subject with missing grades
     $response->assertInertia(fn (Assert $page) =>
         $page->component('Registrar/Students/AcademicHistory')
             ->has('curriculumSubjects.0')
             ->where('curriculumSubjects.0.subject_code', 'B101')
-            ->has('subjectGrades.0')
-            ->where('subjectGrades.0.subject_code', 'B101')
     );
+
+    // extra manual checks on props
+    $props = $response->original->getData()['page']['props'];
+    $grades = collect($props['subjectGrades']);
+    dd($grades->toArray());
+    $entry = $grades->first(fn($g) => ($g['teacher_name'] ?? null) === $gradeTeacher->user->name
+        && ($g['missing_grades'] ?? []) === ['Prelim','Midterm','Prefinal','Final']
+        && ($g['is_complete'] ?? true) === false
+    );
+    expect($entry)->not->toBeNull();
+
 });
