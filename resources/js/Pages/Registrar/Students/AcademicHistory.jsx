@@ -75,7 +75,9 @@ export default function AcademicHistory({ student, curriculumSubjects, completed
     const isTransferee = student?.transfer_type === 'transferee';
     // a credit is considered "internal" if it came from within the school (no
     // credited_from value) – these rows should show professor and hide credit/type
-    const isInternalCredit = (subject) => !subject.credited_from;
+    function isInternalCredit(subject) {
+        return !subject.credited_from;
+    }
     // Group curriculum subjects by year and semester
     let groupedSubjects = curriculumSubjects?.reduce((acc, subject) => {
         const yearKey = `Year ${subject.year_level}`

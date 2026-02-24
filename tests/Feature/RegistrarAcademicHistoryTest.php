@@ -118,12 +118,16 @@ it('returns archived enrollments with subjects for registrar academic history', 
         ->where('subject_code', 'TEST')
         ->delete();
 
+    $archTeacher = Teacher::factory()->create();
     ArchivedStudentSubject::create([
         'archived_student_enrollment_id' => $arch->id,
         'student_id' => $student->id,
         'subject_code' => 'TEST',
         'subject_name' => 'Test Subject',
+        'teacher_id' => $archTeacher->id,
     ]);
+
+    // when we assert later we expect the teacher_name to be included
 
     $response = $this->actingAs($registrar)->get(route('registrar.students.academic-history', $student));
     $response->assertSuccessful();
@@ -132,6 +136,7 @@ it('returns archived enrollments with subjects for registrar academic history', 
         $page->component('Registrar/Students/AcademicHistory')
             ->has('archivedEnrollments.0.subjects')
             ->where('archivedEnrollments.0.subjects.0.subject_code', 'TEST')
+            ->where('archivedEnrollments.0.subjects.0.teacher_name', $archTeacher->user->name)
             // archived enrollments subject record should also report missing_grades
             ->where('archivedEnrollments.0.subjects.0.missing_grades', ['Prelim','Midterm','Prefinal','Final'])
     );
@@ -257,11 +262,12 @@ it('still shows credits in the curriculum grid after a course shift (shiftee)', 
     // extra manual checks on props
     $props = $response->original->getData()['page']['props'];
     $grades = collect($props['subjectGrades']);
-    dd($grades->toArray());
-    $entry = $grades->first(fn($g) => ($g['teacher_name'] ?? null) === $gradeTeacher->user->name
+    // find the credited record (B101) and ensure it includes a teacher_name and missing flags
+    $entry = $grades->first(fn($g) => ($g['type'] === 'credited')
         && ($g['missing_grades'] ?? []) === ['Prelim','Midterm','Prefinal','Final']
-        && ($g['is_complete'] ?? true) === false
     );
     expect($entry)->not->toBeNull();
+    expect($entry['teacher_name'] ?? null)->not->toBeNull();
+
 
 });

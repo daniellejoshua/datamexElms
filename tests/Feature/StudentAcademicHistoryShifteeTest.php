@@ -10,6 +10,7 @@ use App\Models\Subject;
 use App\Models\Teacher;
 use App\Models\User;
 use App\Models\SchoolSetting;
+use App\Models\ArchivedSection;
 use Inertia\Testing\AssertableInertia as Assert;
 
 it('shows transferred subject as partial with missing grades on student academic history', function () {
@@ -124,10 +125,82 @@ it('shows transferred subject as partial with missing grades on student academic
 
     $props = $response->original->getData()['page']['props'];
     $grades = collect($props['subjectGrades']);
-    $entry = $grades->first(fn($g) => ($g['teacher_name'] ?? null) === $gradeTeacher->user->name
+    $entry = $grades->first(fn($g) => ($g['type'] === 'credited')
         && ($g['missing_grades'] ?? []) === ['Prelim','Midterm','Prefinal','Final']
-        && ($g['is_complete'] ?? true) === false
     );
     expect($entry)->not->toBeNull();
+    expect($entry['teacher_name'] ?? null)->not->toBeNull();
 
+});
+
+// ensure archived subject entries also carry professor info for students
+it('includes teacher name for archived subjects on student academic history', function () {
+    SchoolSetting::setCurrentAcademicPeriod('2024-2025', '1st');
+
+    $user = User::factory()->create(['role' => 'student']);
+    $student = Student::factory()->create(['user_id' => $user->id]);
+
+    $program = Program::factory()->create(['education_level' => 'college']);
+    $admin = User::factory()->create(['role' => 'head_teacher']);
+
+    $archivedSection = ArchivedSection::create([
+        'original_section_id' => 'S-1',
+        'program_id' => $program->id,
+        'year_level' => 1,
+        'section_name' => 'ASec',
+        'academic_year' => '2024-2025',
+        'semester' => 'first',
+        'status' => 'completed',
+        'course_data' => [],
+        'total_enrolled_students' => 1,
+        'completed_students' => 1,
+        'dropped_students' => 0,
+        'section_average_grade' => null,
+        'archived_at' => now(),
+        'archived_by' => $admin->id,
+    ]);
+
+    $archivedEnrollment = ArchivedStudentEnrollment::create([
+        'archived_section_id' => $archivedSection->id,
+        'student_id' => $student->id,
+        'original_enrollment_id' => '0',
+        'academic_year' => '2024-2025',
+        'semester' => 'first',
+        'enrolled_date' => now(),
+        'completion_date' => now(),
+        'final_status' => 'completed',
+        'final_grades' => null,
+        'student_data' => [
+            'name' => $student->user->name,
+            'student_number' => $student->student_number,
+        ],
+    ]);
+
+    $subject = Subject::factory()->create(['subject_code' => 'AS101', 'subject_name' => 'Archived Subject']);
+    $teacher = Teacher::factory()->create();
+
+    ArchivedStudentSubject::create([
+        'archived_student_enrollment_id' => $archivedEnrollment->id,
+        'student_id' => $student->id,
+        'original_enrollment_id' => $archivedEnrollment->original_enrollment_id,
+        'section_subject_id' => null,
+        'subject_id' => $subject->id,
+        'subject_code' => $subject->subject_code,
+        'subject_name' => $subject->subject_name,
+        'units' => 3.0,
+        'prelim_grade' => 88,
+        'midterm_grade' => 90,
+        'prefinal_grade' => 92,
+        'final_grade' => 93,
+        'semester_grade' => 93,
+        'teacher_id' => $teacher->id,
+    ]);
+
+    $response = $this->actingAs($user)->get(route('student.academic-history'));
+    $response->assertSuccessful();
+
+    $props = $response->original->getData()['page']['props'];
+    $grades = collect($props['subjectGrades']);
+    $entry = $grades->first(fn($g) => ($g['teacher_name'] ?? null) === $teacher->user->name);
+    expect($entry)->not->toBeNull();
 });

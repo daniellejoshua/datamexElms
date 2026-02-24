@@ -1,15 +1,15 @@
 import { Head, Link } from '@inertiajs/react'
-import { route } from 'ziggy-js'
+import { route } from 'ziggy-js';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import {
-    ArrowLeft,
-    BookOpen,
-    Calendar,
-    CheckCircle2,
-    Circle,
+import { 
+    ArrowLeft, 
+    BookOpen, 
+    Calendar, 
+    CheckCircle2, 
+    Circle, 
     GraduationCap,
     Clock,
     Award,
@@ -23,7 +23,7 @@ import {
 } from 'lucide-react'
 import { useState } from 'react'
 
-export default function AcademicHistory({ student, curriculumSubjects, completedSubjects, subjectGrades, creditedSubjects, completionStats, archivedEnrollments = [] }) {
+export default function AcademicHistory({ student, curriculumSubjects, completedSubjects, subjectGrades, archivedEnrollments }) {
     const [creditedSubjectsPage, setCreditedSubjectsPage] = useState(1)
     const itemsPerPage = 5
 
@@ -36,6 +36,7 @@ export default function AcademicHistory({ student, curriculumSubjects, completed
     }
 
     const isSubjectCompleted = (subjectCode) => {
+        // Backend has already validated grades and only includes passing subjects in completedSubjects
         return completedSubjects?.some(completed =>
             completed.subject_code === subjectCode ||
             completed.subject_id === subjectCode
@@ -43,8 +44,8 @@ export default function AcademicHistory({ student, curriculumSubjects, completed
     }
 
     const getSubjectGradeInfo = (subjectCode) => {
-        return subjectGrades?.find(grade =>
-            grade.subject_code === subjectCode ||
+        return subjectGrades?.find(grade => 
+            grade.subject_code === subjectCode || 
             grade.subject_id === subjectCode
         )
     }
@@ -58,6 +59,7 @@ export default function AcademicHistory({ student, curriculumSubjects, completed
         return section.section_name || 'N/A'
     }
 
+    // credit table helpers
     const renderGradeBadge = (subject) => {
         if (subject.final_grade) {
             return <Badge className="bg-green-500 text-white">{subject.final_grade}</Badge>
@@ -68,14 +70,19 @@ export default function AcademicHistory({ student, curriculumSubjects, completed
         return <span className="text-gray-400">-</span>
     }
 
+    // use optional chaining to avoid runtime errors if `student` is not provided
     const isShiftee = student?.transfer_type === 'shiftee';
     const isTransferee = student?.transfer_type === 'transferee';
-
+    // a credit is considered "internal" if it came from within the school (no
+    // credited_from value) – these rows should show professor and hide credit/type
+    function isInternalCredit(subject) {
+        return !subject.credited_from;
+    }
     // Group curriculum subjects by year and semester
     let groupedSubjects = curriculumSubjects?.reduce((acc, subject) => {
         const yearKey = `Year ${subject.year_level}`
         const semesterKey = subject.semester === '1st' ? '1st Semester' : '2nd Semester'
-
+        
         if (!acc[yearKey]) {
             acc[yearKey] = {}
         }
@@ -86,55 +93,67 @@ export default function AcademicHistory({ student, curriculumSubjects, completed
         return acc
     }, {}) || {}
 
-    const semesterOrder = ['1st Semester', '2nd Semester', 'summer']
+    // Make sure each year's semesters are in logical order regardless of
+    // how the subjects happened to be iterated above. JavaScript object
+    // iteration preserves insertion order, so we rebuild the object with the
+    // desired sequence.
+    const semesterOrder = ['1st Semester', '2nd Semester', 'Summer']
     groupedSubjects = Object.fromEntries(
-        Object.entries(groupedSubjects).map(([year, sems]) => {
-            const sorted = Object.entries(sems).sort((a, b) => {
-                return semesterOrder.indexOf(a[0]) - semesterOrder.indexOf(b[0])
+        Object.entries(groupedSubjects).map(([year, semObj]) => {
+            const ordered = {}
+            semesterOrder.forEach(key => {
+                if (semObj[key]) {
+                    ordered[key] = semObj[key]
+                }
             })
-            return [year, Object.fromEntries(sorted)]
+            // include any unexpected keys at the end just in case
+            Object.keys(semObj).forEach(key => {
+                if (!ordered[key]) ordered[key] = semObj[key]
+            })
+            return [year, ordered]
         })
     )
 
     // Calculate completion statistics (excluding credited subjects)
-    const totalSubjects = completionStats?.totalSubjects || 0
-    const completedCount = completionStats?.completedSubjects || 0
-    // Count credited subjects with passing grades (>= 75)
-    const creditedCount = subjectGrades?.filter(grade => {
-        if (grade.type !== 'credited') return false;
-        const gradeValue = parseFloat(grade.final_grade);
-        // Include subjects with no grade (CR) or grades >= 75
-        return isNaN(gradeValue) || gradeValue >= 75;
+    const totalSubjects = curriculumSubjects?.length || 0
+    const completedCount = curriculumSubjects?.filter(subject => {
+        const gradeInfo = getSubjectGradeInfo(subject.subject_code)
+        return isSubjectCompleted(subject.subject_code) && (!gradeInfo || gradeInfo.type !== 'credited')
     }).length || 0
-    const completionPercentage = completionStats?.completionPercentage || 0
+    // Count credited subjects that are in the completedSubjects array (already validated by backend)
+    const creditedCount = completedSubjects?.filter(subject => {
+        const gradeInfo = getSubjectGradeInfo(subject.subject_code)
+        return gradeInfo?.type === 'credited'
+    }).length || 0
+    const completionPercentage = totalSubjects > 0 ? Math.round(((completedCount + creditedCount) / totalSubjects) * 100) : 0
 
     return (
         <AuthenticatedLayout
             header={
                 <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                        <Button asChild variant="ghost" size="sm">
-                            <Link href={route('student.dashboard')} className="flex items-center gap-2">
-                                <ArrowLeft className="w-4 h-4" />
-                                <span className="hidden sm:inline">Back to Dashboard</span>
-                            </Link>
-                        </Button>
-                        <div className="h-6 w-px bg-gray-300"></div>
+                    <div className="flex items-center gap-4">
+                        <Link href={route('registrar.students')}>
+                            <Button variant="outline" size="sm">
+                                <ArrowLeft className="w-4 h-4 mr-2" />
+                                Back to Students
+                            </Button>
+                        </Link>
                         <div>
                             <h2 className="text-2xl font-bold text-gray-900">Academic History</h2>
-                            <p className="text-sm text-blue-600 font-medium mt-1">View your complete academic record and progress</p>
+                            <p className="text-sm text-blue-600 font-medium mt-1">
+                                {formatStudentName(student)} - {student.student_number}
+                            </p>
                         </div>
                     </div>
-
                 </div>
             }
         >
-            <Head title="Academic History" />
+            <Head title={`Academic History - ${formatStudentName(student)}`} />
 
             <div className="p-6 space-y-6">
                 <div className="flex justify-end -mt-2">
                     <a
-                        href={route('student.academic-history.export')}
+                        href={route('registrar.students.academic-history.export', student.id)}
                         target="_blank"
                         rel="noopener noreferrer"
                         title="Export academic history as PDF"
@@ -159,15 +178,15 @@ export default function AcademicHistory({ student, curriculumSubjects, completed
                                 <div className="flex justify-center mb-2">
                                     <CheckCircle2 className="w-8 h-8 text-green-600" />
                                 </div>
-                                <div className="text-2xl font-bold text-green-900">{completedCount} / {totalSubjects}</div>
+                                <div className="text-2xl font-bold text-green-900">{completedCount + creditedCount} / {totalSubjects}</div>
                                 <div className="text-sm text-green-600">
                                     Subjects Completed
+                                    {(creditedCount > 0) && (
+                                        <div className="text-xs mt-1 text-green-700">
+                                            {completedCount} graded + {creditedCount} Previous School Credited Subject
+                                        </div>
+                                    )}
                                 </div>
-                                {creditedCount > 0 && (
-                                    <div className="text-xs text-green-700 mt-2">
-                                        {creditedCount} credited from other schools
-                                    </div>
-                                )}
                             </div>
                             <div className="text-center p-4 bg-purple-50 rounded-lg">
                                 <div className="flex justify-center mb-2">
@@ -238,13 +257,13 @@ export default function AcademicHistory({ student, curriculumSubjects, completed
                                                         const gradeInfo = getSubjectGradeInfo(subject.subject_code)
                                                         const hasMissingGrades = gradeInfo && gradeInfo.missing_grades && gradeInfo.missing_grades.length > 0
                                                         const isEnrolled = gradeInfo && gradeInfo.type === 'enrolled'
-
+                                                        
                                                         return (
-                                                            <Card
+                                                            <Card 
                                                                 key={subject.id}
                                                                 className={`transition-all duration-200 ${
-                                                                    completed
-                                                                        ? 'bg-green-50 border-green-200 shadow-sm'
+                                                                    completed 
+                                                                        ? 'bg-green-50 border-green-200 shadow-sm' 
                                                                         : isEnrolled
                                                                         ? 'bg-blue-50 border-blue-200 shadow-sm'
                                                                         : gradeInfo?.type === 'archived' && !hasMissingGrades
@@ -257,9 +276,9 @@ export default function AcademicHistory({ student, curriculumSubjects, completed
                                                                 <CardContent className="p-4">
                                                                     <div className="flex items-start gap-3">
                                                                         <div className={`mt-1 ${
-                                                                            completed ? 'text-green-600' :
+                                                                            completed ? 'text-green-600' : 
                                                                             isEnrolled ? 'text-blue-600' :
-                                                                            hasMissingGrades ? 'text-yellow-600' :
+                                                                            hasMissingGrades ? 'text-yellow-600' : 
                                                                             'text-gray-400'
                                                                         }`}>
                                                                             {completed ? (
@@ -284,13 +303,20 @@ export default function AcademicHistory({ student, curriculumSubjects, completed
                                                                                 )}
                                                                             </div>
                                                                             <h5 className={`font-medium text-sm break-words ${
-                                                                                completed
-                                                                                    ? 'text-green-900 line-through'
+                                                                                completed 
+                                                                                    ? 'text-green-900 line-through' 
                                                                                     : 'text-gray-900'
                                                                             }`}>
                                                                                 {subject.subject_name}
                                                                             </h5>
-
+                                                                            {/* original subject from old program (mapped during course shift) */}
+                                                                            {gradeInfo?.original_subject_code && (
+                                                                                <div className="text-xs text-gray-500 mt-1">
+                                                                                    <span className="font-medium">Previously:</span> {gradeInfo.original_subject_code}
+                                                                                    {gradeInfo.original_subject_name ? ` – ${gradeInfo.original_subject_name}` : ''}
+                                                                                </div>
+                                                                            )}
+                                                                            
                                                                             {/* Teacher Info */}
                                                                             {gradeInfo?.teacher_name && (
                                                                                 <div className="flex items-center gap-1 mt-2 text-xs text-gray-600">
@@ -298,7 +324,7 @@ export default function AcademicHistory({ student, curriculumSubjects, completed
                                                                                     <span>{gradeInfo.teacher_name}</span>
                                                                                 </div>
                                                                             )}
-
+                                                                            
                                                                             {/* Credit Info */}
                                                                             {gradeInfo?.type === 'credited' && gradeInfo.credited_from && (
                                                                                 <div className="mt-2 text-xs text-gray-600 flex items-center gap-1">
@@ -308,7 +334,7 @@ export default function AcademicHistory({ student, curriculumSubjects, completed
                                                                                     <span>{gradeInfo.credited_from}</span>
                                                                                 </div>
                                                                             )}
-
+                                                                            
                                                                             {/* Missing Grades Warning */}
                                                                             {(hasMissingGrades || isEnrolled) && (
                                                                                 <div className="mt-2 text-xs">
@@ -331,7 +357,7 @@ export default function AcademicHistory({ student, curriculumSubjects, completed
                                                                                     </div>
                                                                                 </div>
                                                                             )}
-
+                                                                            
                                                                             {subject.description && subject.description !== subject.subject_name && (
                                                                                 <p className="text-xs text-gray-600 mt-1 line-clamp-2">
                                                                                     {subject.description}
@@ -364,10 +390,10 @@ export default function AcademicHistory({ student, curriculumSubjects, completed
 
                 {/* Credited Subjects */}
                 {(() => {
-                    // Use the creditedSubjects prop directly (already filtered by backend)
-                    // Convert object to array if needed
-                    const creditedSubjectsArray = creditedSubjects ? Object.values(creditedSubjects) : [];
-                    const creditedSubjectsInCompleted = creditedSubjectsArray;
+                    // Get all credited subjects (show all credits, not just passing ones)
+                    const creditedSubjectsInCompleted = subjectGrades?.filter(grade => 
+                        grade.type === 'credited'
+                    ) || [];
 
                     // Pagination logic
                     const totalPages = Math.ceil(creditedSubjectsInCompleted.length / itemsPerPage)
@@ -398,7 +424,10 @@ export default function AcademicHistory({ student, curriculumSubjects, completed
                                                 <th className="text-left py-3 px-4 font-medium text-gray-700">Grade</th>
                                                 <th className="text-left py-3 px-4 font-medium text-gray-700">Professor</th>
                                                 <th className="text-left py-3 px-4 font-medium text-gray-700">Source</th>
-                                                <th className="text-left py-3 px-4 font-medium text-gray-700">Date Credited</th>
+                                                {/* date column shown only for external credits */}
+                                                {!isShiftee && (
+                                                    <th className="text-left py-3 px-4 font-medium text-gray-700">Date Credited</th>
+                                                )}
                                             </tr>
                                         </thead>
                                         <tbody>
@@ -418,7 +447,7 @@ export default function AcademicHistory({ student, curriculumSubjects, completed
                                                         <div className="font-medium text-gray-900">{subject.subject_name}</div>
                                                     </td>
                                                     <td className="py-3 px-4 text-sm text-gray-600">
-                                                        {curriculumSubjects?.find(curr => curr.subject_code === subject.subject_code)?.units || 'N/A'} units
+                                                        {curriculumSubjects?.find(curr => curr.subject_code === subject.subject_code)?.units || 'N/A'} 
                                                     </td>
                                                     <td className="py-3 px-4">
                                                         {renderGradeBadge(subject)}
@@ -444,11 +473,11 @@ export default function AcademicHistory({ student, curriculumSubjects, completed
                                                             <span className="text-sm text-gray-500">Internal</span>
                                                         )}
                                                     </td>
-                                                    {!isInternalCredit(subject) && (
-                                                        <td className="py-3 px-4 text-sm text-gray-600">
-                                                            {subject.credited_at ? new Date(subject.credited_at).toLocaleDateString() : 'N/A'}
-                                                        </td>
-                                                    )}
+                                                        {!isShiftee && (
+                                                            <td className="py-3 px-4 text-sm text-gray-600">
+                                                                {subject.credited_at ? new Date(subject.credited_at).toLocaleDateString() : 'N/A'}
+                                                            </td>
+                                                        )}
                                                 </tr>
                                             ))}
                                         </tbody>
@@ -490,7 +519,6 @@ export default function AcademicHistory({ student, curriculumSubjects, completed
                         </Card>
                     );
                 })()}
-
 
             </div>
         </AuthenticatedLayout>
