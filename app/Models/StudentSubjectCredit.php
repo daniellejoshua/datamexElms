@@ -25,6 +25,7 @@ class StudentSubjectCredit extends Model
         'credited_at',
         'student_grade_id',
         'student_credit_transfer_id',
+        'archived_student_subject_id',
         'academic_year',
         'semester_taken',
         'approved_by',
@@ -61,6 +62,11 @@ class StudentSubjectCredit extends Model
     public function studentCreditTransfer(): BelongsTo
     {
         return $this->belongsTo(StudentCreditTransfer::class);
+    }
+
+    public function archivedStudentSubject(): BelongsTo
+    {
+        return $this->belongsTo(ArchivedStudentSubject::class);
     }
 
     public function approvedBy(): BelongsTo

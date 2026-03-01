@@ -65,13 +65,13 @@ export default function AcademicHistory({ student, curriculumSubjects, completed
             return <Badge className="bg-green-500 text-white">{subject.final_grade}</Badge>
         }
         if (subject.credit_type) {
-            return <Badge variant="outline" className="text-gray-600">CR</Badge>
+            return <Badge variant="outline" className="text-gray-600">-</Badge>
         }
         return <span className="text-gray-400">-</span>
     }
 
     // use optional chaining to avoid runtime errors if `student` is not provided
-    const isShiftee = student?.transfer_type === 'shiftee';
+    const isShiftee = student?.course_shifted_at !== null;
     const isTransferee = student?.transfer_type === 'transferee';
     // a credit is considered "internal" if it came from within the school (no
     // credited_from value) – these rows should show professor and hide credit/type
@@ -416,18 +416,16 @@ export default function AcademicHistory({ student, curriculumSubjects, completed
                                         <thead>
                                             <tr className="border-b">
                                                 <th className="text-left py-3 px-4 font-medium text-gray-700">Subject Code</th>
-                                                {!isTransferee && (
+                                                {isShiftee && (
                                                     <th className="text-left py-3 px-4 font-medium text-gray-700">Original Code</th>
                                                 )}
                                                 <th className="text-left py-3 px-4 font-medium text-gray-700">Subject Name</th>
                                                 <th className="text-left py-3 px-4 font-medium text-gray-700">Units</th>
                                                 <th className="text-left py-3 px-4 font-medium text-gray-700">Grade</th>
-                                                <th className="text-left py-3 px-4 font-medium text-gray-700">Professor</th>
-                                                <th className="text-left py-3 px-4 font-medium text-gray-700">Source</th>
-                                                {/* date column shown only for external credits */}
-                                                {!isShiftee && (
-                                                    <th className="text-left py-3 px-4 font-medium text-gray-700">Date Credited</th>
+                                                {isShiftee && (
+                                                    <th className="text-left py-3 px-4 font-medium text-gray-700">Professor</th>
                                                 )}
+                                                <th className="text-left py-3 px-4 font-medium text-gray-700">Source</th>
                                             </tr>
                                         </thead>
                                         <tbody>
@@ -438,7 +436,7 @@ export default function AcademicHistory({ student, curriculumSubjects, completed
                                                             {subject.subject_code}
                                                         </Badge>
                                                     </td>
-                                                    {!isTransferee && (
+                                                    {isShiftee && (
                                                         <td className="py-3 px-4 text-sm text-gray-600">
                                                             {subject.original_subject_code || '-'}
                                                         </td>
@@ -452,15 +450,9 @@ export default function AcademicHistory({ student, curriculumSubjects, completed
                                                     <td className="py-3 px-4">
                                                         {renderGradeBadge(subject)}
                                                     </td>
-                                                    {isInternalCredit(subject) ? (
+                                                    {isShiftee && (
                                                         <td className="py-3 px-4 text-sm text-gray-700">
                                                             {subject.teacher_name || '—'}
-                                                        </td>
-                                                    ) : (
-                                                        <td className="py-3 px-4">
-                                                            <Badge variant="outline" className="capitalize">
-                                                                {subject.credit_type || 'Transfer'}
-                                                            </Badge>
                                                         </td>
                                                     )}
                                                     <td className="py-3 px-4">
@@ -473,11 +465,6 @@ export default function AcademicHistory({ student, curriculumSubjects, completed
                                                             <span className="text-sm text-gray-500">Internal</span>
                                                         )}
                                                     </td>
-                                                        {!isShiftee && (
-                                                            <td className="py-3 px-4 text-sm text-gray-600">
-                                                                {subject.credited_at ? new Date(subject.credited_at).toLocaleDateString() : 'N/A'}
-                                                            </td>
-                                                        )}
                                                 </tr>
                                             ))}
                                         </tbody>

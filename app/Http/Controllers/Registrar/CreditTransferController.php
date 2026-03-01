@@ -239,6 +239,7 @@ class CreditTransferController extends Controller
                                 'final_grade' => $s->final_grade,
                                 'units' => $s->units,
                                 'source' => 'archived',
+                                'archived_student_subject_id' => $s->id,
                                 'is_partial' => false,
                                 'passed' => is_numeric($s->final_grade) ? ($s->final_grade >= 75) : true,
                                 'teacher_name' => $s->teacher?->user?->name,
@@ -565,6 +566,7 @@ class CreditTransferController extends Controller
                         'final_grade' => $subject['grade'] ?? null,
                         'credited_at' => now(),
                         'student_credit_transfer_id' => $creditTransfer->id,
+                        'archived_student_subject_id' => $subject['archived_student_subject_id'] ?? null,
                         'approved_by' => auth()->id(),
                         'approved_at' => now(),
                     ]);

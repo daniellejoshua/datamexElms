@@ -2258,7 +2258,7 @@ class RegistrarController extends Controller
         // Get credited subjects (for transferees/shiftees) - from StudentSubjectCredit
         $creditedSubjects = \App\Models\StudentSubjectCredit::where('student_id', $student->id)
             ->where('credit_status', 'credited')
-            ->with(['subject', 'studentCreditTransfer'])
+            ->with(['subject', 'studentCreditTransfer', 'studentGrade.sectionSubject.teacher.user', 'archivedStudentSubject.teacher.user'])
             ->get();
 
         // Also get credited subjects from StudentCreditTransfer (for credit transfers)
@@ -2338,7 +2338,12 @@ class RegistrarController extends Controller
                                 // carry old program details when available
                                 'original_subject_code' => $credit['old_subject_code'] ?? null,
                                 'original_subject_name' => $credit['old_subject_name'] ?? null,
-                                'teacher_name' => $credit['teacher_name'] ?? null,
+                                'teacher_name' => ($credit['teacher_name'] ?? null) ?: $this->findTeacherForSubject(
+                                    $student,
+                                    $credit['subject_id'] ?? null,
+                                    $code,
+                                    $credit['old_subject_code'] ?? null
+                                ),
                                 // cache helpful curriculum metadata so UI can render units/semester
                                 'units' => $credit['units'] ?? null,
                                 'year_level' => $credit['year_level'] ?? null,
@@ -2435,6 +2440,16 @@ class RegistrarController extends Controller
                     'final_gpa' => \App\Helpers\AcademicHelper::convertToGPA($credited->final_grade),
                     'credited_from' => $credited->studentCreditTransfer ? $credited->studentCreditTransfer->previous_school : null,
                     'credited_at' => $credited->credited_at,
+                    'teacher_name' => $credited->studentGrade && $credited->studentGrade->sectionSubject && $credited->studentGrade->sectionSubject->teacher
+                        ? $credited->studentGrade->sectionSubject->teacher->user->name
+                        : ($credited->archivedStudentSubject && $credited->archivedStudentSubject->teacher
+                            ? $credited->archivedStudentSubject->teacher->user->name
+                            : $this->findTeacherForSubject(
+                                $student,
+                                $credited->subject->id,
+                                $credited->subject->subject_code,
+                                optional($credited->studentCreditTransfer)->original_subject_code
+                            )),
                     'is_complete' => true,
                 ];
 
@@ -2800,7 +2815,7 @@ class RegistrarController extends Controller
         // Credited subjects
         $creditedSubjects = \App\Models\StudentSubjectCredit::where('student_id', $student->id)
             ->where('credit_status', 'credited')
-            ->with(['subject', 'studentCreditTransfer'])
+            ->with(['subject', 'studentCreditTransfer', 'studentGrade.sectionSubject.teacher.user', 'archivedStudentSubject.teacher.user'])
             ->get();
 
         $creditTransfers = \App\Models\StudentCreditTransfer::where('student_id', $student->id)
@@ -2824,6 +2839,16 @@ class RegistrarController extends Controller
                     'final_gpa' => \App\Helpers\AcademicHelper::convertToGPA($credited->final_grade),
                     'credited_from' => $credited->studentCreditTransfer ? $credited->studentCreditTransfer->previous_school : null,
                     'credited_at' => $credited->credited_at,
+                    'teacher_name' => $credited->studentGrade && $credited->studentGrade->sectionSubject && $credited->studentGrade->sectionSubject->teacher
+                        ? $credited->studentGrade->sectionSubject->teacher->user->name
+                        : ($credited->archivedStudentSubject && $credited->archivedStudentSubject->teacher
+                            ? $credited->archivedStudentSubject->teacher->user->name
+                            : $this->findTeacherForSubject(
+                                $student,
+                                $credited->subject->id,
+                                $credited->subject->subject_code,
+                                optional($credited->studentCreditTransfer)->original_subject_code
+                            )),
                     'is_complete' => true,
                 ];
 
@@ -3099,5 +3124,60 @@ class RegistrarController extends Controller
             'from' => ($page - 1) * $perPage + 1,
             'to' => min($page * $perPage, $total),
         ]);
+    }
+
+    private function findTeacherForSubject($student, $subjectId = null, $subjectCode = null, $originalSubjectCode = null)
+    {
+        if (! $subjectId && ! $subjectCode && ! $originalSubjectCode) {
+            return null;
+        }
+
+        $grade = null;
+
+        if ($subjectId) {
+            $grade = \App\Models\StudentGrade::whereHas('studentEnrollment', function ($query) use ($student) {
+            $query->where('student_id', $student->id);
+        })
+            ->whereHas('sectionSubject', function ($query) use ($subjectId) {
+                $query->where('subject_id', $subjectId);
+            })
+            ->with(['sectionSubject.teacher.user'])
+            ->first();
+        }
+
+        if (! $grade && $subjectCode) {
+            $grade = \App\Models\StudentGrade::whereHas('studentEnrollment', function ($query) use ($student) {
+                $query->where('student_id', $student->id);
+            })
+                ->whereHas('sectionSubject.subject', function ($query) use ($subjectCode) {
+                    $query->where('subject_code', $subjectCode);
+                })
+                ->with(['sectionSubject.teacher.user'])
+                ->first();
+        }
+
+        if ($grade && $grade->sectionSubject && $grade->sectionSubject->teacher) {
+            return $grade->sectionSubject->teacher->user->name;
+        }
+
+        $archived = \App\Models\ArchivedStudentSubject::where('student_id', $student->id)
+            ->where(function ($query) use ($subjectCode, $originalSubjectCode, $subjectId) {
+                if ($subjectCode) {
+                    $query->orWhere('subject_code', $subjectCode);
+                }
+
+                if ($originalSubjectCode) {
+                    $query->orWhere('subject_code', $originalSubjectCode);
+                }
+
+                if ($subjectId) {
+                    $query->orWhere('subject_id', $subjectId);
+                }
+            })
+            ->with('teacher.user')
+            ->latest('id')
+            ->first();
+
+        return $archived?->teacher?->user?->name;
     }
 }
