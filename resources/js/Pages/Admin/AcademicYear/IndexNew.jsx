@@ -32,6 +32,7 @@ import {
     ArrowLeft,
 } from 'lucide-react';
 import axios from 'axios';
+import { toast } from 'sonner';
 
 const Index = ({ currentAcademicYear, currentSemester, unpaid_count = 0, unpaid_students = [] }) => {
     const { props } = usePage();
@@ -115,6 +116,9 @@ const Index = ({ currentAcademicYear, currentSemester, unpaid_count = 0, unpaid_
         setErrors({});
 
         router.post(route('admin.academic-years.archive'), archiveFormData, {
+            onSuccess: () => {
+                toast.success('Academic year and semester archived successfully!');
+            },
             onError: (errors) => {
                 setErrors(errors);
                 setProcessingArchive(false);

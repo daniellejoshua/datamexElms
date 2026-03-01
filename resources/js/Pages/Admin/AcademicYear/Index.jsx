@@ -32,6 +32,7 @@ import {
     ArrowRight,
 } from 'lucide-react';
 import axios from 'axios';
+import { toast } from 'sonner';
 
 const Index = ({ currentAcademicYear, currentSemester, unpaid_count = 0, unpaid_students = [], flash = {} }) => {
     const { props } = usePage();
@@ -124,6 +125,8 @@ const Index = ({ currentAcademicYear, currentSemester, unpaid_count = 0, unpaid_
                 force: archiveFormData.force,
             });
 
+            toast.success('PIN sent successfully!');
+
             // Reload the page to get the updated flash data with PIN requirement
             router.visit(route('admin.academic-years.index'), {
                 preserveScroll: true,
@@ -148,6 +151,7 @@ const Index = ({ currentAcademicYear, currentSemester, unpaid_count = 0, unpaid_
         // Always use verify-archive-pin route since PIN is now required
         router.post(route('admin.academic-years.verify-archive-pin'), archiveFormData, {
             onSuccess: (page) => {
+                toast.success('Academic year and semester archived successfully!');
                 // Archive successful - redirect to index to prevent double archiving
                 router.visit(route('admin.academic-years.index'), {
                     preserveScroll: false,

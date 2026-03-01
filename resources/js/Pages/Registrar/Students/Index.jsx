@@ -520,10 +520,10 @@ export default function StudentsIndex({ students, programs, filters, auth, on_ho
                                     </thead>
                                     <tbody>
                                         {filteredStudents.map((student) => (
-                                            <tr key={student.id} className="border-b hover:bg-gray-50 transition-colors">
+                                            <tr key={student.id} className={`border-b transition-colors ${student.is_currently_enrolled ? 'hover:bg-gray-50' : 'hover:bg-red-100'} ${!student.is_currently_enrolled ? 'bg-red-50' : ''}`}>
                                                 <td className="py-3 px-6">
                                                     <div>
-                                                        <div className="font-semibold text-gray-900">
+                                                        <div className={`font-semibold ${!student.is_currently_enrolled ? 'text-red-900' : 'text-gray-900'}`}>
                                                             <Tooltip>
                                                                 <TooltipTrigger asChild>
                                                                     <span className="cursor-pointer">
@@ -535,25 +535,25 @@ export default function StudentsIndex({ students, programs, filters, auth, on_ho
                                                                 </TooltipContent>
                                                             </Tooltip>
                                                         </div>
-                                                        <div className="text-sm text-gray-500">
+                                                        <div className={`text-sm ${!student.is_currently_enrolled ? 'text-red-600' : 'text-gray-500'}`}>
                                                             {student.user?.email}
                                                         </div>
                                                     </div>
                                                 </td>
                                                 <td className="py-3 px-4">
-                                                    <span className="font-mono text-sm font-medium bg-gray-100 px-2 py-1 rounded">
+                                                    <span className={`font-mono text-sm font-medium px-2 py-1 rounded ${!student.is_currently_enrolled ? 'bg-red-100 text-red-800' : 'bg-gray-100 text-gray-800'}`}>
                                                         {student.student_number}
                                                     </span>
                                                 </td>
                                                 <td className="py-3 px-4">
                                                     <div>
-                                                        <div className="font-medium text-blue-600">
+                                                        <div className={`font-medium ${!student.is_currently_enrolled ? 'text-red-600' : 'text-blue-600'}`}>
                                                             {formatSectionName(student.current_section, student.is_currently_enrolled, student.year_level)}
                                                         </div>
                                                     </div>
                                                 </td>
                                                 <td className="py-3 px-4">
-                                                    <Badge variant="outline" className="font-medium">
+                                                    <Badge variant="outline" className={`font-medium ${!student.is_currently_enrolled ? 'border-red-300 text-red-700 bg-red-50' : ''}`}>
                                                         {student.education_level === 'college'
                                                             ? student.year_level.startsWith('1st') || student.year_level.startsWith('2nd') || student.year_level.startsWith('3rd') || student.year_level.startsWith('4th')
                                                                 ? student.year_level
@@ -568,10 +568,10 @@ export default function StudentsIndex({ students, programs, filters, auth, on_ho
                                                     {student.student_type && (
                                                         <Badge 
                                                             variant="secondary"
-                                                            className={student.student_type === 'regular' 
+                                                            className={`${!student.is_currently_enrolled ? 'bg-red-100 text-red-800' : student.student_type === 'regular' 
                                                                 ? 'bg-blue-100 text-blue-800' 
                                                                 : 'bg-orange-100 text-orange-800'
-                                                            }
+                                                            }`}
                                                         >
                                                             {student.student_type}
                                                         </Badge>
@@ -581,7 +581,7 @@ export default function StudentsIndex({ students, programs, filters, auth, on_ho
                                                     <div className="flex items-center gap-2">
                                                         <Badge 
                                                             variant="secondary"
-                                                            className={getStatusColor(student.status)}
+                                                            className={`${!student.is_currently_enrolled ? 'bg-red-100 text-red-800' : getStatusColor(student.status)} font-medium`}
                                                         >
                                                             {getStatusText(student.status)}
                                                         </Badge>
