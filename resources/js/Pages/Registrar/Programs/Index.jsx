@@ -392,7 +392,7 @@ export default function ProgramsIndex({ programs, auth, filters = {} }) {
                                             <div className="flex flex-col items-center">
                                                 <BookOpen className="w-4 h-4 text-orange-600 mb-1" />
                                                 <span className="text-xs font-semibold text-gray-700">
-                                                    {program.subjects.length}
+                                                    {program.curriculum_subjects_count || 0}
                                                 </span>
                                                 <span className="text-xs text-gray-600">Subjects</span>
                                             </div>

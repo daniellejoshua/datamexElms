@@ -157,6 +157,7 @@ Route::middleware(['auth', 'verified', 'role:teacher'])->prefix('teacher')->name
     Route::post('/sections/{sectionSubject}/grades', [GradeController::class, 'updateGrades'])->name('grades.update');
     Route::post('/sections/{sectionSubject}/grades/import', [GradeController::class, 'importGrades'])->name('grades.import');
     Route::get('/sections/{sectionSubject}/grades/template', [GradeController::class, 'downloadTemplate'])->name('grades.template');
+    Route::post('/sections/{sectionSubject}/grades/export', [GradeController::class, 'exportPdf'])->name('grades.export');
 
     // Course Materials Management
     Route::get('/sections/{sectionSubject}/materials', [CourseMaterialController::class, 'index'])->name('materials.index');

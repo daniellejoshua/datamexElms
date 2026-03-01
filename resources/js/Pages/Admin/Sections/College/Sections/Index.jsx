@@ -31,7 +31,7 @@ const Index = ({
     semesterOptions = [],
     programs = []
 }) => {
-    const [selectedAcademicYear, setSelectedAcademicYear] = useState(filters.academic_year || '');
+    const [selectedAcademicYear, setSelectedAcademicYear] = useState(filters.academic_year || currentAcademicPeriod.academic_year || '');
     const [selectedSemester, setSelectedSemester] = useState(filters.semester || '');
     const [selectedProgram, setSelectedProgram] = useState(filters.program_id || '');
 
@@ -46,7 +46,7 @@ const Index = ({
 
         // Update state
         if (type === 'academic_year') {
-            setSelectedAcademicYear(value === 'all' ? '' : value);
+            setSelectedAcademicYear(value === 'all' ? currentAcademicPeriod.academic_year || '' : value);
         } else if (type === 'semester') {
             setSelectedSemester(value === 'all' ? '' : value);
         } else if (type === 'program_id') {
@@ -135,7 +135,7 @@ const Index = ({
                                 <div className="space-y-1">
                                     <label className="text-xs font-medium text-gray-600">Academic Year</label>
                                     <Select 
-                                        value={selectedAcademicYear || 'all'} 
+                                        value={selectedAcademicYear || currentAcademicPeriod.academic_year || 'all'} 
                                         onValueChange={(value) => handleFilterChange('academic_year', value)}
                                     >
                                         <SelectTrigger className="h-8 w-48 text-sm">
@@ -217,7 +217,7 @@ const Index = ({
                                 <div className="space-y-2">
                                     <label className="text-sm font-medium text-gray-700">Academic Year</label>
                                     <Select 
-                                        value={selectedAcademicYear || 'all'} 
+                                        value={selectedAcademicYear || currentAcademicPeriod.academic_year || 'all'} 
                                         onValueChange={(value) => handleFilterChange('academic_year', value)}
                                     >
                                         <SelectTrigger className="h-10 w-full text-sm">

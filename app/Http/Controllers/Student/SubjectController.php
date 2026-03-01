@@ -386,7 +386,7 @@ class SubjectController extends Controller
         ];
 
         if ($paymentStatus) {
-            if ($paymentStatus->balance === 0) {
+            if ($paymentStatus->balance <= 0) {
                 $visiblePeriods = array_fill_keys(array_keys($visiblePeriods), true);
             } else {
                 if (! empty($paymentStatus->final_paid)) {

@@ -6,7 +6,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { ArrowLeft, GraduationCap, BookOpen, Users, DollarSign, Building2, Calendar, Edit, Star } from 'lucide-react'
 
-export default function ProgramsShow({ program, enrolled_students_count, auth }) {
+export default function ProgramsShow({ program, enrolled_students_count, curriculum_subjects_count, auth }) {
     const formatCurrency = (amount) => {
         return new Intl.NumberFormat('en-PH', {
             style: 'currency',
@@ -82,7 +82,7 @@ export default function ProgramsShow({ program, enrolled_students_count, auth })
                                     <div className="text-center p-3 bg-gray-50 rounded-lg">
                                         <BookOpen className="w-5 h-5 text-orange-600 mx-auto mb-1" />
                                         <div className="text-xs text-gray-600">Subjects</div>
-                                        <div className="text-lg font-bold text-gray-900">{program.subjects?.length || 0}</div>
+                                        <div className="text-lg font-bold text-gray-900">{curriculum_subjects_count || 0}</div>
                                     </div>
                                     <div className="text-center p-3 bg-gray-50 rounded-lg">
                                         <Users className="w-5 h-5 text-purple-600 mx-auto mb-1" />

@@ -4,7 +4,11 @@ import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/Components/ui/table';
 import { Button } from '@/Components/ui/button';
 import { Input } from '@/Components/ui/input';
-import { Download, Upload, Save, Search, FileSpreadsheet, CheckCircle, XCircle, AlertTriangle, ArrowLeft, BookOpen } from 'lucide-react';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Checkbox } from '@/components/ui/checkbox';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { Download, Upload, Save, Search, FileSpreadsheet, CheckCircle, XCircle, AlertTriangle, ArrowLeft, BookOpen, FileText, Menu } from 'lucide-react';
 
 export default function Show({ section, sectionSubject, enrollments, isCollegeLevel, isShsLevel, teacher }) {
     const [searchTerm, setSearchTerm] = useState('');
@@ -19,13 +23,19 @@ export default function Show({ section, sectionSubject, enrollments, isCollegeLe
     const [uploadErrors, setUploadErrors] = useState([]);
     const fileInputRef = useRef(null);
 
-    // Import modal states
     const [showImportModal, setShowImportModal] = useState(false);
     const [isImporting, setIsImporting] = useState(false);
     const [importProgress, setImportProgress] = useState(0);
     const [importResult, setImportResult] = useState(null); // { success: boolean, message: string, errors?: array }
     // UI state for import warnings panel
     const [showImportWarnings, setShowImportWarnings] = useState(false);
+    // Export modal states
+    const [showExportModal, setShowExportModal] = useState(false);
+    const [isExporting, setIsExporting] = useState(false);
+    const [exportOptions, setExportOptions] = useState({
+        separateByGender: false, // true = separate by gender, false = alphabetical only
+        gradeFormat: 'numeric' // 'numeric' or 'gpa'
+    });
     //     isCollegeLevel: isCollegeLevel,
     //     type: typeof isCollegeLevel
     // });
@@ -80,11 +90,11 @@ export default function Show({ section, sectionSubject, enrollments, isCollegeLe
         }
     };
 
-    // Filter students based on search term
+    // Filter and sort students based on search term
     const filteredEnrollments = useMemo(() => {
-        if (!searchTerm) return enrollments;
+        if (!enrollments) return [];
         
-        return enrollments.filter(enrollment => {
+        let filtered = enrollments.filter(enrollment => {
             if (!enrollment.student || !enrollment.student.user) return false;
             
             const studentName = enrollment.student.user.name?.toLowerCase() || '';
@@ -93,6 +103,23 @@ export default function Show({ section, sectionSubject, enrollments, isCollegeLe
             
             return studentName.includes(searchLower) || studentNumber.includes(searchLower);
         });
+
+        // Sort by last name first, then first name
+        filtered.sort((a, b) => {
+            const nameA = a.student?.user?.name || '';
+            const nameB = b.student?.user?.name || '';
+            
+            // Split names and get last name (assuming format: "First Last" or "First Middle Last")
+            const partsA = nameA.split(' ');
+            const partsB = nameB.split(' ');
+            
+            const lastNameA = partsA.length > 1 ? partsA[partsA.length - 1] : nameA;
+            const lastNameB = partsB.length > 1 ? partsB[partsB.length - 1] : nameB;
+            
+            return lastNameA.localeCompare(lastNameB);
+        });
+
+        return filtered;
     }, [enrollments, searchTerm]);
 
     // Initialize grades data
@@ -110,7 +137,7 @@ export default function Show({ section, sectionSubject, enrollments, isCollegeLe
             const student = enrollment.student || {};
             const user = student.user || {};
             const studentNumber = student.student_number || student.student_id || 'N/A';
-            const studentName = user.name || 'Unknown Student';
+            const studentName = user.name ? user.name.toUpperCase() : 'Unknown Student';
             
             // Skip students with invalid names
             if (!user.name || user.name.trim() === '' || user.name.includes('Unknown')) {
@@ -242,6 +269,31 @@ export default function Show({ section, sectionSubject, enrollments, isCollegeLe
         if (num > 90) return 'text-green-600';
         if (num >= 75) return 'text-black';
         return 'text-red-600';
+    };
+
+    // Format student name as "LastName, FirstName MiddleInitial."
+    const formatStudentName = (fullName) => {
+        if (!fullName || fullName.trim() === '') return 'Unknown Student';
+
+        const nameParts = fullName.trim().split(' ');
+        if (nameParts.length === 1) {
+            return fullName.toUpperCase();
+        }
+
+        // Last name is the last part
+        const lastName = nameParts[nameParts.length - 1].toUpperCase();
+
+        // First name is the first part
+        const firstName = nameParts[0].toUpperCase();
+
+        // Middle name/initial is everything in between
+        let middleInitial = '';
+        if (nameParts.length > 2) {
+            const middleParts = nameParts.slice(1, -1);
+            middleInitial = middleParts.map(part => part.charAt(0).toUpperCase()).join('') + '.';
+        }
+
+        return `${lastName}, ${firstName} ${middleInitial}`.trim();
     };
 
     // Check if a specific student has unsaved changes
@@ -397,6 +449,52 @@ export default function Show({ section, sectionSubject, enrollments, isCollegeLe
         }
     };
 
+    // Export PDF
+    const exportPdf = async () => {
+        setIsExporting(true);
+        try {
+            const formData = new FormData();
+            formData.append('separate_by_gender', exportOptions.separateByGender ? '1' : '0');
+            formData.append('grade_format', exportOptions.gradeFormat);
+            
+            // Get CSRF token
+            const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+            if (csrfToken) {
+                formData.append('_token', csrfToken);
+            }
+
+            const response = await fetch(route('teacher.grades.export', sectionSubject.id), {
+                method: 'POST',
+                body: formData,
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'Accept': 'application/json',
+                },
+            });
+
+            if (!response.ok) {
+                throw new Error('Failed to export PDF');
+            }
+
+            const blob = await response.blob();
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `grades_${getSimplifiedSectionName()}_${section.academic_year}_Sem${section.semester}.pdf`;
+            document.body.appendChild(a);
+            a.click();
+            window.URL.revokeObjectURL(url);
+            document.body.removeChild(a);
+            
+            setShowExportModal(false);
+        } catch (error) {
+            console.error('Error exporting PDF:', error);
+            alert('Failed to export PDF. Please try again.');
+        } finally {
+            setIsExporting(false);
+        }
+    };
+
     // Upload Excel file
     const handleFileUpload = async (file) => {
         if (!file) return;
@@ -545,7 +643,7 @@ export default function Show({ section, sectionSubject, enrollments, isCollegeLe
                             className="inline-flex items-center text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 mr-2"
                         >
                             <ArrowLeft className="h-4 w-4 mr-1" />
-                            Back to Sections
+                            <span className="hidden sm:inline">Back to Sections</span>
                         </button>
                         <div className="bg-blue-100 p-1.5 rounded-md">
                             <BookOpen className="w-4 h-4 text-blue-600" />
@@ -574,32 +672,78 @@ export default function Show({ section, sectionSubject, enrollments, isCollegeLe
                     <div className="flex items-center justify-between mb-4">
                         <div></div>
                         <div className="flex items-center gap-3">
-                            <Button 
-                                variant="outline" 
-                                onClick={downloadTemplate}
-                                disabled={isDownloadingTemplate}
-                                className="text-blue-600 border-blue-200 hover:bg-blue-50 disabled:opacity-50"
-                            >
-                                {isDownloadingTemplate ? (
-                                    <>
-                                        <div className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin mr-2"></div>
-                                        Downloading...
-                                    </>
-                                ) : (
-                                    <>
-                                        <Download className="w-4 h-4 mr-2" />
-                                        Download Template
-                                    </>
-                                )}
-                            </Button>
-                            
-                            <Button 
-                                onClick={() => setShowUploadDialog(true)}
-                                className="bg-blue-600 hover:bg-blue-700 text-white"
-                            >
-                                <Upload className="w-4 h-4 mr-2" />
-                                Import Grades
-                            </Button>
+                            {/* Desktop buttons - hidden on small screens */}
+                            <div className="hidden sm:flex items-center gap-3">
+                                <Button 
+                                    variant="outline" 
+                                    onClick={downloadTemplate}
+                                    disabled={isDownloadingTemplate}
+                                    className="text-blue-600 border-blue-200 hover:bg-blue-50 disabled:opacity-50"
+                                >
+                                    {isDownloadingTemplate ? (
+                                        <>
+                                            <div className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin mr-2"></div>
+                                            Downloading...
+                                        </>
+                                    ) : (
+                                        <>
+                                            <Download className="w-4 h-4 mr-2" />
+                                            Download Template
+                                        </>
+                                    )}
+                                </Button>
+                                
+                                <Button 
+                                    variant="outline"
+                                    onClick={() => setShowExportModal(true)}
+                                    className="text-green-600 border-green-200 hover:bg-green-50"
+                                >
+                                    <FileText className="w-4 h-4 mr-2" />
+                                    Export PDF
+                                </Button>
+                                
+                                <Button 
+                                    onClick={() => setShowUploadDialog(true)}
+                                    className="bg-blue-600 hover:bg-blue-700 text-white"
+                                >
+                                    <Upload className="w-4 h-4 mr-2" />
+                                    Import Grades
+                                </Button>
+                            </div>
+
+                            {/* Mobile hamburger menu - shown only on small screens */}
+                            <div className="sm:hidden">
+                                <DropdownMenu>
+                                    <DropdownMenuTrigger asChild>
+                                        <Button variant="outline" size="sm">
+                                            <Menu className="w-4 h-4" />
+                                        </Button>
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent align="end" className="w-48">
+                                        <DropdownMenuItem onClick={downloadTemplate} disabled={isDownloadingTemplate}>
+                                            {isDownloadingTemplate ? (
+                                                <>
+                                                    <div className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin mr-2"></div>
+                                                    Downloading...
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <Download className="w-4 h-4 mr-2" />
+                                                    Download Template
+                                                </>
+                                            )}
+                                        </DropdownMenuItem>
+                                        <DropdownMenuItem onClick={() => setShowExportModal(true)}>
+                                            <FileText className="w-4 h-4 mr-2" />
+                                            Export PDF
+                                        </DropdownMenuItem>
+                                        <DropdownMenuItem onClick={() => setShowUploadDialog(true)}>
+                                            <Upload className="w-4 h-4 mr-2" />
+                                            Import Grades
+                                        </DropdownMenuItem>
+                                    </DropdownMenuContent>
+                                </DropdownMenu>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -671,7 +815,7 @@ export default function Show({ section, sectionSubject, enrollments, isCollegeLe
                                                 {gradeData.student_id || 'N/A'}
                                             </TableCell>
                                             <TableCell className="font-medium py-3">
-                                                {gradeData.student_name}
+                                                {formatStudentName(gradeData.student_name)}
                                             </TableCell>
                                             {isCollegeLevel ? (
                                                 <>
@@ -1130,6 +1274,114 @@ export default function Show({ section, sectionSubject, enrollments, isCollegeLe
                     </div>
                 </div>
             )}
+
+            {/* Export PDF Modal */}
+            <Dialog open={showExportModal} onOpenChange={setShowExportModal}>
+                <DialogContent className="sm:max-w-md">
+                    <DialogHeader>
+                        <DialogTitle className="flex items-center gap-2">
+                            <FileText className="w-5 h-5 text-green-600" />
+                            Export Grades to PDF
+                        </DialogTitle>
+                        <DialogDescription>
+                            Configure your PDF export options below.
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    <div className="space-y-4">
+                        <div className="space-y-3">
+                            <label className="text-sm font-medium">Export Options:</label>
+                            <div className="space-y-2">
+                                <div className="flex items-center space-x-2">
+                                    <input
+                                        type="radio"
+                                        id="separate-gender"
+                                        name="export-option"
+                                        checked={exportOptions.separateByGender}
+                                        onChange={() => setExportOptions(prev => ({ ...prev, separateByGender: true }))}
+                                        className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 focus:ring-blue-500"
+                                    />
+                                    <label htmlFor="separate-gender" className="text-sm">
+                                        Separate by gender (Male and Female sections)
+                                    </label>
+                                </div>
+                                <div className="flex items-center space-x-2">
+                                    <input
+                                        type="radio"
+                                        id="alphabetical-only"
+                                        name="export-option"
+                                        checked={!exportOptions.separateByGender}
+                                        onChange={() => setExportOptions(prev => ({ ...prev, separateByGender: false }))}
+                                        className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 focus:ring-blue-500"
+                                    />
+                                    <label htmlFor="alphabetical-only" className="text-sm">
+                                        Alphabetical order only
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="space-y-3">
+                            <label className="text-sm font-medium">Grade Format:</label>
+                            <div className="space-y-2">
+                                <div className="flex items-center space-x-2">
+                                    <input
+                                        type="radio"
+                                        id="grade-format-numeric"
+                                        name="grade-format"
+                                        checked={exportOptions.gradeFormat === 'numeric'}
+                                        onChange={() => setExportOptions(prev => ({ ...prev, gradeFormat: 'numeric' }))}
+                                        className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 focus:ring-blue-500"
+                                    />
+                                    <label htmlFor="grade-format-numeric" className="text-sm">
+                                        Numeric (85, 90, 95, etc.)
+                                    </label>
+                                </div>
+                                <div className="flex items-center space-x-2">
+                                    <input
+                                        type="radio"
+                                        id="grade-format-gpa"
+                                        name="grade-format"
+                                        checked={exportOptions.gradeFormat === 'gpa'}
+                                        onChange={() => setExportOptions(prev => ({ ...prev, gradeFormat: 'gpa' }))}
+                                        className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 focus:ring-blue-500"
+                                    />
+                                    <label htmlFor="grade-format-gpa" className="text-sm">
+                                        GPA (1.00, 1.25, 1.50, etc.)
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="flex justify-end gap-3">
+                        <Button
+                            variant="outline"
+                            onClick={() => setShowExportModal(false)}
+                            disabled={isExporting}
+                        >
+                            Cancel
+                        </Button>
+                        <Button
+                            onClick={exportPdf}
+                            disabled={isExporting}
+                            className="bg-green-600 hover:bg-green-700"
+                        >
+                            {isExporting ? (
+                                <>
+                                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></div>
+                                    Exporting...
+                                </>
+                            ) : (
+                                <>
+                                    <FileText className="w-4 h-4 mr-2" />
+                                    Export PDF
+                                </>
+                            )}
+                        </Button>
+                    </div>
+                </DialogContent>
+            </Dialog>
         </AuthenticatedLayout>
     );
 }

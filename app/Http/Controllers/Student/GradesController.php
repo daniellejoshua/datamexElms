@@ -147,24 +147,22 @@ class GradesController extends Controller
             $midterm = (bool) $paymentStatus->midterm_paid;
             $prefinal = (bool) $paymentStatus->prefinal_paid;
             $final = (bool) $paymentStatus->final_paid;
-
-            // precedence: a later paid term unlocks earlier ones
-            if ($final) {
-                $visiblePeriods = ['prelim' => true, 'midterm' => true, 'prefinal' => true, 'final' => true, 'semester' => false];
-            } elseif ($prefinal) {
-                $visiblePeriods = ['prelim' => true, 'midterm' => true, 'prefinal' => true, 'final' => false, 'semester' => false];
-            } elseif ($midterm) {
-                $visiblePeriods = ['prelim' => true, 'midterm' => true, 'prefinal' => false, 'final' => false, 'semester' => false];
-            } elseif ($prelim) {
-                $visiblePeriods = ['prelim' => true, 'midterm' => false, 'prefinal' => false, 'final' => false, 'semester' => false];
-            }
-
-            // semester grade only visible when everything is effectively paid or balance is zero and all flags true
-            $allPaid = $prelim && $midterm && $prefinal && $final;
             $balanceZero = (float) $paymentStatus->balance <= 0;
 
-            if ($allPaid && $balanceZero) {
-                $visiblePeriods['semester'] = true;
+            // If balance is 0, show all grades including semester grade
+            if ($balanceZero) {
+                $visiblePeriods = ['prelim' => true, 'midterm' => true, 'prefinal' => true, 'final' => true, 'semester' => true];
+            } else {
+                // precedence: a later paid term unlocks earlier ones
+                if ($final) {
+                    $visiblePeriods = ['prelim' => true, 'midterm' => true, 'prefinal' => true, 'final' => true, 'semester' => false];
+                } elseif ($prefinal) {
+                    $visiblePeriods = ['prelim' => true, 'midterm' => true, 'prefinal' => true, 'final' => false, 'semester' => false];
+                } elseif ($midterm) {
+                    $visiblePeriods = ['prelim' => true, 'midterm' => true, 'prefinal' => false, 'final' => false, 'semester' => false];
+                } elseif ($prelim) {
+                    $visiblePeriods = ['prelim' => true, 'midterm' => false, 'prefinal' => false, 'final' => false, 'semester' => false];
+                }
             }
         }
 

@@ -185,6 +185,8 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
         return ''
     }, [isExistingStudent, isReturningStudent, studentFound, data.program_id, data.year_level, data.education_level, currentSemester])
 
+    const effectiveEnrollmentType = computedEnrollmentType || data.enrollment_type
+
     // Keep backend payload value in sync with the computed enrollment type
     useEffect(() => {
         if (computedEnrollmentType && data.enrollment_type !== computedEnrollmentType) {
@@ -465,22 +467,19 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
         // Transferees and shiftees will have their status determined by credit evaluation
     }, [data.enrollment_type])
     
-    // Auto-switch from 'new' to 'returning' if year level/semester doesn't qualify
+    // Show transferee switch notice only when computed type actually transitions to transferee.
+    // Do not mutate enrollment_type here — it is controlled by computedEnrollmentType.
     useEffect(() => {
-        if (data.enrollment_type === 'new' && data.year_level && data.education_level) {
-            const isCollege = data.education_level === 'college'
-            const isShs = data.education_level === 'senior_high'
-            
-            const isQualified = isCollege 
-                ? (data.year_level === '1st Year' && currentSemester === '1st')
-                : ((data.year_level === 'Grade 11' || data.year_level === '1') && currentSemester === '1st')
-            
-            if (!isQualified) {
-                setData('enrollment_type', 'returning')
-                toast.info('Switched to Returning Student - New Students are only allowed for 1st year students')
-            }
+        if (
+            computedEnrollmentType === 'transferee' &&
+            data.year_level &&
+            data.education_level &&
+            ((data.education_level === 'college' && data.year_level !== '1st Year') ||
+             (data.education_level === 'senior_high' && data.year_level !== 'Grade 11' && data.year_level !== '1'))
+        ) {
+            toast.info('Switched to Transferee Student - New students are only allowed for 1st year / Grade 11 in 1st semester')
         }
-    }, [data.year_level, data.enrollment_type, data.education_level, currentSemester])
+    }, [computedEnrollmentType, data.year_level, data.education_level])
 
     // NOTE: enrollment_type is now computed/display-only in the UI (see computedEnrollmentType).
     // Keep `shouldBeTransferee` logic for display helpers but do not mutate `data.enrollment_type` here.
@@ -490,11 +489,11 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
     
     // Handle shiftee/transferee selection
     useEffect(() => {
-        if (data.enrollment_type === 'shiftee') {
+        if (effectiveEnrollmentType === 'shiftee') {
             setIsShiftee(true)
             setIsTransferee(false)
             setData(prev => ({ ...prev, enrollment_fee: prev.enrollment_fee })) // Keep existing fee for shiftee
-        } else if (data.enrollment_type === 'transferee') {
+        } else if (effectiveEnrollmentType === 'transferee') {
             setIsTransferee(true)
             setIsShiftee(false)
             // For transferees, normally fee is calculated later. However,
@@ -531,7 +530,7 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
         } else {
             setIsTransferee(false)
             // Don't reset shiftee here if it's set by course shift detection
-            if (data.enrollment_type !== 'shiftee') {
+            if (effectiveEnrollmentType !== 'shiftee') {
                 setIsShiftee(false)
             }
             setPreviousProgram(null)
@@ -539,7 +538,7 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
             setCreditedSubjects([])
             setCurriculumComparison(null)
         }
-    }, [data.enrollment_type])
+    }, [effectiveEnrollmentType])
 
     // Show error modal when student error exists. For balance/outstanding errors, show a concise message only (no redirect).
     useEffect(() => {
@@ -1564,7 +1563,14 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                                 <Input 
                                     id="first_name"
                                     value={data.first_name ?? ''}
-                                    onChange={e => setData('first_name', e.target.value)}
+                                    onChange={e => {
+                                        let value = e.target.value;
+                                        // Remove special characters
+                                        value = value.replace(/[^a-zA-Z0-9\s]/g, '');
+                                        // Capitalize first letter
+                                        value = value.charAt(0).toUpperCase() + value.slice(1);
+                                        setData('first_name', value);
+                                    }}
                                     required
                                     className="h-10"
                                     disabled={!formUnlocked || isExistingStudent}
@@ -1582,7 +1588,14 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                                 <Input 
                                     id="middle_name"
                                     value={data.middle_name ?? ''}
-                                    onChange={e => setData('middle_name', e.target.value)}
+                                    onChange={e => {
+                                        let value = e.target.value;
+                                        // Remove special characters
+                                        value = value.replace(/[^a-zA-Z0-9\s]/g, '');
+                                        // Capitalize first letter
+                                        value = value.charAt(0).toUpperCase() + value.slice(1);
+                                        setData('middle_name', value);
+                                    }}
                                     disabled={!formUnlocked || isExistingStudent}
                                 />
                                 {isExistingStudent && (
@@ -1598,7 +1611,14 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                                 <Input 
                                     id="last_name"
                                     value={data.last_name ?? ''}
-                                    onChange={e => setData('last_name', e.target.value)}
+                                    onChange={e => {
+                                        let value = e.target.value;
+                                        // Remove special characters
+                                        value = value.replace(/[^a-zA-Z0-9\s]/g, '');
+                                        // Capitalize first letter
+                                        value = value.charAt(0).toUpperCase() + value.slice(1);
+                                        setData('last_name', value);
+                                    }}
                                     required
                                     className={isExistingStudent ? 'bg-gray-100 cursor-not-allowed' : ''}
                                     disabled={!formUnlocked || isExistingStudent}
@@ -1643,7 +1663,14 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                                     <Input 
                                         placeholder="Enter custom suffix"
                                         value={customSuffix}
-                                        onChange={(e) => setCustomSuffix(e.target.value)}
+                                        onChange={(e) => {
+                                            let value = e.target.value;
+                                            // Remove special characters
+                                            value = value.replace(/[^a-zA-Z0-9\s]/g, '');
+                                            // Capitalize first letter
+                                            value = value.charAt(0).toUpperCase() + value.slice(1);
+                                            setCustomSuffix(value);
+                                        }}
                                         className="mt-2"
                                     />
                                 )}
@@ -1873,7 +1900,14 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                                     <Input
                                         id="street"
                                         value={data.street ?? ''}
-                                        onChange={e => setData('street', e.target.value)}
+                                        onChange={e => {
+                                            let value = e.target.value;
+                                            // Remove special characters
+                                            value = value.replace(/[^a-zA-Z0-9\s]/g, '');
+                                            // Capitalize first letter
+                                            value = value.charAt(0).toUpperCase() + value.slice(1);
+                                            setData('street', value);
+                                        }}
                                         placeholder="e.g. 123 Main St"
                                         disabled={!formUnlocked}
                                     />
@@ -1887,7 +1921,14 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                                     <Input
                                         id="province"
                                         value={data.province ?? ''}
-                                        onChange={e => setData('province', e.target.value)}
+                                        onChange={e => {
+                                            let value = e.target.value;
+                                            // Remove special characters
+                                            value = value.replace(/[^a-zA-Z0-9\s]/g, '');
+                                            // Capitalize first letter
+                                            value = value.charAt(0).toUpperCase() + value.slice(1);
+                                            setData('province', value);
+                                        }}
                                         placeholder="e.g. Metro Manila"
                                         disabled={!formUnlocked}
                                     />
@@ -1901,7 +1942,14 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                                     <Input
                                         id="city"
                                         value={data.city ?? ''}
-                                        onChange={e => setData('city', e.target.value)}
+                                        onChange={e => {
+                                            let value = e.target.value;
+                                            // Remove special characters
+                                            value = value.replace(/[^a-zA-Z0-9\s]/g, '');
+                                            // Capitalize first letter
+                                            value = value.charAt(0).toUpperCase() + value.slice(1);
+                                            setData('city', value);
+                                        }}
                                         placeholder="e.g. Quezon City"
                                         disabled={!formUnlocked}
                                     />
@@ -1915,7 +1963,14 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                                     <Input
                                         id="barangay"
                                         value={data.barangay ?? ''}
-                                        onChange={e => setData('barangay', e.target.value)}
+                                        onChange={e => {
+                                            let value = e.target.value;
+                                            // Remove special characters
+                                            value = value.replace(/[^a-zA-Z0-9\s]/g, '');
+                                            // Capitalize first letter
+                                            value = value.charAt(0).toUpperCase() + value.slice(1);
+                                            setData('barangay', value);
+                                        }}
                                         placeholder="e.g. Barangay 1"
                                         disabled={!formUnlocked}
                                     />
@@ -1929,7 +1984,14 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                                     <Input
                                         id="zip_code"
                                         value={data.zip_code ?? ''}
-                                        onChange={e => setData('zip_code', e.target.value)}
+                                        onChange={e => {
+                                            let value = e.target.value;
+                                            // Remove special characters
+                                            value = value.replace(/[^a-zA-Z0-9\s]/g, '');
+                                            // Capitalize first letter
+                                            value = value.charAt(0).toUpperCase() + value.slice(1);
+                                            setData('zip_code', value);
+                                        }}
                                         placeholder="e.g. 1200"
                                         maxLength="4"
                                         disabled={!formUnlocked}
@@ -2314,7 +2376,7 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                                     collect/set the enrollment fee just like other regulars.
                                 */}
                                 {/* Show program fee input for SHS transferees so registrar can collect payment */}
-                                {data.enrollment_type === 'transferee' && (selectedProgram?.education_level === 'senior_high' || data.education_level === 'senior_high') ? (
+                                {effectiveEnrollmentType === 'transferee' && (selectedProgram?.education_level === 'senior_high' || data.education_level === 'senior_high') ? (
                                     <NumberInput
                                         id="enrollment_fee"
                                         placeholder="0.00"
@@ -2323,7 +2385,7 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                                         disabled={true}
                                         className="text-lg font-semibold"
                                     />
-                                ) : data.enrollment_type === 'transferee' && data.student_type !== 'regular' ? (
+                                ) : effectiveEnrollmentType === 'transferee' && data.student_type !== 'regular' ? (
                                     <div className="p-3 bg-blue-50 border border-blue-200 rounded-md">
                                         <p className="text-sm text-blue-800 font-medium">
                                             To be calculated
@@ -2332,7 +2394,7 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                                             Transferee program fee will be calculated after determining the catch-up subjects they need to take before prelim payment.
                                         </p>
                                     </div>
-                                ) : (data.student_type === 'irregular' || data.enrollment_type === 'shiftee') ? (
+                                ) : (data.student_type === 'irregular' || effectiveEnrollmentType === 'shiftee') ? (
                                     <div className="p-3 bg-gray-50 border border-gray-200 rounded-md">
                                         <p className="text-sm text-gray-600">
                                             Irregular students' program fee will be calculated after determining the catch-up subjects they need to take before prelim payment.
@@ -2455,7 +2517,7 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                     </Button>
 
                     {/* Credit Subjects Button for Transferees */}
-                    {data.enrollment_type === 'transferee' && (
+                    {effectiveEnrollmentType === 'transferee' && (
                         <Button
                             type="button"
                             variant="outline"
@@ -2474,7 +2536,7 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                     )}
 
                     {/* Warning for incomplete credit subjects */}
-                    {data.enrollment_type === 'transferee' && (!previousSchool || !feeAdjustments) && (
+                    {effectiveEnrollmentType === 'transferee' && (!previousSchool || !feeAdjustments) && (
                         <div className="flex items-center gap-2 text-amber-600 text-sm">
                             <AlertTriangle className="w-4 h-4" />
                             {!previousSchool ? 'Enter previous school information' : 'Complete credit evaluation and determine student status first'}
@@ -2486,7 +2548,7 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                         disabled={
                             processing ||
                             !formUnlocked ||
-                            (data.enrollment_type === 'transferee' && (!feeAdjustments || feeAdjustments.isIrregular === undefined))
+                            (effectiveEnrollmentType === 'transferee' && (!feeAdjustments || feeAdjustments.isIrregular === undefined))
                         }
                     >
                         <UserPlus className="w-4 h-4 mr-2" />

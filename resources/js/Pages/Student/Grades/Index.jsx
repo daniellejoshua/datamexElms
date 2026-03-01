@@ -296,9 +296,11 @@ const Index = ({ auth, student, currentGrades, paymentStatus, visibleGradePeriod
                                             {visible.semester ? (
                                                 isValidGrade(semester)
                                                     ? (gradeType === 'gpa' ? getGradePointEquivalence(semester) : displayGrade(semester))
-                                                    : (paymentStatus?.balance === 0)
-                                                        ? '—'
-                                                        : <Link href={route('student.payments')} className="text-red-600 underline">Pay Semester</Link>
+                                                    : (paymentStatus?.balance <= 0)
+                                                        ? <span className="text-orange-600">Missing term grades</span>
+                                                        : (!paymentStatus?.semester_paid && paymentStatus?.balance == 0)
+                                                            ? <Link href={route('student.payments')} className="text-red-600 underline">Pay Semester</Link>
+                                                            : '—'
                                             ) : (
                                                 isValidGrade(semester) ? <span className="text-gray-400">Grade hidden</span> : '—'
                                             )}

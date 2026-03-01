@@ -41,6 +41,9 @@ class ProgramController extends Controller
         $programs->getCollection()->each(function ($program) {
             $program->load('subjects');
 
+            // Get the current/active curriculum for this program
+            $currentCurriculum = $program->curriculums->first();
+
             // For SHS programs, include core and applied subjects that are available to all SHS students
             if ($program->education_level === 'senior_high') {
                 $coreAppliedSubjects = \App\Models\Subject::where('education_level', 'senior_high')
@@ -52,6 +55,9 @@ class ProgramController extends Controller
                 $allSubjects = $program->subjects->merge($coreAppliedSubjects);
                 $program->setRelation('subjects', $allSubjects->unique('id'));
             }
+
+            // Add curriculum subjects count for display
+            $program->curriculum_subjects_count = $currentCurriculum ? $currentCurriculum->curriculumSubjects->count() : 0;
         });
 
         return Inertia::render('Registrar/Programs/Index', [
@@ -124,7 +130,9 @@ class ProgramController extends Controller
      */
     public function show(Program $program)
     {
-        $program->load(['subjects', 'sections', 'students', 'programFees']);
+        $program->load(['subjects', 'sections', 'students', 'programFees', 'curriculums' => function ($query) {
+            $query->active()->orderBy('is_current', 'desc')->orderBy('created_at', 'desc');
+        }, 'curriculums.curriculumSubjects']);
 
         // For SHS programs, include core and applied subjects that are available to all SHS students
         if ($program->education_level === 'senior_high') {
@@ -137,6 +145,9 @@ class ProgramController extends Controller
             $allSubjects = $program->subjects->merge($coreAppliedSubjects);
             $program->setRelation('subjects', $allSubjects->unique('id'));
         }
+
+        // Get the current/active curriculum for this program
+        $currentCurriculum = $program->curriculums->first();
 
         // Count only currently enrolled students (with enrollments for current academic year/semester)
         $currentAcademicYear = \App\Models\SchoolSetting::getCurrentAcademicYear();
@@ -153,6 +164,7 @@ class ProgramController extends Controller
         return Inertia::render('Registrar/Programs/Show', [
             'program' => $program,
             'enrolled_students_count' => $enrolledStudentsCount,
+            'curriculum_subjects_count' => $currentCurriculum ? $currentCurriculum->curriculumSubjects->count() : 0,
         ]);
     }
 
