@@ -73,7 +73,7 @@ const Index = ({ archivedSectionGroups }) => {
                     ) : (
                         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
                             {groups.map((group) => (
-                                <Card key={`${group.academic_year}-${group.semester}`} className="border-l-4 border-l-blue-500">
+                                <Card key={`${group.academic_year}-${group.semester}`}>
                                     <CardHeader className="pb-3">
                                         <div className="flex items-start justify-between">
                                             <div className="flex-1">

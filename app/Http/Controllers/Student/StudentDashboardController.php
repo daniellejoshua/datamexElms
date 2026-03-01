@@ -20,14 +20,9 @@ class StudentDashboardController extends Controller
 
         $student = $user->student;
 
-        // Get current academic year and semester from active enrollments
-        $currentEnrollment = $student->studentEnrollments()
-            ->where('status', 'active')
-            ->whereNotNull('section_id')
-            ->first();
-
-        $currentYear = $currentEnrollment?->academic_year ?? '2025-2026';
-        $currentSemester = $currentEnrollment?->semester ?? '1st';
+        // Get current academic year and semester from system settings
+        $currentYear = \App\Models\SchoolSetting::getCurrentAcademicYear();
+        $currentSemester = \App\Models\SchoolSetting::getCurrentSemester();
 
         // Get current enrollments with grades and schedules - filter by current semester
         $enrollments = $student->studentEnrollments()
@@ -178,10 +173,6 @@ class StudentDashboardController extends Controller
             ->limit(5)
             ->get();
 
-        // Get current academic year and semester from the first enrollment
-        $currentYear = $enrollments->first()?->academic_year ?? '2025-2026';
-        $currentSemester = $enrollments->first()?->semester ?? '1st';
-
         $paymentStatus = $student->studentSemesterPayments()
             ->where('academic_year', $currentYear)
             ->where('semester', $currentSemester)
@@ -198,8 +189,18 @@ class StudentDashboardController extends Controller
         $curriculumSubjects = [];
         if ($student->curriculum_id) {
             $curriculumSubjects = \App\Models\CurriculumSubject::where('curriculum_id', $student->curriculum_id)
-                ->whereIn('semester', ['1st', '2nd'])
+                ->orderBy('year_level')
+                ->orderByRaw("FIELD(semester, '1st', '2nd', 'summer')")
                 ->get();
+
+            $curriculumSubjects = collect($curriculumSubjects)
+                ->sortBy([
+                    ['year_level', 'asc'],
+                    function ($item) {
+                        $order = ['1st' => 1, '2nd' => 2, 'summer' => 3];
+                        return $order[$item->semester] ?? 99;
+                    },
+                ])->values()->all();
         }
 
         // Get all subject grades with details (completed and incomplete) - same logic as AcademicHistoryController
@@ -286,6 +287,68 @@ class StudentDashboardController extends Controller
             ->with(['subject'])
             ->get();
 
+        $prevProgramId = $student->previous_program_id;
+        if (empty($prevProgramId)) {
+            $previousEnrollment = \App\Models\StudentEnrollment::where('student_id', $student->id)
+                ->whereHas('section', function ($q) use ($student) {
+                    $q->where('program_id', '!=', $student->program_id);
+                })
+                ->orderBy('academic_year', 'desc')
+                ->first();
+
+            if ($previousEnrollment && $previousEnrollment->section) {
+                $prevProgramId = $previousEnrollment->section->program_id;
+            }
+        }
+
+        if ($prevProgramId) {
+            $compRequest = new \Illuminate\Http\Request();
+            $compRequest->replace([
+                'previous_program_id' => $prevProgramId,
+                'new_program_id' => $student->program_id,
+                'student_year_level' => $student->current_year_level ?: 1,
+                'student_id' => $student->id,
+            ]);
+
+            $compController = app(\App\Http\Controllers\Registrar\CreditTransferController::class);
+            $compResponse = $compController->compareCurricula($compRequest);
+            if ($compResponse instanceof \Illuminate\Http\JsonResponse) {
+                $compData = $compResponse->getData(true);
+                if (! empty($compData['data']['credited_subjects'])) {
+                    foreach ($compData['data']['credited_subjects'] as $credit) {
+                        $code = $credit['subject_code'] ?? null;
+                        if (! $code) {
+                            continue;
+                        }
+
+                        $isPartial = ! empty($credit['is_partial']) || is_null($credit['grade']);
+
+                        if (! isset($subjectGradesMap[$code])) {
+                            $subjectGradesMap[$code] = [
+                                'subject_id' => $credit['subject_id'] ?? null,
+                                'subject_code' => $code,
+                                'subject_name' => $credit['subject_name'] ?? null,
+                                'type' => 'credited',
+                                'credit_type' => $credit['credit_type'] ?? 'transfer',
+                                'final_grade' => $credit['grade'] ?? null,
+                                'credited_from' => null,
+                                'is_complete' => ! $isPartial,
+                            ];
+                        }
+
+                        if (! $isPartial) {
+                            $completedSubjects[] = [
+                                'subject_id' => $credit['subject_id'] ?? null,
+                                'subject_code' => $code,
+                                'subject_name' => $credit['subject_name'] ?? null,
+                                'type' => 'credited',
+                            ];
+                        }
+                    }
+                }
+            }
+        }
+
         foreach ($creditTransfers as $transfer) {
             if ($transfer->subject) {
                 // Skip if we already have this subject
@@ -354,50 +417,17 @@ class StudentDashboardController extends Controller
         }
 
         // Calculate completion statistics properly
-        // Use curriculum-based calculation for all students (same as AcademicHistoryController)
+        // Use curriculum-based calculation for all students
         $totalSubjects = count($curriculumSubjects);
         $completedCurriculumSubjects = 0;
 
+        // Get all completed subject codes and ids
+        $completedCodes = collect($completedSubjects)->pluck('subject_code')->toArray();
+        $completedIds = collect($completedSubjects)->pluck('subject_id')->toArray();
+
         foreach ($curriculumSubjects as $curriculumSubject) {
-            $subjectCode = $curriculumSubject->subject_code;
-            $isCompleted = false;
-
-            // Check if completed through grading
-            foreach ($completedSubjects as $completed) {
-                if ($completed['type'] === 'graded' &&
-                    ($completed['subject_code'] === $subjectCode || $completed['subject_id'] == $curriculumSubject->subject_id)) {
-                    $isCompleted = true;
-                    break;
-                }
-            }
-
-            // Check if completed through crediting (GPA 1.00-3.00 or percentage >= 75 or CR)
-            if (! $isCompleted) {
-                foreach ($subjectGradesMap as $grade) {
-                    if ($grade['subject_code'] === $subjectCode && $grade['type'] === 'credited') {
-                        $gradeValue = $grade['final_grade'];
-                        $isTransfereeCredit = ! is_null($grade['credited_from']);
-                        if (is_null($gradeValue) || $gradeValue === 'CR') {
-                            // No grade = CR = passing
-                            $isCompleted = true;
-                        } elseif (is_numeric($gradeValue)) {
-                            $numericGrade = (float) $gradeValue;
-                            if ($isTransfereeCredit) {
-                                // Transferee credits use GPA: 1.00-3.00 are passing
-                                $isCompleted = $numericGrade <= 3.0;
-                            } else {
-                                // Regular credits use percentage: >= 75 is passing
-                                $isCompleted = $numericGrade >= 75;
-                            }
-                        }
-                        if ($isCompleted) {
-                            break;
-                        }
-                    }
-                }
-            }
-
-            if ($isCompleted) {
+            if (in_array($curriculumSubject->subject_code, $completedCodes) ||
+                in_array($curriculumSubject->subject_id, $completedIds)) {
                 $completedCurriculumSubjects++;
             }
         }

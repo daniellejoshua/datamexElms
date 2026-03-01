@@ -94,7 +94,7 @@ const ShowByPeriod = ({ archivedSections, academicYear, semester }) => {
                                         <div className="grid grid-cols-2 gap-4 mb-4">
                                             <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-3 text-center">
                                                 <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">
-                                                    {section.total_enrolled_students}
+                                                    {section.teacher_students || 0}
                                                 </div>
                                                 <div className="text-xs text-blue-600 dark:text-blue-400 font-medium">
                                                     Students
@@ -102,7 +102,7 @@ const ShowByPeriod = ({ archivedSections, academicYear, semester }) => {
                                             </div>
                                             <div className="bg-green-50 dark:bg-green-900/20 rounded-lg p-3 text-center">
                                                 <div className="text-2xl font-bold text-green-600 dark:text-green-400">
-                                                    {section.completed_students}
+                                                    {section.teacher_completed || 0}
                                                 </div>
                                                 <div className="text-xs text-green-600 dark:text-green-400 font-medium">
                                                     Completed

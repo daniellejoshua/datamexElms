@@ -56,15 +56,28 @@ class ArchivedSectionsController extends Controller
         // Group sections by academic year and semester
         $groupedSections = $archivedSections->groupBy(function ($section) {
             return $section->academic_year.'|'.$section->semester;
-        })->map(function ($sections, $key) {
+        })->map(function ($sections, $key) use ($teacher) {
             [$academicYear, $semester] = explode('|', $key, 2);
 
             // Calculate totals for this academic year/semester
             $totalSections = $sections->count();
-            $totalStudents = $sections->sum('total_enrolled_students');
-            $totalCompleted = $sections->sum('completed_students');
-            $totalDropped = $sections->sum('dropped_students');
-            $averageGrade = $sections->avg('section_average_grade');
+
+            // Get all archived student subjects taught by this teacher in this period
+            $teacherSubjects = ArchivedStudentSubject::whereIn('archived_student_enrollment_id',
+                ArchivedStudentEnrollment::whereIn('archived_section_id', $sections->pluck('id'))
+                    ->pluck('id')
+            )->where('teacher_id', $teacher->id)->get();
+
+            // Count unique students
+            $totalStudents = $teacherSubjects->pluck('student_id')->unique()->count();
+
+            // Count completed and dropped subjects
+            $totalCompleted = $teacherSubjects->where('semester_grade', '>=', 75)->count();
+            $totalDropped = $teacherSubjects->where('semester_grade', '<', 75)->whereNotNull('semester_grade')->count();
+
+            // Calculate average grade
+            $grades = $teacherSubjects->pluck('semester_grade')->filter()->values();
+            $averageGrade = $grades->isNotEmpty() ? $grades->avg() : null;
 
             // Get education level breakdown
             $educationLevels = $sections->groupBy(function ($section) {
@@ -132,6 +145,28 @@ class ArchivedSectionsController extends Controller
 
                 return false;
             })
+            ->map(function ($section) use ($teacher) {
+                // Calculate teacher-specific stats for this section
+                $courseData = $section->course_data ?? [];
+                $teacherSubjectIds = collect($courseData)
+                    ->where('teacher_id', $teacher->id)
+                    ->pluck('id');
+
+                // Get enrollments for subjects taught by this teacher
+                $teacherEnrollments = ArchivedStudentSubject::whereIn('archived_student_enrollment_id',
+                    ArchivedStudentEnrollment::where('archived_section_id', $section->id)->pluck('id')
+                )->where('teacher_id', $teacher->id)->get();
+
+                // Calculate teacher-specific stats
+                $teacherStudents = $teacherEnrollments->pluck('student_id')->unique()->count();
+                $teacherCompleted = $teacherEnrollments->where('semester_grade', '>=', 75)->count();
+
+                // Add teacher-specific data to section
+                $section->teacher_students = $teacherStudents;
+                $section->teacher_completed = $teacherCompleted;
+
+                return $section;
+            })
             ->values();
 
         return Inertia::render('Teacher/ArchivedSections/ShowByPeriod', [
@@ -161,12 +196,19 @@ class ArchivedSectionsController extends Controller
 
         $archivedSection->load(['archivedEnrollments', 'program', 'curriculum']);
 
+        // Get current student data for all archived enrollments
+        $studentIds = $archivedSection->archivedEnrollments->pluck('student_id')->unique()->filter();
+        $currentStudents = \App\Models\Student::whereIn('id', $studentIds)
+            ->with('user')
+            ->get()
+            ->keyBy('id');
+
         // Filter out dropped students and process remaining enrollments to check grade status
         $enrollmentsWithStatus = $archivedSection->archivedEnrollments
             ->filter(function ($enrollment) {
                 return $enrollment->final_status !== 'dropped';
             })
-            ->map(function ($enrollment) {
+            ->map(function ($enrollment) use ($currentStudents) {
                 $finalGrades = $enrollment->final_grades ?? [];
 
                 // Check if all 4 grades exist (prelim, midterm, prefinals, finals)
@@ -191,7 +233,14 @@ class ArchivedSectionsController extends Controller
                 return [
                     'id' => $enrollment->id,
                     'student_id' => $enrollment->student_id,
-                    'student_data' => $enrollment->student_data,
+                    'student_data' => $currentStudents->has($enrollment->student_id) ? [
+                            'name' => $this->formatStudentName($currentStudents[$enrollment->student_id]),
+                        'student_number' => $currentStudents[$enrollment->student_id]->student_number ?? 'Unknown',
+                        'first_name' => $currentStudents[$enrollment->student_id]->first_name ?? '',
+                        'last_name' => $currentStudents[$enrollment->student_id]->last_name ?? '',
+                        'middle_name' => $currentStudents[$enrollment->student_id]->middle_name ?? '',
+                        'suffix' => $currentStudents[$enrollment->student_id]->suffix ?? '',
+                    ] : ($enrollment->student_data ?? []),
                     'final_grades' => $finalGrades,
                     'final_semester_grade' => $enrollment->final_semester_grade,
                     'final_status' => $enrollment->final_status,
@@ -235,6 +284,13 @@ class ArchivedSectionsController extends Controller
 
         $archivedSection->load(['archivedEnrollments', 'program', 'curriculum']);
 
+        // Get current student data for all archived enrollments
+        $studentIds = $archivedSection->archivedEnrollments->pluck('student_id')->unique()->filter();
+        $currentStudents = \App\Models\Student::whereIn('id', $studentIds)
+            ->with('user')
+            ->get()
+            ->keyBy('id');
+
         // Filter out dropped students and process remaining enrollments to check grade status
         // Try to use normalized archived subject rows for this specific subject first
         $archivedEnrollmentIds = $archivedSection->archivedEnrollments->pluck('id')->filter()->values();
@@ -272,7 +328,14 @@ class ArchivedSectionsController extends Controller
                     $enrollmentsWithStatus->push([
                         'id' => $row->archived_student_enrollment_id,
                         'student_id' => $row->student_id,
-                        'student_data' => $enrollment?->student_data ?? [],
+                        'student_data' => $currentStudents->has($row->student_id) ? [
+                            'name' => $this->formatStudentName($currentStudents[$row->student_id]),
+                            'student_number' => $currentStudents[$row->student_id]->student_number ?? 'Unknown',
+                            'first_name' => $currentStudents[$row->student_id]->first_name ?? '',
+                            'last_name' => $currentStudents[$row->student_id]->last_name ?? '',
+                            'middle_name' => $currentStudents[$row->student_id]->middle_name ?? '',
+                            'suffix' => $currentStudents[$row->student_id]->suffix ?? '',
+                        ] : ($enrollment?->student_data ?? []),
                         'final_grades' => [
                             'prelim' => $row->prelim_grade,
                             'midterm' => $row->midterm_grade,
@@ -299,7 +362,7 @@ class ArchivedSectionsController extends Controller
             ->filter(function ($enrollment) {
                 return $enrollment->final_status !== 'dropped';
             })
-            ->map(function ($enrollment) {
+            ->map(function ($enrollment) use ($currentStudents) {
                 $finalGrades = $enrollment->final_grades ?? [];
 
                 // Check if all 4 grades exist (prelim, midterm, prefinals, finals)
@@ -324,7 +387,14 @@ class ArchivedSectionsController extends Controller
                 return [
                     'id' => $enrollment->id,
                     'student_id' => $enrollment->student_id,
-                    'student_data' => $enrollment->student_data,
+                    'student_data' => $currentStudents->has($enrollment->student_id) ? [
+                        'name' => $this->formatStudentName($currentStudents[$enrollment->student_id]),
+                        'student_number' => $currentStudents[$enrollment->student_id]->student_number ?? 'Unknown',
+                        'first_name' => $currentStudents[$enrollment->student_id]->first_name ?? '',
+                        'last_name' => $currentStudents[$enrollment->student_id]->last_name ?? '',
+                        'middle_name' => $currentStudents[$enrollment->student_id]->middle_name ?? '',
+                        'suffix' => $currentStudents[$enrollment->student_id]->suffix ?? '',
+                    ] : ($enrollment->student_data ?? []),
                     'final_grades' => $finalGrades,
                     'final_semester_grade' => $enrollment->final_semester_grade,
                     'final_status' => $enrollment->final_status,
@@ -564,5 +634,23 @@ class ArchivedSectionsController extends Controller
         }
 
         return back();
+    }
+
+    /**
+     * Format a student's full name from individual name components
+     */
+    private function formatStudentName($student): string
+    {
+        $parts = [
+            $student->first_name,
+            $student->middle_name,
+            $student->last_name
+        ];
+
+        if ($student->suffix) {
+            $parts[] = $student->suffix;
+        }
+
+        return implode(' ', array_filter($parts));
     }
 }

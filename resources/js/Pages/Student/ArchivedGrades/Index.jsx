@@ -34,7 +34,10 @@ const Index = ({ archivedEnrollments }) => {
             }
 
             grouped[key].sections.add(enrollment.archived_section_id);
-            grouped[key].total_subjects++;
+            // Use the total subjects offered in all sections for this period
+            if (grouped[key].total_subjects === 0) {
+                grouped[key].total_subjects = enrollment.period_total_subjects || 0;
+            }
             grouped[key].enrollments.push(enrollment);
 
             if (enrollment.final_status === 'completed') {

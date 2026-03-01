@@ -20,6 +20,29 @@ class ArchivedGradesController extends Controller
             ->orderBy('semester', 'desc')
             ->paginate(20);
 
+        // Group enrollments by academic period and calculate total subjects offered
+        $enrollmentsByPeriod = $archivedEnrollments->getCollection()->groupBy(function ($enrollment) {
+            return $enrollment->academic_year . '-' . $enrollment->semester;
+        });
+
+        $periodTotals = [];
+        foreach ($enrollmentsByPeriod as $periodKey => $enrollments) {
+            [$academicYear, $semester] = explode('-', $periodKey);
+            $sections = $enrollments->pluck('archivedSection')->unique('id');
+            $totalSubjectsOffered = $sections->sum(function ($section) {
+                return count($section->course_data ?? []);
+            });
+
+            $periodTotals[$periodKey] = $totalSubjectsOffered;
+        }
+
+        // Add total subjects count to each enrollment
+        $archivedEnrollments->getCollection()->transform(function ($enrollment) use ($periodTotals) {
+            $periodKey = $enrollment->academic_year . '-' . $enrollment->semester;
+            $enrollment->period_total_subjects = $periodTotals[$periodKey] ?? 0;
+            return $enrollment;
+        });
+
         return Inertia::render('Student/ArchivedGrades/Index', [
             'archivedEnrollments' => $archivedEnrollments,
         ]);

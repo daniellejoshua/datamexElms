@@ -132,10 +132,10 @@ export default function AcademicHistory({ student, curriculumSubjects, completed
             header={
                 <div className="flex items-center justify-between">
                     <div className="flex items-center gap-4">
-                        <Link href={route('registrar.students')}>
+                        <Link href={route('student.dashboard')}>
                             <Button variant="outline" size="sm">
                                 <ArrowLeft className="w-4 h-4 mr-2" />
-                                Back to Students
+                                Back to Dashboard
                             </Button>
                         </Link>
                         <div>

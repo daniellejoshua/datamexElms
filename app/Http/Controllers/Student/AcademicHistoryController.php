@@ -192,50 +192,8 @@ class AcademicHistoryController extends Controller
                                 'type' => 'credited',
                             ];
                         }
-
-                        $exists = collect($curriculumSubjects)->contains(function ($cs) use ($code) {
-                            return $cs->subject_code === $code;
-                        });
-
-                        if (! $exists) {
-                            $curriculumSubjects[] = (object) [
-                                'id' => $credit['subject_id'] ?? null,
-                                'subject_code' => $code,
-                                'subject_name' => $credit['subject_name'] ?? null,
-                                'units' => $credit['units'] ?? null,
-                                'year_level' => $credit['year_level'] ?? 0,
-                                'semester' => $credit['semester'] ?? '1st',
-                            ];
-                        }
                     }
                 }
-            }
-        }
-
-        // ensure curriculumSubjects contains credited subjects so shifting doesn't clear the view
-        $allCredits = $creditedSubjects->concat($creditTransfers);
-        foreach ($allCredits as $credit) {
-            $sub = $credit->subject;
-            if (! $sub) {
-                continue;
-            }
-
-            $exists = collect($curriculumSubjects)->contains(function ($cs) use ($sub) {
-                return $cs->subject_code === $sub->subject_code;
-            });
-
-            if (! $exists) {
-                $yearLevel = $credit->year_level ?? 0;
-                $semester   = $credit->semester ?? '1st';
-
-                $curriculumSubjects[] = (object) [
-                    'id' => $sub->id,
-                    'subject_code' => $sub->subject_code,
-                    'subject_name' => $sub->subject_name,
-                    'units' => $credit->units ?? $sub->units ?? null,
-                    'year_level' => $yearLevel,
-                    'semester' => $semester,
-                ];
             }
         }
 
@@ -412,42 +370,20 @@ class AcademicHistoryController extends Controller
             $subjectCode = $curriculumSubject->subject_code;
             $isCompleted = false;
 
-            // Check if completed through grading
+            // Check if completed through grading or crediting
             foreach ($completedSubjects as $completed) {
-                if ($completed['type'] === 'graded' &&
-                    ($completed['subject_code'] === $subjectCode || $completed['subject_id'] == $curriculumSubject->subject_id)) {
+                if (($completed['subject_code'] === $subjectCode || $completed['subject_id'] == $curriculumSubject->subject_id)) {
                     $isCompleted = true;
                     break;
                 }
             }
 
-            // Check if completed through crediting (GPA 1.00-3.00 or percentage >= 75 or CR)
+            // Also check credited subjects in subjectGradesMap as backup
             if (! $isCompleted) {
                 foreach ($subjectGradesMap as $grade) {
-                    if ($grade['subject_code'] === $subjectCode && $grade['type'] === 'credited') {
-                        // don't count incomplete credit records (partial/old-program matches)
-                        if (empty($grade['is_complete'])) {
-                            continue;
-                        }
-
-                        $gradeValue = $grade['final_grade'];
-                        $isTransfereeCredit = ! is_null($grade['credited_from']);
-                        if (is_null($gradeValue) || $gradeValue === 'CR') {
-                            // No grade = CR = passing
-                            $isCompleted = true;
-                        } elseif (is_numeric($gradeValue)) {
-                            $numericGrade = (float) $gradeValue;
-                            if ($isTransfereeCredit) {
-                                // Transferee credits use GPA: 1.00-3.00 are passing
-                                $isCompleted = $numericGrade <= 3.0;
-                            } else {
-                                // Regular credits use percentage: >= 75 is passing
-                                $isCompleted = $numericGrade >= 75;
-                            }
-                        }
-                        if ($isCompleted) {
-                            break;
-                        }
+                    if ($grade['subject_code'] === $subjectCode && $grade['type'] === 'credited' && !empty($grade['is_complete'])) {
+                        $isCompleted = true;
+                        break;
                     }
                 }
             }

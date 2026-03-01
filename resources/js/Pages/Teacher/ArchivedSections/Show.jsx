@@ -56,14 +56,19 @@ const Show = ({ archivedSection }) => {
                         </CardHeader>
                         <CardContent>
                             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                                {getTeacherSubjects(archivedSection).map((subject, index) => (
+                                {getTeacherSubjects(archivedSection).length === 0 ? (
+                                    <div className="col-span-full text-center py-8">
+                                        <p className="text-gray-500 dark:text-gray-400">No subjects assigned to you in this section.</p>
+                                    </div>
+                                ) : (
+                                    getTeacherSubjects(archivedSection).map((subject, index) => (
                                     <Card
                                         key={subject.id || index}
                                         className="hover:shadow-md transition-shadow cursor-pointer"
                                         onClick={() => {
                                             router.visit(route('teacher.archived-sections.subject-grades', {
                                                 archivedSection: archivedSection.id,
-                                                subjectId: subject.id || subject.subject_code
+                                                subjectId: subject.id || subject.course_code
                                             }));
                                         }}
                                     >
@@ -77,7 +82,7 @@ const Show = ({ archivedSection }) => {
                                                         {subject.subject_name || subject.subject_code}
                                                     </h3>
                                                     <p className="text-sm text-gray-500 dark:text-gray-400">
-                                                        {subject.subject_code} • {subject.units} units
+                                                        {subject.credits} units • {subject.course_code}
                                                     </p>
                                                     <div className="flex items-center gap-2 mt-1">
                                                         <span className="text-xs text-gray-500 dark:text-gray-400">
@@ -94,7 +99,8 @@ const Show = ({ archivedSection }) => {
                                             </div>
                                         </CardContent>
                                     </Card>
-                                ))}
+                                ))
+                                )}
                             </div>
                         </CardContent>
                     </Card>
