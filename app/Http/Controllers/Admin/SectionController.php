@@ -1430,63 +1430,12 @@ class SectionController extends Controller
 
                 // Handle subject enrollment based on student type
                 if ($student->student_type === 'irregular') {
-                    // For irregular students enrolled in same year level section,
-                    // enroll them in subjects they don't already have credits for
-                    if ($student->current_year_level == $section->year_level && $student->program_id === $section->program_id) {
-                        // Get subjects the student already has credits for
-                        $creditedSubjectCodes = \App\Models\StudentSubjectCredit::where('student_id', $studentId)
-                            ->where('credit_status', 'credited')
-                            ->pluck('subject_code')
-                            ->toArray();
-
-                        // Also include subjects from credit transfers
-                        $creditTransferSubjectCodes = \App\Models\StudentCreditTransfer::where('student_id', $studentId)
-                            ->where('credit_status', 'credited')
-                            ->pluck('subject_code')
-                            ->toArray();
-
-                        $allCreditedCodes = array_merge($creditedSubjectCodes, $creditTransferSubjectCodes);
-
-                        // Remove any existing enrollments for subjects the student now has credits for
-                        if (! empty($allCreditedCodes)) {
-                            StudentSubjectEnrollment::where('student_id', $studentId)
-                                ->where('academic_year', $section->academic_year)
-                                ->where('semester', $section->semester)
-                                ->whereHas('sectionSubject', function ($query) use ($section) {
-                                    $query->where('section_id', $section->id);
-                                })
-                                ->whereHas('sectionSubject.subject', function ($query) use ($allCreditedCodes) {
-                                    $query->whereIn('subject_code', $allCreditedCodes);
-                                })
-                                ->delete();
-                        }
-
-                        // Get section subjects excluding those the student already has credits for
-                        $sectionSubjectsQuery = SectionSubject::where('section_id', $section->id)
+                    // For irregular students in the same year level as the section,
+                    // auto-enroll in all active section subjects.
+                    if ((int) ($student->current_year_level ?? 0) === (int) $section->year_level) {
+                        $sectionSubjects = SectionSubject::where('section_id', $section->id)
                             ->where('status', 'active')
-                            ->whereHas('subject', function ($query) use ($allCreditedCodes) {
-                                $query->whereNotIn('subject_code', $allCreditedCodes);
-                            });
-
-                        // If the student is from a different program, restrict auto-enrollment to subjects
-                        // that exist in the student's curriculum for this year level (intersection).
-                        if ($student->program_id !== $section->program_id && $student->curriculum_id) {
-                            $studentCurriculumCodes = \App\Models\CurriculumSubject::where('curriculum_id', $student->curriculum_id)
-                                ->where('year_level', $section->year_level)
-                                ->pluck('subject_code')
-                                ->toArray();
-
-                            if (! empty($studentCurriculumCodes)) {
-                                $sectionSubjectsQuery->whereHas('subject', function ($q) use ($studentCurriculumCodes) {
-                                    $q->whereIn('subject_code', $studentCurriculumCodes);
-                                });
-                            } else {
-                                // No overlapping subjects -> do not auto-enroll any subjects
-                                $sectionSubjectsQuery->whereRaw('0 = 1');
-                            }
-                        }
-
-                        $sectionSubjects = $sectionSubjectsQuery->get();
+                            ->get();
 
                         foreach ($sectionSubjects as $sectionSubject) {
                             // Check if student is already enrolled in this subject
@@ -1740,6 +1689,44 @@ class SectionController extends Controller
         }
 
         $section->load(['program', 'sectionSubjects.subject']);
+
+        $isSameYearLevelIrregular = ! is_null($student->current_year_level)
+            && (int) $student->current_year_level === (int) $section->year_level;
+
+        // Same-year irregular students should always be enrolled in all section subjects.
+        if ($isSameYearLevelIrregular) {
+            $sectionSubjects = $section->sectionSubjects()
+                ->where('status', 'active')
+                ->get();
+
+            foreach ($sectionSubjects as $sectionSubject) {
+                $existingEnrollment = StudentSubjectEnrollment::where('student_id', $student->id)
+                    ->where('section_subject_id', $sectionSubject->id)
+                    ->where('academic_year', $section->academic_year)
+                    ->where('semester', $section->semester)
+                    ->first();
+
+                if (! $existingEnrollment) {
+                    StudentSubjectEnrollment::create([
+                        'student_id' => $student->id,
+                        'section_subject_id' => $sectionSubject->id,
+                        'enrollment_type' => 'irregular',
+                        'academic_year' => $section->academic_year,
+                        'semester' => $section->semester,
+                        'status' => 'active',
+                        'enrollment_date' => now()->toDateString(),
+                        'enrolled_by' => Auth::id(),
+                    ]);
+                } elseif ($existingEnrollment->status !== 'active') {
+                    $existingEnrollment->update([
+                        'status' => 'active',
+                        'enrollment_type' => 'irregular',
+                        'enrollment_date' => now()->toDateString(),
+                        'enrolled_by' => Auth::id(),
+                    ]);
+                }
+            }
+        }
 
         // Get subject codes that the student is already enrolled in
         $enrolledSubjectCodes = StudentSubjectEnrollment::where('student_id', $student->id)
@@ -2078,14 +2065,13 @@ class SectionController extends Controller
         ]);
 
         try {
-            // If this irregular student belongs to the same program and is in the same year level
-            // as the section, treat them like a regular student for subject removal (disallow).
+            // If this irregular student is in the same year level as the section,
+            // treat them like regular enrollment for subject removal (disallow).
             if ($student->student_type === 'irregular'
-                && $student->program_id === $section->program_id
                 && ! is_null($student->current_year_level)
                 && $student->current_year_level == $section->year_level
             ) {
-                return response()->json(['error' => 'Cannot remove subject for an irregular student who is in the same program and year level (treated as regular)'], 422);
+                return response()->json(['error' => 'Cannot remove subject for an irregular student who is in the same year level as this section'], 422);
             }
 
             $enrollment = StudentSubjectEnrollment::where('student_id', $student->id)

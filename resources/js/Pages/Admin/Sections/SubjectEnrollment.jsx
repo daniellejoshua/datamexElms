@@ -26,11 +26,9 @@ export default function SubjectEnrollment({ section, student, availableSubjects,
     // Determine view-only mode: controller sets `student.can_manage_subjects` for irregular students
     const isViewOnly = !student?.can_manage_subjects;
 
-    // If an irregular student belongs to the same program & year level as the
-    // section, treat them like a regular student for removals (they're auto‑enrolled
-    // in every available subject).
+    // If an irregular student is in the same year level as the section,
+    // treat them like a regular student for removals (auto-enrolled subjects).
     const disableRemovalsForIrregular = student?.student_type === 'irregular'
-        && student?.program_id === section?.program_id
         && student?.current_year_level != null
         && student?.current_year_level === section?.year_level;
 
