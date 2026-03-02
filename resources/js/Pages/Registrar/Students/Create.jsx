@@ -143,6 +143,7 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
     const [suggestedSource, setSuggestedSource] = useState(null)
     const [createGuideChecked, setCreateGuideChecked] = useState(false)
     const lastErrorRef = useRef('')
+    const lastCheckTimeRef = useRef(0)
     
     // Computed value for automatic transferee logic
     const shouldBeTransferee = !isExistingStudent && !isReturningStudent && data.program_id && data.year_level && (
@@ -720,11 +721,29 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
     }
 
     const checkStudentByNumber = async () => {
-        if (!data.student_number) return
+        if (!data.student_number || checkingStudent) return
+        
+        // Prevent rapid successive calls (minimum 1 second between requests)
+        const now = Date.now()
+        if (now - lastCheckTimeRef.current < 1000) {
+            toast.warning('Please wait before checking again.')
+            return
+        }
+        lastCheckTimeRef.current = now
         
         setCheckingStudent(true)
         try {
             const response = await fetch(`/api/students/check/${data.student_number}`)
+            
+            if (response.status === 429) {
+                toast.error('Too many requests. Please wait a moment before trying again.')
+                return
+            }
+            
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`)
+            }
+            
             const result = await response.json()
             
             if (result.exists) {
@@ -902,6 +921,9 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
             }
         } catch (error) {
             console.error('Error checking student:', error)
+            if (!error.message.includes('429')) {
+                toast.error('Failed to check student. Please try again.')
+            }
         } finally {
             setCheckingStudent(false)
         }
@@ -1507,7 +1529,16 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                                 <Input 
                                     id="student_number"
                                     value={data.student_number ?? ''}
-                                    onChange={e => setData('student_number', e.target.value)}
+                                    onChange={e => {
+                                        setData('student_number', e.target.value)
+                                        // Reset student found state when student number changes
+                                        if (isExistingStudent || isReturningStudent) {
+                                            setIsExistingStudent(false)
+                                            setIsReturningStudent(false)
+                                            setStudentFound(null)
+                                            setArchivedStudent(null)
+                                        }
+                                    }}
                                     placeholder="Enter student number to check if student exists"
                                     className="h-10"
                                 />
@@ -1519,10 +1550,10 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                                 <Button
                                     type="button"
                                     onClick={checkStudentByNumber}
-                                    disabled={checkingStudent || !data.student_number}
+                                    disabled={checkingStudent || !data.student_number || isExistingStudent || isReturningStudent}
                                     className="h-10"
                                 >
-                                    {checkingStudent ? 'Checking...' : 'Check Student'}
+                                    {checkingStudent ? 'Checking...' : isExistingStudent || isReturningStudent ? 'Student Found' : 'Check Student'}
                                 </Button>
                             </div>
                         </div>
@@ -1541,6 +1572,17 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                             <div>
                                 <CardTitle>Personal Information</CardTitle>
                                 <CardDescription>Enter the student's personal details</CardDescription>
+                                {isExistingStudent && (
+                                    <div className="mt-2 p-3 bg-blue-50 border border-blue-200 rounded-md">
+                                        <p className="text-blue-800 text-sm font-medium flex items-center gap-2">
+                                            <Lock className="w-4 h-4" />
+                                            Personal information locked for existing students
+                                        </p>
+                                        <p className="text-blue-700 text-xs mt-1">
+                                            Personal information cannot be changed. Only Year Level and Payment Amount can be edited.
+                                        </p>
+                                    </div>
+                                )}
                             </div>
                         </div>
                     </CardHeader>
@@ -1575,9 +1617,6 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                                     className="h-10"
                                     disabled={!formUnlocked || isExistingStudent}
                                 />
-                                {isExistingStudent && (
-                                    <p className="text-xs text-blue-600 mt-1">Locked for existing students</p>
-                                )}
                                 {errors.first_name && (
                                     <p className="text-red-500 text-sm mt-1">{errors.first_name}</p>
                                 )}
@@ -1598,9 +1637,6 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                                     }}
                                     disabled={!formUnlocked || isExistingStudent}
                                 />
-                                {isExistingStudent && (
-                                    <p className="text-xs text-blue-600 mt-1">Locked for existing students</p>
-                                )}
                                 {errors.middle_name && (
                                     <p className="text-red-500 text-sm mt-1">{errors.middle_name}</p>
                                 )}
@@ -1623,9 +1659,6 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                                     className={isExistingStudent ? 'bg-gray-100 cursor-not-allowed' : ''}
                                     disabled={!formUnlocked || isExistingStudent}
                                 />
-                                {isExistingStudent && (
-                                    <p className="text-xs text-blue-600 mt-1">Locked for existing students</p>
-                                )}
                                 {errors.last_name && (
                                     <p className="text-red-500 text-sm mt-1">{errors.last_name}</p>
                                 )}
@@ -1643,7 +1676,7 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                                             setCustomSuffix('')
                                         }
                                     }}
-                                    disabled={!formUnlocked}
+                                    disabled={!formUnlocked || isExistingStudent}
                                 >
                                     <SelectTrigger>
                                         <SelectValue placeholder="Select suffix (optional)" />
@@ -1693,9 +1726,6 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                                     className={isExistingStudent ? 'bg-gray-100 cursor-not-allowed' : ''}
                                     disabled={!formUnlocked || isExistingStudent}
                                 />
-                                {isExistingStudent && (
-                                    <p className="text-xs text-blue-600 mt-1">Locked for existing students</p>
-                                )}
                                 {errors.birth_date && (
                                     <p className="text-red-500 text-sm mt-1">{errors.birth_date}</p>
                                 )}
@@ -1740,9 +1770,6 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                                         </div>
                                     )}
                                 </div>
-                                {isExistingStudent && (
-                                    <p className="text-xs text-blue-600 mt-1">Locked for existing students</p>
-                                )}
                                 {checkingDuplicate && (
                                     <p className="text-blue-500 text-sm mt-1 flex items-center gap-1">
                                         <Info className="w-3 h-3" />
@@ -1843,7 +1870,7 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                                         placeholder="9123456789"
                                         maxLength="10"
                                         className={`rounded-l-none ${phoneErrors.phone ? 'border-red-500 focus:border-red-500' : ''}`}
-                                        disabled={!formUnlocked}
+                                        disabled={!formUnlocked || isExistingStudent}
                                     />
                                 </div>
                                 {errors.phone && (
@@ -1880,7 +1907,7 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                                         placeholder="9123456789"
                                         maxLength="10"
                                         className={`rounded-l-none ${phoneErrors.parent_contact ? 'border-red-500 focus:border-red-500' : ''}`}
-                                        disabled={!formUnlocked}
+                                        disabled={!formUnlocked || isExistingStudent}
                                     />
                                 </div>
                                 {errors.parent_contact && (
@@ -1909,7 +1936,7 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                                             setData('street', value);
                                         }}
                                         placeholder="e.g. 123 Main St"
-                                        disabled={!formUnlocked}
+                                        disabled={!formUnlocked || isExistingStudent}
                                     />
                                     {errors.street && (
                                         <p className="text-red-500 text-sm mt-1">{errors.street}</p>
@@ -1930,7 +1957,7 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                                             setData('province', value);
                                         }}
                                         placeholder="e.g. Metro Manila"
-                                        disabled={!formUnlocked}
+                                        disabled={!formUnlocked || isExistingStudent}
                                     />
                                     {errors.province && (
                                         <p className="text-red-500 text-sm mt-1">{errors.province}</p>
@@ -1951,7 +1978,7 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                                             setData('city', value);
                                         }}
                                         placeholder="e.g. Quezon City"
-                                        disabled={!formUnlocked}
+                                        disabled={!formUnlocked || isExistingStudent}
                                     />
                                     {errors.city && (
                                         <p className="text-red-500 text-sm mt-1">{errors.city}</p>
@@ -1972,7 +1999,7 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                                             setData('barangay', value);
                                         }}
                                         placeholder="e.g. Barangay 1"
-                                        disabled={!formUnlocked}
+                                        disabled={!formUnlocked || isExistingStudent}
                                     />
                                     {errors.barangay && (
                                         <p className="text-red-500 text-sm mt-1">{errors.barangay}</p>
@@ -1994,7 +2021,7 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                                         }}
                                         placeholder="e.g. 1200"
                                         maxLength="4"
-                                        disabled={!formUnlocked}
+                                        disabled={!formUnlocked || isExistingStudent}
                                     />
                                     {errors.zip_code && (
                                         <p className="text-red-500 text-sm mt-1">{errors.zip_code}</p>
@@ -2015,6 +2042,17 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                             <div>
                                 <CardTitle>Academic Information</CardTitle>
                                 <CardDescription>Select the student's program and year level</CardDescription>
+                                {isExistingStudent && (
+                                    <div className="mt-2 p-3 bg-green-50 border border-green-200 rounded-md">
+                                        <p className="text-green-800 text-sm font-medium flex items-center gap-2">
+                                            <Lock className="w-4 h-4" />
+                                            Academic fields locked for existing students
+                                        </p>
+                                        <p className="text-green-700 text-xs mt-1">
+                                            Program selection is locked. Year Level can be updated for progression.
+                                        </p>
+                                    </div>
+                                )}
                             </div>
                         </div>
                     </CardHeader>
@@ -2048,7 +2086,7 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                             <div className="relative">
                                 <Label htmlFor="program_id" className="text-sm font-medium">Program *</Label>
                                 <div className="flex gap-2">
-                                    <Select value={data.program_id.toString()} onValueChange={(value) => setData('program_id', value)} disabled={!formUnlocked}>
+                                    <Select value={data.program_id.toString()} onValueChange={(value) => setData('program_id', value)} disabled={!formUnlocked || isExistingStudent}>
                                         <SelectTrigger className={`h-10 flex-1 ${errors.program_id ? 'border-red-500' : 'border-gray-300 focus:border-green-500'}`}>
                                             <SelectValue placeholder="Select program" />
                                         </SelectTrigger>
@@ -2278,6 +2316,17 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                                     <CardDescription>
                                         Process the initial program fee payment for {currentAcademicYear} - {currentSemester} Semester
                                     </CardDescription>
+                                    {isExistingStudent && (
+                                        <div className="mt-2 p-3 bg-orange-50 border border-orange-200 rounded-md">
+                                            <p className="text-orange-800 text-sm font-medium flex items-center gap-2">
+                                                <Lock className="w-4 h-4" />
+                                                Payment amount editable for existing students
+                                            </p>
+                                            <p className="text-orange-700 text-xs mt-1">
+                                                You can update the payment amount for returning students.
+                                            </p>
+                                        </div>
+                                    )}
                                 </div>
                             </div>
                         </CardHeader>
