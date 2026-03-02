@@ -2086,7 +2086,7 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                             <div className="relative">
                                 <Label htmlFor="program_id" className="text-sm font-medium">Program *</Label>
                                 <div className="flex gap-2">
-                                    <Select value={data.program_id.toString()} onValueChange={(value) => setData('program_id', value)} disabled={!formUnlocked || isExistingStudent}>
+                                    <Select value={data.program_id.toString()} onValueChange={(value) => setData('program_id', value)} disabled={!formUnlocked}>
                                         <SelectTrigger className={`h-10 flex-1 ${errors.program_id ? 'border-red-500' : 'border-gray-300 focus:border-green-500'}`}>
                                             <SelectValue placeholder="Select program" />
                                         </SelectTrigger>

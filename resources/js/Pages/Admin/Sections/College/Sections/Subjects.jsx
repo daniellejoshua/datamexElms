@@ -28,7 +28,7 @@ const Subjects = ({ section, subjects, teachers }) => {
         if (sectionYear > currentYear) return false;
         
         // Same year, check semester
-        const semesterOrder = { '1st': 1, '2nd': 2, 'summer': 3 };
+        const semesterOrder = { '1st': 1, '2nd': 2,  };
         const sectionSemesterOrder = semesterOrder[section.semester] || 0;
         const currentSemesterOrder = semesterOrder[section.current_semester] || 0;
         
