@@ -1,7 +1,7 @@
 <?php
 
-use App\Models\User;
 use App\Models\Teacher;
+use App\Models\User;
 
 it('allows super admin to view dashboard and users pages', function () {
     $user = User::factory()->create(['role' => 'super_admin']);
@@ -14,7 +14,7 @@ it('allows super admin to view dashboard and users pages', function () {
     $response->assertSuccessful();
     $response->assertInertia(fn ($page) => $page->component('SuperAdmin/Users'));
 
-    // Ensure the users endpoint only returns head teachers
+    // Ensure the users endpoint returns multiple user roles
     // create one teacher with role=teacher and one head teacher
     $teacherUser = User::factory()->create(['role' => 'teacher']);
     $teacher = \App\Models\Teacher::factory()->create(['user_id' => $teacherUser->id, 'department' => 'X']);
@@ -22,9 +22,22 @@ it('allows super admin to view dashboard and users pages', function () {
     $headUser = User::factory()->create(['role' => 'head_teacher']);
     $head = \App\Models\Teacher::factory()->create(['user_id' => $headUser->id, 'department' => 'Y']);
 
-    $response = $this->actingAs($user)->get(route('superadmin.users'));
+    $response = $this->actingAs($user)->get(route('superadmin.users', ['search' => $headUser->email]));
     $response->assertSuccessful();
-    $response->assertInertia(fn ($page) => $page->has('teachers.data')->where('teachers.data.0.role', 'head_teacher'));
+    $response->assertInertia(fn ($page) => $page->has('users.data')->where('users.data.0.role', 'head_teacher'));
+});
+
+it('lets super admin update user account status', function () {
+    $superAdmin = User::factory()->create(['role' => 'super_admin']);
+    $managedUser = User::factory()->create(['role' => 'student', 'is_active' => true]);
+
+    $response = $this->actingAs($superAdmin)->patch(route('superadmin.users.update-status', $managedUser), [
+        'is_active' => false,
+    ]);
+
+    $response->assertRedirect(route('superadmin.users'));
+
+    expect($managedUser->fresh()->is_active)->toBeFalse();
 });
 
 it('redirects super admin to super-admin dashboard from main dashboard', function () {

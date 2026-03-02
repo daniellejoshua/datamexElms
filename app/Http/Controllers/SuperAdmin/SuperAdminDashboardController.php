@@ -78,41 +78,44 @@ class SuperAdminDashboardController extends Controller
 
     public function users(Request $request)
     {
-        // Query Users with role head_teacher and eager-load the teacher profile (may be null)
-        $query = \App\Models\User::where('role', 'head_teacher')->with('teacher');
+        $query = User::with(['teacher', 'student']);
 
-        // Apply search filter (user name/email OR teacher fields)
         if ($request->has('search') && $request->search) {
             $search = $request->search;
             $query->where(function ($q) use ($search) {
                 $q->where('name', 'like', '%'.$search.'%')
                     ->orWhere('email', 'like', '%'.$search.'%')
+                    ->orWhere('role', 'like', '%'.$search.'%')
                     ->orWhereHas('teacher', function ($t) use ($search) {
                         $t->where('first_name', 'like', '%'.$search.'%')
-                          ->orWhere('last_name', 'like', '%'.$search.'%')
-                          ->orWhere('department', 'like', '%'.$search.'%')
-                          ->orWhere('employee_number', 'like', '%'.$search.'%');
+                            ->orWhere('last_name', 'like', '%'.$search.'%')
+                            ->orWhere('department', 'like', '%'.$search.'%')
+                            ->orWhere('employee_number', 'like', '%'.$search.'%');
+                    })
+                    ->orWhereHas('student', function ($s) use ($search) {
+                        $s->where('first_name', 'like', '%'.$search.'%')
+                            ->orWhere('last_name', 'like', '%'.$search.'%')
+                            ->orWhere('student_number', 'like', '%'.$search.'%');
                     });
             });
         }
 
-        // Status filter (falls back to 'active' when teacher profile is missing)
         if ($request->has('status') && $request->status && $request->status !== 'all') {
-            $query->whereHas('teacher', function ($t) use ($request) {
-                $t->where('status', $request->status);
-            });
+            $query->where('is_active', $request->status === 'active');
         }
 
-        // Department filter applies only when teacher profile exists
+        if ($request->has('role') && $request->role && $request->role !== 'all') {
+            $query->where('role', $request->role);
+        }
+
         if ($request->has('department') && $request->department && $request->department !== 'all') {
             $query->whereHas('teacher', function ($t) use ($request) {
                 $t->where('department', $request->department);
             });
         }
 
-        $headTeachers = $query->orderBy('name')->paginate(15)->withQueryString();
+        $users = $query->orderBy('name')->paginate(15)->withQueryString();
 
-        // Departments available from teacher profiles
         $departments = \App\Models\Teacher::whereNotNull('department')
             ->distinct()
             ->pluck('department')
@@ -120,10 +123,23 @@ class SuperAdminDashboardController extends Controller
             ->values();
 
         return Inertia::render('SuperAdmin/Users', [
-            'teachers' => $headTeachers,
+            'users' => $users,
             'departments' => $departments,
-            'filters' => $request->only(['search', 'status', 'department']),
+            'filters' => $request->only(['search', 'status', 'role', 'department']),
         ]);
+    }
+
+    public function updateUserStatus(Request $request, User $user)
+    {
+        $validated = $request->validate([
+            'is_active' => 'required|boolean',
+        ]);
+
+        $user->update([
+            'is_active' => $validated['is_active'],
+        ]);
+
+        return redirect()->route('superadmin.users')->with('success', 'User status updated successfully.');
     }
 
     public function systemLogs(Request $request)

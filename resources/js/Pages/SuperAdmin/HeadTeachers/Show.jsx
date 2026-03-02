@@ -20,11 +20,15 @@ import {
     Clock
 } from 'lucide-react';
 
-const Show = ({ user, teacher }) => {
-    const t = teacher || user.teacher || {};
+const Show = ({ user, teacher, student }) => {
+    // Determine user type and get appropriate data
+    const userType = user.role;
+    const profileData = teacher || student || {};
+    const isTeacher = userType === 'teacher' || userType === 'head_teacher';
+    const isStudent = userType === 'student';
 
     const getStatusBadge = (status) => {
-        return status === 'active' ? (
+        return status === 'active' || user.is_active ? (
             <Badge className="bg-green-100 text-green-800 border-green-200">
                 <UserCheck className="w-3 h-3 mr-1" />
                 Active
@@ -46,6 +50,30 @@ const Show = ({ user, teacher }) => {
         });
     };
 
+    const getDisplayName = () => {
+        if (isTeacher && profileData.first_name) {
+            return `${profileData.first_name} ${profileData.middle_name || ''} ${profileData.last_name}`.trim();
+        }
+        if (isStudent && profileData.first_name) {
+            return `${profileData.first_name} ${profileData.middle_name || ''} ${profileData.last_name}`.trim();
+        }
+        return user.name;
+    };
+
+    const getIdentifier = () => {
+        if (isTeacher && profileData.employee_number) {
+            return `Employee #${profileData.employee_number}`;
+        }
+        if (isStudent && profileData.student_number) {
+            return `Student #${profileData.student_number}`;
+        }
+        return user.email;
+    };
+
+    const getRoleDisplay = () => {
+        return user.role.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase());
+    };
+
     return (
         <AuthenticatedLayout
             header={
@@ -54,7 +82,7 @@ const Show = ({ user, teacher }) => {
                         <Button asChild variant="ghost" size="sm">
                             <Link href={route('superadmin.users')} className="flex items-center gap-2">
                                 <ArrowLeft className="w-4 h-4" />
-                                <span className="hidden sm:inline">Back to Head Teachers</span>
+                                <span className="hidden sm:inline">Back to User Governance</span>
                                 <span className="sm:hidden">Back</span>
                             </Link>
                         </Button>
@@ -64,31 +92,31 @@ const Show = ({ user, teacher }) => {
                                 <User className="w-4 h-4 text-blue-600" />
                             </div>
                             <div>
-                                <h2 className="text-lg font-semibold text-gray-900">Head Teacher Details</h2>
-                                <p className="text-xs text-gray-500 mt-0.5 hidden sm:block">View head teacher information and assignments</p>
+                                <h2 className="text-lg font-semibold text-gray-900">{getRoleDisplay()} Details</h2>
+                                <p className="text-xs text-gray-500 mt-0.5 hidden sm:block">View user information and details</p>
                             </div>
                         </div>
                     </div>
                 </div>
             }
         >
-            <Head title={`${t.first_name || user.name} ${t.last_name || ''} - Head Teacher`} />
+            <Head title={`${getDisplayName()} - ${getRoleDisplay()}`} />
 
             <div className="p-4 sm:p-6 lg:p-8 space-y-6">
                 <Card>
                     <CardContent className="pt-6">
                         <div className="flex flex-col sm:flex-row items-center sm:items-start gap-6">
                             <div className="flex flex-col items-center">
-                                {t.profile_picture ? (
+                                {profileData.profile_picture ? (
                                     <img
-                                        src={t.profile_picture}
-                                        alt={`${t.first_name} ${t.last_name}`}
+                                        src={profileData.profile_picture}
+                                        alt={getDisplayName()}
                                         className="w-20 h-20 rounded-full object-cover border-4 border-gray-100 flex-shrink-0"
                                     />
                                 ) : (
                                     <div className="w-20 h-20 bg-blue-500 rounded-full flex items-center justify-center flex-shrink-0">
                                         <span className="text-white font-bold text-2xl">
-                                            {(t.first_name || '').charAt(0)}{(t.last_name || '').charAt(0)}
+                                            {(getDisplayName() || '').split(' ').map(n => n.charAt(0)).join('').slice(0, 2)}
                                         </span>
                                     </div>
                                 )}
@@ -98,17 +126,20 @@ const Show = ({ user, teacher }) => {
                                 <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
                                     <div className="flex-1">
                                         <h1 className="text-2xl font-bold text-gray-900">
-                                            {t.first_name || user.name} {t.middle_name ? t.middle_name + ' ' : ''}{t.last_name}
+                                            {getDisplayName()}
                                         </h1>
                                         <p className="text-lg text-gray-600 mt-1">
-                                            Employee #{t.employee_number || user.formatted_employee_number || 'N/A'}
+                                            {getIdentifier()}
                                         </p>
                                         <div className="flex flex-wrap justify-center sm:justify-start items-center gap-2 mt-2">
-                                            {getStatusBadge(t.status || 'active')}
-                                            {t.department && (
+                                            {getStatusBadge(user.is_active)}
+                                            <Badge variant="outline">
+                                                {getRoleDisplay()}
+                                            </Badge>
+                                            {isTeacher && profileData.department && (
                                                 <Badge variant="outline">
                                                     <Building2 className="w-3 h-3 mr-1" />
-                                                    {t.department}
+                                                    {profileData.department}
                                                 </Badge>
                                             )}
                                         </div>
@@ -118,7 +149,7 @@ const Show = ({ user, teacher }) => {
                                         <Button asChild variant="outline" size="sm">
                                             <Link href={route('superadmin.users.edit', user.id)}>
                                                 <Edit className="w-4 h-4 mr-2" />
-                                                Edit Head Teacher
+                                                Edit {getRoleDisplay()}
                                             </Link>
                                         </Button>
                                     </div>

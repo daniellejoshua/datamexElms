@@ -320,7 +320,7 @@ export default function AuthenticatedLayout({ header, children }) {
                         )
                     },
                     {
-                        name: 'Manage head teachers',
+                        name: 'User Governance',
                         href: route('superadmin.users'),
                         current: route().current('superadmin.users.*'),
                         icon: <Users className="w-5 h-5" />

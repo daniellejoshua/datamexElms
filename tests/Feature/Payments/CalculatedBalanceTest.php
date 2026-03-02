@@ -82,10 +82,9 @@ it('does not calculate balance for past semester payments', function () {
 
     $response = $this->actingAs($user)->get(route('student.payments'));
     $response->assertSuccessful();
-    $response->assertInertia(fn (Assert $page) =>
-        $page->component('Student/Payments/Index')
-            ->has('paymentHistory')
-            ->where('paymentHistory.0.calculated_total_amount', null)
+    $response->assertInertia(fn (Assert $page) => $page->component('Student/Payments/Index')
+        ->has('paymentHistory')
+        ->where('paymentHistory.0.calculated_total_amount', null)
     );
 });
 
@@ -213,10 +212,9 @@ it('shows calculated balance on registrar payments index for transferees', funct
     $response = $this->actingAs($registrar)->get(route('registrar.payments.college.index'));
     $response->assertSuccessful();
 
-    $response->assertInertia(fn (Assert $page) =>
-        $page->component('Registrar/Payments/College/Index')
-            ->has('payments')
-            ->where('payments.data.0.calculated_total_amount', fn ($v) => is_numeric($v))
+    $response->assertInertia(fn (Assert $page) => $page->component('Registrar/Payments/College/Index')
+        ->has('payments')
+        ->where('payments.data.0.calculated_total_amount', fn ($v) => is_numeric($v))
     );
 });
 
@@ -317,6 +315,51 @@ it('reduces balance when a college payment is recorded and updates status', func
     expect($transaction->description)->toBe('Follow-up payment');
 });
 
+it('uses effective due instead of stale stored balance when recording irregular payment', function () {
+    $registrar = User::factory()->create(['role' => 'registrar']);
+    $program = Program::factory()->create(['education_level' => 'college']);
+
+    $studentUser = User::factory()->create(['role' => 'student']);
+    $student = Student::factory()->create([
+        'user_id' => $studentUser->id,
+        'program_id' => $program->id,
+        'student_type' => 'irregular',
+        'status' => 'active',
+    ]);
+
+    $academicYear = SchoolSetting::getCurrentAcademicYear();
+    $semester = SchoolSetting::getCurrentSemester();
+
+    $payment = StudentSemesterPayment::create([
+        'student_id' => $student->id,
+        'academic_year' => $academicYear,
+        'semester' => $semester,
+        'enrollment_fee' => 0,
+        'total_semester_fee' => 1000.00,
+        'calculated_total_amount' => 3000.00,
+        'total_paid' => 0,
+        'balance' => 1000.00,
+        'fee_finalized' => true,
+        'status' => 'pending',
+    ]);
+
+    $response = $this->actingAs($registrar)->post(route('registrar.payments.college.record', $payment), [
+        'amount_paid' => 1500.00,
+        'payment_date' => now()->toDateString(),
+        'term' => 'prelim',
+        'or_number' => 'OR-IRREG-001',
+        'notes' => 'irregular stale balance regression',
+    ]);
+
+    $response->assertRedirect();
+    $response->assertSessionHasNoErrors();
+
+    $payment->refresh();
+    expect((float) $payment->total_paid)->toBe(1500.00);
+    expect((float) $payment->balance)->toBe(1500.00);
+    expect($payment->status)->toBe('partial');
+});
+
 it('will auto‑convert any term to followup when payment belongs to past semester', function () {
     $registrar = User::factory()->create(['role' => 'registrar']);
     $student = Student::factory()->create();
@@ -358,14 +401,14 @@ it('will auto‑convert any term to followup when payment belongs to past semest
 
 it('keeps original fees on student payment even after program fee is updated', function () {
     $program = \App\Models\Program::factory()->create(['semester_fee' => 10000]);
-    $program->programFees()->create([ 'year_level' => 1, 'fee_type' => 'regular', 'semester_fee' => 10000 ]);
+    $program->programFees()->create(['year_level' => 1, 'fee_type' => 'regular', 'semester_fee' => 10000]);
 
     $student = Student::factory()->create(['program_id' => $program->id]);
     $year = SchoolSetting::getCurrentAcademicYear();
     $sem = SchoolSetting::getCurrentSemester();
 
     // generate payment record via service
-    (new \App\Services\StudentPaymentService())->createSemesterPayment($student, $year, $sem);
+    (new \App\Services\StudentPaymentService)->createSemesterPayment($student, $year, $sem);
 
     $payment = $student->studentSemesterPayments()->first();
     expect((float) $payment->total_semester_fee)->toBe(10000.00);
@@ -381,13 +424,13 @@ it('keeps original fees on student payment even after program fee is updated', f
     expect((float) $payment->balance)->toBe(10000.00);
 
     // calling createSemesterPayment again should return same record without modification
-    $again = (new \App\Services\StudentPaymentService())->createSemesterPayment($student, $year, $sem);
+    $again = (new \App\Services\StudentPaymentService)->createSemesterPayment($student, $year, $sem);
     expect($again->id)->toBe($payment->id);
 });
 
 it('fix command only updates fees for students with active status', function () {
     $program = \App\Models\Program::factory()->create(['semester_fee' => 8000]);
-    $program->programFees()->create([ 'year_level' => 1, 'fee_type' => 'regular', 'semester_fee' => 8000 ]);
+    $program->programFees()->create(['year_level' => 1, 'fee_type' => 'regular', 'semester_fee' => 8000]);
 
     $activeStudent = Student::factory()->create(['program_id' => $program->id, 'status' => 'active']);
     $inactiveStudent = Student::factory()->create(['program_id' => $program->id, 'status' => 'dropped']);
@@ -395,8 +438,8 @@ it('fix command only updates fees for students with active status', function () 
     $year = SchoolSetting::getCurrentAcademicYear();
     $sem = SchoolSetting::getCurrentSemester();
 
-    (new \App\Services\StudentPaymentService())->createSemesterPayment($activeStudent, $year, $sem);
-    (new \App\Services\StudentPaymentService())->createSemesterPayment($inactiveStudent, $year, $sem);
+    (new \App\Services\StudentPaymentService)->createSemesterPayment($activeStudent, $year, $sem);
+    (new \App\Services\StudentPaymentService)->createSemesterPayment($inactiveStudent, $year, $sem);
 
     $activePayment = $activeStudent->studentSemesterPayments()->first();
     $inactivePayment = $inactiveStudent->studentSemesterPayments()->first();
@@ -422,7 +465,7 @@ it('fix command only updates fees for students with active status', function () 
 
 it('does not recalc a dropped student payment when program fee changes and page is viewed', function () {
     $program = \App\Models\Program::factory()->create(['semester_fee' => 11000]);
-    $program->programFees()->create([ 'year_level' => 1, 'fee_type' => 'regular', 'semester_fee' => 11000 ]);
+    $program->programFees()->create(['year_level' => 1, 'fee_type' => 'regular', 'semester_fee' => 11000]);
 
     // irregular student gets calculated immediately
     $student = Student::factory()->create([
@@ -434,7 +477,7 @@ it('does not recalc a dropped student payment when program fee changes and page 
     $year = SchoolSetting::getCurrentAcademicYear();
     $sem = SchoolSetting::getCurrentSemester();
 
-    (new \App\Services\StudentPaymentService())->createSemesterPayment($student, $year, $sem);
+    (new \App\Services\StudentPaymentService)->createSemesterPayment($student, $year, $sem);
     $payment = $student->studentSemesterPayments()->first();
 
     // payment should have original amount
@@ -451,12 +494,10 @@ it('does not recalc a dropped student payment when program fee changes and page 
     $response = $this->actingAs($registrar)->get(route('registrar.payments.college.index'));
     $response->assertSuccessful();
 
-    $response->assertInertia(fn (Assert $page) =>
-        $page->component('Registrar/Payments/College/Index')
-            ->has('payments.data', 1)
-            ->where('payments.data.0.total_semester_fee', fn ($value) =>
-                is_numeric($value) && (float) $value === (float) $originalFee
-            )
+    $response->assertInertia(fn (Assert $page) => $page->component('Registrar/Payments/College/Index')
+        ->has('payments.data', 1)
+        ->where('payments.data.0.total_semester_fee', fn ($value) => is_numeric($value) && (float) $value === (float) $originalFee
+        )
     );
 
     // the payment record should now be finalized since we dropped the student
@@ -476,16 +517,15 @@ it('does not recalc a dropped student payment when program fee changes and page 
     // also verify the show page uses the frozen value
     $showResp = $this->actingAs($registrar)->get(route('registrar.payments.college.show', $student));
     $showResp->assertSuccessful();
-    $showResp->assertInertia(fn (Assert $page) =>
-        $page->component('Registrar/Payments/College/Show')
-            ->has('payments', 1)
-            ->where('payments.0.total_semester_fee', fn ($v) => is_numeric($v) && (float) $v === $originalFee)
+    $showResp->assertInertia(fn (Assert $page) => $page->component('Registrar/Payments/College/Show')
+        ->has('payments', 1)
+        ->where('payments.0.total_semester_fee', fn ($v) => is_numeric($v) && (float) $v === $originalFee)
     );
 });
 
 it('also preserves SHS payment fees after drop even if program fee changes', function () {
     $program = \App\Models\Program::factory()->create(['semester_fee' => 7000]);
-    $program->programFees()->create([ 'year_level' => 1, 'fee_type' => 'regular', 'semester_fee' => 7000 ]);
+    $program->programFees()->create(['year_level' => 1, 'fee_type' => 'regular', 'semester_fee' => 7000]);
 
     $student = Student::factory()->create([
         'education_level' => 'senior_high',
@@ -519,16 +559,13 @@ it('also preserves SHS payment fees after drop even if program fee changes', fun
     $registrar = User::factory()->create(['role' => 'registrar']);
     $idx = $this->actingAs($registrar)->get(route('registrar.payments.shs.index'));
     $idx->assertSuccessful();
-    $idx->assertInertia(fn (Assert $page) =>
-        $page->component('Registrar/Payments/Shs/Index')
-            ->where('payments.data.0.total_semester_fee', fn ($v) => (float) $v === $original)
+    $idx->assertInertia(fn (Assert $page) => $page->component('Registrar/Payments/Shs/Index')
+        ->where('payments.data.0.total_semester_fee', fn ($v) => (float) $v === $original)
     );
 
     $show = $this->actingAs($registrar)->get(route('registrar.payments.shs.show', $student));
     $show->assertSuccessful();
-    $show->assertInertia(fn (Assert $page) =>
-        $page->component('Registrar/Payments/Shs/Show')
-            ->where('payments.0.total_semester_fee', fn ($v) => (float) $v === $original)
+    $show->assertInertia(fn (Assert $page) => $page->component('Registrar/Payments/Shs/Show')
+        ->where('payments.0.total_semester_fee', fn ($v) => (float) $v === $original)
     );
 });
-

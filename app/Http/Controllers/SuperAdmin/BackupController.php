@@ -3,80 +3,127 @@
 namespace App\Http\Controllers\SuperAdmin;
 
 use App\Http\Controllers\Controller;
+use App\Services\BackupManagerService;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
-use Symfony\Component\Process\Process;
+use Inertia\Response;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 class BackupController extends Controller
 {
-    public function index()
+    public function __construct(private BackupManagerService $backupManager) {}
+
+    public function index(): Response
     {
-        return Inertia::render('SuperAdmin/Backup');
+        return Inertia::render('SuperAdmin/Backup', [
+            'settings' => $this->backupManager->getSettings(),
+            'backups' => $this->backupManager->listBackups(),
+        ]);
     }
 
-    /**
-     * Create a database dump (gzip). Uses mysqldump when available.
-     * Note: running mysqldump requires the binary to be present in the container.
-     */
-    public function backup(Request $request)
+    public function backup(Request $request): JsonResponse
     {
-        $db = config('database.connections.mysql');
-
-        $host = $db['host'] ?? '127.0.0.1';
-        $database = $db['database'] ?? null;
-        $username = $db['username'] ?? null;
-        $password = $db['password'] ?? null;
-
-        if (! $database) {
-            return back()->withErrors(['backup' => 'Database configuration missing']);
-        }
-
-        $dir = storage_path('app/backups');
-        if (! is_dir($dir)) {
-            mkdir($dir, 0755, true);
-        }
-
-        $filename = $dir.'/db-backup-'.date('Ymd_His').'.sql.gz';
-
-        // Build mysqldump command — use shell because of gzip pipe
-        // Escape password to reduce injection risk
-        $escapedPassword = str_replace("'", "'"."'"."'", $password ?? '');
-        $command = "mysqldump -h {$host} -u{$username} -p'{$escapedPassword}' {$database} | gzip > {$filename}";
+        $validated = $request->validate([
+            'destination' => 'required|string|in:local,cloud',
+            'cloud_disk' => 'nullable|string',
+        ]);
 
         try {
-            $process = Process::fromShellCommandline($command);
-            $process->setTimeout(300); // 5 minutes max
-            $process->run();
+            $backup = $this->backupManager->createBackup(
+                mode: 'manual',
+                destination: $validated['destination'],
+                cloudDisk: $validated['cloud_disk'] ?? null,
+            );
 
-            if (! $process->isSuccessful()) {
-                Log::error('Backup failed', ['output' => $process->getErrorOutput()]);
-                return back()->withErrors(['backup' => 'Backup failed: '.$process->getErrorOutput()]);
-            }
-
-            return response()->download($filename)->deleteFileAfterSend(true);
+            return response()->json([
+                'success' => true,
+                'message' => 'Backup created successfully.',
+                'backup' => $backup,
+            ]);
         } catch (\Throwable $e) {
-            Log::error('Backup error', ['error' => $e->getMessage()]);
-            return back()->withErrors(['backup' => 'Backup is not available on this environment.']);
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage(),
+            ], 422);
         }
     }
 
-    /**
-     * Accept a backup file upload; for safety we simply store the file and return success.
-     * Restoring on the server requires additional operational checks and is intentionally
-     * left as a manual step (or require dev ops). If you want an automated restore here
-     * we can extend this to run mysql import (dangerous on production).
-     */
-    public function restore(Request $request)
+    public function updateSettings(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'automatic_enabled' => 'required|boolean',
+            'frequency' => 'required|string|in:hourly,daily,weekly',
+            'time' => 'required|string',
+            'destination' => 'required|string|in:local,cloud',
+            'cloud_disk' => 'nullable|string',
+        ]);
+
+        $settings = $this->backupManager->saveSettings($validated);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Backup settings updated.',
+            'settings' => $settings,
+        ]);
+    }
+
+    public function runAutomaticNow(): JsonResponse
+    {
+        try {
+            $result = $this->backupManager->runAutomaticBackup(force: true);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Automatic backup executed.',
+                'result' => $result,
+            ]);
+        } catch (\Throwable $e) {
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage(),
+            ], 422);
+        }
+    }
+
+    public function restore(Request $request): JsonResponse
     {
         $request->validate([
-            'backup' => 'required|file',
+            'backup' => 'required|file|mimes:sql,gz,zip|max:51200',
         ]);
 
         $file = $request->file('backup');
-        $path = $file->storeAs('backups', 'restore-'.time().'-'.$file->getClientOriginalName());
+        $path = $file->storeAs('backups/restores', 'restore-'.time().'-'.$file->getClientOriginalName(), 'local');
 
-        return back()->with('success', 'Backup uploaded to storage: '.$path.'. To restore, run the restore process on the server (manual step).');
+        return response()->json([
+            'success' => true,
+            'message' => 'Restore file uploaded. Restore execution remains a manual server-side safety step.',
+            'path' => $path,
+        ]);
+    }
+
+    public function download(Request $request): BinaryFileResponse|JsonResponse
+    {
+        $validated = $request->validate([
+            'path' => 'required|string',
+        ]);
+
+        $path = ltrim($validated['path'], '/');
+
+        if (! str_starts_with($path, 'backups/')) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Invalid backup path.',
+            ], 422);
+        }
+
+        if (! \Storage::disk('local')->exists($path)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Backup file not found.',
+            ], 404);
+        }
+
+        return response()->download(\Storage::disk('local')->path($path), basename($path));
     }
 }

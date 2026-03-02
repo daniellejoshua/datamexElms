@@ -10,9 +10,9 @@ use App\Models\StudentEnrollment;
 use App\Models\StudentSemesterPayment;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 use Inertia\Inertia;
 use Inertia\Response;
-use Illuminate\Support\Facades\Log;
 
 class CollegePaymentController extends Controller
 {
@@ -69,7 +69,10 @@ class CollegePaymentController extends Controller
                     ! $payment->is_balance_calculated) {
                     try {
                         $calc = $paymentService->calculateIrregularBalance($payment);
-                        $payment->calculated_total_amount = $calc['calculated_balance'] ?? $payment->total_semester_fee;
+                        $recalculatedBalance = (float) ($calc['calculated_balance'] ?? 0);
+                        if ($recalculatedBalance > 0) {
+                            $payment->calculated_total_amount = $recalculatedBalance;
+                        }
 
                         // Apply calculated total as the effective semester fee, then
                         // recompute totals from transactions so the displayed balance
@@ -82,13 +85,15 @@ class CollegePaymentController extends Controller
                     }
                 }
 
-                // if we already have a calculated amount, use it for display and
-                // ensure we deduct any completed transactions from the balance
-                if ($payment->calculated_total_amount) {
-                    $payment->total_semester_fee = $payment->calculated_total_amount;
-                    $payment->total_paid = $payment->calculateTotalPaid();
-                    $payment->balance = max(0, $payment->total_semester_fee - $payment->total_paid);
-                }
+                // Always compute display totals from the effective semester fee
+                // and completed transactions so list values are accurate even
+                // before opening the details page.
+                $effectiveTotalFee = (float) ($payment->calculated_total_amount ?? $payment->total_semester_fee);
+                $computedTotalPaid = (float) $payment->calculateTotalPaid();
+
+                $payment->total_semester_fee = $effectiveTotalFee;
+                $payment->total_paid = $computedTotalPaid;
+                $payment->balance = max(0, $effectiveTotalFee - $computedTotalPaid);
 
                 return $payment;
             });
@@ -208,11 +213,24 @@ class CollegePaymentController extends Controller
 
                 try {
                     $calc = $paymentService->calculateIrregularBalance($payment);
-                    $payment->calculated_total_amount = $calc['calculated_balance'] ?? $payment->total_semester_fee;
+                    $recalculatedBalance = (float) ($calc['calculated_balance'] ?? 0);
+                    if ($recalculatedBalance > 0) {
+                        $payment->calculated_total_amount = $recalculatedBalance;
+                    }
                 } catch (\Exception $e) {
                     $payment->calculated_total_amount = $payment->total_semester_fee;
                 }
             }
+        }
+
+        // Keep details page math consistent with list page math.
+        foreach ($payments as $payment) {
+            $effectiveTotalFee = (float) ($payment->calculated_total_amount ?? $payment->total_semester_fee);
+            $computedTotalPaid = (float) $payment->calculateTotalPaid();
+
+            $payment->total_semester_fee = $effectiveTotalFee;
+            $payment->total_paid = $computedTotalPaid;
+            $payment->balance = max(0, $effectiveTotalFee - $computedTotalPaid);
         }
 
         return Inertia::render('Registrar/Payments/College/Show', [
@@ -295,12 +313,15 @@ class CollegePaymentController extends Controller
             'notes' => 'nullable|string',
         ]);
 
+        $currentTotals = $this->resolvePaymentTotals($payment);
+        $remainingBalance = $currentTotals['remaining_balance'];
+
         // Check if payment is already fully paid (0 balance)
-        if ($payment->balance <= 0) {
+        if ($remainingBalance <= 0) {
             return back()->withErrors(['amount_paid' => 'This student has already fully paid. No additional payment can be recorded.']);
         }
 
-        if ($validated['amount_paid'] > $payment->balance) {
+        if ($validated['amount_paid'] > $remainingBalance) {
             return back()->withErrors(['amount_paid' => 'Payment amount cannot exceed remaining balance.']);
         }
 
@@ -349,8 +370,8 @@ class CollegePaymentController extends Controller
             // reflect actual outstanding amounts.
             $termFee = $payment->{$termFeeField} ?? 0;
             if ($termFee <= 0) {
-                $effectiveTotal = $payment->calculated_total_amount ?? $payment->total_semester_fee;
-                $alreadyPaid = $payment->paymentTransactions()->where('status', 'completed')->sum('amount');
+                $effectiveTotal = $currentTotals['effective_total'];
+                $alreadyPaid = $currentTotals['total_paid'];
                 $termFee = max(0, $effectiveTotal - $alreadyPaid);
             }
 
@@ -414,16 +435,16 @@ class CollegePaymentController extends Controller
 
         // Only mark the specific term paid when that term has a defined fee
         // and the transactions for that term meet or exceed it. For custom
-        ///irregular plans where per-term amounts are not defined, avoid
+        // /irregular plans where per-term amounts are not defined, avoid
         // forcing term flags; overall balance/status will still be updated.
         $termFee = $payment->{$termFeeField} ?? 0;
         if ($termFee > 0 && $termTotalPaid >= $termFee) {
             $payment->{$termField} = true;
         }
 
-        // update running totals and balance
-        $payment->total_paid = ($payment->total_paid ?? 0) + $validated['amount_paid'];
-        $payment->balance = max(0, ($payment->balance ?? 0) - $validated['amount_paid']);
+        $updatedTotals = $this->resolvePaymentTotals($payment);
+        $payment->total_paid = $updatedTotals['total_paid'];
+        $payment->balance = $updatedTotals['remaining_balance'];
 
         // adjust status based on remaining balance
         if ($payment->balance <= 0) {
@@ -435,6 +456,45 @@ class CollegePaymentController extends Controller
         $payment->save();
 
         return back()->with('success', 'Payment of ₱'.number_format($validated['amount_paid'], 2).' recorded successfully. OR#: '.$validated['or_number']);
+    }
+
+    /**
+     * Resolve effective total, paid amount, and remaining balance for payment validation.
+     *
+     * @return array{effective_total: float, total_paid: float, remaining_balance: float}
+     */
+    private function resolvePaymentTotals(StudentSemesterPayment $payment): array
+    {
+        $payment->loadMissing(['student.creditTransfers']);
+
+        $effectiveTotal = (float) ($payment->calculated_total_amount ?? $payment->total_semester_fee);
+        $student = $payment->student;
+
+        if ($student && $student->status === 'active' && ! $payment->fee_finalized) {
+            $hasCreditTransfers = $student->creditTransfers()->exists() || (bool) $student->previous_school;
+
+            if (($student->student_type === 'irregular' || $hasCreditTransfers) && ! $payment->is_balance_calculated) {
+                try {
+                    $paymentService = app(\App\Services\StudentPaymentService::class);
+                    $calculation = $paymentService->calculateIrregularBalance($payment);
+                    $recalculatedBalance = (float) ($calculation['calculated_balance'] ?? 0);
+                    if ($recalculatedBalance > 0) {
+                        $effectiveTotal = $recalculatedBalance;
+                    }
+                } catch (\Throwable $exception) {
+                    // Keep current effective total when dynamic irregular calculation fails.
+                }
+            }
+        }
+
+        $totalPaid = (float) $payment->calculateTotalPaid();
+        $remainingBalance = max(0, $effectiveTotal - $totalPaid);
+
+        return [
+            'effective_total' => $effectiveTotal,
+            'total_paid' => $totalPaid,
+            'remaining_balance' => $remainingBalance,
+        ];
     }
 
     /**

@@ -130,6 +130,7 @@ Route::middleware(['auth', 'verified', 'role:registrar'])->prefix('registrar')->
 Route::middleware(['auth', 'verified', 'role:super_admin'])->prefix('super-admin')->name('superadmin.')->group(function () {
     Route::get('/', [\App\Http\Controllers\SuperAdmin\SuperAdminDashboardController::class, 'index'])->name('dashboard');
     Route::get('/users', [\App\Http\Controllers\SuperAdmin\SuperAdminDashboardController::class, 'users'])->name('users');
+    Route::patch('/users/{user}/status', [\App\Http\Controllers\SuperAdmin\SuperAdminDashboardController::class, 'updateUserStatus'])->name('users.update-status');
     Route::post('/users/head-teacher', [\App\Http\Controllers\SuperAdmin\HeadTeacherController::class, 'store'])->name('users.head-teacher.store');
 
     // Head teacher management (view / edit / update / delete)
@@ -143,6 +144,9 @@ Route::middleware(['auth', 'verified', 'role:super_admin'])->prefix('super-admin
     // Backup & Restore (basic upload/trigger endpoints)
     Route::get('/backup', [\App\Http\Controllers\SuperAdmin\BackupController::class, 'index'])->name('backup.index');
     Route::post('/backup', [\App\Http\Controllers\SuperAdmin\BackupController::class, 'backup'])->name('backup.create');
+    Route::get('/backup/download', [\App\Http\Controllers\SuperAdmin\BackupController::class, 'download'])->name('backup.download');
+    Route::patch('/backup/settings', [\App\Http\Controllers\SuperAdmin\BackupController::class, 'updateSettings'])->name('backup.settings.update');
+    Route::post('/backup/automatic/run', [\App\Http\Controllers\SuperAdmin\BackupController::class, 'runAutomaticNow'])->name('backup.automatic.run');
     Route::post('/backup/restore', [\App\Http\Controllers\SuperAdmin\BackupController::class, 'restore'])->name('backup.restore');
 });
 Route::middleware(['auth', 'verified', 'role:teacher'])->prefix('teacher')->name('teacher.')->group(function () {

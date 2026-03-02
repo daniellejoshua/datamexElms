@@ -10,11 +10,29 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { ArrowLeft, Save, Edit as EditIcon, User, AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
 
-const Edit = ({ user, teacher }) => {
+const Edit = ({ user, teacher, student }) => {
     const fileInputRef = useRef(null);
     const [imagePreview, setImagePreview] = useState(null);
 
-    const t = teacher || user.teacher || {};
+    // Determine user type and get appropriate data
+    const userType = user.role;
+    const profileData = teacher || student || {};
+    const isTeacher = userType === 'teacher' || userType === 'head_teacher';
+    const isStudent = userType === 'student';
+
+    const getRoleDisplay = () => {
+        return user.role.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase());
+    };
+
+    const getDisplayName = () => {
+        if (isTeacher && profileData.first_name) {
+            return `${profileData.first_name} ${profileData.middle_name || ''} ${profileData.last_name}`.trim();
+        }
+        if (isStudent && profileData.first_name) {
+            return `${profileData.first_name} ${profileData.middle_name || ''} ${profileData.last_name}`.trim();
+        }
+        return user.name;
+    };
 
     // Format hire_date for date input (yyyy-MM-dd)
     const formatDateForInput = (dateString) => {
@@ -24,14 +42,14 @@ const Edit = ({ user, teacher }) => {
     };
 
     const { data, setData, put, processing, errors } = useForm({
-        first_name: t.first_name || '',
-        last_name: t.last_name || '',
-        middle_name: t.middle_name || '',
+        first_name: profileData.first_name || '',
+        last_name: profileData.last_name || '',
+        middle_name: profileData.middle_name || '',
         email: user?.email || '',
-        department: t.department || '',
-        specialization: t.specialization || '',
-        hire_date: formatDateForInput(t.hire_date),
-        status: t.status || 'active',
+        department: profileData.department || '',
+        specialization: profileData.specialization || '',
+        hire_date: formatDateForInput(profileData.hire_date),
+        status: profileData.status || 'active',
         profile_picture: null,
     });
 
@@ -91,7 +109,7 @@ const Edit = ({ user, teacher }) => {
                         <Button asChild variant="ghost" size="sm">
                             <Link href={route('superadmin.users.show', user.id)} className="flex items-center gap-2">
                                 <ArrowLeft className="w-4 h-4" />
-                                <span className="hidden sm:inline">Back to Head Teacher</span>
+                                <span className="hidden sm:inline">Back to {getRoleDisplay()}</span>
                                 <span className="sm:hidden">Back</span>
                             </Link>
                         </Button>
@@ -101,15 +119,15 @@ const Edit = ({ user, teacher }) => {
                                 <User className="w-4 h-4 text-blue-600" />
                             </div>
                             <div>
-                                <h2 className="text-lg font-semibold text-gray-900">Edit Head Teacher</h2>
-                                <p className="text-xs text-gray-500 mt-0.5 hidden sm:block">Update head teacher account and profile</p>
+                                <h2 className="text-lg font-semibold text-gray-900">Edit {getRoleDisplay()}</h2>
+                                <p className="text-xs text-gray-500 mt-0.5 hidden sm:block">Update user account and profile</p>
                             </div>
                         </div>
                     </div>
                 </div>
             }
         >
-            <Head title={`Edit ${t.first_name || user.name} ${t.last_name || ''}`} />
+            <Head title={`Edit ${getDisplayName()}`} />
 
             <div className="p-4 sm:p-6 lg:p-8">
                 <div className="max-w-2xl mx-auto">
@@ -117,7 +135,7 @@ const Edit = ({ user, teacher }) => {
                         <CardHeader>
                             <CardTitle className="flex items-center">
                                 <EditIcon className="w-5 h-5 mr-2" />
-                                Edit Head Teacher Information
+                                Edit {getRoleDisplay()} Information
                             </CardTitle>
                             <CardDescription>
                                 Modify head teacher personal, account, and professional information.

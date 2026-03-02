@@ -147,7 +147,7 @@ class StudentSemesterPayment extends Model
      */
     public function calculateBalance(): float
     {
-        $totalFee = (float) $this->total_semester_fee;
+        $totalFee = (float) ($this->calculated_total_amount ?? $this->total_semester_fee);
         $totalPaid = (float) $this->calculateTotalPaid();
 
         return max(0, $totalFee - $totalPaid);
@@ -181,11 +181,13 @@ class StudentSemesterPayment extends Model
      */
     public function getPaymentProgress(): float
     {
-        if ($this->total_semester_fee <= 0) {
+        $effectiveTotalFee = (float) ($this->calculated_total_amount ?? $this->total_semester_fee);
+
+        if ($effectiveTotalFee <= 0) {
             return 0;
         }
 
-        return ($this->calculateTotalPaid() / $this->total_semester_fee) * 100;
+        return ($this->calculateTotalPaid() / $effectiveTotalFee) * 100;
     }
 
     /**
