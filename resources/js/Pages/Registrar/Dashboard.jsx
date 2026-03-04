@@ -331,74 +331,84 @@ export default function RegistrarDashboard({ stats, auth }) {
                             </div>
                         </CardHeader>
                         <CardContent className="px-2 pt-4 sm:px-6 sm:pt-6">
-                            <ChartContainer
-                                config={chartConfig}
-                                className="aspect-auto h-[400px] w-full"
-                            >
-                                <BarChart
-                                    data={chartData}
-                                    margin={{ top: 20, right: 30, left: 20, bottom: 60 }}
-                                    barCategoryGap="15%"
+                            {chartData.length > 0 ? (
+                                <ChartContainer
+                                    config={chartConfig}
+                                    className="aspect-auto h-[400px] w-full"
                                 >
-                                    <CartesianGrid strokeDasharray="3 3" />
-                                    <BarXAxis
-                                        dataKey="label"
-                                        axisLine={false}
-                                        tickLine={false}
-                                        tick={{ fontSize: 12, fill: 'hsl(var(--muted-foreground))', angle: -45, textAnchor: 'end' }}
-                                        height={80}
-                                    />
-                                    <BarYAxis
-                                        axisLine={false}
-                                        tickLine={false}
-                                        tick={{ fontSize: 12, fill: 'hsl(var(--muted-foreground))' }}
-                                        domain={[0, 'dataMax']}
-                                        label={{ value: 'Number of Students', angle: -90, position: 'insideLeft' }}
-                                    />
-                                    <ChartTooltip
-                                        cursor={false}
-                                        content={({ active, payload, label }) => {
-                                            if (active && payload && payload.length) {
-                                                return (
-                                                    <div className="bg-background border border-border rounded-lg shadow-lg p-3">
-                                                        <p className="font-medium text-foreground mb-2">{label}</p>
-                                                        {payload.map((entry, index) => (
-                                                            <p key={index} className="text-sm flex items-center gap-2" style={{ color: entry.color }}>
-                                                                <div
-                                                                    className="w-3 h-3 rounded"
-                                                                    style={{ backgroundColor: entry.color }}
-                                                                />
-                                                                {entry.name}: {entry.value} students
+                                    <BarChart
+                                        data={chartData}
+                                        margin={{ top: 20, right: 30, left: 20, bottom: 60 }}
+                                        barCategoryGap="15%"
+                                    >
+                                        <CartesianGrid strokeDasharray="3 3" />
+                                        <BarXAxis
+                                            dataKey="label"
+                                            axisLine={false}
+                                            tickLine={false}
+                                            tick={{ fontSize: 12, fill: 'hsl(var(--muted-foreground))', angle: -45, textAnchor: 'end' }}
+                                            height={80}
+                                        />
+                                        <BarYAxis
+                                            axisLine={false}
+                                            tickLine={false}
+                                            tick={{ fontSize: 12, fill: 'hsl(var(--muted-foreground))' }}
+                                            domain={[0, 'dataMax']}
+                                            label={{ value: 'Number of Students', angle: -90, position: 'insideLeft' }}
+                                        />
+                                        <ChartTooltip
+                                            cursor={false}
+                                            content={({ active, payload, label }) => {
+                                                if (active && payload && payload.length) {
+                                                    return (
+                                                        <div className="bg-background border border-border rounded-lg shadow-lg p-3">
+                                                            <p className="font-medium text-foreground mb-2">{label}</p>
+                                                            {payload.map((entry, index) => (
+                                                                <p key={index} className="text-sm flex items-center gap-2" style={{ color: entry.color }}>
+                                                                    <div
+                                                                        className="w-3 h-3 rounded"
+                                                                        style={{ backgroundColor: entry.color }}
+                                                                    />
+                                                                    {entry.name}: {entry.value} students
+                                                                </p>
+                                                            ))}
+                                                            <p className="text-sm text-muted-foreground mt-1">
+                                                                Total: {payload[0]?.payload?.total || 0} students
                                                             </p>
-                                                        ))}
-                                                        <p className="text-sm text-muted-foreground mt-1">
-                                                            Total: {payload[0]?.payload?.total || 0} students
-                                                        </p>
-                                                    </div>
-                                                );
-                                            }
-                                            return null;
-                                        }}
-                                    />
-                                    <Bar
-                                        dataKey="paid"
-                                        fill="#10b981"
-                                        name="Paid"
-                                        radius={[4, 4, 0, 0]}
-                                        onClick={(data) => handleBarClick(data, 'paid')}
-                                        style={{ cursor: 'pointer' }}
-                                    />
-                                    <Bar
-                                        dataKey="unpaid"
-                                        fill="#f59e0b"
-                                        name="Unpaid"
-                                        radius={[4, 4, 0, 0]}
-                                        onClick={(data) => handleBarClick(data, 'unpaid')}
-                                        style={{ cursor: 'pointer' }}
-                                    />
-                                    <ChartLegend content={<ChartLegendContent />} className="flex justify-center" />
-                                </BarChart>
-                            </ChartContainer>
+                                                        </div>
+                                                    );
+                                                }
+                                                return null;
+                                            }}
+                                        />
+                                        <Bar
+                                            dataKey="paid"
+                                            fill="#10b981"
+                                            name="Paid"
+                                            radius={[4, 4, 0, 0]}
+                                            onClick={(data) => handleBarClick(data, 'paid')}
+                                            style={{ cursor: 'pointer' }}
+                                        />
+                                        <Bar
+                                            dataKey="unpaid"
+                                            fill="#f59e0b"
+                                            name="Unpaid"
+                                            radius={[4, 4, 0, 0]}
+                                            onClick={(data) => handleBarClick(data, 'unpaid')}
+                                            style={{ cursor: 'pointer' }}
+                                        />
+                                        <ChartLegend content={<ChartLegendContent />} className="flex justify-center" />
+                                    </BarChart>
+                                </ChartContainer>
+                            ) : (
+                                <div className="flex items-center justify-center h-[400px] text-gray-500">
+                                    <div className="text-center">
+                                        <BarChart3 className="w-16 h-16 mx-auto mb-4 text-gray-300" />
+                                        <p className="text-lg font-medium">No data available for this semester</p>
+                                        <p className="text-sm text-gray-400">No enrollment data found for the selected year level</p>
+                                    </div>
+                                </div>
+                            )}
                         </CardContent>
                     </Card>
 
@@ -414,46 +424,56 @@ export default function RegistrarDashboard({ stats, auth }) {
                             </CardDescription>
                         </CardHeader>
                         <CardContent className="px-2 pt-4 sm:px-6 sm:pt-6">
-                            <ChartContainer
-                                config={{
-                                    Regular: {
-                                        label: "Regular",
-                                        color: "#3b82f6",
-                                    },
-                                    Irregular: {
-                                        label: "Irregular",
-                                        color: "#ef4444",
-                                    },
-                                }}
-                                className="mx-auto aspect-square max-h-[400px]"
-                            >
-                                <PieChart>
-                                    <ChartLegend content={<ChartLegendContent />} verticalAlign="bottom" className="flex justify-center" />
-                                    <ChartTooltip
-                                        cursor={false}
-                                        content={<ChartTooltipContent hideLabel />}
-                                    />
-                                    <Pie
-                                        data={[
-                                            {
-                                                type: "Regular",
-                                                students: stats.regular_students || 0,
-                                                fill: "#3b82f6"
-                                            },
-                                            {
-                                                type: "Irregular",
-                                                students: stats.irregular_students || 0,
-                                                fill: "#ef4444"
-                                            }
-                                        ]}
-                                        dataKey="students"
-                                        nameKey="type"
-                                        strokeWidth={2}
-                                        stroke="hsl(var(--background))"
-                                        label={({ percent }) => `${(percent * 100).toFixed(0)}%`}
-                                    />
-                                </PieChart>
-                            </ChartContainer>
+                            {(stats.regular_students || 0) + (stats.irregular_students || 0) > 0 ? (
+                                <ChartContainer
+                                    config={{
+                                        Regular: {
+                                            label: "Regular",
+                                            color: "#3b82f6",
+                                        },
+                                        Irregular: {
+                                            label: "Irregular",
+                                            color: "#ef4444",
+                                        },
+                                    }}
+                                    className="mx-auto aspect-square max-h-[400px]"
+                                >
+                                    <PieChart>
+                                        <ChartLegend content={<ChartLegendContent />} verticalAlign="bottom" className="flex justify-center" />
+                                        <ChartTooltip
+                                            cursor={false}
+                                            content={<ChartTooltipContent hideLabel />}
+                                        />
+                                        <Pie
+                                            data={[
+                                                {
+                                                    type: "Regular",
+                                                    students: stats.regular_students || 0,
+                                                    fill: "#3b82f6"
+                                                },
+                                                {
+                                                    type: "Irregular",
+                                                    students: stats.irregular_students || 0,
+                                                    fill: "#ef4444"
+                                                }
+                                            ]}
+                                            dataKey="students"
+                                            nameKey="type"
+                                            strokeWidth={2}
+                                            stroke="hsl(var(--background))"
+                                            label={({ percent }) => `${(percent * 100).toFixed(0)}%`}
+                                        />
+                                    </PieChart>
+                                </ChartContainer>
+                            ) : (
+                                <div className="flex items-center justify-center h-[400px] text-gray-500">
+                                    <div className="text-center">
+                                        <PieChartIcon className="w-16 h-16 mx-auto mb-4 text-gray-300" />
+                                        <p className="text-lg font-medium">No data available</p>
+                                        <p className="text-sm text-gray-400">No student enrollment data found</p>
+                                    </div>
+                                </div>
+                            )}
                         </CardContent>
                     </Card>
                 </div>

@@ -67,6 +67,10 @@ Route::middleware('auth')->group(function () {
         ->middleware('throttle.pin_verification')
         ->name('password.verify-pin');
 
+    Route::post('verify-password', [ConfirmablePasswordController::class, 'verify'])
+        ->middleware('throttle:6,1')
+        ->name('password.verify-session');
+
     Route::post('logout', [AuthenticatedSessionController::class, 'destroy'])
         ->name('logout');
 });

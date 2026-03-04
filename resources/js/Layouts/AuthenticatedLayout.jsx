@@ -1,4 +1,5 @@
 import ApplicationLogo from '@/Components/ApplicationLogo';
+import InactivityMonitor from '@/Components/InactivityMonitor';
 import { Link, usePage, router } from '@inertiajs/react';
 import { route } from 'ziggy-js';
 import { useState, useEffect } from 'react';
@@ -730,6 +731,7 @@ export default function AuthenticatedLayout({ header, children }) {
                 </main>
             </div>
             <Toaster />
+            <InactivityMonitor />
         </div>
     );
 }

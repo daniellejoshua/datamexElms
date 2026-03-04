@@ -183,7 +183,7 @@ export default function AcademicHistory({ student, curriculumSubjects, completed
                                     Subjects Completed
                                     {(creditedCount > 0) && (
                                         <div className="text-xs mt-1 text-green-700">
-                                            {completedCount} graded + {creditedCount} Previous School Credited Subject
+                                            {completedCount} graded + {creditedCount} {isShiftee ? 'Previous Program' : 'Previous School'} Credited Subject
                                         </div>
                                     )}
                                 </div>
