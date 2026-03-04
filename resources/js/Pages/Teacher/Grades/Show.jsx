@@ -155,8 +155,6 @@ export default function Show({ section, sectionSubject, enrollments, isCollegeLe
                 final_grade: existingGrade?.final_grade || '',
                 first_quarter_grade: existingGrade?.first_quarter_grade || '',
                 second_quarter_grade: existingGrade?.second_quarter_grade || '',
-                third_quarter_grade: existingGrade?.third_quarter_grade || '',
-                fourth_quarter_grade: existingGrade?.fourth_quarter_grade || '',
                 teacher_remarks: existingGrade?.teacher_remarks || '',
                 semester_grade: isCollegeLevel 
                     ? (existingGrade?.semester_grade || '') 
@@ -177,8 +175,6 @@ export default function Show({ section, sectionSubject, enrollments, isCollegeLe
                 final_grade: grade.final_grade,
                 first_quarter_grade: grade.first_quarter_grade,
                 second_quarter_grade: grade.second_quarter_grade,
-                third_quarter_grade: grade.third_quarter_grade,
-                fourth_quarter_grade: grade.fourth_quarter_grade,
                 teacher_remarks: grade.teacher_remarks
             };
         });
@@ -322,7 +318,7 @@ export default function Show({ section, sectionSubject, enrollments, isCollegeLe
         // Compare current values with original values
         const fieldsToCheck = [
             'prelim_grade', 'midterm_grade', 'prefinal_grade', 'final_grade',
-            'first_quarter_grade', 'second_quarter_grade', 'third_quarter_grade', 'fourth_quarter_grade',
+            'first_quarter_grade', 'second_quarter_grade',
             'teacher_remarks'
         ];
         

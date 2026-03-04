@@ -55,18 +55,16 @@ class ShsStudentGrade extends Model
     }
 
     /**
-     * Calculate final grade as average of 4 quarters
+     * Calculate final grade as average of 2 quarters (Q1 and Q2 only)
      */
     public function calculateFinalGrade(): ?float
     {
         $quarters = collect([
             $this->first_quarter_grade,
             $this->second_quarter_grade,
-            $this->third_quarter_grade,
-            $this->fourth_quarter_grade,
         ])->filter();
 
-        if ($quarters->count() === 4) {
+        if ($quarters->count() === 2) {
             return round($quarters->average(), 2);
         }
 

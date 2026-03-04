@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Head, Link, router, usePage } from '@inertiajs/react';
+import { Head, Link, usePage } from '@inertiajs/react';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -18,23 +18,25 @@ const SubjectGrades = ({ archivedSection, subject, enrollments }) => {
         return m;
     });
     const [searchTerm, setSearchTerm] = useState('');
+    const [currentEnrollments, setCurrentEnrollments] = useState(enrollments || []); // make local copy for inline updates
     const { auth } = usePage().props;
     const teacherId = auth.user.teacher?.id;
 
     // Filter enrollments based on search term
     const filteredEnrollments = useMemo(() => {
+        const list = searchTerm.trim() ? currentEnrollments : currentEnrollments;
         if (!searchTerm.trim()) {
-            return enrollments;
+            return list;
         }
 
         const term = searchTerm.toLowerCase();
-        return enrollments.filter(enrollment => {
+        return list.filter(enrollment => {
             const studentName = enrollment.student_data?.name?.toLowerCase() || '';
             const studentNumber = enrollment.student_data?.student_number?.toLowerCase() || '';
 
             return studentName.includes(term) || studentNumber.includes(term);
         });
-    }, [enrollments, searchTerm]);
+    }, [currentEnrollments, searchTerm]);
 
     const getSemesterDisplay = (semester) => {
         const semesters = {
@@ -55,9 +57,20 @@ const SubjectGrades = ({ archivedSection, subject, enrollments }) => {
 
     const isShsLevel = () => {
         if (!archivedSection?.program) return false;
+        
+        // Check program name
         const programName = archivedSection.program.program_name?.toLowerCase() || '';
-        const shsIndicators = ['senior high', 'shs', 'grade 11', 'grade 12', '11', '12'];
-        return shsIndicators.some(indicator => programName.includes(indicator));
+        const shsNameIndicators = ['senior high', 'shs', 'grade 11', 'grade 12'];
+        
+        // Check education level
+        const educationLevel = archivedSection.program.education_level?.toLowerCase() || '';
+        
+        // Check year level for SHS (typically 11 or 12)
+        const yearLevel = archivedSection.year_level;
+        
+        return shsNameIndicators.some(indicator => programName.includes(indicator)) ||
+               educationLevel === 'senior_high' ||
+               [11, 12, '11', '12'].includes(yearLevel);
     };
 
     const updateGrade = (enrollmentId, gradeType, value) => {
@@ -92,7 +105,7 @@ const SubjectGrades = ({ archivedSection, subject, enrollments }) => {
         setEditingGrades(prev => ({ ...prev, [enrollmentId]: true }));
         
         // Find the enrollment to get current remarks
-        const enrollment = enrollments.find(e => e.id === enrollmentId);
+        const enrollment = currentEnrollments.find(e => e.id === enrollmentId);
         
         setGradeValues(prev => ({
             ...prev,
@@ -140,35 +153,73 @@ const SubjectGrades = ({ archivedSection, subject, enrollments }) => {
             }
         }
 
-        router.post(`/teacher/archived-sections/${archivedSection.id}/grades`, {
+        window.axios.post(`/teacher/archived-sections/${archivedSection.id}/grades`, {
             enrollment_id: enrollmentId,
             section_subject_id: subject.section_subject_id || null,
             subject_id: subject.subject_id || subject.id || null,
             subject_code: subject.subject_code || null,
-            grades: payloadGrades
-        }, {
-            onSuccess: () => {
-                toast.success('Grades updated successfully');
-                // Update remarks map with the saved value
-                setRemarksMap(prev => ({
-                    ...prev,
-                    [enrollmentId]: payloadGrades.teacher_remarks
-                }));
-                cancelEditing(enrollmentId);
-                // Reload the page to ensure all data is fresh
-                router.reload();
-            },
-            onError: (errors) => {
-                toast.error('Failed to update grades');
-                console.error('Save failed:', errors);
-                console.error('Payload:', {
-                    enrollment_id: enrollmentId,
-                    section_subject_id: subject.section_subject_id || null,
-                    subject_id: subject.subject_id || subject.id || null,
-                    subject_code: subject.subject_code || null,
-                    grades: payloadGrades,
-                });
-            }
+            grades: payloadGrades,
+        }).then(() => {
+            toast.success('Grades updated successfully');
+
+            setRemarksMap(prev => ({
+                ...prev,
+                [enrollmentId]: payloadGrades.teacher_remarks,
+            }));
+
+            cancelEditing(enrollmentId);
+
+            setCurrentEnrollments(prev => prev.map(e => {
+                if (e.id !== enrollmentId) {
+                    return e;
+                }
+
+                const { teacher_remarks, ...gradeFields } = payloadGrades;
+                const updatedGrades = {
+                    ...(e.final_grades || {}),
+                    ...gradeFields,
+                };
+
+                const updated = {
+                    ...e,
+                    final_grades: updatedGrades,
+                    teacher_remarks,
+                };
+
+                if (isShsLevel()) {
+                    if (updatedGrades.first_quarter != null && updatedGrades.second_quarter != null) {
+                        updated.final_semester_grade = Math.round(
+                            (Number(updatedGrades.first_quarter) + Number(updatedGrades.second_quarter)) / 2
+                        );
+                    }
+                } else {
+                    if (
+                        updatedGrades.prelim != null &&
+                        updatedGrades.midterm != null &&
+                        updatedGrades.prefinals != null &&
+                        updatedGrades.finals != null
+                    ) {
+                        updated.final_semester_grade = Math.round(
+                            (Number(updatedGrades.prelim) +
+                                Number(updatedGrades.midterm) +
+                                Number(updatedGrades.prefinals) +
+                                Number(updatedGrades.finals)) / 4
+                        );
+                    }
+                }
+
+                return updated;
+            }));
+        }).catch((error) => {
+            toast.error('Failed to update grades');
+            console.error('Save failed:', error?.response?.data || error);
+            console.error('Payload:', {
+                enrollment_id: enrollmentId,
+                section_subject_id: subject.section_subject_id || null,
+                subject_id: subject.subject_id || subject.id || null,
+                subject_code: subject.subject_code || null,
+                grades: payloadGrades,
+            });
         });
     };
 
@@ -240,12 +291,6 @@ const SubjectGrades = ({ archivedSection, subject, enrollments }) => {
                                                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
                                                         Q2
                                                     </th>
-                                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                                                        Q3
-                                                    </th>
-                                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                                                        Q4
-                                                    </th>
                                                 </>
                                             ) : (
                                                 <>
@@ -266,7 +311,7 @@ const SubjectGrades = ({ archivedSection, subject, enrollments }) => {
                                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
                                                 Semester Grade
                                             </th>
-                                            <th style={{width: '35%'}} className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                                            <th style={{width: '40%'}} className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
                                                 Remarks
                                             </th>
                                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
@@ -293,7 +338,7 @@ const SubjectGrades = ({ archivedSection, subject, enrollments }) => {
                                                         </div>
                                                     </td>
                                                     {isShsLevel() ? (
-                                                        ['first_quarter', 'second_quarter', 'third_quarter', 'fourth_quarter'].map((gradeType) => (
+                                                        ['first_quarter', 'second_quarter'].map((gradeType) => (
                                                             <td key={gradeType} className="px-6 py-4 whitespace-nowrap">
                                                                 {isEditing ? (
                                                                     <Input
@@ -350,13 +395,13 @@ const SubjectGrades = ({ archivedSection, subject, enrollments }) => {
                                                             {formatGradeDisplay(enrollment.final_semester_grade)}
                                                         </span>
                                                     </td>
-                                                    <td className="px-6 py-4" style={{width: '35%'}}>
+                                                    <td className="px-6 py-4" style={{width: '40%'}}>
                                                         {isEditing ? (
                                                             <Textarea
                                                                 value={editValues.teacher_remarks || ''}
                                                                 onChange={(e) => updateGrade(enrollment.id, 'teacher_remarks', e.target.value)}
-                                                                className="w-full min-w-0 resize-none text-sm"
-                                                                rows={1}
+                                                                className="w-full min-w-0 resize-none text-sm min-h-[60px] max-h-[100px]"
+                                                                rows={2}
                                                                 placeholder="Enter remarks..."
                                                             />
                                                         ) : (

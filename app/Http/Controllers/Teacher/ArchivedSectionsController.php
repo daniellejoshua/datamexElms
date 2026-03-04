@@ -9,6 +9,7 @@ use App\Models\ArchivedStudentSubject;
 use App\Models\StudentGrade;
 use App\Models\StudentSubjectCredit;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -313,49 +314,98 @@ class ArchivedSectionsController extends Controller
             $subjectRows = $subjectMatchQuery->get();
 
             if ($subjectRows->isNotEmpty()) {
+                // Determine if this is SHS or college based on archived section data
+                $isShsLevel = false;
+                if (isset($archivedSection->program) && $archivedSection->program) {
+                    $programName = strtolower($archivedSection->program->program_name ?? '');
+                    $educationLevel = strtolower($archivedSection->program->education_level ?? '');
+                    $yearLevel = $archivedSection->year_level;
+
+                    $shsNameIndicators = ['senior high', 'shs', 'grade 11', 'grade 12'];
+                    $isShsLevel =
+                        collect($shsNameIndicators)->some(fn ($indicator) => str_contains($programName, $indicator)) ||
+                        $educationLevel === 'senior_high' ||
+                        in_array($yearLevel, [11, 12, '11', '12'], true);
+                }
+
                 foreach ($subjectRows as $row) {
                     $enrollment = $archivedSection->archivedEnrollments->firstWhere('id', $row->archived_student_enrollment_id);
 
-                    // Check missing per-period grades
-                    $missing = [];
-                    if (is_null($row->prelim_grade)) {
-                        $missing[] = 'Prelim';
-                    }
-                    if (is_null($row->midterm_grade)) {
-                        $missing[] = 'Midterm';
-                    }
-                    if (is_null($row->prefinal_grade)) {
-                        $missing[] = 'Prefinal';
-                    }
-                    if (is_null($row->final_grade)) {
-                        $missing[] = 'Final';
-                    }
+                    if ($isShsLevel) {
+                        // SHS quarters (only Q1 and Q2)
+                        $missing = [];
+                        if (is_null($row->first_quarter_grade)) {
+                            $missing[] = 'Q1';
+                        }
+                        if (is_null($row->second_quarter_grade)) {
+                            $missing[] = 'Q2';
+                        }
 
-                    $gradeStatus = count($missing) > 0 ? 'Missing Grades' : 'Complete';
+                        $gradeStatus = count($missing) > 0 ? 'Missing Grades' : 'Complete';
 
-                    $enrollmentsWithStatus->push([
-                        'id' => $row->archived_student_enrollment_id,
-                        'student_id' => $row->student_id,
-                        'student_data' => $currentStudents->has($row->student_id) ? [
-                            'name' => $this->formatStudentName($currentStudents[$row->student_id]),
-                            'student_number' => $currentStudents[$row->student_id]->student_number ?? 'Unknown',
-                            'first_name' => $currentStudents[$row->student_id]->first_name ?? '',
-                            'last_name' => $currentStudents[$row->student_id]->last_name ?? '',
-                            'middle_name' => $currentStudents[$row->student_id]->middle_name ?? '',
-                            'suffix' => $currentStudents[$row->student_id]->suffix ?? '',
-                        ] : ($enrollment?->student_data ?? []),
-                        'final_grades' => [
-                            'prelim' => $row->prelim_grade,
-                            'midterm' => $row->midterm_grade,
-                            'prefinals' => $row->prefinal_grade,
-                            'finals' => $row->final_grade,
-                        ],
-                        'final_semester_grade' => $row->semester_grade,
-                        'final_status' => $enrollment?->final_status ?? 'archived',
-                        'grade_status' => $gradeStatus,
-                        'missing_grades' => $missing,
-                        'teacher_remarks' => $enrollment?->teacher_remarks ?? null,
-                    ]);
+                        $enrollmentsWithStatus->push([
+                            'id' => $row->archived_student_enrollment_id,
+                            'student_id' => $row->student_id,
+                            'student_data' => $currentStudents->has($row->student_id) ? [
+                                'name' => $this->formatStudentName($currentStudents[$row->student_id]),
+                                'student_number' => $currentStudents[$row->student_id]->student_number ?? 'Unknown',
+                                'first_name' => $currentStudents[$row->student_id]->first_name ?? '',
+                                'last_name' => $currentStudents[$row->student_id]->last_name ?? '',
+                                'middle_name' => $currentStudents[$row->student_id]->middle_name ?? '',
+                                'suffix' => $currentStudents[$row->student_id]->suffix ?? '',
+                            ] : ($enrollment?->student_data ?? []),
+                            'final_grades' => [
+                                'first_quarter' => $row->first_quarter_grade,
+                                'second_quarter' => $row->second_quarter_grade,
+                            ],
+                            'final_semester_grade' => $row->semester_grade,
+                            'final_status' => $enrollment?->final_status ?? 'archived',
+                            'grade_status' => $gradeStatus,
+                            'missing_grades' => $missing,
+                            'teacher_remarks' => $enrollment?->teacher_remarks ?? null,
+                        ]);
+                    } else {
+                        // College terms
+                        $missing = [];
+                        if (is_null($row->prelim_grade)) {
+                            $missing[] = 'Prelim';
+                        }
+                        if (is_null($row->midterm_grade)) {
+                            $missing[] = 'Midterm';
+                        }
+                        if (is_null($row->prefinal_grade)) {
+                            $missing[] = 'Prefinal';
+                        }
+                        if (is_null($row->final_grade)) {
+                            $missing[] = 'Final';
+                        }
+
+                        $gradeStatus = count($missing) > 0 ? 'Missing Grades' : 'Complete';
+
+                        $enrollmentsWithStatus->push([
+                            'id' => $row->archived_student_enrollment_id,
+                            'student_id' => $row->student_id,
+                            'student_data' => $currentStudents->has($row->student_id) ? [
+                                'name' => $this->formatStudentName($currentStudents[$row->student_id]),
+                                'student_number' => $currentStudents[$row->student_id]->student_number ?? 'Unknown',
+                                'first_name' => $currentStudents[$row->student_id]->first_name ?? '',
+                                'last_name' => $currentStudents[$row->student_id]->last_name ?? '',
+                                'middle_name' => $currentStudents[$row->student_id]->middle_name ?? '',
+                                'suffix' => $currentStudents[$row->student_id]->suffix ?? '',
+                            ] : ($enrollment?->student_data ?? []),
+                            'final_grades' => [
+                                'prelim' => $row->prelim_grade,
+                                'midterm' => $row->midterm_grade,
+                                'prefinals' => $row->prefinal_grade,
+                                'finals' => $row->final_grade,
+                            ],
+                            'final_semester_grade' => $row->semester_grade,
+                            'final_status' => $enrollment?->final_status ?? 'archived',
+                            'grade_status' => $gradeStatus,
+                            'missing_grades' => $missing,
+                            'teacher_remarks' => $enrollment?->teacher_remarks ?? null,
+                        ]);
+                    }
                 }
 
                 return Inertia::render('Teacher/ArchivedSections/SubjectGrades', [
@@ -367,20 +417,51 @@ class ArchivedSectionsController extends Controller
         }
 
         // Fallback to enrollment-level final_grades JSON if no normalized rows exist
+        // Determine if this is SHS or college based on archived section data
+        $isShsLevel = false;
+        if (isset($archivedSection->program) && $archivedSection->program) {
+            $programName = strtolower($archivedSection->program->program_name ?? '');
+            $educationLevel = strtolower($archivedSection->program->education_level ?? '');
+            $yearLevel = $archivedSection->year_level;
+
+            $shsNameIndicators = ['senior high', 'shs', 'grade 11', 'grade 12'];
+            $isShsLevel =
+                collect($shsNameIndicators)->some(fn ($indicator) => str_contains($programName, $indicator)) ||
+                $educationLevel === 'senior_high' ||
+                in_array($yearLevel, [11, 12, '11', '12'], true);
+        }
+
         $enrollmentsWithStatus = $archivedSection->archivedEnrollments
             ->filter(function ($enrollment) {
                 return $enrollment->final_status !== 'dropped';
             })
-            ->map(function ($enrollment) use ($currentStudents) {
+            ->map(function ($enrollment) use ($currentStudents, $isShsLevel) {
                 $finalGrades = $enrollment->final_grades ?? [];
 
-                // Check if all 4 grades exist (prelim, midterm, prefinals, finals)
-                $requiredGrades = ['prelim', 'midterm', 'prefinals', 'finals'];
-                $missingGrades = [];
+                if ($isShsLevel) {
+                    // Check SHS quarter grades (only Q1 and Q2)
+                    $requiredGrades = ['first_quarter', 'second_quarter'];
+                    $missingGrades = [];
 
-                foreach ($requiredGrades as $grade) {
-                    if (empty($finalGrades[$grade])) {
-                        $missingGrades[] = ucfirst($grade);
+                    foreach ($requiredGrades as $grade) {
+                        if (empty($finalGrades[$grade])) {
+                            $displayName = match ($grade) {
+                                'first_quarter' => 'Q1',
+                                'second_quarter' => 'Q2',
+                                default => ucfirst(str_replace('_', ' ', $grade))
+                            };
+                            $missingGrades[] = $displayName;
+                        }
+                    }
+                } else {
+                    // Check college term grades
+                    $requiredGrades = ['prelim', 'midterm', 'prefinals', 'finals'];
+                    $missingGrades = [];
+
+                    foreach ($requiredGrades as $grade) {
+                        if (empty($finalGrades[$grade])) {
+                            $missingGrades[] = ucfirst($grade);
+                        }
                     }
                 }
 
@@ -450,8 +531,6 @@ class ArchivedSectionsController extends Controller
             'grades.finals' => 'nullable|numeric|min:0|max:100',
             'grades.first_quarter' => 'nullable|numeric|min:0|max:100',
             'grades.second_quarter' => 'nullable|numeric|min:0|max:100',
-            'grades.third_quarter' => 'nullable|numeric|min:0|max:100',
-            'grades.fourth_quarter' => 'nullable|numeric|min:0|max:100',
             'grades.teacher_remarks' => 'nullable|string|max:1000',
         ]);
 
@@ -477,31 +556,36 @@ class ArchivedSectionsController extends Controller
         $isShsLevel = false;
         if (isset($archivedSection->program) && $archivedSection->program) {
             $programName = strtolower($archivedSection->program->program_name ?? '');
-            $shsIndicators = ['senior high', 'shs', 'grade 11', 'grade 12', '11', '12'];
+            $educationLevel = strtolower($archivedSection->program->education_level ?? '');
+            $yearLevel = $archivedSection->year_level;
+
+            $shsIndicators = ['senior high', 'shs', 'grade 11', 'grade 12'];
             foreach ($shsIndicators as $indicator) {
                 if (strpos($programName, $indicator) !== false) {
                     $isShsLevel = true;
                     break;
                 }
             }
+
+            if (! $isShsLevel) {
+                $isShsLevel = $educationLevel === 'senior_high' || in_array($yearLevel, [11, 12, '11', '12', 'Grade 11', 'Grade 12'], true);
+            }
         }
 
         if ($isShsLevel) {
-            // Update SHS quarter grades
-            foreach (['first_quarter', 'second_quarter', 'third_quarter', 'fourth_quarter'] as $gradeType) {
+            // Update SHS quarter grades (only Q1 and Q2)
+            foreach (['first_quarter', 'second_quarter'] as $gradeType) {
                 if (isset($grades[$gradeType]) && $grades[$gradeType] !== '') {
                     $finalGrades[$gradeType] = (float) $grades[$gradeType];
                 }
             }
 
-            // Calculate new final semester grade if all quarters are present
-            if (isset($finalGrades['first_quarter'], $finalGrades['second_quarter'], $finalGrades['third_quarter'], $finalGrades['fourth_quarter'])) {
+            // Calculate new final semester grade if both quarters are present
+            if (isset($finalGrades['first_quarter'], $finalGrades['second_quarter'])) {
                 $finalSemesterGrade = (
                     $finalGrades['first_quarter'] +
-                    $finalGrades['second_quarter'] +
-                    $finalGrades['third_quarter'] +
-                    $finalGrades['fourth_quarter']
-                ) / 4;
+                    $finalGrades['second_quarter']
+                ) / 2;
 
                 $enrollment->final_semester_grade = round($finalSemesterGrade);
             }
@@ -538,7 +622,7 @@ class ArchivedSectionsController extends Controller
         // Update the original grade tables if the record exists
         if ($enrollment->original_enrollment_id) {
             if ($isShsLevel) {
-                // Update SHS student grades
+                // Update SHS student grades (only Q1 and Q2)
                 $shsStudentGrade = \App\Models\ShsStudentGrade::where('student_enrollment_id', $enrollment->original_enrollment_id)
                     ->where('section_subject_id', $request->section_subject_id ?? null)
                     ->first();
@@ -551,15 +635,9 @@ class ArchivedSectionsController extends Controller
                     if (isset($finalGrades['second_quarter'])) {
                         $shsStudentGrade->second_quarter_grade = $finalGrades['second_quarter'];
                     }
-                    if (isset($finalGrades['third_quarter'])) {
-                        $shsStudentGrade->third_quarter_grade = $finalGrades['third_quarter'];
-                    }
-                    if (isset($finalGrades['fourth_quarter'])) {
-                        $shsStudentGrade->fourth_quarter_grade = $finalGrades['fourth_quarter'];
-                    }
 
-                    // Update final grade if all quarters are present
-                    if (isset($finalGrades['first_quarter'], $finalGrades['second_quarter'], $finalGrades['third_quarter'], $finalGrades['fourth_quarter'])) {
+                    // Update final grade if both quarters are present
+                    if (isset($finalGrades['first_quarter'], $finalGrades['second_quarter'])) {
                         $shsStudentGrade->final_grade = $enrollment->final_semester_grade;
                         $shsStudentGrade->completion_status = $enrollment->final_semester_grade >= 75 ? 'passed' : 'failed';
                     }
@@ -673,10 +751,14 @@ class ArchivedSectionsController extends Controller
             }
         } catch (\Throwable $e) {
             // Don't block UI if archived subject sync fails; log for investigation
-            \Log::warning('Failed to sync archived_student_subject after grades update', ['error' => $e->getMessage(), 'enrollment_id' => $enrollment->id]);
+            Log::warning('Failed to sync archived_student_subject after grades update', ['error' => $e->getMessage(), 'enrollment_id' => $enrollment->id]);
         }
 
-        return back();
+        // Always return JSON since the frontend uses Inertia and handles toasts itself
+        return response()->json([
+            'success' => true,
+            'message' => 'Grades updated successfully',
+        ]);
     }
 
     /**
