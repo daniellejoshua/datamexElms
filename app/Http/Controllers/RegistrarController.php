@@ -797,11 +797,43 @@ class RegistrarController extends Controller
             }
         }
 
-        // Custom validation: enrollment_fee is required for regular students, optional for irregular
-        if ($validated['student_type'] === 'regular' && (! isset($validated['enrollment_fee']) || $validated['enrollment_fee'] === null || $validated['enrollment_fee'] === '')) {
-            return back()->withErrors([
-                'enrollment_fee' => 'Enrollment fee is required for regular students.',
-            ])->withInput();
+        // Custom validation: enrollment_fee and payment_amount are required for all students
+        // except existing SHS students with active vouchers
+        $hasActiveVoucher = false;
+        if (! empty($validated['student_number'])) {
+            $existingStudentForVoucher = Student::where('student_number', $validated['student_number'])->first();
+            $hasActiveVoucher = $validated['education_level'] === 'senior_high' &&
+                               ($existingStudentForVoucher->has_voucher ?? false) &&
+                               ($existingStudentForVoucher->voucher_status ?? null) === 'active';
+        }
+
+        if (! $hasActiveVoucher) {
+            // For SHS students, enrollment_fee is calculated in the controller, not required from form
+            if ($validated['education_level'] !== 'senior_high') {
+                if (! isset($validated['enrollment_fee']) || $validated['enrollment_fee'] === null || $validated['enrollment_fee'] === '') {
+                    return back()->withErrors([
+                        'enrollment_fee' => 'Enrollment fee is required.',
+                    ])->withInput();
+                }
+            }
+
+            if (! isset($validated['payment_amount']) || $validated['payment_amount'] === null || $validated['payment_amount'] === '') {
+                return back()->withErrors([
+                    'payment_amount' => 'Payment amount is required.',
+                ])->withInput();
+            }
+
+            // For non-SHS students, ensure payment amount is at least equal to enrollment fee
+            if ($validated['education_level'] !== 'senior_high') {
+                $enrollmentFee = (float) ($validated['enrollment_fee'] ?? 0);
+                $paymentAmount = (float) $validated['payment_amount'];
+
+                if ($paymentAmount < $enrollmentFee) {
+                    return back()->withErrors([
+                        'payment_amount' => 'Payment amount must be at least equal to the enrollment fee.',
+                    ])->withInput();
+                }
+            }
         }
 
         // Check if this is an existing student being updated
@@ -1240,9 +1272,10 @@ class RegistrarController extends Controller
                 ($studentData['has_voucher'] ?? false) &&
                 ($studentData['voucher_status'] ?? null) === 'active') {
                 $enrollmentFee = 0;
+                $paymentAmount = 0; // Voucher students don't need to pay
+            } else {
+                $paymentAmount = (float) $validated['payment_amount'];
             }
-
-            $paymentAmount = (float) $validated['payment_amount'];
 
             // Ensure values are numeric and non-negative
             if (! is_numeric($enrollmentFee) || $enrollmentFee < 0) {
@@ -1450,6 +1483,27 @@ class RegistrarController extends Controller
                 ])->first();
 
                 if (! $existingPayment) {
+                    // Calculate the proper total semester fee based on program and student type
+                    $programFee = $program->programFees()
+                        ->where('year_level', $numericYearLevel)
+                        ->where('education_level', $validated['education_level'])
+                        ->where('fee_type', $validated['student_type'] === 'irregular' ? 'irregular' : 'regular')
+                        ->first();
+
+                    $baseSemesterFee = $programFee->semester_fee ?? $program->semester_fee ?? 12000.00;
+
+                    // For irregular students, add fees for irregular subjects
+                    $irregularFees = 0;
+                    if ($validated['student_type'] === 'irregular' && $curriculumId) {
+                        $irregularSubjectsCount = \App\Models\CurriculumSubject::where('curriculum_id', $curriculumId)
+                            ->where('year_level', $numericYearLevel)
+                            ->where('semester', $semester)
+                            ->count();
+                        $irregularFees = $irregularSubjectsCount * 300; // 300 per irregular subject
+                    }
+
+                    $totalSemesterFee = $baseSemesterFee + $irregularFees;
+
                     // Create the payment record (without setting enrollment_paid yet)
                     $semesterPayment = StudentSemesterPayment::create([
                         'student_id' => $student->id,
@@ -1458,8 +1512,9 @@ class RegistrarController extends Controller
                         'enrollment_fee' => $enrollmentFee,
                         'enrollment_paid' => false,
                         'enrollment_payment_date' => null,
-                        'total_semester_fee' => $enrollmentFee,
-                        'payment_plan' => 'installment',
+                        'total_semester_fee' => $totalSemesterFee,
+                        'payment_plan' => $validated['student_type'] === 'irregular' ? 'custom' : 'installment',
+                        'irregular_subjects_count' => $validated['student_type'] === 'irregular' ? ($irregularSubjectsCount ?? 0) : 0,
                         // mark frozen if not current period
                         'fee_finalized' => (
                             $academicYear !== \App\Models\SchoolSetting::getCurrentAcademicYear() ||

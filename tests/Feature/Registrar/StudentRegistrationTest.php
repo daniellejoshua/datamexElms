@@ -71,7 +71,7 @@ it('registers a new student with all required information', function () {
         'track' => null,
         'strand' => null,
         'enrollment_fee' => 5000.00,
-        'payment_amount' => 2000.00,
+        'payment_amount' => 5000.00,
         'confirm_course_shift' => false,
     ];
 
@@ -106,9 +106,9 @@ it('registers a new student with all required information', function () {
     $payment = StudentSemesterPayment::where('student_id', $student->id)->first();
     expect($payment)->not->toBeNull();
     expect((float) $payment->enrollment_fee)->toBe(5000.00);
-    expect((float) $payment->total_paid)->toBe(2000.00);
-    expect((float) $payment->balance)->toBe(3000.00);
-    expect($payment->status)->toBe('partial');
+    expect((float) $payment->total_paid)->toBe(5000.00);
+    expect((float) $payment->balance)->toBe(0.00);
+    expect($payment->status)->toBe('paid');
 });
 
 it('creates a student account with email already verified and does not send verification', function () {
@@ -177,11 +177,11 @@ it('charges SHS Grade 12 new student and does not apply voucher', function () {
     expect($student)->not->toBeNull();
     expect($student->education_level)->toBe('senior_high');
 
-    $payment = StudentSemesterPayment::where('student_id', $student->id)->first();
+    $payment = \App\Models\ShsStudentPayment::where('student_id', $student->id)->first();
     expect($payment)->not->toBeNull();
-    expect((float) $payment->enrollment_fee)->toBe(12000.00);
+    expect((float) $payment->total_semester_fee)->toBe(14400.00); // 12000 * 1.2 for Grade 12
     expect((float) $payment->total_paid)->toBe(6000.00);
-    expect((float) $payment->balance)->toBe(6000.00);
+    expect((float) $payment->balance)->toBe(8400.00); // 14400 - 6000
 });
 
 it('registers an irregular student', function () {

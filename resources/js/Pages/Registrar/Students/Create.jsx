@@ -2473,6 +2473,7 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                                 <Label htmlFor="payment_amount" className="text-gray-700 font-medium mb-2 flex items-center gap-2">
                                     <span className="text-lg font-bold">₱</span>
                                     Payment Amount
+                                    {!isShsVoucherApplicable && <span className="text-red-500">*</span>}
                                 </Label>
                                 <NumberInput
                                     id="payment_amount"
@@ -2597,7 +2598,8 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                         disabled={
                             processing ||
                             !formUnlocked ||
-                            (effectiveEnrollmentType === 'transferee' && (!feeAdjustments || feeAdjustments.isIrregular === undefined))
+                            (effectiveEnrollmentType === 'transferee' && (!feeAdjustments || feeAdjustments.isIrregular === undefined)) ||
+                            (!isShsVoucherApplicable && (!data.payment_amount || parseFloat(data.payment_amount) === 0))
                         }
                     >
                         <UserPlus className="w-4 h-4 mr-2" />
