@@ -28,6 +28,7 @@ class Student extends Model
         'current_academic_year',
         'current_semester',
         'student_number',
+        'lrn',
         'first_name',
         'last_name',
         'middle_name',

@@ -683,6 +683,7 @@ class RegistrarController extends Controller
         $validated = $request->validate([
             // Student number for checking existing students
             'student_number' => ['nullable', 'string'],
+            'lrn' => ['nullable', 'string', 'size:12', 'regex:/^[0-9]{12}$/'],
 
             // Personal Information
             'first_name' => ['required', 'string', 'max:255'],
@@ -805,6 +806,15 @@ class RegistrarController extends Controller
             $hasActiveVoucher = $validated['education_level'] === 'senior_high' &&
                                ($existingStudentForVoucher->has_voucher ?? false) &&
                                ($existingStudentForVoucher->voucher_status ?? null) === 'active';
+        }
+
+        // LRN is required for SHS students
+        if ($validated['education_level'] === 'senior_high') {
+            if (! isset($validated['lrn']) || $validated['lrn'] === null || $validated['lrn'] === '') {
+                return back()->withErrors([
+                    'lrn' => 'LRN (Learner\'s Reference Number) is required for Senior High School students.',
+                ])->withInput();
+            }
         }
 
         if (! $hasActiveVoucher) {
@@ -1156,6 +1166,7 @@ class RegistrarController extends Controller
                 'education_level' => $validated['education_level'],
                 'track' => $validated['track'] ?? null,
                 'strand' => $validated['strand'] ?? null,
+                'lrn' => $validated['lrn'] ?? null,
                 'status' => 'active',
                 'enrolled_date' => $isUpdatingExisting ? $existingStudent->enrolled_date : now(),
             ];

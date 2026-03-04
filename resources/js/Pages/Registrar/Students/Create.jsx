@@ -51,6 +51,7 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
         education_level: old.education_level ?? '',
         track: old.track ?? '',
         strand: old.strand ?? '',
+        lrn: old.lrn ?? '',
         curriculum_id: old.curriculum_id ?? '',
         enrollment_fee: old.enrollment_fee ?? '',
         payment_amount: old.payment_amount ?? '',
@@ -83,6 +84,7 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
         education_level: '',
         track: '',
         strand: '',
+        lrn: '',
         curriculum_id: '',
         
         // Payment Information
@@ -238,6 +240,7 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
     const [subjectSearchQuery, setSubjectSearchQuery] = useState('')
     const [feeAdjustments, setFeeAdjustments] = useState({ creditedPassed: [], pastSubjectsToCatchUp: [], creditedFailed: [], isIrregular: undefined })
     const [invalidGrades, setInvalidGrades] = useState({}) // Track invalid grades by subject_id
+    const [gradingType, setGradingType] = useState('numeric') // 'numeric' or 'gpa'
 
     // Auto-select Grade 11 subjects for SHS transferees when entering grading step (Step 2)
     useEffect(() => {
@@ -262,6 +265,14 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
             }
         }
     }, [creditModalStep, curriculumComparison, isTransferee, selectedProgram, data.education_level, creditedSubjects])
+
+    // Clear grades when grading type changes
+    useEffect(() => {
+        if (creditedSubjects.length > 0) {
+            setCreditedSubjects(prev => prev.map(subject => ({ ...subject, grade: '' })))
+            setInvalidGrades({})
+        }
+    }, [gradingType])
 
 
 
@@ -1489,7 +1500,7 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
         
             <Head title="Register New Student" />
 
-            <form onSubmit={handleSubmit} className="space-y-6 m-2">
+            <form onSubmit={handleSubmit} className="space-y-6 m-6">
                 {/* Student Information Note */}
                 <Card className="border-t-4 border-t-green-500">
                     <CardHeader className="bg-gradient-to-r from-green-50 to-transparent">
@@ -2301,6 +2312,36 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                             )}
 
                         </div>
+
+                        {/* LRN Field for SHS Students */}
+                        {data.education_level === 'senior_high' && (
+                            <div>
+                                <Label htmlFor="lrn" className="text-sm font-medium">
+                                    Learner's Reference Number (LRN) *
+                                    <span className="text-xs text-gray-500 ml-1">(12 digits)</span>
+                                </Label>
+                                <Input
+                                    id="lrn"
+                                    value={data.lrn ?? ''}
+                                    onChange={e => {
+                                        let value = e.target.value.replace(/[^0-9]/g, ''); // Only allow digits
+                                        if (value.length <= 12) {
+                                            setData('lrn', value);
+                                        }
+                                    }}
+                                    placeholder="e.g. 123456789012"
+                                    maxLength="12"
+                                    disabled={!formUnlocked || isExistingStudent}
+                                    className={errors.lrn ? 'border-red-500' : 'border-gray-300 focus:border-green-500'}
+                                />
+                                {errors.lrn && (
+                                    <p className="text-red-500 text-sm mt-1">{errors.lrn}</p>
+                                )}
+                                <p className="text-xs text-gray-500 mt-1">
+                                    Required for all Senior High School students. Must be exactly 12 digits.
+                                </p>
+                            </div>
+                        )}
                     </CardContent>
                 </Card>
 
@@ -3402,8 +3443,11 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
             </Dialog>
 
             <Dialog open={showCreditModal} onOpenChange={setShowCreditModal}>
-                <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
-                    <DialogHeader className="flex-shrink-0 pb-3 border-b">
+                <DialogContent 
+                    className="w-screen h-screen max-w-none max-h-none m-0 p-0 rounded-none border-none overflow-hidden flex flex-col bg-white"
+                >
+
+                    <DialogHeader className="flex-shrink-0 p-6 pb-3 border-b">
                         <DialogTitle className="flex items-center gap-2 text-lg">
                             <div className="p-1.5 bg-blue-100 rounded-md">
                                 {isShiftee ? '🔄' : '📚'}
@@ -3421,7 +3465,7 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                         </DialogTitle>
                     </DialogHeader>
 
-                    <div className="flex-1 overflow-y-auto py-4">
+                    <div className="flex-1 overflow-y-auto p-6">
                         {/* Step Content */}
                         {creditModalStep === 1 && (
                             <div className="space-y-6">
@@ -3533,6 +3577,45 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                                         }`}>
                                             {creditedSubjects.length} selected{creditedSubjects.some(cs => !cs.grade || cs.grade === '') ? ' (grades needed)' : ''}
                                         </Badge>
+                                    </div>
+
+                                    {/* Grading Type Selector */}
+                                    <div className="bg-white border border-gray-200 rounded-lg p-4 mb-4">
+                                        <div className="flex items-center gap-4">
+                                            <div className="flex-1">
+                                                <Label className="text-sm font-medium text-gray-700">Grading System</Label>
+                                                <p className="text-xs text-gray-500 mt-1">Choose how to record grades for credited subjects</p>
+                                            </div>
+                                            <div className="flex gap-2">
+                                                <Button
+                                                    type="button"
+                                                    variant={gradingType === 'numeric' ? 'default' : 'outline'}
+                                                    size="sm"
+                                                    onClick={() => setGradingType('numeric')}
+                                                    className="h-8"
+                                                >
+                                                    Numeric (1-100%)
+                                                </Button>
+                                                <Button
+                                                    type="button"
+                                                    variant={gradingType === 'gpa' ? 'default' : 'outline'}
+                                                    size="sm"
+                                                    onClick={() => setGradingType('gpa')}
+                                                    className="h-8"
+                                                >
+                                                    GPA (1.00-5.00)
+                                                </Button>
+                                            </div>
+                                        </div>
+                                        <div className="mt-3 p-3 bg-gray-50 rounded-md">
+                                            <p className="text-xs text-gray-600">
+                                                <strong>{gradingType === 'numeric' ? 'Numeric Grading:' : 'GPA Grading:'}</strong>{' '}
+                                                {gradingType === 'numeric'
+                                                    ? 'Enter percentage grades (1-100). Grades 75% and above are typically passing.'
+                                                    : 'Select GPA values. Grades 3.00 and below are typically passing.'
+                                                }
+                                            </p>
+                                        </div>
                                     </div>
                                 </div>
 
@@ -3661,7 +3744,7 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                                                                             <span className="text-xs font-medium">Grade required</span>
                                                                         </div>
                                                                     )}
-                                                                    {isTransferee ? (
+                                                                    {gradingType === 'gpa' ? (
                                                                         <div className="space-y-2">
                                                                             <div className="text-xs text-gray-600 font-medium">Select GPA:</div>
                                                                             <div className="flex flex-wrap gap-1">
