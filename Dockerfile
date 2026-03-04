@@ -48,6 +48,8 @@ RUN composer install --no-dev --prefer-dist --optimize-autoloader --no-interacti
 
 COPY . .
 COPY --from=frontend-builder /app/public/build ./public/build
+RUN rm -f public/hot \
+    && test -f public/build/manifest.json
 
 RUN mkdir -p storage/framework/{cache,sessions,views} storage/logs bootstrap/cache \
     && chown -R www-data:www-data storage bootstrap/cache \
