@@ -13,9 +13,8 @@ COPY jsconfig.json ./
 
 RUN npm run build
 
-FROM php:8.4-cli-alpine
+FROM php:8.4-fpm-alpine
 WORKDIR /var/www/html
-
 RUN apk add --no-cache \
     bash \
     git \
@@ -28,14 +27,12 @@ RUN apk add --no-cache \
     libpng-dev \
     libjpeg-turbo-dev \
     freetype-dev \
-    postgresql-dev \
     mysql-client \
-    postgresql-client \
+    nginx \
     && docker-php-ext-configure gd --with-freetype --with-jpeg \
     && docker-php-ext-install -j$(nproc) \
         pdo \
         pdo_mysql \
-        pdo_pgsql \
         bcmath \
         intl \
         gd \
@@ -48,8 +45,19 @@ RUN composer install --no-dev --prefer-dist --optimize-autoloader --no-interacti
 
 COPY . .
 COPY --from=frontend-builder /app/public/build ./public/build
+COPY docker/nginx.conf /etc/nginx/conf.d/default.conf
 RUN rm -f public/hot \
     && test -f public/build/manifest.json
+
+# enable OPcache for better PHP performance
+RUN { \
+    echo "opcache.memory_consumption=192"; \
+    echo "opcache.interned_strings_buffer=16"; \
+    echo "opcache.max_accelerated_files=10000"; \
+    echo "opcache.revalidate_freq=2"; \
+    echo "opcache.fast_shutdown=1"; \
+    echo "opcache.enable_cli=1"; \
+} > /usr/local/etc/php/conf.d/opcache.ini
 
 RUN mkdir -p storage/framework/{cache,sessions,views} storage/logs bootstrap/cache \
     && chown -R www-data:www-data storage bootstrap/cache \
@@ -58,6 +66,7 @@ RUN mkdir -p storage/framework/{cache,sessions,views} storage/logs bootstrap/cac
 ENV APP_ENV=production
 ENV APP_DEBUG=false
 
-EXPOSE 10000
+EXPOSE 80
 
-CMD ["sh", "-lc", "php artisan config:cache && php artisan route:cache && php artisan view:cache && php artisan serve --host=0.0.0.0 --port=${PORT:-10000}"]
+# Start php-fpm and nginx (php-fpm foregrounded, nginx runs in foreground)
+CMD ["sh", "-lc", "php artisan config:cache && php artisan route:cache && php artisan view:cache && php-fpm -F & nginx -g 'daemon off;'" ]
