@@ -33,6 +33,7 @@ class AcademicHistoryController extends Controller
                     ['year_level', 'asc'],
                     function ($item) {
                         $order = ['1st' => 1, '2nd' => 2, 'summer' => 3];
+
                         return $order[$item->semester] ?? 99;
                     },
                 ])->values()->all();
@@ -131,7 +132,7 @@ class AcademicHistoryController extends Controller
         }
 
         if ($prevProgramId) {
-            $compRequest = new \Illuminate\Http\Request();
+            $compRequest = new \Illuminate\Http\Request;
             $compRequest->replace([
                 'previous_program_id' => $prevProgramId,
                 'new_program_id' => $student->program_id,
@@ -146,7 +147,9 @@ class AcademicHistoryController extends Controller
                 if (! empty($compData['data']['credited_subjects'])) {
                     foreach ($compData['data']['credited_subjects'] as $credit) {
                         $code = $credit['subject_code'] ?? null;
-                        if (! $code) continue;
+                        if (! $code) {
+                            continue;
+                        }
 
                         if (! isset($subjectGradesMap[$code])) {
                             // detect partial status and missing grades same as registrar logic
@@ -200,6 +203,7 @@ class AcademicHistoryController extends Controller
         $curriculumSubjects = collect($curriculumSubjects)
             ->sortBy([['year_level', 'asc'], function ($item) {
                 $order = ['1st' => 1, '2nd' => 2, 'summer' => 3];
+
                 return $order[$item->semester] ?? 99;
             }])
             ->values()
@@ -315,7 +319,6 @@ class AcademicHistoryController extends Controller
             }
         }
 
-
         // Get enrolled subjects without grades (for current semester)
         $currentAcademicYear = \App\Models\SchoolSetting::getCurrentAcademicYear();
         $currentSemester = \App\Models\SchoolSetting::getCurrentSemester();
@@ -381,7 +384,7 @@ class AcademicHistoryController extends Controller
             // Also check credited subjects in subjectGradesMap as backup
             if (! $isCompleted) {
                 foreach ($subjectGradesMap as $grade) {
-                    if ($grade['subject_code'] === $subjectCode && $grade['type'] === 'credited' && !empty($grade['is_complete'])) {
+                    if ($grade['subject_code'] === $subjectCode && $grade['type'] === 'credited' && ! empty($grade['is_complete'])) {
                         $isCompleted = true;
                         break;
                     }
@@ -574,10 +577,18 @@ class AcademicHistoryController extends Controller
                 }
 
                 $missingGrades = [];
-                if (is_null($grade->prelim_grade)) { $missingGrades[] = 'Prelim'; }
-                if (is_null($grade->midterm_grade)) { $missingGrades[] = 'Midterm'; }
-                if (is_null($grade->prefinal_grade)) { $missingGrades[] = 'Prefinal'; }
-                if (is_null($grade->final_grade)) { $missingGrades[] = 'Final'; }
+                if (is_null($grade->prelim_grade)) {
+                    $missingGrades[] = 'Prelim';
+                }
+                if (is_null($grade->midterm_grade)) {
+                    $missingGrades[] = 'Midterm';
+                }
+                if (is_null($grade->prefinal_grade)) {
+                    $missingGrades[] = 'Prefinal';
+                }
+                if (is_null($grade->final_grade)) {
+                    $missingGrades[] = 'Final';
+                }
 
                 $gradeInfo = [
                     'subject_id' => $subject->id,
@@ -789,12 +800,16 @@ class AcademicHistoryController extends Controller
                                 $isCompleted = $numericGrade >= 75;
                             }
                         }
-                        if ($isCompleted) break;
+                        if ($isCompleted) {
+                            break;
+                        }
                     }
                 }
             }
 
-            if ($isCompleted) $completedCurriculumSubjects++;
+            if ($isCompleted) {
+                $completedCurriculumSubjects++;
+            }
         }
 
         $completionPercentage = $totalSubjects > 0 ? round(($completedCurriculumSubjects / $totalSubjects) * 100) : 0;
@@ -982,4 +997,3 @@ class AcademicHistoryController extends Controller
         return $archived?->teacher?->user?->name;
     }
 }
-

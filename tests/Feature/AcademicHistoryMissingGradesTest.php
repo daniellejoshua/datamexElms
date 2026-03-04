@@ -60,5 +60,4 @@ it('includes placeholders and missing grades for completed archived enrollments 
     $subjectGrades = collect($pageProps['subjectGrades'] ?? []);
     expect($subjectGrades->contains('type', 'archived'))->toBeFalse();
 
-
 });

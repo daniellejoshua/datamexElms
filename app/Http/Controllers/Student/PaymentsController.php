@@ -4,8 +4,8 @@ namespace App\Http\Controllers\Student;
 
 use App\Http\Controllers\Controller;
 use App\Models\SchoolSetting;
-use App\Models\StudentSemesterPayment;
 use App\Models\ShsStudentPayment;
+use App\Models\StudentSemesterPayment;
 use App\Services\StudentPaymentService;
 use Illuminate\Http\Request;
 
@@ -65,7 +65,7 @@ class PaymentsController extends Controller
                 // perform a calculation. previous values remain null unless already
                 // stored; this keeps earlier semesters frozen.
                 $isPast = $payment->academic_year < $currentYear
-                    || ($payment->academic_year === $currentYear && in_array($payment->semester, ['1st','2nd','summer']) &&
+                    || ($payment->academic_year === $currentYear && in_array($payment->semester, ['1st', '2nd', 'summer']) &&
                         ($payment->semester !== $currentSemester));
 
                 if ($isPast) {

@@ -125,13 +125,13 @@ class BackfillArchivedStudentSubjects extends Command
                 };
 
                 $subjectEnrollments = StudentSubjectEnrollment::where('student_id', $archived->student_id)
-                        ->where('academic_year', $archived->academic_year)
-                        ->whereIn('semester', $semesterValues)
-                        ->when($archived->archivedSection?->original_section_id, function ($q, $secId) {
-                            $q->whereHas('sectionSubject', fn ($q2) => $q2->where('section_id', $secId));
-                        })
-                        ->with(['sectionSubject.subject'])
-                        ->get();
+                    ->where('academic_year', $archived->academic_year)
+                    ->whereIn('semester', $semesterValues)
+                    ->when($archived->archivedSection?->original_section_id, function ($q, $secId) {
+                        $q->whereHas('sectionSubject', fn ($q2) => $q2->where('section_id', $secId));
+                    })
+                    ->with(['sectionSubject.subject'])
+                    ->get();
 
                 foreach ($subjectEnrollments as $se) {
                     $sectionSubject = $se->sectionSubject;

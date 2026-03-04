@@ -40,14 +40,14 @@ class FixStudentPaymentFees extends Command
         // --all overrides that behaviour and processes every payment.
         // start with college semester payments
         $collegePayments = StudentSemesterPayment::with('student.program')
-            ->when(!$allFlag, fn($q) => $q->whereHas('student', function ($q) {
+            ->when(! $allFlag, fn ($q) => $q->whereHas('student', function ($q) {
                 $q->where('status', 'active');
             }))
             ->get();
 
         // also include SHS payments so the same freeze behaviour applies
         $shsPayments = \App\Models\ShsStudentPayment::with('student.program')
-            ->when(!$allFlag, fn($q) => $q->whereHas('student', function ($q) {
+            ->when(! $allFlag, fn ($q) => $q->whereHas('student', function ($q) {
                 $q->where('status', 'active');
             }))
             ->get();

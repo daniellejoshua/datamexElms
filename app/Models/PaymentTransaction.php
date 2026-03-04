@@ -2,11 +2,11 @@
 
 namespace App\Models;
 
+use App\Traits\SyncsToCloud;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
 use Illuminate\Support\Str;
-use App\Traits\SyncsToCloud;
 
 class PaymentTransaction extends Model
 {

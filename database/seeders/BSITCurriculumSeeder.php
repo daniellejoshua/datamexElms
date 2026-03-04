@@ -63,7 +63,7 @@ class BSITCurriculumSeeder extends Seeder
             ['subject_code' => 'APC1', 'year_level' => 2, 'semester' => '1st'],
             ['subject_code' => 'CORE6', 'year_level' => 2, 'semester' => '1st'],
             ['subject_code' => 'PE3', 'year_level' => 2, 'semester' => '1st'],
- 
+
             // 2nd Year - 2nd Semester
             ['subject_code' => 'CORE7', 'year_level' => 2, 'semester' => '2nd'],
             ['subject_code' => 'FIL2', 'year_level' => 2, 'semester' => '2nd'],

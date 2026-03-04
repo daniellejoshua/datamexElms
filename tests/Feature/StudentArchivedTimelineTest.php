@@ -4,16 +4,16 @@ use App\Models\ArchivedSection;
 use App\Models\ArchivedStudentEnrollment;
 use App\Models\ArchivedStudentSubject;
 use App\Models\Program;
+use App\Models\SchoolSetting;
 use App\Models\Section;
 use App\Models\SectionSubject;
 use App\Models\Student;
 use App\Models\StudentEnrollment;
-use App\Models\StudentSubjectEnrollment;
 use App\Models\StudentGrade;
+use App\Models\StudentSubjectEnrollment;
 use App\Models\Subject;
 use App\Models\Teacher;
 use App\Models\User;
-use App\Models\SchoolSetting;
 
 it('highlights archived curriculum subject with missing grades on student timeline', function () {
     SchoolSetting::setCurrentAcademicPeriod('2024-2025', '1st');
@@ -36,7 +36,7 @@ it('highlights archived curriculum subject with missing grades on student timeli
         'status' => 'active',
     ]);
 
-    $code = 'ARCH' . \Illuminate\Support\Str::upper(\Illuminate\Support\Str::random(5));
+    $code = 'ARCH'.\Illuminate\Support\Str::upper(\Illuminate\Support\Str::random(5));
     $subject = Subject::factory()->create(['subject_code' => $code, 'subject_name' => 'Archived One']);
     $sectionSub = SectionSubject::create([
         'section_id' => $section->id,
@@ -99,7 +99,7 @@ it('highlights archived curriculum subject with missing grades on student timeli
     $arch = ArchivedStudentEnrollment::create([
         'archived_section_id' => $archSection->id,
         'student_id' => $student->id,
-        'original_enrollment_id' => (string)1,
+        'original_enrollment_id' => (string) 1,
         'academic_year' => '2024-2025',
         'semester' => 'first',
         'enrolled_date' => now(),
@@ -127,6 +127,6 @@ it('highlights archived curriculum subject with missing grades on student timeli
     $props = $response->original->getData()['page']['props'];
     $grades = collect($props['subjectGrades']);
 
-    expect($grades->where('subject_code',$code)->first()['type'])->toBe('archived');
-    expect($grades->where('subject_code',$code)->first()['missing_grades'])->not->toBeEmpty();
+    expect($grades->where('subject_code', $code)->first()['type'])->toBe('archived');
+    expect($grades->where('subject_code', $code)->first()['missing_grades'])->not->toBeEmpty();
 });

@@ -1,11 +1,10 @@
 <?php
 
-use App\Models\ArchivedStudentEnrollment;
-use App\Models\ArchivedStudentSubject;
-use App\Models\SectionSubject;
-use App\Models\Section;
 use App\Models\ArchivedSection;
+use App\Models\ArchivedStudentEnrollment;
 use App\Models\Program;
+use App\Models\Section;
+use App\Models\SectionSubject;
 use App\Models\Student;
 use App\Models\StudentEnrollment;
 use App\Models\StudentGrade;
@@ -13,7 +12,6 @@ use App\Models\StudentSubjectEnrollment;
 use App\Models\Subject;
 use App\Models\Teacher;
 use App\Models\User;
-use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
 
 it('backfills missing archived_student_subjects from StudentGrade and is idempotent', function () {
@@ -395,13 +393,11 @@ it('archives ungraded subjects alongside graded ones when observing enrollment c
     // archived process should not delete original subject enrollments
     $laterEnrolls = StudentSubjectEnrollment::where('student_id', $student->id)
         ->where('academic_year', '2024-2025')
-        ->whereIn('semester', ['1st','first'])
+        ->whereIn('semester', ['1st', 'first'])
         ->pluck('section_subject_id')
         ->toArray();
     expect(in_array($sectionSub1->id, $laterEnrolls))->toBeTrue();
     expect(in_array($sectionSub2->id, $laterEnrolls))->toBeTrue();
-
-
 
     // now both subjects should be present in archived_student_subjects
     $rows = DB::table('archived_student_subjects')

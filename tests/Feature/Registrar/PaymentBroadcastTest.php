@@ -1,12 +1,11 @@
 <?php
 
 use App\Events\PaymentRecorded;
-use App\Models\PaymentTransaction;
 use App\Models\ShsStudentPayment;
 use App\Models\Student;
 use App\Models\User;
-use Illuminate\Support\Facades\Event;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Event;
 
 uses(RefreshDatabase::class);
 

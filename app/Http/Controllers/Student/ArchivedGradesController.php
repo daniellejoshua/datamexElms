@@ -22,7 +22,7 @@ class ArchivedGradesController extends Controller
 
         // Group enrollments by academic period and calculate total subjects offered
         $enrollmentsByPeriod = $archivedEnrollments->getCollection()->groupBy(function ($enrollment) {
-            return $enrollment->academic_year . '-' . $enrollment->semester;
+            return $enrollment->academic_year.'-'.$enrollment->semester;
         });
 
         $periodTotals = [];
@@ -38,8 +38,9 @@ class ArchivedGradesController extends Controller
 
         // Add total subjects count to each enrollment
         $archivedEnrollments->getCollection()->transform(function ($enrollment) use ($periodTotals) {
-            $periodKey = $enrollment->academic_year . '-' . $enrollment->semester;
+            $periodKey = $enrollment->academic_year.'-'.$enrollment->semester;
             $enrollment->period_total_subjects = $periodTotals[$periodKey] ?? 0;
+
             return $enrollment;
         });
 
@@ -116,7 +117,8 @@ class ArchivedGradesController extends Controller
         ]);
     }
 
-    public function showSection(Request $request, $sectionId)    {
+    public function showSection(Request $request, $sectionId)
+    {
         // redirect back to period view, section-specific page is deprecated
         $academic_year = $request->query('academic_year');
         $semester = $request->query('semester');
@@ -129,4 +131,5 @@ class ArchivedGradesController extends Controller
             'academic_year' => $academic_year,
             'semester' => $semester,
         ]);
-    }}
+    }
+}

@@ -198,6 +198,7 @@ class StudentDashboardController extends Controller
                     ['year_level', 'asc'],
                     function ($item) {
                         $order = ['1st' => 1, '2nd' => 2, 'summer' => 3];
+
                         return $order[$item->semester] ?? 99;
                     },
                 ])->values()->all();
@@ -302,7 +303,7 @@ class StudentDashboardController extends Controller
         }
 
         if ($prevProgramId) {
-            $compRequest = new \Illuminate\Http\Request();
+            $compRequest = new \Illuminate\Http\Request;
             $compRequest->replace([
                 'previous_program_id' => $prevProgramId,
                 'new_program_id' => $student->program_id,

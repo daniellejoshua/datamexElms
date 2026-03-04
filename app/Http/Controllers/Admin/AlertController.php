@@ -6,10 +6,10 @@ use App\Http\Controllers\Controller;
 use App\Models\Section;
 use App\Models\Student;
 use App\Models\Teacher;
-use Inertia\Inertia;
-use Inertia\Response;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\Log;
+use Inertia\Inertia;
+use Inertia\Response;
 
 class AlertController extends Controller
 {
@@ -25,8 +25,8 @@ class AlertController extends Controller
         // Get all low enrollment sections for the current term
         $lowEnrollmentSections = Section::with(['program', 'studentEnrollments' => function ($query) use ($currentAcademicYear, $currentSemester) {
             $query->where('status', 'active')
-                  ->where('academic_year', $currentAcademicYear)
-                  ->where('semester', $currentSemester);
+                ->where('academic_year', $currentAcademicYear)
+                ->where('semester', $currentSemester);
         }])
             ->where('academic_year', $currentAcademicYear)
             ->where('semester', $currentSemester)
@@ -55,15 +55,15 @@ class AlertController extends Controller
         //    those enrollments are active (dashboard-style count)
         $noActive = Student::whereDoesntHave('enrollments', function ($query) use ($currentAcademicYear, $currentSemester) {
             $query->where('status', 'active')
-                  ->where('academic_year', $currentAcademicYear)
-                  ->where('semester', $currentSemester);
+                ->where('academic_year', $currentAcademicYear)
+                ->where('semester', $currentSemester);
         })
-        ->whereHas('enrollments', function ($query) use ($currentAcademicYear, $currentSemester) {
-            $query->where('academic_year', $currentAcademicYear)
-                  ->where('semester', $currentSemester);
-        })
-        ->with(['user', 'program'])
-        ->get();
+            ->whereHas('enrollments', function ($query) use ($currentAcademicYear, $currentSemester) {
+                $query->where('academic_year', $currentAcademicYear)
+                    ->where('semester', $currentSemester);
+            })
+            ->with(['user', 'program'])
+            ->get();
 
         // 2. students with an active term enrollment whose section is missing or
         //    does not match the student's year level. Important: a student may
@@ -74,22 +74,22 @@ class AlertController extends Controller
         $missingSection = Student::whereHas('enrollments', function ($query) use ($currentAcademicYear, $currentSemester) {
             // Ensure the student has at least one enrollment in the term
             $query->where('academic_year', $currentAcademicYear)
-                  ->where('semester', $currentSemester);
+                ->where('semester', $currentSemester);
         })
         // Exclude students that do have an active enrollment with a non-null
         // section that is active and matches the student's year_level.
-        ->whereDoesntHave('enrollments', function ($q) use ($currentAcademicYear, $currentSemester) {
-            $q->where('status', 'active')
-              ->where('academic_year', $currentAcademicYear)
-              ->where('semester', $currentSemester)
-              ->whereNotNull('section_id')
-              ->whereHas('section', function ($sectionQ) {
-                  $sectionQ->where('status', 'active')
-                           ->whereColumn('year_level', 'students.year_level');
-              });
-        })
-        ->with(['user', 'program'])
-        ->get();
+            ->whereDoesntHave('enrollments', function ($q) use ($currentAcademicYear, $currentSemester) {
+                $q->where('status', 'active')
+                    ->where('academic_year', $currentAcademicYear)
+                    ->where('semester', $currentSemester)
+                    ->whereNotNull('section_id')
+                    ->whereHas('section', function ($sectionQ) {
+                        $sectionQ->where('status', 'active')
+                            ->whereColumn('year_level', 'students.year_level');
+                    });
+            })
+            ->with(['user', 'program'])
+            ->get();
 
         // merge, preserving unique students by id
         $studentsWithoutSections = $noActive->concat($missingSection)->unique('id')
@@ -325,7 +325,7 @@ class AlertController extends Controller
             ->where('section_subjects.status', 'active')
             ->where('students.education_level', 'college')
             // Treat incomplete when there is no grade row, or any component/submission is null
-            ->whereRaw("(student_grades.id IS NULL OR student_grades.prelim_grade IS NULL OR student_grades.midterm_grade IS NULL OR student_grades.prefinal_grade IS NULL OR student_grades.final_grade IS NULL OR student_grades.final_submitted_at IS NULL)")
+            ->whereRaw('(student_grades.id IS NULL OR student_grades.prelim_grade IS NULL OR student_grades.midterm_grade IS NULL OR student_grades.prefinal_grade IS NULL OR student_grades.final_grade IS NULL OR student_grades.final_submitted_at IS NULL)')
             ->select(
                 'students.first_name',
                 'students.last_name',
@@ -352,21 +352,29 @@ class AlertController extends Controller
 
         foreach ($collegeGrades as $grade) {
             $missingGrades = [];
-            if (is_null($grade->prelim_grade)) $missingGrades[] = 'P';
-            if (is_null($grade->midterm_grade)) $missingGrades[] = 'M';
-            if (is_null($grade->prefinal_grade)) $missingGrades[] = 'PF';
-            if (is_null($grade->final_grade)) $missingGrades[] = 'F';
+            if (is_null($grade->prelim_grade)) {
+                $missingGrades[] = 'P';
+            }
+            if (is_null($grade->midterm_grade)) {
+                $missingGrades[] = 'M';
+            }
+            if (is_null($grade->prefinal_grade)) {
+                $missingGrades[] = 'PF';
+            }
+            if (is_null($grade->final_grade)) {
+                $missingGrades[] = 'F';
+            }
 
             $programPrefix = isset($grade->program_code) && $grade->program_code ? $grade->program_code : null;
             $yearLevel = $grade->year_level;
             $sectionName = $grade->section_name;
 
-            $formatted = $programPrefix ? ($programPrefix . $yearLevel . '-' . $sectionName) : ($yearLevel . '-' . $sectionName);
+            $formatted = $programPrefix ? ($programPrefix.$yearLevel.'-'.$sectionName) : ($yearLevel.'-'.$sectionName);
 
             $incompleteGrades[] = [
                 'student' => $grade->first_name.' '.$grade->last_name,
                 'subject' => $grade->subject_code,
-                'section' => $yearLevel.'-'. $sectionName,
+                'section' => $yearLevel.'-'.$sectionName,
                 'formatted_section_name' => $formatted,
                 'missing_grades' => implode(', ', $missingGrades),
                 'academic_year' => $grade->academic_year,
@@ -394,7 +402,7 @@ class AlertController extends Controller
             ->where('sections.status', 'active')
             ->where('section_subjects.status', 'active')
             ->where('students.education_level', 'senior_high')
-            ->whereRaw("(shs_student_grades.id IS NULL OR shs_student_grades.first_quarter_grade IS NULL OR shs_student_grades.second_quarter_grade IS NULL OR shs_student_grades.final_grade IS NULL OR shs_student_grades.fourth_quarter_submitted_at IS NULL)")
+            ->whereRaw('(shs_student_grades.id IS NULL OR shs_student_grades.first_quarter_grade IS NULL OR shs_student_grades.second_quarter_grade IS NULL OR shs_student_grades.final_grade IS NULL OR shs_student_grades.fourth_quarter_submitted_at IS NULL)')
             ->select(
                 'students.first_name',
                 'students.last_name',
@@ -419,9 +427,15 @@ class AlertController extends Controller
 
         foreach ($shsGrades as $grade) {
             $missingGrades = [];
-            if (is_null($grade->first_quarter_grade)) $missingGrades[] = '1Q';
-            if (is_null($grade->second_quarter_grade)) $missingGrades[] = '2Q';
-            if (is_null($grade->final_grade)) $missingGrades[] = 'F';
+            if (is_null($grade->first_quarter_grade)) {
+                $missingGrades[] = '1Q';
+            }
+            if (is_null($grade->second_quarter_grade)) {
+                $missingGrades[] = '2Q';
+            }
+            if (is_null($grade->final_grade)) {
+                $missingGrades[] = 'F';
+            }
 
             $incompleteGrades[] = [
                 'student' => $grade->first_name.' '.$grade->last_name,
@@ -471,4 +485,3 @@ class AlertController extends Controller
         return response()->json($paginator->toArray());
     }
 }
-

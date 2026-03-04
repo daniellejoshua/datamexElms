@@ -5,9 +5,9 @@ namespace App\Http\Controllers\Teacher;
 use App\Http\Controllers\Controller;
 use App\Models\ArchivedSection;
 use App\Models\ArchivedStudentEnrollment;
+use App\Models\ArchivedStudentSubject;
 use App\Models\StudentGrade;
 use App\Models\StudentSubjectCredit;
-use App\Models\ArchivedStudentSubject;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use Inertia\Inertia;
@@ -234,7 +234,7 @@ class ArchivedSectionsController extends Controller
                     'id' => $enrollment->id,
                     'student_id' => $enrollment->student_id,
                     'student_data' => $currentStudents->has($enrollment->student_id) ? [
-                            'name' => $this->formatStudentName($currentStudents[$enrollment->student_id]),
+                        'name' => $this->formatStudentName($currentStudents[$enrollment->student_id]),
                         'student_number' => $currentStudents[$enrollment->student_id]->student_number ?? 'Unknown',
                         'first_name' => $currentStudents[$enrollment->student_id]->first_name ?? '',
                         'last_name' => $currentStudents[$enrollment->student_id]->last_name ?? '',
@@ -303,8 +303,8 @@ class ArchivedSectionsController extends Controller
             if (is_numeric($subjectId)) {
                 $subjectMatchQuery->where(function ($q) use ($subjectId) {
                     $q->where('subject_id', (int) $subjectId)
-                      ->orWhere('subject_code', (string) $subjectId)
-                      ->orWhere('section_subject_id', (int) $subjectId);
+                        ->orWhere('subject_code', (string) $subjectId)
+                        ->orWhere('section_subject_id', (int) $subjectId);
                 });
             } else {
                 $subjectMatchQuery->where('subject_code', (string) $subjectId);
@@ -318,10 +318,18 @@ class ArchivedSectionsController extends Controller
 
                     // Check missing per-period grades
                     $missing = [];
-                    if (is_null($row->prelim_grade)) $missing[] = 'Prelim';
-                    if (is_null($row->midterm_grade)) $missing[] = 'Midterm';
-                    if (is_null($row->prefinal_grade)) $missing[] = 'Prefinal';
-                    if (is_null($row->final_grade)) $missing[] = 'Final';
+                    if (is_null($row->prelim_grade)) {
+                        $missing[] = 'Prelim';
+                    }
+                    if (is_null($row->midterm_grade)) {
+                        $missing[] = 'Midterm';
+                    }
+                    if (is_null($row->prefinal_grade)) {
+                        $missing[] = 'Prefinal';
+                    }
+                    if (is_null($row->final_grade)) {
+                        $missing[] = 'Final';
+                    }
 
                     $gradeStatus = count($missing) > 0 ? 'Missing Grades' : 'Complete';
 
@@ -644,7 +652,7 @@ class ArchivedSectionsController extends Controller
         $parts = [
             $student->first_name,
             $student->middle_name,
-            $student->last_name
+            $student->last_name,
         ];
 
         if ($student->suffix) {

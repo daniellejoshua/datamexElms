@@ -2,9 +2,9 @@
 
 namespace App\Observers;
 
+use App\Models\ShsStudentPayment;
 use App\Models\Student;
 use App\Models\StudentSemesterPayment;
-use App\Models\ShsStudentPayment;
 
 class StudentObserver
 {

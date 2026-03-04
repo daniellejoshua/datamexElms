@@ -4,6 +4,7 @@ use App\Models\ArchivedSection;
 use App\Models\ArchivedStudentEnrollment;
 use App\Models\ArchivedStudentSubject;
 use App\Models\Program;
+use App\Models\SchoolSetting;
 use App\Models\Section;
 use App\Models\SectionSubject;
 use App\Models\Student;
@@ -13,7 +14,6 @@ use App\Models\StudentSubjectEnrollment;
 use App\Models\Subject;
 use App\Models\Teacher;
 use App\Models\User;
-use App\Models\SchoolSetting;
 use Inertia\Testing\AssertableInertia as Assert;
 
 it('returns archived enrollments with subjects for registrar academic history', function () {
@@ -58,8 +58,8 @@ it('returns archived enrollments with subjects for registrar academic history', 
     ]);
 
     // ensure duplicate rows are removed when running tests repeatedly
-    \App\Models\StudentSubjectEnrollment::where('student_id',$student->id)
-        ->where('section_subject_id',$sectionSub->id)
+    \App\Models\StudentSubjectEnrollment::where('student_id', $student->id)
+        ->where('section_subject_id', $sectionSub->id)
         ->delete();
 
     StudentSubjectEnrollment::create([
@@ -103,7 +103,7 @@ it('returns archived enrollments with subjects for registrar academic history', 
     $arch = ArchivedStudentEnrollment::create([
         'archived_section_id' => $archSection->id,
         'student_id' => $student->id,
-        'original_enrollment_id' => (string)$enrollment->id,
+        'original_enrollment_id' => (string) $enrollment->id,
         'academic_year' => '2024-2025',
         'semester' => 'first',
         'enrolled_date' => now(),
@@ -132,13 +132,12 @@ it('returns archived enrollments with subjects for registrar academic history', 
     $response = $this->actingAs($registrar)->get(route('registrar.students.academic-history', $student));
     $response->assertSuccessful();
 
-    $response->assertInertia(fn (Assert $page) =>
-        $page->component('Registrar/Students/AcademicHistory')
-            ->has('archivedEnrollments.0.subjects')
-            ->where('archivedEnrollments.0.subjects.0.subject_code', 'TEST')
-            ->where('archivedEnrollments.0.subjects.0.teacher_name', $archTeacher->user->name)
+    $response->assertInertia(fn (Assert $page) => $page->component('Registrar/Students/AcademicHistory')
+        ->has('archivedEnrollments.0.subjects')
+        ->where('archivedEnrollments.0.subjects.0.subject_code', 'TEST')
+        ->where('archivedEnrollments.0.subjects.0.teacher_name', $archTeacher->user->name)
             // archived enrollments subject record should also report missing_grades
-            ->where('archivedEnrollments.0.subjects.0.missing_grades', ['Prelim','Midterm','Prefinal','Final'])
+        ->where('archivedEnrollments.0.subjects.0.missing_grades', ['Prelim', 'Midterm', 'Prefinal', 'Final'])
     );
 });
 
@@ -185,7 +184,7 @@ it('still shows credits in the curriculum grid after a course shift (shiftee)', 
         'program_id' => $programA->id,
         'curriculum_id' => $currA->id,
     ];
-    if (\Illuminate\Support\Facades\Schema::hasColumn('students','transfer_type')) {
+    if (\Illuminate\Support\Facades\Schema::hasColumn('students', 'transfer_type')) {
         $studentData['transfer_type'] = 'shiftee'; // needed for UI column logic
     }
     $student = Student::factory()->create($studentData);
@@ -253,21 +252,19 @@ it('still shows credits in the curriculum grid after a course shift (shiftee)', 
     $response->assertSuccessful();
 
     // curriculumSubjects should now include the credited B101 subject with missing grades
-    $response->assertInertia(fn (Assert $page) =>
-        $page->component('Registrar/Students/AcademicHistory')
-            ->has('curriculumSubjects.0')
-            ->where('curriculumSubjects.0.subject_code', 'B101')
+    $response->assertInertia(fn (Assert $page) => $page->component('Registrar/Students/AcademicHistory')
+        ->has('curriculumSubjects.0')
+        ->where('curriculumSubjects.0.subject_code', 'B101')
     );
 
     // extra manual checks on props
     $props = $response->original->getData()['page']['props'];
     $grades = collect($props['subjectGrades']);
     // find the credited record (B101) and ensure it includes a teacher_name and missing flags
-    $entry = $grades->first(fn($g) => ($g['type'] === 'credited')
-        && ($g['missing_grades'] ?? []) === ['Prelim','Midterm','Prefinal','Final']
+    $entry = $grades->first(fn ($g) => ($g['type'] === 'credited')
+        && ($g['missing_grades'] ?? []) === ['Prelim', 'Midterm', 'Prefinal', 'Final']
     );
     expect($entry)->not->toBeNull();
     expect($entry['teacher_name'] ?? null)->not->toBeNull();
-
 
 });

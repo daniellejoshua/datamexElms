@@ -699,7 +699,7 @@ class RegistrarController extends Controller
             'phone' => ['nullable', 'string', 'max:20'],
             'email' => ['required', 'email'],
             'parent_contact' => ['nullable', 'string', 'max:20'],
-            'gender' => ['nullable', Rule::in(['male','female'])],
+            'gender' => ['nullable', Rule::in(['male', 'female'])],
 
             // Academic Information
             'program_id' => ['required', 'exists:programs,id'],
@@ -2213,6 +2213,7 @@ class RegistrarController extends Controller
                     ['year_level', 'asc'],
                     function ($item) {
                         $order = ['1st' => 1, '2nd' => 2, 'summer' => 3];
+
                         return $order[$item->semester] ?? 99;
                     },
                 ])->values()->all();
@@ -2321,7 +2322,7 @@ class RegistrarController extends Controller
         }
 
         if ($prevProgramId) {
-            $compRequest = new \Illuminate\Http\Request();
+            $compRequest = new \Illuminate\Http\Request;
             $compRequest->replace([
                 'previous_program_id' => $prevProgramId,
                 'new_program_id' => $student->program_id,
@@ -2336,7 +2337,9 @@ class RegistrarController extends Controller
                 if (! empty($compData['data']['credited_subjects'])) {
                     foreach ($compData['data']['credited_subjects'] as $credit) {
                         $code = $credit['subject_code'] ?? null;
-                        if (! $code) continue;
+                        if (! $code) {
+                            continue;
+                        }
 
                         if (! isset($subjectGradesMap[$code])) {
                             // determine if this credit came from a partial grade (no final/semester yet)
@@ -2429,7 +2432,7 @@ class RegistrarController extends Controller
             if (! $exists) {
                 // use year/semester stored on the credit record if available
                 $yearLevel = $credit->year_level ?? 0;
-                $semester   = $credit->semester ?? '1st';
+                $semester = $credit->semester ?? '1st';
 
                 $curriculumSubjects[] = (object) [
                     'id' => $sub->id,
@@ -2447,6 +2450,7 @@ class RegistrarController extends Controller
         $curriculumSubjects = collect($curriculumSubjects)
             ->sortBy([['year_level', 'asc'], function ($item) {
                 $order = ['1st' => 1, '2nd' => 2, 'summer' => 3];
+
                 return $order[$item->semester] ?? 99;
             }])
             ->values()
@@ -2730,7 +2734,9 @@ class RegistrarController extends Controller
                                 $isCompleted = $numericGrade >= 75;
                             }
                         }
-                        if ($isCompleted) break;
+                        if ($isCompleted) {
+                            break;
+                        }
                     }
                 }
             }
@@ -2745,8 +2751,8 @@ class RegistrarController extends Controller
         // Convert map to array
         $subjectGrades = array_values($subjectGradesMap);
 
-
         $subjectGradesMap = [];
+
         return Inertia::render('Registrar/Students/AcademicHistory', [
             'student' => $student,
             'curriculumSubjects' => $curriculumSubjects,
@@ -2783,6 +2789,7 @@ class RegistrarController extends Controller
                     ['year_level', 'asc'],
                     function ($item) {
                         $order = ['1st' => 1, '2nd' => 2, 'summer' => 3];
+
                         return $order[$item->semester] ?? 99;
                     },
                 ])->values()->all();
@@ -2808,10 +2815,18 @@ class RegistrarController extends Controller
                 }
 
                 $missingGrades = [];
-                if (is_null($grade->prelim_grade)) { $missingGrades[] = 'Prelim'; }
-                if (is_null($grade->midterm_grade)) { $missingGrades[] = 'Midterm'; }
-                if (is_null($grade->prefinal_grade)) { $missingGrades[] = 'Prefinal'; }
-                if (is_null($grade->final_grade)) { $missingGrades[] = 'Final'; }
+                if (is_null($grade->prelim_grade)) {
+                    $missingGrades[] = 'Prelim';
+                }
+                if (is_null($grade->midterm_grade)) {
+                    $missingGrades[] = 'Midterm';
+                }
+                if (is_null($grade->prefinal_grade)) {
+                    $missingGrades[] = 'Prefinal';
+                }
+                if (is_null($grade->final_grade)) {
+                    $missingGrades[] = 'Final';
+                }
 
                 $gradeInfo = [
                     'subject_id' => $subject->id,
@@ -2979,12 +2994,16 @@ class RegistrarController extends Controller
                                 $isCompleted = $numericGrade >= 75;
                             }
                         }
-                        if ($isCompleted) break;
+                        if ($isCompleted) {
+                            break;
+                        }
                     }
                 }
             }
 
-            if ($isCompleted) $completedCurriculumSubjects++;
+            if ($isCompleted) {
+                $completedCurriculumSubjects++;
+            }
         }
 
         $completionPercentage = $totalSubjects > 0 ? round(($completedCurriculumSubjects / $totalSubjects) * 100) : 0;
@@ -3053,16 +3072,16 @@ class RegistrarController extends Controller
         $currentSemester = SchoolSetting::getCurrentSemester();
 
         $query = Student::with([
-                'user',
-                'program',
-                // eager-load only the current active enrollment for the current period (with section)
-                'studentEnrollments' => function ($q) use ($currentAcademicYear, $currentSemester) {
-                    $q->where('academic_year', $currentAcademicYear)
-                        ->where('semester', $currentSemester)
-                        ->where('status', 'active')
-                        ->with('section');
-                },
-            ])
+            'user',
+            'program',
+            // eager-load only the current active enrollment for the current period (with section)
+            'studentEnrollments' => function ($q) use ($currentAcademicYear, $currentSemester) {
+                $q->where('academic_year', $currentAcademicYear)
+                    ->where('semester', $currentSemester)
+                    ->where('status', 'active')
+                    ->with('section');
+            },
+        ])
             ->where('current_year_level', $yearLevel)
             ->whereHas('studentEnrollments', function ($query) use ($currentAcademicYear, $currentSemester) {
                 $query->where('academic_year', $currentAcademicYear)
@@ -3097,20 +3116,20 @@ class RegistrarController extends Controller
                 $query->whereHas('studentSemesterPayments', function ($q) use ($currentAcademicYear, $currentSemester, $paidColumn) {
                     $q->where('academic_year', $currentAcademicYear)
                         ->where('semester', $currentSemester)
-                        ->when($paidColumn, fn($q) => $q->where($paidColumn, true));
+                        ->when($paidColumn, fn ($q) => $q->where($paidColumn, true));
                 });
             } else {
                 // 'unpaid' => students that do NOT have a current semester payment row with the paid flag set
                 $query->whereDoesntHave('studentSemesterPayments', function ($q) use ($currentAcademicYear, $currentSemester, $paidColumn) {
                     $q->where('academic_year', $currentAcademicYear)
                         ->where('semester', $currentSemester)
-                        ->when($paidColumn, fn($q) => $q->where($paidColumn, true));
+                        ->when($paidColumn, fn ($q) => $q->where($paidColumn, true));
                 });
             }
         }
 
         // Add search functionality
-        if (!empty($search)) {
+        if (! empty($search)) {
             $query->where(function ($q) use ($search) {
                 $q->where('student_number', 'like', "%{$search}%")
                     ->orWhereHas('user', function ($userQuery) use ($search) {
@@ -3165,13 +3184,13 @@ class RegistrarController extends Controller
 
         if ($subjectId) {
             $grade = \App\Models\StudentGrade::whereHas('studentEnrollment', function ($query) use ($student) {
-            $query->where('student_id', $student->id);
-        })
-            ->whereHas('sectionSubject', function ($query) use ($subjectId) {
-                $query->where('subject_id', $subjectId);
+                $query->where('student_id', $student->id);
             })
-            ->with(['sectionSubject.teacher.user'])
-            ->first();
+                ->whereHas('sectionSubject', function ($query) use ($subjectId) {
+                    $query->where('subject_id', $subjectId);
+                })
+                ->with(['sectionSubject.teacher.user'])
+                ->first();
         }
 
         if (! $grade && $subjectCode) {

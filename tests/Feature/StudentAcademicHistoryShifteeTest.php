@@ -1,6 +1,8 @@
 <?php
 
+use App\Models\ArchivedSection;
 use App\Models\Program;
+use App\Models\SchoolSetting;
 use App\Models\Section;
 use App\Models\SectionSubject;
 use App\Models\Student;
@@ -9,8 +11,6 @@ use App\Models\StudentGrade;
 use App\Models\Subject;
 use App\Models\Teacher;
 use App\Models\User;
-use App\Models\SchoolSetting;
-use App\Models\ArchivedSection;
 use Inertia\Testing\AssertableInertia as Assert;
 
 it('shows transferred subject as partial with missing grades on student academic history', function () {
@@ -50,7 +50,7 @@ it('shows transferred subject as partial with missing grades on student academic
         'program_id' => $programA->id,
         'curriculum_id' => $currA->id,
     ];
-    if (\Illuminate\Support\Facades\Schema::hasColumn('students','transfer_type')) {
+    if (\Illuminate\Support\Facades\Schema::hasColumn('students', 'transfer_type')) {
         $studentData['transfer_type'] = 'shiftee';
     }
     $student = Student::factory()->create($studentData);
@@ -117,16 +117,15 @@ it('shows transferred subject as partial with missing grades on student academic
     $response = $this->actingAs($studentUser)->get(route('student.academic-history'));
     $response->assertSuccessful();
 
-    $response->assertInertia(fn (Assert $page) =>
-        $page->component('Student/AcademicHistory')
-            ->has('curriculumSubjects.0')
-            ->where('curriculumSubjects.0.subject_code', 'B101')
+    $response->assertInertia(fn (Assert $page) => $page->component('Student/AcademicHistory')
+        ->has('curriculumSubjects.0')
+        ->where('curriculumSubjects.0.subject_code', 'B101')
     );
 
     $props = $response->original->getData()['page']['props'];
     $grades = collect($props['subjectGrades']);
-    $entry = $grades->first(fn($g) => ($g['type'] === 'credited')
-        && ($g['missing_grades'] ?? []) === ['Prelim','Midterm','Prefinal','Final']
+    $entry = $grades->first(fn ($g) => ($g['type'] === 'credited')
+        && ($g['missing_grades'] ?? []) === ['Prelim', 'Midterm', 'Prefinal', 'Final']
     );
     expect($entry)->not->toBeNull();
     expect($entry['teacher_name'] ?? null)->not->toBeNull();
@@ -201,6 +200,6 @@ it('includes teacher name for archived subjects on student academic history', fu
 
     $props = $response->original->getData()['page']['props'];
     $grades = collect($props['subjectGrades']);
-    $entry = $grades->first(fn($g) => ($g['teacher_name'] ?? null) === $teacher->user->name);
+    $entry = $grades->first(fn ($g) => ($g['teacher_name'] ?? null) === $teacher->user->name);
     expect($entry)->not->toBeNull();
 });

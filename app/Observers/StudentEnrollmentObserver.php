@@ -2,8 +2,8 @@
 
 namespace App\Observers;
 
-use App\Models\StudentEnrollment;
 use App\Models\SectionSubject;
+use App\Models\StudentEnrollment;
 use App\Models\StudentSubjectEnrollment;
 use Illuminate\Support\Facades\Auth;
 

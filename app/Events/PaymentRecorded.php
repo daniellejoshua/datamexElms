@@ -5,11 +5,7 @@ namespace App\Events;
 use App\Models\Payment;
 use Illuminate\Broadcasting\Channel;
 use Illuminate\Broadcasting\InteractsWithSockets;
-use Illuminate\Broadcasting\PresenceChannel;
-use Illuminate\Broadcasting\PrivateChannel;
 use Illuminate\Broadcasting\ShouldBroadcast;
-use Illuminate\Broadcasting\ShouldBroadcastNow;
-use Illuminate\Contracts\Broadcasting\ShouldBroadcast as ShouldBroadcastContract;
 use Illuminate\Queue\SerializesModels;
 
 class PaymentRecorded implements ShouldBroadcast

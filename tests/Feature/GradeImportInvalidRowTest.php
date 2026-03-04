@@ -37,9 +37,9 @@ it('skips malformed rows and records warnings during import', function () {
     // Warnings should have been flashed to the session
     $warnings = session('grade_import_warnings');
     expect($warnings)->not->toBeNull();
-    expect(collect($warnings)->first(fn($w) => str_contains($w, "Row 2")))->not->toBeNull();
+    expect(collect($warnings)->first(fn ($w) => str_contains($w, 'Row 2')))->not->toBeNull();
     // Warning should include the malformed Student ID so it's actionable
-    expect(collect($warnings)->first(fn($w) => str_contains($w, "Student ID '18'")))->not->toBeNull();
+    expect(collect($warnings)->first(fn ($w) => str_contains($w, "Student ID '18'")))->not->toBeNull();
 
     unlink($tempFile);
 });

@@ -135,13 +135,13 @@ export default function InactivityMonitor() {
                     </DialogTitle>
                     <DialogDescription>
                         Your session has been inactive for 2 minutes. Please enter your password to continue.
-                        {attempts > 0 && (
-                            <div className="flex items-center gap-2 mt-2 text-red-600">
-                                <AlertCircle className="w-4 h-4" />
-                                {MAX_PASSWORD_ATTEMPTS - attempts} attempts remaining
-                            </div>
-                        )}
                     </DialogDescription>
+                    {attempts > 0 && (
+                        <div className="flex items-center gap-2 mt-2 text-red-600">
+                            <AlertCircle className="w-4 h-4" />
+                            {MAX_PASSWORD_ATTEMPTS - attempts} attempts remaining
+                        </div>
+                    )}
                 </DialogHeader>
                 <form onSubmit={handlePasswordSubmit} className="space-y-4">
                     <div>

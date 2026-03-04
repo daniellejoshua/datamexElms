@@ -143,7 +143,7 @@ test('irregular student workflow: curriculum comparison identifies credits and c
     $data = $response->json('data');
 
     // dump to the console for inspection
-    echo '\nDEBUGDATA: ' . json_encode($data) . '\n';
+    echo '\nDEBUGDATA: '.json_encode($data).'\n';
 
     // For shiftees, curriculum comparison no longer automatically identifies credits
     // Credits are determined during actual enrollment based on academic history
@@ -153,7 +153,6 @@ test('irregular student workflow: curriculum comparison identifies credits and c
     echo '   - Credited subjects: '.count($data['credited_subjects'])."\n";
 
 }); // Commented out RefreshDatabase to prevent data deletion
-
 
 test('course shift comparison matches subjects when curriculum codes differ but names align', function () {
     $this->actingAs($this->registrar);
@@ -211,12 +210,11 @@ test('course shift comparison matches subjects when curriculum codes differ but 
     // the improved matching should identify it as creditable
     expect($data['credited_subjects'])->not->toHaveCount(0);
 
-    $matched = collect($data['credited_subjects'])->first(fn($c) => strtolower($c['subject_code']) === 'it101');
+    $matched = collect($data['credited_subjects'])->first(fn ($c) => strtolower($c['subject_code']) === 'it101');
     expect($matched)->not->toBeNull();
 
     echo "\n✅ Course shift subject-matching (code mismatch, name match) works\n";
 });
-
 
 test('course shift comparison matches subjects when student has partial grades (prelim only)', function () {
     $this->actingAs($this->registrar);
@@ -294,7 +292,7 @@ test('course shift comparison matches subjects when student has partial grades (
     file_put_contents('/tmp/ct_compare.json', json_encode($data, JSON_PRETTY_PRINT));
 
     // Because the student has a passing PRELIM (partial) for the subject, the comparison should still show it as a match candidate
-    $matched = collect($data['credited_subjects'])->first(fn($c) => isset($c['new_subject']) && strtolower($c['new_subject']['subject_code']) === 'it101');
+    $matched = collect($data['credited_subjects'])->first(fn ($c) => isset($c['new_subject']) && strtolower($c['new_subject']['subject_code']) === 'it101');
 
     expect($matched)->not->toBeNull();
     expect($matched['is_partial'] ?? false)->toBeTrue();
@@ -377,7 +375,7 @@ it('course shift comparison finds every eligible subject despite mixed completio
     $response->assertSuccessful();
     $data = $response->json('data');
 
-    $codes = collect($data['credited_subjects'])->pluck('new_subject.subject_code')->map(fn($c) => strtolower($c))->all();
+    $codes = collect($data['credited_subjects'])->pluck('new_subject.subject_code')->map(fn ($c) => strtolower($c))->all();
     expect($codes)->toContain('eng101');
     expect($codes)->toContain('math101');
     expect($codes)->toContain('it101');

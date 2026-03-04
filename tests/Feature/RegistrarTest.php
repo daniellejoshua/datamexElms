@@ -1,7 +1,7 @@
 <?php
 
-use App\Models\User;
 use App\Models\SchoolSetting;
+use App\Models\User;
 
 // use Illuminate\Foundation\Testing\RefreshDatabase;
 
@@ -94,12 +94,12 @@ it('does not expose a section when year levels mismatch', function () {
     $response = $this->actingAs($registrar)->get(route('registrar.students'));
 
     $response->assertSuccessful();
-    $response->assertInertia(fn ($page) =>
-        $page->where('students.data', function ($students) use ($student) {
-            $found = collect($students)->firstWhere('id', $student->id);
-            // student should exist and have no current_section due to year mismatch
-            return $found && $found['current_section'] === null;
-        })
+    $response->assertInertia(fn ($page) => $page->where('students.data', function ($students) use ($student) {
+        $found = collect($students)->firstWhere('id', $student->id);
+
+        // student should exist and have no current_section due to year mismatch
+        return $found && $found['current_section'] === null;
+    })
     );
 });
 

@@ -24,7 +24,7 @@ class PushToCloud extends Command
 
             try {
                 Http::timeout(5)
-                    ->post(config('sync.cloud_url') . '/api/sync', [
+                    ->post(config('sync.cloud_url').'/api/sync', [
                         'model' => $log->model_type,
                         'data' => $log->payload,
                         'deleted' => $log->deleted,
@@ -33,7 +33,7 @@ class PushToCloud extends Command
                 $log->delete();
             } catch (\Exception $e) {
                 // keep the log for later retry
-                $this->error('failed: ' . $e->getMessage());
+                $this->error('failed: '.$e->getMessage());
             }
         });
 

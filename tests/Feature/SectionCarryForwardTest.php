@@ -1,12 +1,11 @@
 <?php
 
-use App\Models\Section;
-use App\Models\Student;
-use App\Models\StudentEnrollment;
 use App\Models\ArchivedSection;
 use App\Models\ArchivedStudentEnrollment;
 use App\Models\Program;
-use App\Models\Curriculum;
+use App\Models\Section;
+use App\Models\Student;
+use App\Models\StudentEnrollment;
 use App\Models\User;
 
 // ensure carry-forward ignores enrollments with null section_id
@@ -14,7 +13,7 @@ it('does not treat null-section enrollments as conflicts when carrying forward',
     // prepare environment
     $this->actingAs(User::factory()->create(['role' => 'registrar']));
 
-    $program = Program::where('program_code','BSIT')->first();
+    $program = Program::where('program_code', 'BSIT')->first();
     $curriculum = $program->curriculums()->where('is_current', true)->first();
 
     // create a section for current semester
@@ -75,11 +74,10 @@ it('does not treat null-section enrollments as conflicts when carrying forward',
     expect($data['skipped'])->toBeEmpty();
 });
 
-
 it('allows irregular students to import despite year level mismatch', function () {
     $this->actingAs(User::factory()->create(['role' => 'registrar']));
 
-    $program = Program::where('program_code','BSIT')->first();
+    $program = Program::where('program_code', 'BSIT')->first();
     $curriculum = $program->curriculums()->where('is_current', true)->first();
 
     $section = Section::factory()->create([
@@ -137,11 +135,10 @@ it('allows irregular students to import despite year level mismatch', function (
     expect(collect($data['enrolled'])->pluck('id'))->toContain($student->id);
 });
 
-
 it('imports irregular student even if currently enrolled in a different section', function () {
     $this->actingAs(User::factory()->create(['role' => 'registrar']));
 
-    $program = Program::where('program_code','BSIT')->first();
+    $program = Program::where('program_code', 'BSIT')->first();
     $curriculum = $program->curriculums()->where('is_current', true)->first();
 
     $section = Section::factory()->create([
@@ -212,11 +209,10 @@ it('imports irregular student even if currently enrolled in a different section'
     expect($subjectCount)->toBe(0);
 });
 
-
 it('ignores archived enrollments marked as dropped', function () {
     $this->actingAs(User::factory()->create(['role' => 'registrar']));
 
-    $program = Program::where('program_code','BSIT')->first();
+    $program = Program::where('program_code', 'BSIT')->first();
     $curriculum = $program->curriculums()->where('is_current', true)->first();
 
     $section = Section::factory()->create([
@@ -298,11 +294,10 @@ it('ignores archived enrollments marked as dropped', function () {
     expect($ids)->not->toContain($student1->id);
 });
 
-
 it('skips irregular students who have already completed all subjects for the year level', function () {
     $this->actingAs(User::factory()->create(['role' => 'registrar']));
 
-    $program = Program::where('program_code','BSIT')->first();
+    $program = Program::where('program_code', 'BSIT')->first();
     $curriculum = $program->curriculums()->where('is_current', true)->first();
 
     $section = Section::factory()->create([
@@ -385,105 +380,105 @@ it('skips irregular students who have already completed all subjects for the yea
     expect(collect($data['skipped'])->pluck('id'))->toContain($student->id);
 });
 
-    it('auto-enrolls imported irregular same-year student in only available section subjects', function () {
-        $this->actingAs(User::factory()->create(['role' => 'registrar']));
+it('auto-enrolls imported irregular same-year student in only available section subjects', function () {
+    $this->actingAs(User::factory()->create(['role' => 'registrar']));
 
-        $program = Program::where('program_code', 'BSIT')->first();
-        $curriculum = $program->curriculums()->where('is_current', true)->first();
+    $program = Program::where('program_code', 'BSIT')->first();
+    $curriculum = $program->curriculums()->where('is_current', true)->first();
 
-        $section = Section::factory()->create([
-            'program_id' => $program->id,
-            'curriculum_id' => $curriculum->id,
-            'year_level' => 1,
-            'semester' => '1st',
-            'academic_year' => '2026-2027',
-        ]);
+    $section = Section::factory()->create([
+        'program_id' => $program->id,
+        'curriculum_id' => $curriculum->id,
+        'year_level' => 1,
+        'semester' => '1st',
+        'academic_year' => '2026-2027',
+    ]);
 
-        $archived = ArchivedSection::create([
-            'original_section_id' => null,
-            'program_id' => $program->id,
-            'curriculum_id' => $curriculum->id,
-            'year_level' => 1,
-            'semester' => '2nd',
-            'section_name' => $section->section_name,
-            'academic_year' => '2025-2026',
-            'status' => 'archived',
-            'archived_at' => now()->subYear(),
-            'archived_by' => auth()->id(),
-        ]);
+    $archived = ArchivedSection::create([
+        'original_section_id' => null,
+        'program_id' => $program->id,
+        'curriculum_id' => $curriculum->id,
+        'year_level' => 1,
+        'semester' => '2nd',
+        'section_name' => $section->section_name,
+        'academic_year' => '2025-2026',
+        'status' => 'archived',
+        'archived_at' => now()->subYear(),
+        'archived_by' => auth()->id(),
+    ]);
 
-        $student = Student::factory()->create([
-            'program_id' => $program->id,
-            'curriculum_id' => $curriculum->id,
-            'year_level' => '1st Year',
-            'current_year_level' => 1,
-            'student_type' => 'irregular',
-        ]);
+    $student = Student::factory()->create([
+        'program_id' => $program->id,
+        'curriculum_id' => $curriculum->id,
+        'year_level' => '1st Year',
+        'current_year_level' => 1,
+        'student_type' => 'irregular',
+    ]);
 
-        StudentEnrollment::create([
-            'student_id' => $student->id,
-            'section_id' => null,
-            'academic_year' => '2026-2027',
-            'semester' => '1st',
-            'status' => 'active',
-            'enrolled_by' => auth()->id(),
-            'enrollment_date' => now(),
-        ]);
+    StudentEnrollment::create([
+        'student_id' => $student->id,
+        'section_id' => null,
+        'academic_year' => '2026-2027',
+        'semester' => '1st',
+        'status' => 'active',
+        'enrolled_by' => auth()->id(),
+        'enrollment_date' => now(),
+    ]);
 
-        ArchivedStudentEnrollment::create([
-            'archived_section_id' => $archived->id,
-            'student_id' => $student->id,
-            'student_number' => $student->student_number,
-        ]);
+    ArchivedStudentEnrollment::create([
+        'archived_section_id' => $archived->id,
+        'student_id' => $student->id,
+        'student_number' => $student->student_number,
+    ]);
 
-        $availableSubject = \App\Models\Subject::factory()->create([
-            'program_id' => $program->id,
-            'subject_code' => 'IT101',
-        ]);
-        $creditedSubject = \App\Models\Subject::factory()->create([
-            'program_id' => $program->id,
-            'subject_code' => 'IT102',
-        ]);
+    $availableSubject = \App\Models\Subject::factory()->create([
+        'program_id' => $program->id,
+        'subject_code' => 'IT101',
+    ]);
+    $creditedSubject = \App\Models\Subject::factory()->create([
+        'program_id' => $program->id,
+        'subject_code' => 'IT102',
+    ]);
 
-        $availableSectionSubject = \App\Models\SectionSubject::create([
-            'section_id' => $section->id,
-            'subject_id' => $availableSubject->id,
-            'status' => 'active',
-        ]);
+    $availableSectionSubject = \App\Models\SectionSubject::create([
+        'section_id' => $section->id,
+        'subject_id' => $availableSubject->id,
+        'status' => 'active',
+    ]);
 
-        $creditedSectionSubject = \App\Models\SectionSubject::create([
-            'section_id' => $section->id,
-            'subject_id' => $creditedSubject->id,
-            'status' => 'active',
-        ]);
+    $creditedSectionSubject = \App\Models\SectionSubject::create([
+        'section_id' => $section->id,
+        'subject_id' => $creditedSubject->id,
+        'status' => 'active',
+    ]);
 
-        \App\Models\StudentSubjectCredit::create([
-            'student_id' => $student->id,
-            'subject_id' => $creditedSubject->id,
-            'subject_code' => 'IT102',
-            'credit_status' => 'credited',
-            'academic_year' => '2025-2026',
-            'semester' => '2nd',
-            'credited_at' => now(),
-        ]);
+    \App\Models\StudentSubjectCredit::create([
+        'student_id' => $student->id,
+        'subject_id' => $creditedSubject->id,
+        'subject_code' => 'IT102',
+        'credit_status' => 'credited',
+        'academic_year' => '2025-2026',
+        'semester' => '2nd',
+        'credited_at' => now(),
+    ]);
 
-        $response = $this->postJson(route('sections.carry-forward-students', $section));
-        $response->assertSuccessful();
+    $response = $this->postJson(route('sections.carry-forward-students', $section));
+    $response->assertSuccessful();
 
-        $subjectEnrollments = \App\Models\StudentSubjectEnrollment::where('student_id', $student->id)
-            ->where('academic_year', '2026-2027')
-            ->where('semester', '1st')
-            ->pluck('section_subject_id')
-            ->toArray();
+    $subjectEnrollments = \App\Models\StudentSubjectEnrollment::where('student_id', $student->id)
+        ->where('academic_year', '2026-2027')
+        ->where('semester', '1st')
+        ->pluck('section_subject_id')
+        ->toArray();
 
-        expect($subjectEnrollments)->toContain($availableSectionSubject->id);
-        expect($subjectEnrollments)->not->toContain($creditedSectionSubject->id);
-    });
+    expect($subjectEnrollments)->toContain($availableSectionSubject->id);
+    expect($subjectEnrollments)->not->toContain($creditedSectionSubject->id);
+});
 
 it('observer does not auto-enroll irregular students when a new enrollment is created', function () {
     $this->actingAs(User::factory()->create(['role' => 'registrar']));
 
-    $program = Program::where('program_code','BSIT')->first();
+    $program = Program::where('program_code', 'BSIT')->first();
     $curriculum = $program->curriculums()->where('is_current', true)->first();
 
     $section = Section::factory()->create([
@@ -517,11 +512,10 @@ it('observer does not auto-enroll irregular students when a new enrollment is cr
     expect($count)->toBe(0);
 });
 
-
 it('does not import irregular student when no section subjects remain available', function () {
     $this->actingAs(User::factory()->create(['role' => 'registrar']));
 
-    $program = Program::where('program_code','BSIT')->first();
+    $program = Program::where('program_code', 'BSIT')->first();
     $curriculum = $program->curriculums()->where('is_current', true)->first();
 
     $section = Section::factory()->create([

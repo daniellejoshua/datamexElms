@@ -1091,6 +1091,7 @@ class SectionController extends Controller
                             'name' => $student->user->name,
                             'reason' => 'already completed all subjects for year level',
                         ];
+
                         continue;
                     }
                 }
@@ -1120,7 +1121,7 @@ class SectionController extends Controller
                     $enrolledSubjectCodes = \App\Models\StudentSubjectEnrollment::where('student_id', $studentId)
                         ->where('status', 'active')
                         ->pluck('section_subject_id')
-                        ->map(fn($id) => SectionSubject::find($id)?->subject?->subject_code)
+                        ->map(fn ($id) => SectionSubject::find($id)?->subject?->subject_code)
                         ->filter()
                         ->unique()
                         ->toArray();
@@ -1161,6 +1162,7 @@ class SectionController extends Controller
                                 'name' => $student->user->name,
                                 'reason' => 'no available subjects',
                             ];
+
                             continue;
                         }
                     }
@@ -1171,6 +1173,7 @@ class SectionController extends Controller
                             'name' => $student->user->name,
                             'reason' => 'no available subjects',
                         ];
+
                         continue;
                     }
                 }
@@ -1186,7 +1189,7 @@ class SectionController extends Controller
                     'semester' => $section->semester,
                     'status' => 'active',
                 ])->whereNotNull('section_id')
-                  ->first();
+                    ->first();
 
                 if ($existingEnrollment) {
                     // If it's the same section, skip regardless of student type.
@@ -1197,6 +1200,7 @@ class SectionController extends Controller
                             'name' => $student->user->name,
                             'reason' => 'already enrolled in '.$formatted,
                         ];
+
                         continue;
                     }
 
@@ -1212,6 +1216,7 @@ class SectionController extends Controller
                             'name' => $student->user->name,
                             'reason' => 'already enrolled in '.$formatted,
                         ];
+
                         continue;
                     }
                     // irregular student with other section enrollment is fine; carry forward

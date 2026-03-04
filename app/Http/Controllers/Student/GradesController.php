@@ -6,7 +6,8 @@ use App\Http\Controllers\Controller;
 use App\Models\StudentSemesterPayment;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
-use Inertia\Response;use PDF; // dompdf facade
+use Inertia\Response;
+use PDF; // dompdf facade
 
 class GradesController extends Controller
 {
@@ -165,7 +166,6 @@ class GradesController extends Controller
                 }
             }
         }
-
 
         return Inertia::render('Student/Grades/Index', [
             'currentGrades' => $currentGrades,

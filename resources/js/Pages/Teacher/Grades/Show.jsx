@@ -26,9 +26,10 @@ export default function Show({ section, sectionSubject, enrollments, isCollegeLe
     const [showImportModal, setShowImportModal] = useState(false);
     const [isImporting, setIsImporting] = useState(false);
     const [importProgress, setImportProgress] = useState(0);
-    const [importResult, setImportResult] = useState(null); // { success: boolean, message: string, errors?: array }
-    // UI state for import warnings panel
+    const [importResult, setImportResult] = useState(null); // { success: boolean, message: string, warnings?: array, successes?: array, stats?: object }
+    // UI state for import warnings and success panels
     const [showImportWarnings, setShowImportWarnings] = useState(false);
+    const [showImportSuccesses, setShowImportSuccesses] = useState(false);
     // Export modal states
     const [showExportModal, setShowExportModal] = useState(false);
     const [isExporting, setIsExporting] = useState(false);
@@ -157,7 +158,9 @@ export default function Show({ section, sectionSubject, enrollments, isCollegeLe
                 third_quarter_grade: existingGrade?.third_quarter_grade || '',
                 fourth_quarter_grade: existingGrade?.fourth_quarter_grade || '',
                 teacher_remarks: existingGrade?.teacher_remarks || '',
-                semester_grade: existingGrade?.semester_grade || '',
+                semester_grade: isCollegeLevel 
+                    ? (existingGrade?.semester_grade || '') 
+                    : (existingGrade?.final_grade || ''), // For SHS, semester grade is stored in final_grade
                 final_computed_grade: existingGrade?.final_grade || ''
             };
         }).filter(Boolean); // Remove null entries
@@ -195,11 +198,11 @@ export default function Show({ section, sectionSubject, enrollments, isCollegeLe
             }
         } else if (isShsLevel) {
             // SHS only uses Q1 and Q2
-            const q1 = parseFloat(gradeData.first_quarter_grade) || 0;
-            const q2 = parseFloat(gradeData.second_quarter_grade) || 0;
+            const q1 = parseFloat(gradeData.first_quarter_grade);
+            const q2 = parseFloat(gradeData.second_quarter_grade);
             
-            if (q1 && q2) {
-                return ((q1 + q2) / 2).toFixed(2);
+            if (!isNaN(q1) && !isNaN(q2) && gradeData.first_quarter_grade !== null && gradeData.second_quarter_grade !== null) {
+                return Math.round(((q1 + q2) / 2) * 100) / 100;
             }
         } else {
             // Other non-college, non-SHS levels use Q1-Q4
@@ -234,6 +237,19 @@ export default function Show({ section, sectionSubject, enrollments, isCollegeLe
 
         setData('grades', updatedGrades);
         setEditingGrades(prev => ({ ...prev, [`${enrollmentId}_${field}`]: true }));
+    };
+
+    // Handle teacher remarks change
+    const handleRemarksChange = (enrollmentId, value) => {
+        const updatedGrades = data.grades.map(grade => {
+            if (grade.enrollment_id === enrollmentId) {
+                return { ...grade, teacher_remarks: value };
+            }
+            return grade;
+        });
+
+        setData('grades', updatedGrades);
+        setEditingGrades(prev => ({ ...prev, [`${enrollmentId}_teacher_remarks`]: true }));
     };
 
     // Get grade status (color coding)
@@ -337,31 +353,8 @@ export default function Show({ section, sectionSubject, enrollments, isCollegeLe
         }, {
             preserveScroll: true,
             onSuccess: (response) => {
-                console.log('Individual grade save successful:', response);
-                // Update original grades to current values
-                setOriginalGrades(prev => ({
-                    ...prev,
-                    [enrollmentId]: {
-                        prelim_grade: studentGrade.prelim_grade,
-                        midterm_grade: studentGrade.midterm_grade,
-                        prefinal_grade: studentGrade.prefinal_grade,
-                        final_grade: studentGrade.final_grade,
-                        first_quarter_grade: studentGrade.first_quarter_grade,
-                        second_quarter_grade: studentGrade.second_quarter_grade,
-                        third_quarter_grade: studentGrade.third_quarter_grade,
-                        fourth_quarter_grade: studentGrade.fourth_quarter_grade,
-                        teacher_remarks: studentGrade.teacher_remarks
-                    }
-                }));
-                
-                // Clear editing state for this student only
-                const newEditingGrades = { ...editingGrades };
-                Object.keys(newEditingGrades).forEach(key => {
-                    if (key.startsWith(`${enrollmentId}_`)) {
-                        delete newEditingGrades[key];
-                    }
-                });
-                setEditingGrades(newEditingGrades);
+                // Reload the page to get updated data from server
+                window.location.reload();
             },
             onError: (errors) => {
                 console.error('Individual grade save failed:', errors);
@@ -376,29 +369,8 @@ export default function Show({ section, sectionSubject, enrollments, isCollegeLe
         }, {
             preserveScroll: true,
             onSuccess: (response) => {
-                setEditingGrades({});
-                // Update original grades to current values for all students
-                const newOriginalGrades = {};
-                data.grades.forEach(grade => {
-                    newOriginalGrades[grade.enrollment_id] = {
-                        prelim_grade: grade.prelim_grade,
-                        midterm_grade: grade.midterm_grade,
-                        prefinal_grade: grade.prefinal_grade,
-                        final_grade: grade.final_grade,
-                        first_quarter_grade: grade.first_quarter_grade,
-                        second_quarter_grade: grade.second_quarter_grade,
-                        third_quarter_grade: grade.third_quarter_grade,
-                        fourth_quarter_grade: grade.fourth_quarter_grade,
-                        teacher_remarks: grade.teacher_remarks
-                    };
-                });
-                setOriginalGrades(newOriginalGrades);
-                
-                // Show success message if available
-                if (response?.props?.flash?.success) {
-                    // You can add a toast notification here if needed
-                    console.log('Grades saved successfully');
-                }
+                // Reload the page to get updated data from server
+                window.location.reload();
             },
             onError: () => {
                 console.error('Error saving grades');
@@ -556,14 +528,17 @@ export default function Show({ section, sectionSubject, enrollments, isCollegeLe
                 setImportResult({
                     success: true,
                     message: result.message || 'Grades imported successfully!',
-                    warnings: result.warnings || []
+                    warnings: result.warnings || [],
+                    successes: result.successes || [],
+                    stats: result.stats || {}
                 });
-                // Ensure the warnings panel is collapsed by default when a new result arrives
+                // Ensure both panels are collapsed by default when a new result arrives
                 setShowImportWarnings(false);
-                // Reload the page after a delay to show updated grades (allow user to read warnings)
+                setShowImportSuccesses(false);
+                // Reload the page after a delay to show updated grades (allow user to read results)
                 setTimeout(() => {
                     router.reload();
-                }, 2000);
+                }, 3000);
             } else {
                 console.error('Import failed:', result);
                 setImportResult({
@@ -572,6 +547,7 @@ export default function Show({ section, sectionSubject, enrollments, isCollegeLe
                     errors: result.errors || []
                 });
                 setShowImportWarnings(false);
+                setShowImportSuccesses(false);
             }
         } catch (error) {
             console.error('Import error:', error);
@@ -580,6 +556,7 @@ export default function Show({ section, sectionSubject, enrollments, isCollegeLe
                 message: error.message || 'An unexpected error occurred during import. Please try again.'
             });
             setShowImportWarnings(false);
+            setShowImportSuccesses(false);
         } finally {
             setIsImporting(false);
         }
@@ -793,18 +770,19 @@ export default function Show({ section, sectionSubject, enrollments, isCollegeLe
                                             </>
                                         ) : isShsLevel ? (
                                             <>
-                                                <TableHead className="text-center font-semibold text-gray-900 py-3">Q1</TableHead>
-                                                <TableHead className="text-center font-semibold text-gray-900 py-3">Q2</TableHead>
+                                                <TableHead className="text-center font-semibold text-gray-900 py-3">Quarter 1</TableHead>
+                                                <TableHead className="text-center font-semibold text-gray-900 py-3">Quarter 2</TableHead>
                                             </>
                                         ) : (
                                             <>
-                                                <TableHead className="text-center font-semibold text-gray-900 py-3">Q1</TableHead>
-                                                <TableHead className="text-center font-semibold text-gray-900 py-3">Q2</TableHead>
-                                                <TableHead className="text-center font-semibold text-gray-900 py-3">Q3</TableHead>
-                                                <TableHead className="text-center font-semibold text-gray-900 py-3">Q4</TableHead>
+                                                <TableHead className="text-center font-semibold text-gray-900 py-3">Quarter 1</TableHead>
+                                                <TableHead className="text-center font-semibold text-gray-900 py-3">Quarter 2</TableHead>
+                                                <TableHead className="text-center font-semibold text-gray-900 py-3">Quarter 3</TableHead>
+                                                <TableHead className="text-center font-semibold text-gray-900 py-3">Quarter 4</TableHead>
                                             </>
                                         )}
                                         <TableHead className="text-center font-semibold text-blue-600 py-3">Semester Grade</TableHead>
+                                        <TableHead className="text-center font-semibold text-gray-900 py-3">Remarks</TableHead>
                                         <TableHead className="text-center font-semibold text-gray-900 py-3">Actions</TableHead>
                                     </TableRow>
                                 </TableHeader>
@@ -955,6 +933,17 @@ export default function Show({ section, sectionSubject, enrollments, isCollegeLe
                                                 <div className="font-semibold text-blue-600">
                                                     {gradeData.semester_grade || '--'}
                                                 </div>
+                                            </TableCell>
+                                            <TableCell className="text-center py-3">
+                                                <Input
+                                                    type="text"
+                                                    placeholder="Add remarks..."
+                                                    value={gradeData.teacher_remarks || ''}
+                                                    onChange={(e) => handleRemarksChange(gradeData.enrollment_id, e.target.value)}
+                                                    className={`w-48 text-sm border-gray-300 focus:ring-purple-500 focus:border-purple-500 ${
+                                                        editingGrades[`${gradeData.enrollment_id}_teacher_remarks`] ? 'ring-2 ring-purple-300' : ''
+                                                    }`}
+                                                />
                                             </TableCell>
                                             <TableCell className="text-center py-3">
                                                 {hasStudentChanges(gradeData.enrollment_id) ? (
@@ -1205,16 +1194,66 @@ export default function Show({ section, sectionSubject, enrollments, isCollegeLe
                                         <div>
                                             <p className={`text-sm mb-3 ${importResult.success ? 'text-blue-700' : 'text-gray-700'}`}>
                                                 {importResult.message}
-                                            </p> 
+                                            </p>
+
+                                            {/* Statistics Summary */}
+                                            {importResult.stats && (
+                                                <div className="mb-3 p-2 bg-blue-50 border border-blue-200 rounded">
+                                                    <div className="flex items-center gap-4 text-xs text-blue-800">
+                                                        <span>Total Rows: <strong>{importResult.stats.total_rows_processed || 0}</strong></span>
+                                                        <span className="text-green-700">✓ Success: <strong>{importResult.stats.successful_imports || 0}</strong></span>
+                                                        {(importResult.stats.warnings_count || 0) > 0 && (
+                                                            <span className="text-yellow-700">⚠ Warnings: <strong>{importResult.stats.warnings_count}</strong></span>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            )}
                                             
+                                            {/* Successful Imports Panel */}
+                                            {importResult.successes && importResult.successes.length > 0 && (
+                                                <div className="p-2 bg-green-50 border border-green-200 rounded mb-2">
+                                                    <div className="flex items-center justify-between">
+                                                        <div className="flex items-start gap-2">
+                                                            <CheckCircle className="w-4 h-4 text-green-600 mt-0.5" />
+                                                            <div>
+                                                                <p className="text-xs font-medium text-green-800 mb-0">Successfully Imported: <span className="font-semibold">{importResult.successes.length}</span></p>
+                                                                <p className="text-xs text-green-700">Click to view details</p>
+                                                            </div>
+                                                        </div>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setShowImportSuccesses(prev => !prev)}
+                                                            className="text-xs text-green-800 underline ml-4"
+                                                            aria-expanded={showImportSuccesses}
+                                                        >
+                                                            {showImportSuccesses ? 'Hide' : 'Show'}
+                                                        </button>
+                                                    </div>
+
+                                                    {showImportSuccesses && (
+                                                        <div className="mt-2 max-h-48 overflow-auto bg-green-50 p-2 rounded border border-green-100">
+                                                            <ul className="text-xs text-green-700 space-y-0.5">
+                                                                {importResult.successes.map((success, index) => (
+                                                                    <li key={index} className="flex items-start">
+                                                                        <span className="mr-1">•</span>
+                                                                        <span>{success}</span>
+                                                                    </li>
+                                                                ))}
+                                                            </ul>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            )}
+                                            
+                                            {/* Warnings Panel */}
                                             {importResult.warnings && importResult.warnings.length > 0 && (
                                                 <div className="p-2 bg-yellow-50 border border-yellow-200 rounded mb-2">
                                                     <div className="flex items-center justify-between">
                                                         <div className="flex items-start gap-2">
                                                             <AlertTriangle className="w-4 h-4 text-yellow-600 mt-0.5" />
                                                             <div>
-                                                                <p className="text-xs font-medium text-yellow-800 mb-0">Warnings: <span className="font-semibold">{importResult.warnings.length}</span></p>
-                                                                <p className="text-xs text-yellow-700">Click to view details</p>
+                                                                <p className="text-xs font-medium text-yellow-800 mb-0">Rows Skipped with Warnings: <span className="font-semibold">{importResult.warnings.length}</span></p>
+                                                                <p className="text-xs text-yellow-700">Click to view reasons why these rows were skipped</p>
                                                             </div>
                                                         </div>
                                                         <button
@@ -1229,9 +1268,12 @@ export default function Show({ section, sectionSubject, enrollments, isCollegeLe
 
                                                     {showImportWarnings && (
                                                         <div className="mt-2 max-h-48 overflow-auto bg-yellow-50 p-2 rounded border border-yellow-100">
-                                                            <ul className="text-xs text-yellow-700 list-disc list-inside space-y-0.5">
+                                                            <ul className="text-xs text-yellow-700 space-y-1">
                                                                 {importResult.warnings.map((warning, index) => (
-                                                                    <li key={index}>{warning}</li>
+                                                                    <li key={index} className="flex items-start">
+                                                                        <span className="mr-1 flex-shrink-0">•</span>
+                                                                        <span className="break-words">{warning}</span>
+                                                                    </li>
                                                                 ))}
                                                             </ul>
                                                         </div>
@@ -1239,14 +1281,23 @@ export default function Show({ section, sectionSubject, enrollments, isCollegeLe
                                                 </div>
                                             )}
 
+                                            {/* Errors Panel (for failed imports) */}
                                             {importResult.errors && importResult.errors.length > 0 && (
-                                                <div className="p-2 bg-gray-50 border border-gray-200 rounded">
-                                                    <p className="text-xs font-medium text-gray-800 mb-1">Errors:</p>
-                                                    <ul className="text-xs text-gray-700 list-disc list-inside space-y-0.5">
-                                                        {importResult.errors.map((error, index) => (
-                                                            <li key={index}>{error}</li>
-                                                        ))}
-                                                    </ul>
+                                                <div className="p-2 bg-red-50 border border-red-200 rounded">
+                                                    <div className="flex items-start gap-2">
+                                                        <XCircle className="w-4 h-4 text-red-600 mt-0.5" />
+                                                        <div>
+                                                            <p className="text-xs font-medium text-red-800 mb-1">Errors:</p>
+                                                            <ul className="text-xs text-red-700 space-y-0.5">
+                                                                {importResult.errors.map((error, index) => (
+                                                                    <li key={index} className="flex items-start">
+                                                                        <span className="mr-1">•</span>
+                                                                        <span>{error}</span>
+                                                                    </li>
+                                                                ))}
+                                                            </ul>
+                                                        </div>
+                                                    </div>
                                                 </div>
                                             )}
                                         </div>
@@ -1262,6 +1313,7 @@ export default function Show({ section, sectionSubject, enrollments, isCollegeLe
                                             setImportProgress(0);
                                             setSelectedFile(null);
                                             setShowImportWarnings(false);
+                                            setShowImportSuccesses(false);
                                         }}
                                         className="px-3 py-1.5 text-sm bg-gray-600 hover:bg-gray-700 text-white rounded"
                                         disabled={isImporting}

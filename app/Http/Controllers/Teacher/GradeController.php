@@ -14,12 +14,12 @@ use App\Models\StudentEnrollment;
 use App\Models\StudentGrade;
 use App\Models\StudentSubjectEnrollment;
 use App\Models\Teacher;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Inertia\Inertia;
 use Inertia\Response;
 use Maatwebsite\Excel\Facades\Excel;
-use Barryvdh\DomPDF\Facade\Pdf;
 
 class GradeController extends Controller
 {
@@ -281,7 +281,7 @@ class GradeController extends Controller
                 $grade->teacher_remarks = $gradeData['teacher_remarks'] ?? null;
 
                 // Calculate semester grade if all components are present
-                if ($grade->prelim_grade && $grade->midterm_grade && $grade->prefinal_grade && $grade->final_grade) {
+                if ($grade->prelim_grade !== null && $grade->midterm_grade !== null && $grade->prefinal_grade !== null && $grade->final_grade !== null) {
                     $grade->semester_grade = ($grade->prelim_grade + $grade->midterm_grade + $grade->prefinal_grade + $grade->final_grade) / 4;
                     $grade->overall_status = $grade->semester_grade >= 60 ? 'passed' : 'failed';
                 }
@@ -335,8 +335,8 @@ class GradeController extends Controller
                 $grade->teacher_remarks = $gradeData['teacher_remarks'] ?? null;
 
                 // Calculate final grade - SHS only uses Q1 and Q2
-                if ($grade->first_quarter_grade && $grade->second_quarter_grade) {
-                    $grade->final_grade = ($grade->first_quarter_grade + $grade->second_quarter_grade) / 2;
+                if ($grade->first_quarter_grade !== null && $grade->second_quarter_grade !== null) {
+                    $grade->final_grade = round(($grade->first_quarter_grade + $grade->second_quarter_grade) / 2, 2);
                     $grade->completion_status = $grade->final_grade >= 75 ? 'passed' : 'failed';
                 }
 
@@ -402,10 +402,24 @@ class GradeController extends Controller
             \Log::info('Grade import completed successfully');
 
             $warnings = session('grade_import_warnings', []);
+            $successes = session('grade_import_successes', []);
+            $stats = session('grade_import_stats', []);
+
+            $message = 'Grades imported successfully.';
+            if (! empty($stats)) {
+                $message = sprintf(
+                    'Import completed! %d of %d rows processed successfully. %s',
+                    $stats['successful_imports'] ?? 0,
+                    $stats['total_rows_processed'] ?? 0,
+                    ! empty($warnings) ? 'Some rows had warnings.' : 'All grades imported without issues!'
+                );
+            }
 
             return response()->json([
-                'message' => 'Grades imported successfully.',
+                'message' => $message,
                 'warnings' => $warnings,
+                'successes' => $successes,
+                'stats' => $stats,
             ]);
         } catch (\Exception $e) {
             \Log::error('Grade import failed', [
@@ -567,7 +581,7 @@ class GradeController extends Controller
 
         // Helper function to format student name as "LastName, FirstName MiddleInitial."
         $formatStudentName = function ($fullName) {
-            if (!$fullName || trim($fullName) === '') {
+            if (! $fullName || trim($fullName) === '') {
                 return 'UNKNOWN STUDENT';
             }
 
@@ -586,9 +600,9 @@ class GradeController extends Controller
             $middleInitial = '';
             if (count($nameParts) > 2) {
                 $middleParts = array_slice($nameParts, 1, -1);
-                $middleInitial = strtoupper(implode('', array_map(function($part) {
+                $middleInitial = strtoupper(implode('', array_map(function ($part) {
                     return substr($part, 0, 1);
-                }, $middleParts))) . '.';
+                }, $middleParts))).'.';
             }
 
             return trim("{$lastName}, {$firstName} {$middleInitial}");
@@ -599,6 +613,7 @@ class GradeController extends Controller
             if ($gradeFormat === 'gpa' && is_numeric($grade)) {
                 return AcademicHelper::convertToGPA((float) $grade);
             }
+
             return $grade;
         };
 
@@ -763,8 +778,8 @@ class GradeController extends Controller
 
         $pdf = Pdf::loadView('pdf.teacher-grades', $data);
 
-        $fileName = 'grades_' . str_replace(' ', '_', $section->section_name ?? 'section') . '_' . 
-                   str_replace(' ', '_', $section->academic_year ?? 'year') . '_Sem' . $section->semester . '.pdf';
+        $fileName = 'grades_'.str_replace(' ', '_', $section->section_name ?? 'section').'_'.
+                   str_replace(' ', '_', $section->academic_year ?? 'year').'_Sem'.$section->semester.'.pdf';
 
         return $pdf->download($fileName);
     }

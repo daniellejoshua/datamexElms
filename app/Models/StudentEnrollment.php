@@ -2,18 +2,19 @@
 
 namespace App\Models;
 
+use App\Traits\SyncsToCloud;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Str;
-use App\Traits\SyncsToCloud;
 
 class StudentEnrollment extends Model
 {
-    use SyncsToCloud;
     /** @use HasFactory<\Database\Factories\StudentEnrollmentFactory> */
     use HasFactory;
+
+    use SyncsToCloud;
 
     protected static function booted(): void
     {

@@ -140,11 +140,10 @@ it('includes section/program metadata on subjects for period view', function () 
     $response = $this->actingAs($user)->get(route('student.archived-grades.period', ['academic_year' => '2024-2025', 'semester' => 'first']));
 
     $response->assertSuccessful();
-    $response->assertInertia(fn ($page) =>
-        $page->has('subjects', 1)
-             ->where('subjects.0.program_code', $program->program_code)
-             ->where('subjects.0.year_level', 1)
-             ->where('subjects.0.archived_section.section_name', 'ASec')
-             ->has('subjects.0.teacher_name')
+    $response->assertInertia(fn ($page) => $page->has('subjects', 1)
+        ->where('subjects.0.program_code', $program->program_code)
+        ->where('subjects.0.year_level', 1)
+        ->where('subjects.0.archived_section.section_name', 'ASec')
+        ->has('subjects.0.teacher_name')
     );
 });

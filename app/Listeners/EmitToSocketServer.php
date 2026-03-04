@@ -14,7 +14,7 @@ class EmitToSocketServer
     {
         try {
             Http::retry(3, 100)
-                ->post(config('socket.url') . '/event', [
+                ->post(config('socket.url').'/event', [
                     'event' => 'PaymentRecorded',
                     'data' => ['payment' => $event->payment->load('student')],
                 ]);

@@ -806,8 +806,7 @@ it('marks student as irregular when shifting courses', function () {
     // fetch academic history and ensure it’s not blank and includes the matched subject
     $history = $this->actingAs($this->user)->get(route('registrar.students.academic-history', $student));
     $history->assertSuccessful();
-    $history->assertInertia(fn (Assert $page) =>
-        $page->has('subjectGrades')->where('subjectGrades.0.subject_code', strtolower($matchingCode))
+    $history->assertInertia(fn (Assert $page) => $page->has('subjectGrades')->where('subjectGrades.0.subject_code', strtolower($matchingCode))
     );
 });
 

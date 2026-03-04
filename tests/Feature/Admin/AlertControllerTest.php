@@ -137,7 +137,6 @@ it('shows only SHS for a teacher who only teaches SHS and returns student counts
     );
 });
 
-
 it('limits alerts to the configured academic year and semester', function () {
     config(['school_settings.current_academic_year' => '2024-2025']);
     config(['school_settings.current_semester' => '1st']);

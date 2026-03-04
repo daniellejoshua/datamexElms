@@ -33,7 +33,7 @@ class DashboardController extends Controller
             ->where('status', 'active')
             ->whereHas('section', function ($query) use ($currentAcademicYear, $currentSemester) {
                 $query->where('academic_year', $currentAcademicYear)
-                      ->where('semester', $currentSemester);
+                    ->where('semester', $currentSemester);
             })
             ->get();
 

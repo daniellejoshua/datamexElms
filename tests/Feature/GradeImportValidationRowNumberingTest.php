@@ -27,9 +27,9 @@ it('reports correct row and cell numbers when the template validation row is pre
     expect($warnings)->not->toBeNull();
 
     // Should mention Row 3 (because headings + validation row occupy rows 1 & 2)
-    expect(collect($warnings)->first(fn($w) => str_contains($w, 'Row 3')))->not->toBeNull();
+    expect(collect($warnings)->first(fn ($w) => str_contains($w, 'Row 3')))->not->toBeNull();
     // Should include the malformed Student ID so it is actionable
-    expect(collect($warnings)->first(fn($w) => str_contains($w, "Student ID '18'")))->not->toBeNull();
+    expect(collect($warnings)->first(fn ($w) => str_contains($w, "Student ID '18'")))->not->toBeNull();
 
     unlink($tempFile);
 });

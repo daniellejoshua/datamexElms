@@ -33,11 +33,11 @@ class ShsPaymentController extends Controller
             $query->select(['id', 'user_id', 'student_number', 'first_name', 'last_name', 'year_level', 'track', 'strand', 'has_voucher', 'voucher_status', 'voucher_id', 'program_id'])
                 ->with('user:id,name')
                 ->with(['enrollments' => function ($enrollmentQuery) use ($filterAcademicYear, $filterSemester) {
-                        $enrollmentQuery->where('academic_year', $filterAcademicYear)
-                            ->when($filterSemester !== '', function ($q) use ($filterSemester) {
-                                $q->where('semester', $filterSemester);
-                            })
-                            ->where('status', 'active')
+                    $enrollmentQuery->where('academic_year', $filterAcademicYear)
+                        ->when($filterSemester !== '', function ($q) use ($filterSemester) {
+                            $q->where('semester', $filterSemester);
+                        })
+                        ->where('status', 'active')
                         ->with('section:id,section_name,year_level,program_id')
                         ->with('section.program:id,program_code');
                 }]);

@@ -1,8 +1,8 @@
 <?php
 
-use App\Models\ArchivedStudentSubject;
-use App\Models\ArchivedStudentEnrollment;
 use App\Models\ArchivedSection;
+use App\Models\ArchivedStudentEnrollment;
+use App\Models\ArchivedStudentSubject;
 use App\Models\Program;
 use App\Models\Student;
 use App\Models\User;

@@ -4,10 +4,10 @@ namespace App\Providers;
 
 use App\Models\ArchivedStudentEnrollment;
 use App\Observers\ArchivedStudentEnrollmentObserver;
-use App\Observers\StudentObserver;
 use App\Observers\StudentEnrollmentObserver;
-use Illuminate\Support\Facades\Vite;
+use App\Observers\StudentObserver;
 use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Facades\Vite;
 use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider

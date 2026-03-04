@@ -481,9 +481,9 @@ describe('Student Enrollment Management', function () {
         $program = Program::factory()->create();
         $section = Section::factory()->create(['program_id' => $program->id, 'year_level' => 2]);
 
-        $subjectA = \App\Models\Subject::factory()->create(['subject_code' => 'CORE1-'.rand(1000,9999)]);
-        $subjectB = \App\Models\Subject::factory()->create(['subject_code' => 'MISSID-'.rand(1000,9999)]);
-        $subjectC = \App\Models\Subject::factory()->create(['subject_code' => 'ITE1-'.rand(1000,9999)]);
+        $subjectA = \App\Models\Subject::factory()->create(['subject_code' => 'CORE1-'.rand(1000, 9999)]);
+        $subjectB = \App\Models\Subject::factory()->create(['subject_code' => 'MISSID-'.rand(1000, 9999)]);
+        $subjectC = \App\Models\Subject::factory()->create(['subject_code' => 'ITE1-'.rand(1000, 9999)]);
 
         \App\Models\SectionSubject::factory()->create(['section_id' => $section->id, 'subject_id' => $subjectA->id, 'status' => 'active']);
         \App\Models\SectionSubject::factory()->create(['section_id' => $section->id, 'subject_id' => $subjectB->id, 'status' => 'active']);

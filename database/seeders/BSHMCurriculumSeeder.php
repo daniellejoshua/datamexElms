@@ -122,7 +122,7 @@ class BSHMCurriculumSeeder extends Seeder
             // If subject doesn't exist, create it
             if (! $subject) {
                 $subject = Subject::create([
-                    'subject_code' => strtoupper(preg_replace('/\s+/','',$subjectData['code'])),
+                    'subject_code' => strtoupper(preg_replace('/\s+/', '', $subjectData['code'])),
                     'program_id' => $program->id,
                     'subject_name' => strtoupper($subjectData['name']),
                     'description' => strtoupper($subjectData['name']),

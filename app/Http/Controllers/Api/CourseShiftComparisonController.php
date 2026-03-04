@@ -205,7 +205,7 @@ class CourseShiftComparisonController extends Controller
                 if (strtoupper($completedSubject->subject_code) === strtoupper($newSubject['subject_code'])) {
                     \Log::info('Match found: '.$completedSubject->subject_code.' = '.$newSubject['subject_code']);
 
-                    $isAutoCreditable = ($completedSubject->source !== 'grade' && in_array($completedSubject->source, ['credit_transfer','subject_credit'])) || ($gradeVal !== null && $gradeVal >= 75);
+                    $isAutoCreditable = ($completedSubject->source !== 'grade' && in_array($completedSubject->source, ['credit_transfer', 'subject_credit'])) || ($gradeVal !== null && $gradeVal >= 75);
 
                     $credited[] = [
                         'old_subject' => [

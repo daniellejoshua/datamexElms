@@ -220,11 +220,11 @@ class ProgramController extends Controller
         \App\Models\StudentSemesterPayment::whereHas('student', function ($q) use ($program) {
             $q->where('program_id', $program->id);
         })
-        ->where(function ($q) use ($currentYear, $currentSemester) {
-            $q->where('academic_year', '!=', $currentYear)
-              ->orWhere('semester', '!=', $currentSemester);
-        })
-        ->update(['fee_finalized' => true]);
+            ->where(function ($q) use ($currentYear, $currentSemester) {
+                $q->where('academic_year', '!=', $currentYear)
+                    ->orWhere('semester', '!=', $currentSemester);
+            })
+            ->update(['fee_finalized' => true]);
 
         if ($request->has('modal')) {
             return response()->json([

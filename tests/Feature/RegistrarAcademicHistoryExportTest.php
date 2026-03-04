@@ -5,8 +5,8 @@ use App\Models\SectionSubject;
 use App\Models\Student;
 use App\Models\StudentEnrollment;
 use App\Models\StudentGrade;
-use App\Models\User;
 use App\Models\Teacher;
+use App\Models\User;
 
 it('allows registrar to download a student academic history as pdf', function () {
     $program = Program::factory()->create();

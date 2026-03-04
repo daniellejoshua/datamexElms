@@ -1,9 +1,9 @@
 <?php
 
+use App\Models\CurriculumSubject;
 use App\Models\Program;
 use App\Models\Student;
 use App\Models\StudentSubjectCredit;
-use App\Models\CurriculumSubject;
 use App\Models\User;
 
 // this file exercises the comparison endpoint using actual seeded programs/curricula
@@ -26,23 +26,23 @@ it('lists matched subjects when a student has credits from one program moving to
     // grab all subjects from the BSIT curriculum
     $subjects = CurriculumSubject::where('curriculum_id', $fromCurr->id)->get();
     // only minors (core/elective); majors don't transfer
-    $subjects = $subjects->filter(fn($s) => strtolower($s->subject_type) !== 'major');
+    $subjects = $subjects->filter(fn ($s) => strtolower($s->subject_type) !== 'major');
     // keep an unmodified copy for later expected-code computation
     $originalSubjects = $subjects;
 
     // compute intersection of codes with target curriculum
-    $fromCodes = $subjects->pluck('subject_code')->map(fn($c) => strtoupper(trim($c)))->unique();
+    $fromCodes = $subjects->pluck('subject_code')->map(fn ($c) => strtoupper(trim($c)))->unique();
     $toCurrSubjects = CurriculumSubject::where('curriculum_id', $toCurr->id)
         ->orderBy('year_level')
         ->orderBy('semester')
         ->get();
     $toCodes = $toCurrSubjects->pluck('subject_code')
-        ->map(fn($c) => strtoupper(trim($c)));
+        ->map(fn ($c) => strtoupper(trim($c)));
     $intersection = $fromCodes->intersect($toCodes);
 
     // also look for fuzzy name matches to catch minor/GE subjects
-    $fromNames = $subjects->pluck('subject_name')->map(fn($n) => strtolower(trim($n)));
-    $toNames = $toCurrSubjects->pluck('subject_name')->map(fn($n) => strtolower(trim($n)));
+    $fromNames = $subjects->pluck('subject_name')->map(fn ($n) => strtolower(trim($n)));
+    $toNames = $toCurrSubjects->pluck('subject_name')->map(fn ($n) => strtolower(trim($n)));
     $nameMatches = collect();
 
     foreach ($fromNames as $fName) {
@@ -66,15 +66,16 @@ it('lists matched subjects when a student has credits from one program moving to
     }
     $nameMatches = $nameMatches->unique();
 
-    echo "BSIT curriculum subjects: ".implode(', ', $fromCodes->toArray())."\n";
-    echo "BSHM curriculum subjects: ".implode(', ', $toCodes->toArray())."\n";
-    echo "common codes: ".implode(', ', $intersection->toArray())."\n";
-    echo "fuzzy name matches: ".implode(', ', $nameMatches->toArray())."\n";
+    echo 'BSIT curriculum subjects: '.implode(', ', $fromCodes->toArray())."\n";
+    echo 'BSHM curriculum subjects: '.implode(', ', $toCodes->toArray())."\n";
+    echo 'common codes: '.implode(', ', $intersection->toArray())."\n";
+    echo 'fuzzy name matches: '.implode(', ', $nameMatches->toArray())."\n";
 
     // limit our credit list to intersection codes OR name matches (already only minors)
     $filtered = $subjects->filter(function ($s) use ($intersection, $nameMatches) {
         $code = strtoupper(trim($s->subject_code));
         $name = strtolower(trim($s->subject_name));
+
         return $intersection->contains($code) || $nameMatches->contains($name);
     });
     $subjects = $filtered;
@@ -119,7 +120,7 @@ it('lists matched subjects when a student has credits from one program moving to
     $data = $response->json('data');
 
     // dump data structure
-    echo "DATA: ";
+    echo 'DATA: ';
     print_r($data);
 
     // the API currently returns `subject_code` at top level when shiftee
@@ -131,9 +132,9 @@ it('lists matched subjects when a student has credits from one program moving to
     // now compute what codes the controller would match for our original subjects
     $expected = collect();
 
-    $normalize = fn($s) => strtolower(trim(preg_replace('/\s+/', ' ', preg_replace('/[^A-Za-z0-9 ]+/', ' ', (string) $s))));
-    $normalizeCode = fn($c) => strtolower(preg_replace('/[^A-Za-z0-9]/', '', (string) $c));
-    $digits = fn($s) => preg_replace('/[^0-9]/', '', $s);
+    $normalize = fn ($s) => strtolower(trim(preg_replace('/\s+/', ' ', preg_replace('/[^A-Za-z0-9 ]+/', ' ', (string) $s))));
+    $normalizeCode = fn ($c) => strtolower(preg_replace('/[^A-Za-z0-9]/', '', (string) $c));
+    $digits = fn ($s) => preg_replace('/[^0-9]/', '', $s);
 
     foreach ($subjects as $orig) {
         $completedName = $normalize($orig->subject_name);
@@ -151,7 +152,7 @@ it('lists matched subjects when a student has credits from one program moving to
                 return true;
             }
 
-            $tokens = fn($s) => array_values(array_filter(array_map(fn($t) => trim($t), preg_split('/\s+/', $s))));
+            $tokens = fn ($s) => array_values(array_filter(array_map(fn ($t) => trim($t), preg_split('/\s+/', $s))));
             $newTokens = $tokens($newName);
             $oldTokens = $tokens($completedName);
             if (! empty($newTokens) && ! empty($oldTokens)) {
@@ -177,7 +178,7 @@ it('lists matched subjects when a student has credits from one program moving to
         }
     }
 
-    $expected = $expected->map(fn($c) => strtoupper(trim($c)))->unique();
+    $expected = $expected->map(fn ($c) => strtoupper(trim($c)))->unique();
 
     // ensure every expected code was returned
     foreach ($expected as $code) {
@@ -189,7 +190,6 @@ it('lists matched subjects when a student has credits from one program moving to
 
     expect($matched->count())->toBe($expected->count());
 });
-
 
 test('major credits are ignored and numeric-only matches do not cross-map', function () {
     // create a shiftee with one major and one minor credit
@@ -268,7 +268,7 @@ test('major credits are ignored and numeric-only matches do not cross-map', func
     // if any old code differs only by spacing/formatting from the new code,
     // normalized comparison should treat them as equal - the UI would hide the
     // "was" label in that case. check one example: NSTP 1 vs NSTP1
-    $sample = $credits->first(fn($c) => str_contains($c['subject_code'], 'NSTP'));
+    $sample = $credits->first(fn ($c) => str_contains($c['subject_code'], 'NSTP'));
     if ($sample) {
         $normNew = preg_replace('/[^A-Za-z0-9]/', '', $sample['subject_code']);
         $normOld = preg_replace('/[^A-Za-z0-9]/', '', $sample['old_subject_code'] ?? '');
@@ -284,7 +284,6 @@ test('major credits are ignored and numeric-only matches do not cross-map', func
     // we just assert that nothing with code 'THC 4' appears for the PE4 credit
     expect(collect($data['credited_subjects'])->pluck('subject_code')->contains('THC 4'))->toBeFalse();
 });
-
 
 // helper test: create a regular first-year BSIT student and assert basic fields
 it('can create a regular first year BSIT student', function () {

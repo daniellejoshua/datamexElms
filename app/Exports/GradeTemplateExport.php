@@ -87,11 +87,13 @@ class GradeTemplateExport implements FromCollection, WithColumnFormatting, WithH
                     'midterm' => $existing?->midterm_grade ?? '',
                     'prefinals' => $existing?->prefinal_grade ?? '',
                     'finals' => $existing?->final_grade ?? '',
+                    'teacher_remarks' => $existing?->teacher_remarks ?? '',
                 ]);
             } else {
                 $data = array_merge($data, [
                     '1st_quarter' => $existing?->first_quarter_grade ?? '',
                     '2nd_quarter' => $existing?->second_quarter_grade ?? '',
+                    'teacher_remarks' => $existing?->teacher_remarks ?? '',
                 ]);
             }
 
@@ -114,11 +116,13 @@ class GradeTemplateExport implements FromCollection, WithColumnFormatting, WithH
                 'Midterm',
                 'PreFinals',
                 'Finals',
+                'Teacher Remarks',
             ]);
         } else {
             $headings = array_merge($headings, [
-                'Q1',
-                'Q2',
+                'Quarter 1',
+                'Quarter 2',
+                'Teacher Remarks',
             ]);
         }
 
@@ -137,9 +141,11 @@ class GradeTemplateExport implements FromCollection, WithColumnFormatting, WithH
             $sheet->getColumnDimension('D')->setWidth(10); // Midterm
             $sheet->getColumnDimension('E')->setWidth(12); // PreFinals
             $sheet->getColumnDimension('F')->setWidth(8);  // Finals
+            $sheet->getColumnDimension('G')->setWidth(30); // Teacher Remarks
         } else {
             $sheet->getColumnDimension('C')->setWidth(12); // Q1
             $sheet->getColumnDimension('D')->setWidth(12); // Q2
+            $sheet->getColumnDimension('E')->setWidth(30); // Teacher Remarks
         }
 
         // First, unlock all cells by default
@@ -172,9 +178,17 @@ class GradeTemplateExport implements FromCollection, WithColumnFormatting, WithH
 
     public function columnFormats(): array
     {
-        return [
+        $formats = [
             'A' => '@', // Text format for Student ID
             'B' => '@', // Text format for Student Name
         ];
+
+        if ($this->isCollegeLevel) {
+            $formats['G'] = '@'; // Text format for Teacher Remarks (column G for college)
+        } else {
+            $formats['E'] = '@'; // Text format for Teacher Remarks (column E for SHS)
+        }
+
+        return $formats;
     }
 }

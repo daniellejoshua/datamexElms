@@ -270,7 +270,7 @@ class CreditTransferController extends Controller
                         ->unique('subject_code'); // Remove duplicates by subject code
 
                     // simplified list of completed codes/names for debugging
-                    $simplifiedCompleted = $studentCompletedSubjects->map(fn($c) => [
+                    $simplifiedCompleted = $studentCompletedSubjects->map(fn ($c) => [
                         'subject_code' => $c['subject_code'] ?? null,
                         'subject_name' => $c['subject_name'] ?? null, // original name from credit record
                     ])->unique()->values()->toArray();
@@ -284,29 +284,29 @@ class CreditTransferController extends Controller
                 // expect all completed subjects to carry over (including majors) so
                 // we'll stop filtering by subject_type here.
                 $minorCodes = $previousSubjects->pluck('subject_code')
-                  ->map(fn($c) => strtolower(preg_replace('/[^A-Za-z0-9]/', '', $c)))
-                  ->unique()
-                  ->toArray();
+                    ->map(fn ($c) => strtolower(preg_replace('/[^A-Za-z0-9]/', '', $c)))
+                    ->unique()
+                    ->toArray();
 
                 // Get list of subjects student has completed
                 foreach ($studentCompletedSubjects as $completed) {
                     // if the completed record has a code and it's not one of the minors,
                     // skip it entirely; this prevents majors from being matched by fuzzy
                     // logic later
-                    $compCodeNorm = strtolower(preg_replace('/[^A-Za-z0-9]/', '', (string)($completed['subject_code'] ?? '')));
+                    $compCodeNorm = strtolower(preg_replace('/[^A-Za-z0-9]/', '', (string) ($completed['subject_code'] ?? '')));
                     if ($compCodeNorm !== '' && ! in_array($compCodeNorm, $minorCodes, true)) {
                         continue;
                     }
                     // Check if this completed subject exists in new curriculum
                     // Use a more flexible matching strategy (name fuzzy/token/code numeric checks)
                     $matchingNewSubject = $newSubjects->first(function ($newSubject) use ($completed) {
-                        $normalize = fn($s) => strtolower(trim(preg_replace('/\s+/', ' ', preg_replace('/[^A-Za-z0-9 ]+/', ' ', (string) $s))));
+                        $normalize = fn ($s) => strtolower(trim(preg_replace('/\s+/', ' ', preg_replace('/[^A-Za-z0-9 ]+/', ' ', (string) $s))));
 
                         $newName = $normalize($newSubject->subject_name);
                         $completedName = $normalize($completed['subject_name']);
 
                         // Normalized codes (remove non-alphanumeric)
-                        $normalizeCode = fn($c) => strtolower(preg_replace('/[^A-Za-z0-9]/', '', (string) $c));
+                        $normalizeCode = fn ($c) => strtolower(preg_replace('/[^A-Za-z0-9]/', '', (string) $c));
                         $newCode = $normalizeCode($newSubject->subject_code);
                         $completedCode = $normalizeCode($completed['subject_code']);
 
@@ -317,8 +317,8 @@ class CreditTransferController extends Controller
 
                         // 2) Numeric-code match (e.g. MATH101 vs MATH-101A) — compare digits only but
                         // require alphabetic prefix to match as well to avoid cases like PE4/THC4.
-                        $digits = fn($s) => preg_replace('/[^0-9]/', '', $s);
-                        $letters = fn($s) => preg_replace('/[^A-Za-z]/', '', $s);
+                        $digits = fn ($s) => preg_replace('/[^0-9]/', '', $s);
+                        $letters = fn ($s) => preg_replace('/[^A-Za-z]/', '', $s);
                         if ($digits($newCode) !== '' && $digits($newCode) === $digits($completedCode)) {
                             if (strtolower($letters($newCode)) === strtolower($letters($completedCode))) {
                                 return true;
@@ -328,14 +328,14 @@ class CreditTransferController extends Controller
                         // before we attempt fuzzy name logic, make sure the numeric portion of
                         // the names themselves matches. this stops "NSTP 2" from being treated
                         // as a token overlap with "NSTP 1" even though all other words line up.
-                        $numericInName = fn($s) => preg_replace('/[^0-9]/', '', $s);
+                        $numericInName = fn ($s) => preg_replace('/[^0-9]/', '', $s);
                         if ($numericInName($newName) !== '' && $numericInName($completedName) !== ''
                             && $numericInName($newName) !== $numericInName($completedName)) {
                             return false;
                         }
 
                         // 3) Token overlap (Jaccard-like) — handles name variants
-                        $tokens = fn($s) => array_values(array_filter(array_map(fn($t) => trim($t), preg_split('/\s+/', $s))));
+                        $tokens = fn ($s) => array_values(array_filter(array_map(fn ($t) => trim($t), preg_split('/\s+/', $s))));
                         $newTokens = $tokens($newName);
                         $oldTokens = $tokens($completedName);
                         if (! empty($newTokens) && ! empty($oldTokens)) {
@@ -364,13 +364,13 @@ class CreditTransferController extends Controller
                         $source = $completed['source'] ?? 'grade';
 
                         // Only auto-credit previously approved credits (credit_transfer/subject_credit) or numeric passing grades
-                        $isAutoCreditable = in_array($source, ['credit_transfer','subject_credit']) || (is_numeric($completedGrade) && floatval($completedGrade) >= 75);
+                        $isAutoCreditable = in_array($source, ['credit_transfer', 'subject_credit']) || (is_numeric($completedGrade) && floatval($completedGrade) >= 75);
 
                         // Avoid exact duplicates; however, if the same new subject is matched
                         // from two different old subject codes we still want both entries so the
                         // registrar can review them separately.
                         $alreadyAdded = collect($creditedSubjects)->contains(function ($credited) use ($matchingNewSubject, $completed) {
-                            return $credited['subject_id'] === $matchingNewSubject->subject_id 
+                            return $credited['subject_id'] === $matchingNewSubject->subject_id
                                 && ($credited['old_subject_code'] ?? null) === ($completed['subject_code'] ?? null);
                         });
 
@@ -386,7 +386,7 @@ class CreditTransferController extends Controller
                                 'grade' => $completedGrade,
                                 'is_partial' => ($completed['source'] === 'grade' && ($completed['is_partial'] ?? false)) || ($completed['source'] === 'enrolled'),
                                 'old_subject_code' => is_string($completed['subject_code']) ? trim($completed['subject_code']) : null,
-                            'old_subject_name' => is_string($completed['subject_name']) ? trim($completed['subject_name']) : null,
+                                'old_subject_name' => is_string($completed['subject_name']) ? trim($completed['subject_name']) : null,
                                 'teacher_name' => $completed['teacher_name'] ?? null,
                                 'match_reason' => ($completed['source'] !== 'grade' && $completed['source'] !== 'enrolled') ? 'Existing credit' : 'Matched by name/code',
                                 'auto_credit' => $isAutoCreditable,

@@ -3,12 +3,12 @@
 use App\Models\Program;
 use App\Models\SchoolSetting;
 use App\Models\Section;
+use App\Models\SectionSubject;
 use App\Models\Student;
 use App\Models\StudentEnrollment;
 use App\Models\StudentGrade;
 use App\Models\StudentSubjectEnrollment;
 use App\Models\Subject;
-use App\Models\SectionSubject;
 use App\Models\Teacher;
 use App\Models\User;
 use Illuminate\Support\Facades\Auth;

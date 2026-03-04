@@ -1,12 +1,12 @@
 <?php
 
-use App\Models\Program;
 use App\Models\Curriculum;
-use App\Models\Student;
-use App\Models\User;
-use App\Models\Subject;
-use App\Models\StudentSubjectCredit;
+use App\Models\Program;
 use App\Models\SchoolSetting;
+use App\Models\Student;
+use App\Models\StudentSubjectCredit;
+use App\Models\Subject;
+use App\Models\User;
 use Inertia\Testing\AssertableInertia as Assert;
 
 it('orders semesters correctly in academic history regardless of insertion order', function () {
@@ -17,8 +17,8 @@ it('orders semesters correctly in academic history regardless of insertion order
     $curriculum = Curriculum::factory()->create(['program_id' => $program->id, 'is_current' => true]);
 
     // create two subjects but deliberately insert second-semester first
-    $sub2 = Subject::factory()->create(['program_id' => $program->id, 'subject_code' => 'SUB2', 'subject_name' => 'Second',]);
-    $sub1 = Subject::factory()->create(['program_id' => $program->id, 'subject_code' => 'SUB1', 'subject_name' => 'First',]);
+    $sub2 = Subject::factory()->create(['program_id' => $program->id, 'subject_code' => 'SUB2', 'subject_name' => 'Second']);
+    $sub1 = Subject::factory()->create(['program_id' => $program->id, 'subject_code' => 'SUB1', 'subject_name' => 'First']);
 
     // link them to curriculum with appropriate semesters
     \App\Models\CurriculumSubject::create([
@@ -53,11 +53,10 @@ it('orders semesters correctly in academic history regardless of insertion order
         ->get(route('registrar.students.academic-history', $student));
 
     $response->assertSuccessful();
-    $response->assertInertia(fn (Assert $page) =>
-        $page->component('Registrar/Students/AcademicHistory')
-            ->has('curriculumSubjects', 2)
-            ->where('curriculumSubjects.0.semester', '1st')
-            ->where('curriculumSubjects.1.semester', '2nd')
+    $response->assertInertia(fn (Assert $page) => $page->component('Registrar/Students/AcademicHistory')
+        ->has('curriculumSubjects', 2)
+        ->where('curriculumSubjects.0.semester', '1st')
+        ->where('curriculumSubjects.1.semester', '2nd')
     );
 });
 
@@ -113,11 +112,10 @@ it('displays progress statistics for shiftee with multiple credited subjects', f
 
     $response->assertSuccessful();
 
-    $response->assertInertia(fn (Assert $page) =>
-        $page->component('Registrar/Students/AcademicHistory')
-            ->where('completionStats.totalSubjects', 11)
-            ->where('completionStats.completedSubjects', 11)
-            ->where('completionStats.completionPercentage', 100)
+    $response->assertInertia(fn (Assert $page) => $page->component('Registrar/Students/AcademicHistory')
+        ->where('completionStats.totalSubjects', 11)
+        ->where('completionStats.completedSubjects', 11)
+        ->where('completionStats.completionPercentage', 100)
     );
 });
 
@@ -198,10 +196,9 @@ it('shows credits when enrollment_type is shiftee but previous_program_id missin
         ->get(route('registrar.students.academic-history', $student));
 
     $response->assertSuccessful();
-    $response->assertInertia(fn (Assert $page) =>
-        $page->component('Registrar/Students/AcademicHistory')
-            ->has('subjectGrades')
-            ->where('subjectGrades.0.subject_code', 'ABC123')
+    $response->assertInertia(fn (Assert $page) => $page->component('Registrar/Students/AcademicHistory')
+        ->has('subjectGrades')
+        ->where('subjectGrades.0.subject_code', 'ABC123')
     );
 });
 
@@ -230,7 +227,7 @@ it('preserves original subject details when codes differ between programs', func
         'subject_code' => 'OLD101',
         'subject_name' => 'Common Name',
     ]);
-    
+
     \App\Models\CurriculumSubject::create([
         'curriculum_id' => $curA->id,
         'subject_id' => $oldSub->id,
@@ -295,10 +292,9 @@ it('preserves original subject details when codes differ between programs', func
         ->get(route('registrar.students.academic-history', $student));
 
     $response->assertSuccessful();
-    $response->assertInertia(fn (Assert $page) =>
-        $page->component('Registrar/Students/AcademicHistory')
-            ->has('subjectGrades', 1)
-            ->where('subjectGrades.0.subject_code', 'NEW202')
-            ->where('subjectGrades.0.original_subject_code', 'OLD101')
+    $response->assertInertia(fn (Assert $page) => $page->component('Registrar/Students/AcademicHistory')
+        ->has('subjectGrades', 1)
+        ->where('subjectGrades.0.subject_code', 'NEW202')
+        ->where('subjectGrades.0.original_subject_code', 'OLD101')
     );
 });
