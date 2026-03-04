@@ -13,12 +13,6 @@ COPY jsconfig.json ./
 
 RUN npm run build
 
-FROM composer:2 AS vendor-builder
-WORKDIR /app
-
-COPY composer.json composer.lock ./
-RUN composer install --no-dev --prefer-dist --optimize-autoloader --no-interaction --no-scripts
-
 FROM php:8.4-cli-alpine
 WORKDIR /var/www/html
 
@@ -49,8 +43,10 @@ RUN apk add --no-cache \
 
 COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 
+COPY composer.json composer.lock ./
+RUN composer install --no-dev --prefer-dist --optimize-autoloader --no-interaction --no-scripts
+
 COPY . .
-COPY --from=vendor-builder /app/vendor ./vendor
 COPY --from=frontend-builder /app/public/build ./public/build
 
 RUN mkdir -p storage/framework/{cache,sessions,views} storage/logs bootstrap/cache \
