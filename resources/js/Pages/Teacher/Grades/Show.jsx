@@ -805,6 +805,11 @@ export default function Show({ section, sectionSubject, enrollments, isCollegeLe
                                                             max="100"
                                                             value={gradeData.prelim_grade}
                                                             onChange={(e) => handleGradeChange(gradeData.enrollment_id, 'prelim_grade', e.target.value)}
+                                                            onKeyDown={(e) => {
+                                                                if (['-', '+', 'e', 'E'].includes(e.key)) {
+                                                                    e.preventDefault();
+                                                                }
+                                                            }}
                                                             className={`w-20 text-center text-sm border-gray-300 focus:ring-purple-500 focus:border-purple-500 ${
                                                                 editingGrades[`${gradeData.enrollment_id}_prelim_grade`] ? 'ring-2 ring-purple-300' : ''
                                                             } ${getGradeTextColor(gradeData.prelim_grade)}`}
@@ -818,6 +823,11 @@ export default function Show({ section, sectionSubject, enrollments, isCollegeLe
                                                             max="100"
                                                             value={gradeData.midterm_grade}
                                                             onChange={(e) => handleGradeChange(gradeData.enrollment_id, 'midterm_grade', e.target.value)}
+                                                            onKeyDown={(e) => {
+                                                                if (['-', '+', 'e', 'E'].includes(e.key)) {
+                                                                    e.preventDefault();
+                                                                }
+                                                            }}
                                                             className={`w-20 text-center text-sm border-gray-300 focus:ring-purple-500 focus:border-purple-500 ${
                                                                 editingGrades[`${gradeData.enrollment_id}_midterm_grade`] ? 'ring-2 ring-purple-300' : ''
                                                             } ${getGradeTextColor(gradeData.midterm_grade)}`}
@@ -831,6 +841,11 @@ export default function Show({ section, sectionSubject, enrollments, isCollegeLe
                                                             max="100"
                                                             value={gradeData.prefinal_grade}
                                                             onChange={(e) => handleGradeChange(gradeData.enrollment_id, 'prefinal_grade', e.target.value)}
+                                                            onKeyDown={(e) => {
+                                                                if (['-', '+', 'e', 'E'].includes(e.key)) {
+                                                                    e.preventDefault();
+                                                                }
+                                                            }}
                                                             className={`w-20 text-center text-sm border-gray-300 focus:ring-purple-500 focus:border-purple-500 ${
                                                                 editingGrades[`${gradeData.enrollment_id}_prefinal_grade`] ? 'ring-2 ring-purple-300' : ''
                                                             } ${getGradeTextColor(gradeData.prefinal_grade)}`}
@@ -844,6 +859,11 @@ export default function Show({ section, sectionSubject, enrollments, isCollegeLe
                                                             max="100"
                                                             value={gradeData.final_grade}
                                                             onChange={(e) => handleGradeChange(gradeData.enrollment_id, 'final_grade', e.target.value)}
+                                                            onKeyDown={(e) => {
+                                                                if (['-', '+', 'e', 'E'].includes(e.key)) {
+                                                                    e.preventDefault();
+                                                                }
+                                                            }}
                                                             className={`w-20 text-center text-sm border-gray-300 focus:ring-purple-500 focus:border-purple-500 ${
                                                                 editingGrades[`${gradeData.enrollment_id}_final_grade`] ? 'ring-2 ring-purple-300' : ''
                                                             } ${getGradeTextColor(gradeData.final_grade)}`}
@@ -859,6 +879,11 @@ export default function Show({ section, sectionSubject, enrollments, isCollegeLe
                                                             max="100"
                                                             value={gradeData.first_quarter_grade}
                                                             onChange={(e) => handleGradeChange(gradeData.enrollment_id, 'first_quarter_grade', e.target.value)}
+                                                            onKeyDown={(e) => {
+                                                                if (['-', '+', 'e', 'E'].includes(e.key)) {
+                                                                    e.preventDefault();
+                                                                }
+                                                            }}
                                                             className={`w-20 text-center text-sm border-gray-300 focus:ring-purple-500 focus:border-purple-500 ${
                                                                 editingGrades[`${gradeData.enrollment_id}_first_quarter_grade`] ? 'ring-2 ring-purple-300' : ''
                                                             } ${getGradeTextColor(gradeData.first_quarter_grade)}`}
@@ -871,6 +896,11 @@ export default function Show({ section, sectionSubject, enrollments, isCollegeLe
                                                             max="100"
                                                             value={gradeData.second_quarter_grade}
                                                             onChange={(e) => handleGradeChange(gradeData.enrollment_id, 'second_quarter_grade', e.target.value)}
+                                                            onKeyDown={(e) => {
+                                                                if (['-', '+', 'e', 'E'].includes(e.key)) {
+                                                                    e.preventDefault();
+                                                                }
+                                                            }}
                                                             className={`w-20 text-center text-sm border-gray-300 focus:ring-purple-500 focus:border-purple-500 ${
                                                                 editingGrades[`${gradeData.enrollment_id}_second_quarter_grade`] ? 'ring-2 ring-purple-300' : ''
                                                             } ${getGradeTextColor(gradeData.second_quarter_grade)}`}
@@ -886,6 +916,11 @@ export default function Show({ section, sectionSubject, enrollments, isCollegeLe
                                                             max="100"
                                                             value={gradeData.first_quarter_grade}
                                                             onChange={(e) => handleGradeChange(gradeData.enrollment_id, 'first_quarter_grade', e.target.value)}
+                                                            onKeyDown={(e) => {
+                                                                if (['-', '+', 'e', 'E'].includes(e.key)) {
+                                                                    e.preventDefault();
+                                                                }
+                                                            }}
                                                             className={`w-20 text-center text-sm border-gray-300 focus:ring-purple-500 focus:border-purple-500 ${
                                                                 editingGrades[`${gradeData.enrollment_id}_first_quarter_grade`] ? 'ring-2 ring-purple-300' : ''
                                                             } ${getGradeTextColor(gradeData.first_quarter_grade)}`}
@@ -898,6 +933,11 @@ export default function Show({ section, sectionSubject, enrollments, isCollegeLe
                                                             max="100"
                                                             value={gradeData.second_quarter_grade}
                                                             onChange={(e) => handleGradeChange(gradeData.enrollment_id, 'second_quarter_grade', e.target.value)}
+                                                            onKeyDown={(e) => {
+                                                                if (['-', '+', 'e', 'E'].includes(e.key)) {
+                                                                    e.preventDefault();
+                                                                }
+                                                            }}
                                                             className={`w-20 text-center text-sm border-gray-300 focus:ring-purple-500 focus:border-purple-500 ${
                                                                 editingGrades[`${gradeData.enrollment_id}_second_quarter_grade`] ? 'ring-2 ring-purple-300' : ''
                                                             } ${getGradeTextColor(gradeData.second_quarter_grade)}`}
@@ -910,6 +950,11 @@ export default function Show({ section, sectionSubject, enrollments, isCollegeLe
                                                             max="100"
                                                             value={gradeData.third_quarter_grade}
                                                             onChange={(e) => handleGradeChange(gradeData.enrollment_id, 'third_quarter_grade', e.target.value)}
+                                                            onKeyDown={(e) => {
+                                                                if (['-', '+', 'e', 'E'].includes(e.key)) {
+                                                                    e.preventDefault();
+                                                                }
+                                                            }}
                                                             className={`w-20 text-center text-sm border-gray-300 focus:ring-purple-500 focus:border-purple-500 ${
                                                                 editingGrades[`${gradeData.enrollment_id}_third_quarter_grade`] ? 'ring-2 ring-purple-300' : ''
                                                             } ${getGradeTextColor(gradeData.third_quarter_grade)}`}
@@ -922,6 +967,11 @@ export default function Show({ section, sectionSubject, enrollments, isCollegeLe
                                                             max="100"
                                                             value={gradeData.fourth_quarter_grade}
                                                             onChange={(e) => handleGradeChange(gradeData.enrollment_id, 'fourth_quarter_grade', e.target.value)}
+                                                            onKeyDown={(e) => {
+                                                                if (['-', '+', 'e', 'E'].includes(e.key)) {
+                                                                    e.preventDefault();
+                                                                }
+                                                            }}
                                                             className={`w-20 text-center border-gray-300 focus:ring-purple-500 focus:border-purple-500 ${
                                                                 editingGrades[`${gradeData.enrollment_id}_fourth_quarter_grade`] ? 'ring-2 ring-purple-300' : ''
                                                             } ${getGradeTextColor(gradeData.fourth_quarter_grade)}`}

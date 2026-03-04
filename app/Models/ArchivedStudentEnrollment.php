@@ -23,6 +23,7 @@ class ArchivedStudentEnrollment extends Model
         'final_semester_grade',
         'letter_grade',
         'student_data',
+        'teacher_remarks',
     ];
 
     protected function casts(): array

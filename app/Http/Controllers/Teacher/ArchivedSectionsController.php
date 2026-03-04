@@ -354,6 +354,7 @@ class ArchivedSectionsController extends Controller
                         'final_status' => $enrollment?->final_status ?? 'archived',
                         'grade_status' => $gradeStatus,
                         'missing_grades' => $missing,
+                        'teacher_remarks' => $enrollment?->teacher_remarks ?? null,
                     ]);
                 }
 
@@ -408,6 +409,7 @@ class ArchivedSectionsController extends Controller
                     'final_status' => $enrollment->final_status,
                     'grade_status' => $gradeStatus,
                     'missing_grades' => $missingGradesList,
+                    'teacher_remarks' => $enrollment->teacher_remarks ?? null,
                 ];
             });
 
@@ -439,6 +441,9 @@ class ArchivedSectionsController extends Controller
         // Validate the request - support both college and SHS grades
         $validator = Validator::make($request->all(), [
             'enrollment_id' => 'required|exists:archived_student_enrollments,id',
+            'section_subject_id' => 'nullable',
+            'subject_id' => 'nullable',
+            'subject_code' => 'nullable|string',
             'grades.prelim' => 'nullable|numeric|min:0|max:100',
             'grades.midterm' => 'nullable|numeric|min:0|max:100',
             'grades.prefinals' => 'nullable|numeric|min:0|max:100',
@@ -447,6 +452,7 @@ class ArchivedSectionsController extends Controller
             'grades.second_quarter' => 'nullable|numeric|min:0|max:100',
             'grades.third_quarter' => 'nullable|numeric|min:0|max:100',
             'grades.fourth_quarter' => 'nullable|numeric|min:0|max:100',
+            'grades.teacher_remarks' => 'nullable|string|max:1000',
         ]);
 
         if ($validator->fails()) {
@@ -521,6 +527,12 @@ class ArchivedSectionsController extends Controller
         }
 
         $enrollment->final_grades = $finalGrades;
+
+        // Update teacher remarks if provided
+        if (isset($grades['teacher_remarks'])) {
+            $enrollment->teacher_remarks = $grades['teacher_remarks'];
+        }
+
         $enrollment->save();
 
         // Update the original grade tables if the record exists
@@ -608,12 +620,35 @@ class ArchivedSectionsController extends Controller
         // Also keep normalized archived_subject rows in sync when possible
         try {
             $archivedSubjectQuery = ArchivedStudentSubject::where('archived_student_enrollment_id', $enrollment->id);
+            $sectionSubjectId = $request->input('section_subject_id');
+            $subjectId = $request->input('subject_id');
+            $subjectCode = $request->input('subject_code');
 
-            if ($request->section_subject_id) {
-                $archivedSubjectQuery->where('section_subject_id', $request->section_subject_id);
+            if ($sectionSubjectId) {
+                $archivedSubjectQuery->where('section_subject_id', $sectionSubjectId);
+            } elseif ($subjectId || $subjectCode) {
+                $archivedSubjectQuery->where(function ($q) use ($subjectId, $subjectCode) {
+                    if ($subjectId) {
+                        $q->orWhere('subject_id', $subjectId);
+                    }
+                    if ($subjectCode) {
+                        $q->orWhere('subject_code', $subjectCode);
+                    }
+                });
             }
 
             $archivedSubject = $archivedSubjectQuery->first();
+
+            if (! $archivedSubject && ($sectionSubjectId || $subjectId || $subjectCode)) {
+                $archivedSubject = new ArchivedStudentSubject;
+                $archivedSubject->archived_student_enrollment_id = $enrollment->id;
+                $archivedSubject->student_id = $enrollment->student_id;
+                $archivedSubject->original_enrollment_id = $enrollment->original_enrollment_id;
+                $archivedSubject->section_subject_id = $sectionSubjectId;
+                $archivedSubject->subject_id = $subjectId;
+                $archivedSubject->subject_code = $subjectCode;
+                $archivedSubject->teacher_id = $teacher->id;
+            }
 
             if ($archivedSubject) {
                 // Map enrollment-level final_grades to normalized fields if present

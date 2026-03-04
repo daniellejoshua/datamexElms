@@ -214,6 +214,7 @@ const Index = ({ auth, student, currentGrades, paymentStatus, visibleGradePeriod
                                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500">Prefinal</th>
                                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500">Final</th>
                                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500">Semester</th>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500">Remarks</th>
                                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500">Status</th>
                             </tr>
                         </thead>
@@ -304,6 +305,9 @@ const Index = ({ auth, student, currentGrades, paymentStatus, visibleGradePeriod
                                             ) : (
                                                 isValidGrade(semester) ? <span className="text-gray-400">Grade hidden</span> : '—'
                                             )}
+                                        </td>
+                                        <td className="px-6 py-4 text-sm text-gray-900">
+                                            {grade.teacher_remarks || '-'}
                                         </td>
                                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{status}</td>
                                     </tr>

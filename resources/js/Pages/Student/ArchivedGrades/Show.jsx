@@ -185,6 +185,7 @@ const Show = ({ subjects, academic_year, semester }) => {
                                                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500">Prefinal</th>
                                                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500">Final</th>
                                                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500">Semester</th>
+                                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500">Remarks</th>
                                                 </tr>
                                             </thead>
                                             <tbody className="bg-white divide-y divide-gray-200">
@@ -204,6 +205,7 @@ const Show = ({ subjects, academic_year, semester }) => {
                                                         <td className="px-6 py-4 text-sm text-gray-900">{displayGrade(enr.final_grades?.prefinals)}</td>
                                                         <td className="px-6 py-4 text-sm text-gray-900">{displayGrade(enr.final_grades?.finals)}</td>
                                                         <td className="px-6 py-4 text-sm text-gray-900">{displayGrade(enr.final_semester_grade)}</td>
+                                                        <td className="px-6 py-4 text-sm text-gray-900">{enr.teacher_remarks || '—'}</td>
                                                     </tr>
                                                 ))}
                                             </tbody>

@@ -5,12 +5,18 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import { ArrowLeft, Users, CheckCircle, Edit2, Save, X, AlertCircle, Search, Archive, BookOpen } from 'lucide-react';
 import { toast } from 'sonner';
 
 const SubjectGrades = ({ archivedSection, subject, enrollments }) => {
     const [editingGrades, setEditingGrades] = useState({});
     const [gradeValues, setGradeValues] = useState({});
+    const [remarksMap, setRemarksMap] = useState(() => {
+        const m = {};
+        (enrollments || []).forEach(e => { m[e.id] = e.teacher_remarks || ''; });
+        return m;
+    });
     const [searchTerm, setSearchTerm] = useState('');
     const { auth } = usePage().props;
     const teacherId = auth.user.teacher?.id;
@@ -39,6 +45,14 @@ const SubjectGrades = ({ archivedSection, subject, enrollments }) => {
         return semesters[semester] || semester;
     };
 
+    const formatGradeDisplay = (grade) => {
+        if (grade === null || grade === undefined || grade === '') return '-';
+        const num = Number(grade);
+        if (isNaN(num)) return grade;
+        // If it's a whole number, don't show decimals
+        return num % 1 === 0 ? num.toString() : num.toString();
+    };
+
     const isShsLevel = () => {
         if (!archivedSection?.program) return false;
         const programName = archivedSection.program.program_name?.toLowerCase() || '';
@@ -47,20 +61,45 @@ const SubjectGrades = ({ archivedSection, subject, enrollments }) => {
     };
 
     const updateGrade = (enrollmentId, gradeType, value) => {
+        // For numeric grade fields, clamp to 0-100 and allow empty string
+        let newVal = value;
+        if (gradeType !== 'teacher_remarks') {
+            // Allow empty input
+            if (newVal === '' || newVal === null) {
+                newVal = '';
+            } else {
+                // Parse as float and clamp
+                const n = Number(newVal);
+                if (!isNaN(n)) {
+                    newVal = Math.max(0, Math.min(100, n));
+                } else {
+                    // keep raw value to allow validation to catch it
+                    newVal = value;
+                }
+            }
+        }
+
         setGradeValues(prev => ({
             ...prev,
             [enrollmentId]: {
                 ...prev[enrollmentId],
-                [gradeType]: value
+                [gradeType]: newVal
             }
         }));
     };
 
     const startEditing = (enrollmentId, currentGrades) => {
         setEditingGrades(prev => ({ ...prev, [enrollmentId]: true }));
+        
+        // Find the enrollment to get current remarks
+        const enrollment = enrollments.find(e => e.id === enrollmentId);
+        
         setGradeValues(prev => ({
             ...prev,
-            [enrollmentId]: { ...currentGrades }
+            [enrollmentId]: { 
+                ...currentGrades,
+                teacher_remarks: enrollment?.teacher_remarks || ''
+            }
         }));
     };
 
@@ -76,25 +115,59 @@ const SubjectGrades = ({ archivedSection, subject, enrollments }) => {
     const saveGrades = (enrollmentId, studentName) => {
         const grades = gradeValues[enrollmentId];
 
-        // Validate grades
-        for (const [key, value] of Object.entries(grades)) {
-            if (value && (isNaN(value) || value < 0 || value > 100)) {
+        // Validate numeric grades only (exclude teacher_remarks)
+        for (const [key, value] of Object.entries(grades || {})) {
+            if (key === 'teacher_remarks') continue;
+
+            if (value !== '' && value !== null && (isNaN(value) || value < 0 || value > 100)) {
                 toast.error(`Invalid ${key} grade. Must be between 0-100.`);
                 return;
             }
         }
 
+        // Prepare payload: coerce numeric fields to numbers or null
+        const payloadGrades = {};
+        for (const [key, value] of Object.entries(grades || {})) {
+            if (key === 'teacher_remarks') {
+                payloadGrades[key] = value ?? null;
+            } else {
+                if (value === '' || value === null || value === undefined) {
+                    payloadGrades[key] = null;
+                } else {
+                    const n = Number(value);
+                    payloadGrades[key] = isNaN(n) ? null : n;
+                }
+            }
+        }
+
         router.post(`/teacher/archived-sections/${archivedSection.id}/grades`, {
             enrollment_id: enrollmentId,
-            grades: grades
+            section_subject_id: subject.section_subject_id || null,
+            subject_id: subject.subject_id || subject.id || null,
+            subject_code: subject.subject_code || null,
+            grades: payloadGrades
         }, {
             onSuccess: () => {
                 toast.success('Grades updated successfully');
+                // Update remarks map with the saved value
+                setRemarksMap(prev => ({
+                    ...prev,
+                    [enrollmentId]: payloadGrades.teacher_remarks
+                }));
                 cancelEditing(enrollmentId);
+                // Reload the page to ensure all data is fresh
+                router.reload();
             },
             onError: (errors) => {
                 toast.error('Failed to update grades');
-                console.error(errors);
+                console.error('Save failed:', errors);
+                console.error('Payload:', {
+                    enrollment_id: enrollmentId,
+                    section_subject_id: subject.section_subject_id || null,
+                    subject_id: subject.subject_id || subject.id || null,
+                    subject_code: subject.subject_code || null,
+                    grades: payloadGrades,
+                });
             }
         });
     };
@@ -193,8 +266,8 @@ const SubjectGrades = ({ archivedSection, subject, enrollments }) => {
                                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
                                                 Semester Grade
                                             </th>
-                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                                                Status
+                                            <th style={{width: '35%'}} className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                                                Remarks
                                             </th>
                                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
                                                 Actions
@@ -230,12 +303,17 @@ const SubjectGrades = ({ archivedSection, subject, enrollments }) => {
                                                                         step="0.01"
                                                                         value={editValues[gradeType] || ''}
                                                                         onChange={(e) => updateGrade(enrollment.id, gradeType, e.target.value)}
+                                                                        onKeyDown={(e) => {
+                                                                            if (['-', '+', 'e', 'E'].includes(e.key)) {
+                                                                                e.preventDefault();
+                                                                            }
+                                                                        }}
                                                                         className="w-20"
                                                                         placeholder="0-100"
                                                                     />
                                                                 ) : (
                                                                     <span className="text-sm text-gray-900 dark:text-gray-100">
-                                                                        {grades[gradeType] || '-'}
+                                                                        {formatGradeDisplay(grades[gradeType])}
                                                                     </span>
                                                                 )}
                                                             </td>
@@ -251,12 +329,17 @@ const SubjectGrades = ({ archivedSection, subject, enrollments }) => {
                                                                         step="0.01"
                                                                         value={editValues[gradeType] || ''}
                                                                         onChange={(e) => updateGrade(enrollment.id, gradeType, e.target.value)}
+                                                                        onKeyDown={(e) => {
+                                                                            if (['-', '+', 'e', 'E'].includes(e.key)) {
+                                                                                e.preventDefault();
+                                                                            }
+                                                                        }}
                                                                         className="w-20"
                                                                         placeholder="0-100"
                                                                     />
                                                                 ) : (
                                                                     <span className="text-sm text-gray-900 dark:text-gray-100">
-                                                                        {grades[gradeType] || '-'}
+                                                                        {formatGradeDisplay(grades[gradeType])}
                                                                     </span>
                                                                 )}
                                                             </td>
@@ -264,29 +347,25 @@ const SubjectGrades = ({ archivedSection, subject, enrollments }) => {
                                                     )}
                                                     <td className="px-6 py-4 whitespace-nowrap">
                                                         <span className="text-sm font-semibold text-gray-900 dark:text-gray-100">
-                                                            {enrollment.final_semester_grade || '-'}
+                                                            {formatGradeDisplay(enrollment.final_semester_grade)}
                                                         </span>
                                                     </td>
-                                                    <td className="px-6 py-4 whitespace-nowrap">
-                                                        {enrollment.grade_status === 'Missing Grades' ? (
-                                                            <div className="flex flex-col gap-1">
-                                                                <Badge variant="destructive" className="w-fit">
-                                                                    <AlertCircle className="h-3 w-3 mr-1" />
-                                                                    Missing Grades
-                                                                </Badge>
-                                                                {enrollment.missing_grades.length > 0 && (
-                                                                    <span className="text-xs text-gray-600 dark:text-gray-400">
-                                                                        {enrollment.missing_grades.join(', ')}
-                                                                    </span>
-                                                                )}
-                                                            </div>
+                                                    <td className="px-6 py-4" style={{width: '35%'}}>
+                                                        {isEditing ? (
+                                                            <Textarea
+                                                                value={editValues.teacher_remarks || ''}
+                                                                onChange={(e) => updateGrade(enrollment.id, 'teacher_remarks', e.target.value)}
+                                                                className="w-full min-w-0 resize-none text-sm"
+                                                                rows={1}
+                                                                placeholder="Enter remarks..."
+                                                            />
                                                         ) : (
-                                                            <Badge variant="success" className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-100">
-                                                                <CheckCircle className="h-3 w-3 mr-1" />
-                                                                Complete
-                                                            </Badge>
+                                                            <span className="text-sm text-gray-900 dark:text-gray-100">
+                                                                {(remarksMap[enrollment.id] ?? enrollment.teacher_remarks) || '-'}
+                                                            </span>
                                                         )}
                                                     </td>
+                                                    {/* Status column removed - remarks now shown instead */}
                                                     <td className="px-6 py-4 whitespace-nowrap text-sm">
                                                         {isEditing ? (
                                                             <div className="flex items-center gap-2">
