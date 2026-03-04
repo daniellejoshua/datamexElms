@@ -27,7 +27,7 @@
         <div class="school-address">2nd floor. Gotaco Bldg 2, 32 MacArthur Highway, Valenzuela</div>
         <div class="report-title">GRADE REPORT</div>
         <div class="report-info">{{ $student->user->name ?? '' }} &nbsp;|&nbsp; Academic Year: {{ $academicYear }} &nbsp;|&nbsp; Semester: {{ $semester }}</div>
-        <div class="report-info">Generated: {{ $generatedAt }}</div>
+        <div class="report-info">{{ $generatedAt }}</div>
     </div>
 
     @if($grades->isEmpty())

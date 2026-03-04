@@ -497,7 +497,7 @@ class ArchivedSectionsController extends Controller
                     $finalGrades['fourth_quarter']
                 ) / 4;
 
-                $enrollment->final_semester_grade = round($finalSemesterGrade, 2);
+                $enrollment->final_semester_grade = round($finalSemesterGrade);
             }
         } else {
             // Update college grades
@@ -516,7 +516,7 @@ class ArchivedSectionsController extends Controller
                     $finalGrades['finals']
                 ) / 4;
 
-                $enrollment->final_semester_grade = round($finalSemesterGrade, 2);
+                $enrollment->final_semester_grade = round($finalSemesterGrade);
             }
         }
 

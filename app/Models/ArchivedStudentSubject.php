@@ -40,7 +40,7 @@ class ArchivedStudentSubject extends Model
 
             if ($p !== null && $m !== null && $pf !== null && $f !== null) {
                 $avg = ($p + $m + $pf + $f) / 4;
-                $model->semester_grade = round($avg, 2);
+                $model->semester_grade = round($avg);
             }
         });
     }

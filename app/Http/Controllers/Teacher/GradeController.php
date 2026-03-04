@@ -282,7 +282,7 @@ class GradeController extends Controller
 
                 // Calculate semester grade if all components are present
                 if ($grade->prelim_grade !== null && $grade->midterm_grade !== null && $grade->prefinal_grade !== null && $grade->final_grade !== null) {
-                    $grade->semester_grade = ($grade->prelim_grade + $grade->midterm_grade + $grade->prefinal_grade + $grade->final_grade) / 4;
+                    $grade->semester_grade = round(($grade->prelim_grade + $grade->midterm_grade + $grade->prefinal_grade + $grade->final_grade) / 4);
                     $grade->overall_status = $grade->semester_grade >= 60 ? 'passed' : 'failed';
                 }
 
@@ -336,7 +336,7 @@ class GradeController extends Controller
 
                 // Calculate final grade - SHS only uses Q1 and Q2
                 if ($grade->first_quarter_grade !== null && $grade->second_quarter_grade !== null) {
-                    $grade->final_grade = round(($grade->first_quarter_grade + $grade->second_quarter_grade) / 2, 2);
+                    $grade->final_grade = round(($grade->first_quarter_grade + $grade->second_quarter_grade) / 2);
                     $grade->completion_status = $grade->final_grade >= 75 ? 'passed' : 'failed';
                 }
 
@@ -514,70 +514,40 @@ class GradeController extends Controller
      */
     public function exportPdf(Request $request, SectionSubject $sectionSubject)
     {
-        $user = Auth::user();
-        $teacher = Teacher::where('user_id', $user->id)->firstOrFail();
+        try {
+            $user = Auth::user();
+            $teacher = Teacher::where('user_id', $user->id)->firstOrFail();
 
-        // Verify teacher is assigned to this section subject
-        if ($sectionSubject->teacher_id !== $teacher->id) {
-            abort(403, 'Unauthorized access to this section subject.');
-        }
+            // Verify teacher is assigned to this section subject
+            if ($sectionSubject->teacher_id !== $teacher->id) {
+                return response()->json(['error' => 'Unauthorized access to this section subject.'], 403);
+            }
 
         // Get export options
         $separateByGender = $request->boolean('separate_by_gender', false);
         $gradeFormat = $request->input('grade_format', 'numeric'); // 'numeric' or 'gpa'
 
-        // Load the section and subject relationships
-        $sectionSubject->load(['section.program', 'subject']);
+        // Determine if college or SHS based on section
+        $isCollegeLevel = false;
+        $isShsLevel = false;
 
-        $section = $sectionSubject->section;
-
-        // Get students enrolled in this specific subject for this teacher
-        $subjectEnrollments = StudentSubjectEnrollment::with([
-            'student.user',
-            'sectionSubject.subject',
-        ])
-            ->where('section_subject_id', $sectionSubject->id)
-            ->where('status', 'active')
-            ->whereHas('student.user', function ($query) {
-                $query->whereNotNull('name')
-                    ->where('name', '!=', '')
-                    ->where('name', 'not like', '%Unknown%');
-            })
-            ->get();
-
-        // Transform to enrollment format
-        $enrollments = $subjectEnrollments->map(function ($subjectEnrollment) {
-            // Find the student's enrollment in this section
-            $enrollment = $subjectEnrollment->student->enrollments->first();
-
-            if (! $enrollment) {
-                // Create a mock enrollment for irregular students
-                $enrollment = (object) [
-                    'student' => $subjectEnrollment->student,
-                ];
+        // Helper function to convert grade based on format
+        $convertGrade = function ($grade) use ($gradeFormat) {
+            if ($grade === null || $grade === '') {
+                return '';
             }
 
-            return $enrollment;
-        })->filter();
+            $numericGrade = (float) $grade;
 
-        // Sort by last name
-        $enrollments = $enrollments->sort(function ($a, $b) {
-            $nameA = $a->student->user->name ?? '';
-            $nameB = $b->student->user->name ?? '';
+            if ($gradeFormat === 'gpa') {
+                // Delegate conversion to AcademicHelper so the logic is centralized
+                $gpa = AcademicHelper::convertToGPA($numericGrade);
+                return $gpa ?? '';
+            }
 
-            // Split names and get last name
-            $partsA = explode(' ', $nameA);
-            $partsB = explode(' ', $nameB);
-
-            $lastNameA = count($partsA) > 1 ? end($partsA) : $nameA;
-            $lastNameB = count($partsB) > 1 ? end($partsB) : $nameB;
-
-            return strcmp($lastNameA, $lastNameB);
-        });
-
-        // Determine if college or SHS based on section
-        $isCollegeLevel = in_array($section->year_level, [1, 2, 3, 4]);
-        $isShsLevel = in_array($section->year_level, [11, 12]);
+            // Default to numeric format, properly rounded to whole number
+            return number_format(round($numericGrade), 0);
+        };
 
         // Helper function to format student name as "LastName, FirstName MiddleInitial."
         $formatStudentName = function ($fullName) {
@@ -608,13 +578,150 @@ class GradeController extends Controller
             return trim("{$lastName}, {$firstName} {$middleInitial}");
         };
 
-        // Helper function to convert grade to GPA format if needed
-        $convertGrade = function ($grade) use ($gradeFormat) {
-            if ($gradeFormat === 'gpa' && is_numeric($grade)) {
-                return AcademicHelper::convertToGPA((float) $grade);
+        // Helper function to format section name as "PROGRAM-yearlevel section name"
+        $formatSectionName = function ($section) {
+            $programCode = $section->program->program_code ?? 'N/A';
+            $yearLevel = $section->year_level ?? '';
+
+            // Get identifier (usually the letter part like A, B, C, D)
+            $identifierMatch = preg_match('/([A-Za-z]+)$/', $section->section_name, $matches);
+            $identifier = $identifierMatch ? strtoupper($matches[1]) : '';
+
+            if ($yearLevel && $identifier) {
+                return "{$programCode}-{$yearLevel}{$identifier}";
+            } elseif ($identifier) {
+                return "{$programCode}-{$identifier}";
             }
 
-            return $grade;
+            // Fallback to original section name if parsing fails
+            return $section->section_name;
+        };
+
+        // Load the section and subject relationships
+        $sectionSubject->load(['section.program', 'subject']);
+
+        $section = $sectionSubject->section;
+
+        if (!$section) {
+            return response()->json(['error' => 'Section not found for this section subject.'], 404);
+        }
+
+        // Determine if college or SHS based on section
+        $isCollegeLevel = in_array($section->year_level, [1, 2, 3, 4]);
+        $isShsLevel = in_array($section->year_level, [11, 12]);
+
+        // Get students enrolled in this specific subject for this teacher
+        $subjectEnrollments = StudentSubjectEnrollment::with([
+            'student.user',
+            'sectionSubject.subject',
+        ])
+            ->where('section_subject_id', $sectionSubject->id)
+            ->where('status', 'active')
+            ->whereHas('student.user', function ($query) {
+                $query->whereNotNull('name')
+                    ->where('name', '!=', '')
+                    ->where('name', 'not like', '%Unknown%');
+            })
+            ->get();
+
+        // Transform to enrollment format
+        $enrollments = $subjectEnrollments->map(function ($subjectEnrollment) {
+            // Find the student's enrollment in this section
+            $enrollment = $subjectEnrollment->student->enrollments->first();
+
+            if (! $enrollment) {
+                // Create a mock enrollment for irregular students
+                $enrollment = (object) [
+                    'student' => $subjectEnrollment->student,
+                ];
+            }
+
+            return $enrollment;
+        })->filter();
+
+        if ($enrollments->isEmpty()) {
+            return response()->json(['error' => 'No students found for this section subject.'], 404);
+        }
+
+        // Sort by last name
+        $enrollments = $enrollments->sort(function ($a, $b) {
+            $nameA = $a->student->user->name ?? '';
+            $nameB = $b->student->user->name ?? '';
+
+            // Split names and get last name
+            $partsA = explode(' ', $nameA);
+            $partsB = explode(' ', $nameB);
+
+            $lastNameA = count($partsA) > 1 ? end($partsA) : $nameA;
+            $lastNameB = count($partsB) > 1 ? end($partsB) : $nameB;
+
+            return strcmp($lastNameA, $lastNameB);
+        });
+
+        // Helper function to convert grade based on format
+        $convertGrade = function ($grade) use ($gradeFormat) {
+            if ($grade === null || $grade === '') {
+                return '';
+            }
+
+            $numericGrade = (float) $grade;
+
+            if ($gradeFormat === 'gpa') {
+                // Delegate to AcademicHelper for GPA scale
+                $gpa = AcademicHelper::convertToGPA($numericGrade);
+                return $gpa ?? '';
+            }
+
+            // Default to numeric format, properly rounded to whole number
+            return number_format(round($numericGrade), 0);
+        };
+
+        // Helper function to format student name as "LastName, FirstName MiddleInitial."
+        $formatStudentName = function ($fullName) {
+            if (! $fullName || trim($fullName) === '') {
+                return 'UNKNOWN STUDENT';
+            }
+
+            $nameParts = explode(' ', trim($fullName));
+            if (count($nameParts) === 1) {
+                return strtoupper($fullName);
+            }
+
+            // Last name is the last part
+            $lastName = strtoupper(end($nameParts));
+
+            // First name is the first part
+            $firstName = strtoupper($nameParts[0]);
+
+            // Middle name/initial is everything in between
+            $middleInitial = '';
+            if (count($nameParts) > 2) {
+                $middleParts = array_slice($nameParts, 1, -1);
+                $middleInitial = strtoupper(implode('', array_map(function ($part) {
+                    return substr($part, 0, 1);
+                }, $middleParts))).'.';
+            }
+
+            return trim("{$lastName}, {$firstName} {$middleInitial}");
+        };
+
+        // Helper function to format section name as "PROGRAM-yearlevel section name"
+        $formatSectionName = function ($section) {
+            $programCode = $section->program->program_code ?? 'N/A';
+            $yearLevel = $section->year_level ?? '';
+
+            // Get identifier (usually the letter part like A, B, C, D)
+            $identifierMatch = preg_match('/([A-Za-z]+)$/', $section->section_name, $matches);
+            $identifier = $identifierMatch ? strtoupper($matches[1]) : '';
+
+            if ($yearLevel && $identifier) {
+                return "{$programCode}-{$yearLevel}{$identifier}";
+            } elseif ($identifier) {
+                return "{$programCode}-{$identifier}";
+            }
+
+            // Fallback to original section name if parsing fails
+            return $section->section_name;
         };
 
         if ($separateByGender) {
@@ -654,12 +761,14 @@ class GradeController extends Controller
                             'prefinal_grade' => $convertGrade($studentGrades->prefinal_grade ?? ''),
                             'final_grade' => $convertGrade($studentGrades->final_grade ?? ''),
                             'semester_grade' => $convertGrade($studentGrades->semester_grade ?? ''),
+                            'remarks' => $studentGrades->teacher_remarks ?? '',
                         ]);
                     } elseif ($isShsLevel) {
                         $gradeData = array_merge($gradeData, [
                             'q1_grade' => $convertGrade($shsStudentGrades->first_quarter_grade ?? ''),
                             'q2_grade' => $convertGrade($shsStudentGrades->second_quarter_grade ?? ''),
                             'semester_grade' => $convertGrade($shsStudentGrades->final_grade ?? ''),
+                            'remarks' => $shsStudentGrades->teacher_remarks ?? '',
                         ]);
                     } else {
                         $gradeData = array_merge($gradeData, [
@@ -668,6 +777,7 @@ class GradeController extends Controller
                             'q3_grade' => $convertGrade($studentGrades->third_quarter_grade ?? ''),
                             'q4_grade' => $convertGrade($studentGrades->fourth_quarter_grade ?? ''),
                             'semester_grade' => $convertGrade($studentGrades->semester_grade ?? ''),
+                            'remarks' => $studentGrades->teacher_remarks ?? '',
                         ]);
                     }
 
@@ -699,12 +809,14 @@ class GradeController extends Controller
                             'prefinal_grade' => $convertGrade($studentGrades->prefinal_grade ?? ''),
                             'final_grade' => $convertGrade($studentGrades->final_grade ?? ''),
                             'semester_grade' => $convertGrade($studentGrades->semester_grade ?? ''),
+                            'remarks' => $studentGrades->teacher_remarks ?? '',
                         ]);
                     } elseif ($isShsLevel) {
                         $gradeData = array_merge($gradeData, [
                             'q1_grade' => $convertGrade($shsStudentGrades->first_quarter_grade ?? ''),
                             'q2_grade' => $convertGrade($shsStudentGrades->second_quarter_grade ?? ''),
                             'semester_grade' => $convertGrade($shsStudentGrades->final_grade ?? ''),
+                            'remarks' => $shsStudentGrades->teacher_remarks ?? '',
                         ]);
                     } else {
                         $gradeData = array_merge($gradeData, [
@@ -713,6 +825,7 @@ class GradeController extends Controller
                             'q3_grade' => $convertGrade($studentGrades->third_quarter_grade ?? ''),
                             'q4_grade' => $convertGrade($studentGrades->fourth_quarter_grade ?? ''),
                             'semester_grade' => $convertGrade($studentGrades->semester_grade ?? ''),
+                            'remarks' => $studentGrades->teacher_remarks ?? '',
                         ]);
                     }
 
@@ -743,12 +856,14 @@ class GradeController extends Controller
                         'prefinal_grade' => $convertGrade($studentGrades->prefinal_grade ?? ''),
                         'final_grade' => $convertGrade($studentGrades->final_grade ?? ''),
                         'semester_grade' => $convertGrade($studentGrades->semester_grade ?? ''),
+                        'remarks' => $studentGrades->teacher_remarks ?? '',
                     ]);
                 } elseif ($isShsLevel) {
                     $gradeData = array_merge($gradeData, [
                         'q1_grade' => $convertGrade($shsStudentGrades->first_quarter_grade ?? ''),
                         'q2_grade' => $convertGrade($shsStudentGrades->second_quarter_grade ?? ''),
                         'semester_grade' => $convertGrade($shsStudentGrades->final_grade ?? ''),
+                        'remarks' => $shsStudentGrades->teacher_remarks ?? '',
                     ]);
                 } else {
                     $gradeData = array_merge($gradeData, [
@@ -757,6 +872,7 @@ class GradeController extends Controller
                         'q3_grade' => $convertGrade($studentGrades->third_quarter_grade ?? ''),
                         'q4_grade' => $convertGrade($studentGrades->fourth_quarter_grade ?? ''),
                         'semester_grade' => $convertGrade($studentGrades->semester_grade ?? ''),
+                        'remarks' => $studentGrades->teacher_remarks ?? '',
                     ]);
                 }
 
@@ -773,14 +889,19 @@ class GradeController extends Controller
             'isShsLevel' => $isShsLevel,
             'separateByGender' => $separateByGender,
             'gradeFormat' => $gradeFormat,
-            'generatedAt' => now('Asia/Manila')->format('F j, Y g:i A'),
+            'generatedAt' => now('Asia/Manila')->format('F j, Y'),
+            'formattedSectionName' => $formatSectionName($section),
         ];
 
         $pdf = Pdf::loadView('pdf.teacher-grades', $data);
 
-        $fileName = 'grades_'.str_replace(' ', '_', $section->section_name ?? 'section').'_'.
+        $fileName = 'grades_'.str_replace(' ', '_', $formatSectionName($section)).'_'.
                    str_replace(' ', '_', $section->academic_year ?? 'year').'_Sem'.$section->semester.'.pdf';
 
         return $pdf->download($fileName);
+        } catch (\Exception $e) {
+            \Log::error('PDF Export Error: ' . $e->getMessage());
+            return response()->json(['error' => 'Failed to generate PDF: ' . $e->getMessage()], 500);
+        }
     }
 }

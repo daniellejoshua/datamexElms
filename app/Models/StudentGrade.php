@@ -21,6 +21,7 @@ class StudentGrade extends Model
         'semester_grade',
         'overall_status',
         'status',
+        'teacher_remarks',
     ];
 
     protected function casts(): array

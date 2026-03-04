@@ -194,7 +194,7 @@ export default function Show({ section, sectionSubject, enrollments, isCollegeLe
             const final = parseFloat(gradeData.final_grade) || 0;
             
             if (prelim && midterm && prefinal && final) {
-                return ((prelim + midterm + prefinal + final) / 4).toFixed(2);
+                return Math.round((prelim + midterm + prefinal + final) / 4);
             }
         } else if (isShsLevel) {
             // SHS only uses Q1 and Q2
@@ -202,7 +202,7 @@ export default function Show({ section, sectionSubject, enrollments, isCollegeLe
             const q2 = parseFloat(gradeData.second_quarter_grade);
             
             if (!isNaN(q1) && !isNaN(q2) && gradeData.first_quarter_grade !== null && gradeData.second_quarter_grade !== null) {
-                return Math.round(((q1 + q2) / 2) * 100) / 100;
+                return Math.round((q1 + q2) / 2);
             }
         } else {
             // Other non-college, non-SHS levels use Q1-Q4
@@ -212,7 +212,7 @@ export default function Show({ section, sectionSubject, enrollments, isCollegeLe
             const q4 = parseFloat(gradeData.fourth_quarter_grade) || 0;
             
             if (q1 && q2 && q3 && q4) {
-                return ((q1 + q2 + q3 + q4) / 4).toFixed(2);
+                return Math.round((q1 + q2 + q3 + q4) / 4);
             }
         }
         return '';
@@ -369,8 +369,8 @@ export default function Show({ section, sectionSubject, enrollments, isCollegeLe
         }, {
             preserveScroll: true,
             onSuccess: (response) => {
-                // Reload the page to get updated data from server
-                window.location.reload();
+                // Grades saved successfully - no page reload needed
+                console.log('Grades saved successfully');
             },
             onError: () => {
                 console.error('Error saving grades');

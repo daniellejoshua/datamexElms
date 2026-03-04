@@ -30,9 +30,9 @@
         <div class="school-name">DATAMEX COLLEGE SAINT ADELINE, INC.</div>
         <div class="school-address">2nd floor. Gotaco Bldg 2, 32 MacArthur Highway, Valenzuela</div>
         <div class="report-title">CLASS GRADE REPORT</div>
-        <div class="report-info">{{ $sectionSubject->subject->subject_name ?? 'Subject' }} &nbsp;|&nbsp; {{ $section->section_name ?? 'Section' }}</div>
-        <div class="report-info">Academic Year: {{ $section->academic_year }} &nbsp;|&nbsp; Semester: {{ $section->semester }} &nbsp;|&nbsp; Teacher: {{ $teacher->user->name ?? 'N/A' }}</div>
-        <div class="report-info">Generated: {{ $generatedAt }}</div>
+        <div class="report-info">{{ $sectionSubject->subject->subject_name ?? 'Subject' }} &nbsp;|&nbsp; {{ $formattedSectionName ?? $section->section_name ?? 'Section' }}</div>
+        <div class="report-info">Academic Year: {{ $section->academic_year ?? 'N/A' }} &nbsp;|&nbsp; Semester: {{ $section->semester ?? 'N/A' }} &nbsp;|&nbsp; Teacher: {{ $teacher->user->name ?? 'N/A' }}</div>
+        <div class="report-info">{{ $generatedAt }}</div>
     </div>
 
     @if($grades)
@@ -54,21 +54,24 @@
                                 <th style="width:15%;">Student ID</th>
                                 <th style="width:30%;">Student Name</th>
                                 @if($isCollegeLevel)
-                                    <th style="width:10%;" class="grade-cell">Prelim</th>
-                                    <th style="width:10%;" class="grade-cell">Midterm</th>
-                                    <th style="width:10%;" class="grade-cell">Prefinals</th>
-                                    <th style="width:10%;" class="grade-cell">Finals</th>
-                                    <th style="width:10%;" class="grade-cell">Semester</th>
+                                    <th style="width:8%;" class="grade-cell">Prelim</th>
+                                    <th style="width:8%;" class="grade-cell">Midterm</th>
+                                    <th style="width:8%;" class="grade-cell">Pre Finals</th>
+                                    <th style="width:8%;" class="grade-cell">Finals</th>
+                                    <th style="width:8%;" class="grade-cell">Semester</th>
+                                    <th style="width:15%;">Remarks</th>
                                 @elseif($isShsLevel)
-                                    <th style="width:15%;" class="grade-cell">Q1</th>
-                                    <th style="width:15%;" class="grade-cell">Q2</th>
-                                    <th style="width:15%;" class="grade-cell">Semester</th>
+                                    <th style="width:12%;" class="grade-cell">Quarter 1</th>
+                                    <th style="width:12%;" class="grade-cell">Quarter 2</th>
+                                    <th style="width:12%;" class="grade-cell">Semester</th>
+                                    <th style="width:20%;">Remarks</th>
                                 @else
-                                    <th style="width:8%;" class="grade-cell">Q1</th>
-                                    <th style="width:8%;" class="grade-cell">Q2</th>
-                                    <th style="width:8%;" class="grade-cell">Q3</th>
-                                    <th style="width:8%;" class="grade-cell">Q4</th>
-                                    <th style="width:10%;" class="grade-cell">Semester</th>
+                                    <th style="width:6%;" class="grade-cell">Q1</th>
+                                    <th style="width:6%;" class="grade-cell">Q2</th>
+                                    <th style="width:6%;" class="grade-cell">Q3</th>
+                                    <th style="width:6%;" class="grade-cell">Q4</th>
+                                    <th style="width:8%;" class="grade-cell">Semester</th>
+                                    <th style="width:15%;">Remarks</th>
                                 @endif
                             </tr>
                         </thead>
@@ -88,16 +91,19 @@
                             <td class="grade-cell">{{ $grade['prefinal_grade'] ?: '—' }}</td>
                             <td class="grade-cell">{{ $grade['final_grade'] ?: '—' }}</td>
                             <td class="grade-cell">{{ $grade['semester_grade'] ?: '—' }}</td>
+                            <td>{{ $grade['remarks'] ?: '—' }}</td>
                         @elseif($isShsLevel)
                             <td class="grade-cell">{{ $grade['q1_grade'] ?: '—' }}</td>
                             <td class="grade-cell">{{ $grade['q2_grade'] ?: '—' }}</td>
                             <td class="grade-cell">{{ $grade['semester_grade'] ?: '—' }}</td>
+                            <td>{{ $grade['remarks'] ?: '—' }}</td>
                         @else
                             <td class="grade-cell">{{ $grade['q1_grade'] ?: '—' }}</td>
                             <td class="grade-cell">{{ $grade['q2_grade'] ?: '—' }}</td>
                             <td class="grade-cell">{{ $grade['q3_grade'] ?: '—' }}</td>
                             <td class="grade-cell">{{ $grade['q4_grade'] ?: '—' }}</td>
                             <td class="grade-cell">{{ $grade['semester_grade'] ?: '—' }}</td>
+                            <td>{{ $grade['remarks'] ?: '—' }}</td>
                         @endif
                     </tr>
                     @php
@@ -117,21 +123,24 @@
                         <th style="width:15%;">Student ID</th>
                         <th style="width:30%;">Student Name</th>
                         @if($isCollegeLevel)
-                            <th style="width:10%;" class="grade-cell">Prelim</th>
-                            <th style="width:10%;" class="grade-cell">Midterm</th>
-                            <th style="width:10%;" class="grade-cell">Prefinals</th>
-                            <th style="width:10%;" class="grade-cell">Finals</th>
-                            <th style="width:10%;" class="grade-cell">Semester</th>
+                            <th style="width:8%;" class="grade-cell">Prelim</th>
+                            <th style="width:8%;" class="grade-cell">Midterm</th>
+                            <th style="width:8%;" class="grade-cell">Pre Finals</th>
+                            <th style="width:8%;" class="grade-cell">Finals</th>
+                            <th style="width:8%;" class="grade-cell">Semester</th>
+                            <th style="width:15%;">Remarks</th>
                         @elseif($isShsLevel)
-                            <th style="width:15%;" class="grade-cell">Q1</th>
-                            <th style="width:15%;" class="grade-cell">Q2</th>
-                            <th style="width:15%;" class="grade-cell">Semester</th>
+                            <th style="width:12%;" class="grade-cell">Quarter 1</th>
+                            <th style="width:12%;" class="grade-cell">Quarter 2</th>
+                            <th style="width:12%;" class="grade-cell">Semester</th>
+                            <th style="width:20%;">Remarks</th>
                         @else
-                            <th style="width:8%;" class="grade-cell">Q1</th>
-                            <th style="width:8%;" class="grade-cell">Q2</th>
-                            <th style="width:8%;" class="grade-cell">Q3</th>
-                            <th style="width:8%;" class="grade-cell">Q4</th>
-                            <th style="width:10%;" class="grade-cell">Semester</th>
+                            <th style="width:6%;" class="grade-cell">Q1</th>
+                            <th style="width:6%;" class="grade-cell">Q2</th>
+                            <th style="width:6%;" class="grade-cell">Q3</th>
+                            <th style="width:6%;" class="grade-cell">Q4</th>
+                            <th style="width:8%;" class="grade-cell">Semester</th>
+                            <th style="width:15%;">Remarks</th>
                         @endif
                     </tr>
                 </thead>
@@ -147,16 +156,19 @@
                                 <td class="grade-cell">{{ $grade['prefinal_grade'] ?: '—' }}</td>
                                 <td class="grade-cell">{{ $grade['final_grade'] ?: '—' }}</td>
                                 <td class="grade-cell">{{ $grade['semester_grade'] ?: '—' }}</td>
+                                <td>{{ $grade['remarks'] ?: '—' }}</td>
                             @elseif($isShsLevel)
                                 <td class="grade-cell">{{ $grade['q1_grade'] ?: '—' }}</td>
                                 <td class="grade-cell">{{ $grade['q2_grade'] ?: '—' }}</td>
                                 <td class="grade-cell">{{ $grade['semester_grade'] ?: '—' }}</td>
+                                <td>{{ $grade['remarks'] ?: '—' }}</td>
                             @else
                                 <td class="grade-cell">{{ $grade['q1_grade'] ?: '—' }}</td>
                                 <td class="grade-cell">{{ $grade['q2_grade'] ?: '—' }}</td>
                                 <td class="grade-cell">{{ $grade['q3_grade'] ?: '—' }}</td>
                                 <td class="grade-cell">{{ $grade['q4_grade'] ?: '—' }}</td>
                                 <td class="grade-cell">{{ $grade['semester_grade'] ?: '—' }}</td>
+                                <td>{{ $grade['remarks'] ?: '—' }}</td>
                             @endif
                         </tr>
                     @endforeach
