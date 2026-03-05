@@ -94,6 +94,9 @@ class BackupManagerService
     {
         $timestamp = now()->format('Ymd_His');
         $relativePath = "backups/{$mode}/db-backup-{$timestamp}.sql.gz";
+        // ensure the parent directory exists before dumping
+        Storage::disk('local')->makeDirectory(dirname($relativePath));
+
         $absolutePath = Storage::disk('local')->path($relativePath);
 
         $this->runDatabaseDump($absolutePath);
@@ -218,8 +221,10 @@ class BackupManagerService
 
         $escapedPassword = str_replace("'", "'\"'\"'", (string) $password);
 
+        // add --no-tablespaces to avoid PROCESS privilege requirement on modern
+        // MySQL versions when running under restricted accounts.
         $command = sprintf(
-            "mysqldump -h %s -P %s -u%s -p'%s' %s | gzip > %s",
+            "mysqldump --no-tablespaces -h %s -P %s -u%s -p'%s' %s | gzip > %s",
             escapeshellarg((string) $host),
             escapeshellarg((string) $port),
             escapeshellarg((string) $username),
