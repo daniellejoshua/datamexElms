@@ -72,7 +72,11 @@ export default function AcademicHistory({ student, curriculumSubjects, completed
 
     // use optional chaining to avoid runtime errors if `student` is not provided
     const isShiftee = student?.course_shifted_at !== null;
-    const isTransferee = student?.transfer_type === 'transferee';
+    // transfer_type may not be present on the Student model in all contexts;
+    // treat the student as a transferee if transfer_type === 'transferee' OR
+    // if there are credited subject entries that include an external source
+    const isTransferee = student?.transfer_type === 'transferee' ||
+        subjectGrades?.some(g => g?.type === 'credited' && !!g?.credited_from);
     // a credit is considered "internal" if it came from within the school (no
     // credited_from value) – these rows should show professor and hide credit/type
     function isInternalCredit(subject) {
@@ -183,7 +187,7 @@ export default function AcademicHistory({ student, curriculumSubjects, completed
                                     Subjects Completed
                                     {(creditedCount > 0) && (
                                         <div className="text-xs mt-1 text-green-700">
-                                            {completedCount} graded + {creditedCount} {isShiftee ? 'Previous Program' : 'Previous School'} Credited Subject
+                                            {completedCount} graded + {creditedCount} {isTransferee ? 'Previous School' : 'Previous Program'} Credited Subject
                                         </div>
                                     )}
                                 </div>

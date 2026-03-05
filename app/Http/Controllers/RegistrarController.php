@@ -833,14 +833,16 @@ class RegistrarController extends Controller
                 ])->withInput();
             }
 
-            // For non-SHS students, ensure payment amount is at least equal to enrollment fee
-            if ($validated['education_level'] !== 'senior_high') {
-                $enrollmentFee = (float) ($validated['enrollment_fee'] ?? 0);
+            // Do not allow payment greater than the enrollment/program fee.  We already
+            // applied the 'min:0' rule via validator so negatives are prevented.
+            if (isset($validated['payment_amount'])) {
+                $programFee = (float) ($validated['enrollment_fee'] ?? 0);
                 $paymentAmount = (float) $validated['payment_amount'];
 
-                if ($paymentAmount < $enrollmentFee) {
+                // irregular registrations may have zero fee; skip the cap check for them
+                if (($validated['student_type'] ?? '') !== 'irregular' && $paymentAmount > $programFee) {
                     return back()->withErrors([
-                        'payment_amount' => 'Payment amount must be at least equal to the enrollment fee.',
+                        'payment_amount' => 'Payment cannot exceed the program fee.',
                     ])->withInput();
                 }
             }
@@ -1301,6 +1303,26 @@ class RegistrarController extends Controller
                 ])->withInput();
             }
 
+            // also verify that computed enrollment fee does not exceed the program’s
+            // official fee for the given program/year level. this guards against
+            // malicious form submissions.
+            $maxProgramFee = $program->programFees()
+                ->where('year_level', $numericYearLevel)
+                ->where('fee_type', 'regular')
+                ->value('semester_fee');
+
+            if ($maxProgramFee !== null && $enrollmentFee > $maxProgramFee) {
+                return back()->withErrors([
+                    'enrollment_fee' => 'Enrollment fee cannot exceed the program fee.',
+                ])->withInput();
+            }
+
+            // enforce payment cap as well (applies to all students)
+            if ($paymentAmount > $enrollmentFee) {
+                return back()->withErrors([
+                    'payment_amount' => 'Payment cannot exceed the program (enrollment) fee.',
+                ])->withInput();
+            }
             // SHS students with active vouchers can have zero enrollment fee
             // Also allow zero for all irregular students (fees calculated based on enrolled subjects)
             if ($enrollmentFee == 0 &&

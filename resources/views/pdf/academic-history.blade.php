@@ -61,10 +61,30 @@
 
         $grouped = [];
         foreach ($curriculumSubjects as $sub) {
-            $y = 'Year '.$sub->year_level;
+            // convert year level to ordinal (1st Year, 2nd Year, etc.)
+            $num = $sub->year_level;
+            $suffix = 'th';
+            if ($num % 10 === 1 && $num % 100 !== 11) {
+                $suffix = 'st';
+            } elseif ($num % 10 === 2 && $num % 100 !== 12) {
+                $suffix = 'nd';
+            } elseif ($num % 10 === 3 && $num % 100 !== 13) {
+                $suffix = 'rd';
+            }
+            $y = $num.$suffix.' Year';
+
             $s = $sub->semester === '1st' ? '1st Semester' : ($sub->semester === '2nd' ? '2nd Semester' : ucfirst($sub->semester));
             $grouped[$y][$s][] = $sub;
         }
+
+        // ensure semesters within each year appear in logical order regardless of insertion
+        foreach ($grouped as &$semesters) {
+            $order = ['1st Semester', '2nd Semester', 'Summer'];
+            uksort($semesters, function ($a, $b) use ($order) {
+                return array_search($a, $order) <=> array_search($b, $order);
+            });
+        }
+        unset($semesters);
 
         // compute longest subject name (characters) and clamp to a reasonable max for PDF
         $maxSubjectNameLen = 0;
