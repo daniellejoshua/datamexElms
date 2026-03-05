@@ -388,8 +388,12 @@ export default function Index({ curricula, programs, filters = {} }) {
 
                 {/* Pagination */}
                 {curricula.last_page > 1 && (
-                    <div className="flex justify-center">
-                        <div className="flex space-x-1">
+                    <div className="mt-6 space-y-3">
+                        <div className="text-center text-sm text-gray-600">
+                            Page {curricula.current_page} of {curricula.last_page}
+                        </div>
+                        <div className="flex justify-center">
+                            <div className="flex flex-wrap items-center gap-1">
                             {curricula.links.map((link, index) => (
                                 <Button
                                     key={index}
@@ -406,6 +410,7 @@ export default function Index({ curricula, programs, filters = {} }) {
                                     )}
                                 </Button>
                             ))}
+                            </div>
                         </div>
                     </div>
                 )}

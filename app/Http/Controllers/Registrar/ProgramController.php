@@ -71,6 +71,10 @@ class ProgramController extends Controller
      */
     public function create()
     {
+        if (auth()->user()->role !== 'head_teacher') {
+            abort(403);
+        }
+
         return Inertia::render('Registrar/Programs/Create');
     }
 
@@ -79,6 +83,10 @@ class ProgramController extends Controller
      */
     public function store(Request $request)
     {
+        if (auth()->user()->role !== 'head_teacher') {
+            abort(403);
+        }
+
         $validated = $request->validate([
             'program_code' => 'required|string|max:20|unique:programs',
             'program_name' => 'required|string|max:255',
@@ -173,6 +181,10 @@ class ProgramController extends Controller
      */
     public function update(Request $request, Program $program)
     {
+        if (auth()->user()->role !== 'head_teacher') {
+            abort(403);
+        }
+
         $validated = $request->validate([
             'program_name' => 'required|string|max:255',
             'program_code' => 'required|string|max:20|unique:programs,program_code,'.$program->id,
@@ -242,6 +254,10 @@ class ProgramController extends Controller
      */
     public function edit(Program $program)
     {
+        if (auth()->user()->role !== 'head_teacher') {
+            abort(403);
+        }
+
         $program->load(['subjects', 'programFees']);
 
         return Inertia::render('Registrar/Programs/Edit', [
@@ -254,6 +270,10 @@ class ProgramController extends Controller
      */
     public function destroy(Program $program)
     {
+        if (auth()->user()->role !== 'head_teacher') {
+            abort(403);
+        }
+
         // Check if program has students or sections
         if ($program->students()->count() > 0 || $program->sections()->count() > 0) {
             return redirect()->route('registrar.programs.index')

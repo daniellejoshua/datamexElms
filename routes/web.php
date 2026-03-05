@@ -88,19 +88,7 @@ Route::middleware(['auth', 'verified', 'role:registrar'])->prefix('registrar')->
         Route::get('/fee-structure', [ShsPaymentController::class, 'getFeeStructure'])->name('fee-structure');
     });
 
-    // Program Management Routes
-    Route::prefix('programs')->name('programs.')->group(function () {
-        Route::get('/', [ProgramController::class, 'index'])->name('index');
-        Route::get('/create', [ProgramController::class, 'create'])->name('create');
-        Route::post('/', [ProgramController::class, 'store'])->name('store');
-        Route::get('/{program}', [ProgramController::class, 'show'])->name('show');
-        Route::get('/{program}/edit', [ProgramController::class, 'edit'])->name('edit');
-        Route::put('/{program}', [ProgramController::class, 'update'])->name('update');
-        Route::delete('/{program}', [ProgramController::class, 'destroy'])->name('destroy');
-
-        // Subject Management within Programs
-        Route::get('/subjects/{educationLevel}', [ProgramController::class, 'getSubjectsByEducationLevel'])->name('subjects.by-education-level');
-    });
+    // Program Management Routes (moved to top-level to allow head_teacher access)
 
     // Student Progression Routes
     Route::prefix('progression')->name('progression.')->group(function () {
@@ -286,6 +274,19 @@ Route::middleware(['web', 'auth', 'verified'])->prefix('admin')->name('admin.')-
         // Registrar Management Routes
         Route::resource('registrars', \App\Http\Controllers\Admin\RegistrarController::class);
     });
+});
+// Programs accessible to both registrar and head_teacher (create/edit restricted server-side)
+Route::middleware(['auth', 'verified', 'role:registrar,head_teacher'])->prefix('registrar/programs')->name('registrar.programs.')->group(function () {
+    Route::get('/', [ProgramController::class, 'index'])->name('index');
+    Route::get('/create', [ProgramController::class, 'create'])->name('create');
+    Route::post('/', [ProgramController::class, 'store'])->name('store');
+    Route::get('/{program}', [ProgramController::class, 'show'])->name('show');
+    Route::get('/{program}/edit', [ProgramController::class, 'edit'])->name('edit');
+    Route::put('/{program}', [ProgramController::class, 'update'])->name('update');
+    Route::delete('/{program}', [ProgramController::class, 'destroy'])->name('destroy');
+
+    // Subject Management within Programs
+    Route::get('/subjects/{educationLevel}', [ProgramController::class, 'getSubjectsByEducationLevel'])->name('subjects.by-education-level');
 });
 Route::prefix('registrar')->name('registrar.')->middleware(['auth'])->group(function () {
     // Payment Management

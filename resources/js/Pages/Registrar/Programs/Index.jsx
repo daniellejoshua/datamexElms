@@ -258,12 +258,14 @@ export default function ProgramsIndex({ programs, auth, filters = {} }) {
                             </div>
 
                             <div className="flex items-end">
-                                <Button asChild size="sm" className="bg-red-600 hover:bg-red-700 text-white h-8">
-                                    <Link href={route('registrar.programs.create')}>
-                                        <Plus className="w-3 h-3 mr-1" />
-                                        Create Program
-                                    </Link>
-                                </Button>
+                                {auth?.user?.role === 'head_teacher' && (
+                                    <Button asChild size="sm" className="bg-red-600 hover:bg-red-700 text-white h-8">
+                                        <Link href={route('registrar.programs.create')}>
+                                            <Plus className="w-3 h-3 mr-1" />
+                                            Create Program
+                                        </Link>
+                                    </Button>
+                                )}
                             </div>
                         </div>
 
@@ -461,10 +463,12 @@ export default function ProgramsIndex({ programs, auth, filters = {} }) {
                                                 View
                                             </Link>
                                         </Button>
-                                        <Button variant="outline" className="border-2 border-gray-300 text-gray-700 hover:bg-gray-50 font-medium" onClick={() => openEditModal(program)}>
-                                            <Edit className="w-3 h-3 mr-1" />
-                                            Edit
-                                        </Button>
+                                        {auth?.user?.role === 'head_teacher' && (
+                                            <Button variant="outline" className="border-2 border-gray-300 text-gray-700 hover:bg-gray-50 font-medium" onClick={() => openEditModal(program)}>
+                                                <Edit className="w-3 h-3 mr-1" />
+                                                Edit
+                                            </Button>
+                                        )}
                                     </div>
                                 </div>
                             </CardContent>

@@ -29,7 +29,14 @@ class CollegeSectionController extends Controller
         $currentAcademicYear = SchoolSetting::getCurrentAcademicYear();
         $currentSemester = SchoolSetting::getCurrentSemester();
 
-        $query = Section::with(['program', 'subjects', 'sectionSubjects.teacher.user'])
+        $query = Section::with([
+            'program',
+            'subjects',
+            'sectionSubjects' => function ($query) {
+                $query->where('status', 'active')
+                    ->with('teacher.user');
+            },
+        ])
             ->whereHas('program', function ($programQuery) {
                 $programQuery->where('education_level', 'college');
             })
@@ -268,7 +275,13 @@ class CollegeSectionController extends Controller
             abort(404);
         }
 
-        $section->load(['program', 'sectionSubjects.subject', 'sectionSubjects.teacher.user']);
+        $section->load([
+            'program',
+            'sectionSubjects' => function ($query) {
+                $query->where('status', 'active')
+                    ->with(['subject', 'teacher.user']);
+            },
+        ]);
 
         $subjects = Subject::where('education_level', 'college')
             ->orderBy('subject_code')

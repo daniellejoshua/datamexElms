@@ -12,7 +12,7 @@ import { Badge } from '@/components/ui/badge';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { useEffect } from 'react';
 
-export default function EditCurriculum({ curriculum, programs, currentSemester }) {
+export default function EditCurriculum({ curriculum, programs, currentSemester, activeFirstYearEnrollments = 0 }) {
     const { data, setData, put, processing, errors } = useForm({
         program_id: curriculum.program_id,
         curriculum_code: curriculum.curriculum_code,
@@ -21,7 +21,7 @@ export default function EditCurriculum({ curriculum, programs, currentSemester }
     });
 
     const isAcademicYearOngoing = currentSemester === '1st' || currentSemester === '2nd';
-    const canSetAsCurrent = currentSemester !== '2nd';
+    const canSetAsCurrent = currentSemester !== '2nd' && activeFirstYearEnrollments === 0;
 
     const submit = (e) => {
         e.preventDefault();
@@ -97,7 +97,7 @@ export default function EditCurriculum({ curriculum, programs, currentSemester }
                                                 </Badge>
                                             ) : (
                                                 <Badge variant="outline" className="text-gray-600 border-gray-400">
-                                                    Old
+                                                    Not Current
                                                 </Badge>
                                             )}
                                         </div>
@@ -165,26 +165,37 @@ export default function EditCurriculum({ curriculum, programs, currentSemester }
                                     )}
                                 </div>
 
-                                <div className="flex items-center space-x-2">
-                                    <Checkbox
-                                        id="is_current"
-                                        checked={data.is_current}
-                                        onCheckedChange={(checked) => setData('is_current', checked)}
-                                        disabled={!canSetAsCurrent}
-                                    />
-                                    <Label htmlFor="is_current" className={`text-sm font-medium ${!canSetAsCurrent ? 'text-gray-400' : ''}`}>
-                                        Set as Current Curriculum for Program
-                                    </Label>
-                                </div>
-                                
-                                {(currentSemester === '2nd' || (currentSemester === '1st' && !curriculum.is_current)) && (
+                                {curriculum.is_current ? (
+                                    <div className="flex items-center gap-3">
+                                        <Badge className="bg-gradient-to-r from-yellow-400 to-orange-500 text-white border-yellow-300">
+                                            Current Curriculum
+                                        </Badge>
+                                        <p className="text-sm text-gray-600">This curriculum is currently active for the program and cannot be unset from this edit form.</p>
+                                    </div>
+                                ) : (
+                                    <div className="flex items-center space-x-2">
+                                        <Checkbox
+                                            id="is_current"
+                                            checked={data.is_current}
+                                            onCheckedChange={(checked) => setData('is_current', checked)}
+                                            disabled={!canSetAsCurrent}
+                                        />
+                                        <Label htmlFor="is_current" className={`text-sm font-medium ${!canSetAsCurrent ? 'text-gray-400' : ''}`}>
+                                            Set as Current Curriculum for Program
+                                        </Label>
+                                    </div>
+                                )}
+
+                                {activeFirstYearEnrollments > 0 && (
                                     <Alert variant="destructive" className="mt-2">
                                         <AlertCircle className="h-4 w-4" />
                                         <AlertDescription>
-                                            <strong>Academic Year in Progress:</strong> You cannot set a curriculum as current during an ongoing academic year ({currentSemester} Semester). This can only be done after the 2nd semester is complete to prevent disruption to current students.
+                                            <strong>Blocked:</strong> There are {activeFirstYearEnrollments} active enrollment(s) in first-year sections for this program and academic year. You cannot set a new curriculum as current while students are actively enrolled.
                                         </AlertDescription>
                                     </Alert>
                                 )}
+                                
+                                
                                 
                                 <p className="text-xs text-gray-500">
                                     When checked, all new students in this program will be assigned to this curriculum.

@@ -9,6 +9,11 @@ use App\Models\Program;
 use App\Models\Subject;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
+use App\Models\Section;
+use App\Models\StudentEnrollment;
+use App\Models\SectionSubject;
+use Illuminate\Support\Facades\DB;
+use App\Models\SchoolSetting;
 
 class CurriculumController extends Controller
 {
@@ -60,15 +65,16 @@ class CurriculumController extends Controller
     {
         $programs = Program::active()->get();
 
-        // Load all minor subjects initially
-        $minorSubjects = Subject::where('subject_type', 'minor')
+        // Load base subjects for curriculum builder:
+        // college => minor, SHS => core/applied
+        $baseSubjects = Subject::whereIn('subject_type', ['minor', 'core', 'applied'])
             ->where('status', 'active')
             ->orderBy('subject_code')
             ->get();
 
         return Inertia::render('Admin/Curriculum/Create', [
             'programs' => $programs,
-            'subjects' => $minorSubjects,
+            'subjects' => $baseSubjects,
         ]);
     }
 
@@ -101,11 +107,15 @@ class CurriculumController extends Controller
             'program_id' => 'required|exists:programs,id',
         ]);
 
-        $program = \App\Models\Program::find($request->program_id);
+        $program = Program::find($request->program_id);
+        $educationLevel = strtolower((string) ($program?->education_level ?? ''));
+        $majorLikeType = in_array($educationLevel, ['senior_high', 'shs'], true)
+            ? 'specialized'
+            : 'major';
 
-        // For all programs, show major subjects for that specific program
+        // Load program-specific specialization subjects
         $subjects = Subject::where('program_id', $request->program_id)
-            ->where('subject_type', 'major')
+            ->where('subject_type', $majorLikeType)
             ->where('status', 'active')
             ->orderBy('subject_code')
             ->get();
@@ -154,13 +164,16 @@ class CurriculumController extends Controller
             'is_current' => $validated['is_current'] ?? false,
         ]);
 
-        // If this is set as current, update only year level 1 guides to use this curriculum
+        $program = Program::find($validated['program_id']);
+        $entryYearLevel = $program && $program->education_level === 'senior_high' ? 11 : 1;
+
+        // If this is set as current, update only entry-level guides to use this curriculum
         // Other year levels continue with their existing curriculum
         if (isset($validated['is_current']) && $validated['is_current']) {
             $currentAcademicYear = \App\Models\SchoolSetting::getCurrentAcademicYear();
             \App\Models\YearLevelCurriculumGuide::where('program_id', $validated['program_id'])
                 ->where('academic_year', $currentAcademicYear)
-                ->where('year_level', 1)
+                ->where('year_level', $entryYearLevel)
                 ->update(['curriculum_id' => $curriculum->id]);
         }
 
@@ -228,10 +241,29 @@ class CurriculumController extends Controller
         $programs = Program::active()->get();
         $currentSemester = \App\Models\SchoolSetting::getCurrentSemester();
 
+        $entryYearLevel = $curriculum->program && $curriculum->program->education_level === 'senior_high' ? 11 : 1;
+
+        // Count active student enrollments in entry-level sections for this program
+        $currentAcademicYear = \App\Models\SchoolSetting::getCurrentAcademicYear();
+
+        $firstYearSectionIds = Section::where('program_id', $curriculum->program_id)
+            ->where('year_level', $entryYearLevel)
+            ->where('academic_year', $currentAcademicYear)
+            ->pluck('id');
+
+        $activeFirstYearEnrollments = 0;
+        if ($firstYearSectionIds->isNotEmpty()) {
+            $activeFirstYearEnrollments = StudentEnrollment::whereIn('section_id', $firstYearSectionIds)
+                ->where('academic_year', $currentAcademicYear)
+                ->where('status', 'active')
+                ->count();
+        }
+
         return Inertia::render('Admin/Curriculum/Edit', [
             'curriculum' => $curriculum->load('program'),
             'programs' => $programs,
             'currentSemester' => $currentSemester,
+            'activeFirstYearEnrollments' => $activeFirstYearEnrollments,
         ]);
     }
 
@@ -240,12 +272,24 @@ class CurriculumController extends Controller
      */
     public function update(Request $request, Curriculum $curriculum)
     {
+        $curriculum->loadMissing('program');
+        $isShsProgram = $curriculum->program && $curriculum->program->education_level === 'senior_high';
+        $entryYearLevel = $isShsProgram ? 11 : 1;
+
         $validated = $request->validate([
             'program_id' => 'required|exists:programs,id',
             'curriculum_code' => 'required|string|unique:curriculum,curriculum_code,'.$curriculum->id,
             'curriculum_name' => 'required|string',
             'is_current' => 'boolean',
         ]);
+
+        // If the curriculum is currently active, ignore any attempt from the
+        // edit form to unset it. The UI disables the checkbox for active
+        // curricula, but enforce it server-side by removing the key so the
+        // update does not change the active flag.
+        if ($curriculum->is_current && array_key_exists('is_current', $validated) && $validated['is_current'] == false) {
+            unset($validated['is_current']);
+        }
 
         // Check if trying to change the current status
         $isCurrentChanging = isset($validated['is_current']) && $validated['is_current'] !== $curriculum->is_current;
@@ -273,19 +317,140 @@ class CurriculumController extends Controller
                     ->where('id', '!=', $curriculum->id)
                     ->update(['is_current' => false]);
 
-                // Update only year level 1 guides to use the new current curriculum
+                // Update only entry-level guides to use the new current curriculum
                 // Other year levels continue with their existing curriculum
                 $currentAcademicYear = \App\Models\SchoolSetting::getCurrentAcademicYear();
                 \App\Models\YearLevelCurriculumGuide::where('program_id', $curriculum->program_id)
                     ->where('academic_year', $currentAcademicYear)
-                    ->where('year_level', 1)
+                    ->where('year_level', $entryYearLevel)
                     ->update(['curriculum_id' => $curriculum->id]);
+
+                // Also update all active entry-level sections for this program
+                // so they use the new current curriculum. Sync their
+                // section subjects to match the curriculum and update entry-level
+                // students enrolled in those sections for the current academic
+                // year to point to the new curriculum.
+                $firstYearSectionIds = Section::where('program_id', $curriculum->program_id)
+                    ->where('year_level', $entryYearLevel)
+                    ->where('status', 'active')
+                    ->pluck('id');
+
+                $currentAcademicYear = SchoolSetting::getCurrentAcademicYear();
+
+                if ($firstYearSectionIds->isNotEmpty()) {
+                    DB::transaction(function () use ($firstYearSectionIds, $curriculum, $currentAcademicYear, $isShsProgram) {
+                        $newCurriculumId = $curriculum->id;
+
+                        $sections = Section::whereIn('id', $firstYearSectionIds)->get();
+
+                        foreach ($sections as $section) {
+                            $section->update(['curriculum_id' => $newCurriculumId]);
+
+                            $currSubjects = CurriculumSubject::where('curriculum_id', $newCurriculumId)
+                                ->whereIn('year_level', $this->getYearLevelAliases((int) $section->year_level, $isShsProgram))
+                                ->whereIn('semester', $this->getSemesterAliases($section->semester))
+                                ->pluck('subject_id')
+                                ->unique()
+                                ->values()
+                                ->toArray();
+
+                            $existing = SectionSubject::where('section_id', $section->id)
+                                ->get()
+                                ->keyBy('subject_id');
+
+                            foreach ($currSubjects as $subjectId) {
+                                if ($existing->has($subjectId)) {
+                                    $ss = $existing->get($subjectId);
+                                    if ($ss->status !== 'active') {
+                                        $ss->update(['status' => 'active']);
+                                    }
+                                } else {
+                                    SectionSubject::create([
+                                        'section_id' => $section->id,
+                                        'subject_id' => $subjectId,
+                                        'teacher_id' => null,
+                                        'room' => null,
+                                        'schedule_days' => null,
+                                        'start_time' => null,
+                                        'end_time' => null,
+                                        'status' => 'active',
+                                    ]);
+                                }
+                            }
+
+                            foreach ($existing as $subjectId => $ss) {
+                                if (! in_array($subjectId, $currSubjects, true)) {
+                                    if ($ss->status !== 'inactive') {
+                                        $ss->update(['status' => 'inactive']);
+                                    }
+                                }
+                            }
+                        }
+
+                        // Update entry-level students enrolled in those sections for the current academic year
+                        $studentIds = StudentEnrollment::whereIn('section_id', $firstYearSectionIds)
+                            ->where('academic_year', $currentAcademicYear)
+                            ->pluck('student_id')
+                            ->unique()
+                            ->toArray();
+
+                        if (! empty($studentIds)) {
+                            \App\Models\Student::whereIn('id', $studentIds)
+                                ->update([
+                                    'previous_curriculum_id' => DB::raw('curriculum_id'),
+                                    'curriculum_id' => $newCurriculumId,
+                                ]);
+                        }
+                    });
+                }
             }
         }
 
         $curriculum->update($validated);
 
         return redirect()->route('admin.curriculum.index')
-            ->with('success', 'Curriculum updated successfully. Year 1 guides have been updated to use this curriculum.');
+            ->with('success', 'Curriculum updated successfully. Entry-level guides and sections have been updated to use this curriculum.');
+    }
+
+    /**
+     * Normalize semester values to support legacy values (e.g., 1/2, first/second).
+     */
+    private function getSemesterAliases(?string $semester): array
+    {
+        $normalized = strtolower(trim((string) $semester));
+
+        if (in_array($normalized, ['1', '1st', 'first'], true)) {
+            return ['1', 1, '1st', 'first'];
+        }
+
+        if (in_array($normalized, ['2', '2nd', 'second'], true)) {
+            return ['2', 2, '2nd', 'second'];
+        }
+
+        if (in_array($normalized, ['3', '3rd', 'third', 'summer'], true)) {
+            return ['3', 3, '3rd', 'third', 'summer'];
+        }
+
+        return [$semester];
+    }
+
+    /**
+     * Normalize year-level values for SHS legacy curricula (e.g., 1/2 instead of 11/12).
+     */
+    private function getYearLevelAliases(int $yearLevel, bool $isShsProgram): array
+    {
+        if (! $isShsProgram) {
+            return [$yearLevel];
+        }
+
+        if ($yearLevel === 11) {
+            return [11, 1];
+        }
+
+        if ($yearLevel === 12) {
+            return [12, 2];
+        }
+
+        return [$yearLevel];
     }
 }

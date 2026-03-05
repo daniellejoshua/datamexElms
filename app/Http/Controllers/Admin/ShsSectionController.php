@@ -31,7 +31,14 @@ class ShsSectionController extends Controller
         $currentAcademicYear = SchoolSetting::getCurrentAcademicYear();
         $currentSemester = SchoolSetting::getCurrentSemester();
 
-        $query = Section::with(['program', 'subjects', 'sectionSubjects.teacher.user'])
+        $query = Section::with([
+            'program',
+            'subjects',
+            'sectionSubjects' => function ($query) {
+                $query->where('status', 'active')
+                    ->with('teacher.user');
+            },
+        ])
             ->whereHas('program', function ($programQuery) {
                 $programQuery->where('education_level', 'senior_high');
             })
@@ -183,8 +190,8 @@ class ShsSectionController extends Controller
 
         // Automatically attach subjects from the curriculum that match the section's year level and semester
         $curriculumSubjects = CurriculumSubject::where('curriculum_id', $curriculumId)
-            ->where('year_level', $request->year_level)
-            ->where('semester', $request->semester)
+            ->whereIn('year_level', $this->getYearLevelAliases((int) $request->year_level))
+            ->whereIn('semester', $this->getSemesterAliases($request->semester))
             ->where('status', 'active')
             ->get();
 
@@ -278,7 +285,13 @@ class ShsSectionController extends Controller
             abort(404);
         }
 
-        $section->load(['program', 'sectionSubjects.subject', 'sectionSubjects.teacher.user']);
+        $section->load([
+            'program',
+            'sectionSubjects' => function ($query) {
+                $query->where('status', 'active')
+                    ->with(['subject', 'teacher.user']);
+            },
+        ]);
 
         $subjects = Subject::where('education_level', 'senior_high')
             ->orderBy('subject_code')
@@ -539,5 +552,39 @@ class ShsSectionController extends Controller
         $section->subjects()->detach($subject->id);
 
         return back()->with('success', 'Subject removed from section successfully.');
+    }
+
+    /**
+     * Normalize semester values to support legacy values (e.g., 1/2, first/second).
+     */
+    private function getSemesterAliases(?string $semester): array
+    {
+        $normalized = strtolower(trim((string) $semester));
+
+        if (in_array($normalized, ['1', '1st', 'first'], true)) {
+            return ['1', 1, '1st', 'first'];
+        }
+
+        if (in_array($normalized, ['2', '2nd', 'second'], true)) {
+            return ['2', 2, '2nd', 'second'];
+        }
+
+        return [$semester];
+    }
+
+    /**
+     * Normalize year-level values for SHS legacy curricula (e.g., 1/2 instead of 11/12).
+     */
+    private function getYearLevelAliases(int $yearLevel): array
+    {
+        if ($yearLevel === 11) {
+            return [11, 1];
+        }
+
+        if ($yearLevel === 12) {
+            return [12, 2];
+        }
+
+        return [$yearLevel];
     }
 }
