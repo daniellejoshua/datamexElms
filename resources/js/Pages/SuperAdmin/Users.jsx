@@ -46,6 +46,8 @@ export default function SuperAdminUsers({ users, departments, filters }) {
     const [statusFilter, setStatusFilter] = useState(filters.status || 'all')
     const [roleFilter, setRoleFilter] = useState(filters.role || 'all')
     const [showForm, setShowForm] = useState(false)
+    const [showEmailForm, setShowEmailForm] = useState(false)
+    const [selectedUserForEmail, setSelectedUserForEmail] = useState(null)
 
     const { data, setData, post, processing, errors, reset } = useForm({
         first_name: '',
@@ -58,6 +60,18 @@ export default function SuperAdminUsers({ users, departments, filters }) {
             reset();
             setShowForm(false);
         }
+    })
+
+    const {
+        data: emailData,
+        setData: setEmailData,
+        patch: patchEmail,
+        processing: emailProcessing,
+        errors: emailErrors,
+        reset: resetEmail,
+        clearErrors: clearEmailErrors,
+    } = useForm({
+        email: '',
     })
 
     const debouncedSearch = useCallback(
@@ -117,6 +131,28 @@ export default function SuperAdminUsers({ users, departments, filters }) {
         }, {
             preserveState: true,
             preserveScroll: true,
+        })
+    }
+
+    const openEmailEditor = (user) => {
+        setSelectedUserForEmail(user)
+        setEmailData('email', user.email || '')
+        clearEmailErrors()
+        setShowEmailForm(true)
+    }
+
+    const submitEmailUpdate = (e) => {
+        e.preventDefault()
+        if (!selectedUserForEmail) return
+
+        patchEmail(route('superadmin.users.update-email', selectedUserForEmail.id), {
+            preserveState: true,
+            preserveScroll: true,
+            onSuccess: () => {
+                setShowEmailForm(false)
+                setSelectedUserForEmail(null)
+                resetEmail()
+            },
         })
     }
 
@@ -258,6 +294,55 @@ export default function SuperAdminUsers({ users, departments, filters }) {
                             </div>
                         </CardHeader>
                         <CardContent>
+                            <Dialog
+                                open={showEmailForm}
+                                onOpenChange={(open) => {
+                                    setShowEmailForm(open)
+                                    if (!open) {
+                                        setSelectedUserForEmail(null)
+                                        resetEmail()
+                                        clearEmailErrors()
+                                    }
+                                }}
+                            >
+                                <DialogContent className="max-w-md">
+                                    <DialogHeader>
+                                        <DialogTitle>Edit User Email</DialogTitle>
+                                    </DialogHeader>
+                                    <form onSubmit={submitEmailUpdate} className="space-y-4 mt-2">
+                                        <div className="space-y-1">
+                                            <label className="text-xs font-medium text-gray-700">User</label>
+                                            <div className="text-sm text-gray-600">
+                                                {selectedUserForEmail ? getDisplayName(selectedUserForEmail) : '-'}
+                                            </div>
+                                        </div>
+                                        <div className="space-y-1">
+                                            <label className="text-xs font-medium text-gray-700">Email</label>
+                                            <Input
+                                                type="email"
+                                                value={emailData.email}
+                                                onChange={(e) => setEmailData('email', e.target.value)}
+                                                placeholder="Enter new email"
+                                                required
+                                            />
+                                            {emailErrors.email && <div className="text-xs text-red-500">{emailErrors.email}</div>}
+                                        </div>
+                                        <div className="flex justify-end gap-2">
+                                            <Button
+                                                type="button"
+                                                variant="outline"
+                                                onClick={() => setShowEmailForm(false)}
+                                                disabled={emailProcessing}
+                                            >
+                                                Cancel
+                                            </Button>
+                                            <Button type="submit" disabled={emailProcessing}>
+                                                {emailProcessing ? 'Saving...' : 'Save Email'}
+                                            </Button>
+                                        </div>
+                                    </form>
+                                </DialogContent>
+                            </Dialog>
 
 
                             {users.data && users.data.length > 0 ? (
@@ -307,6 +392,10 @@ export default function SuperAdminUsers({ users, departments, filters }) {
                                                                 </Button>
                                                             </DropdownMenuTrigger>
                                                             <DropdownMenuContent align="end">
+                                                                <DropdownMenuItem onClick={() => openEmailEditor(user)}>
+                                                                    <Edit className="w-4 h-4 mr-2" />
+                                                                    Edit Email
+                                                                </DropdownMenuItem>
                                                                 {user.role === 'head_teacher' && (
                                                                     <>
                                                                         <DropdownMenuItem asChild>
@@ -368,14 +457,16 @@ export default function SuperAdminUsers({ users, departments, filters }) {
                                                 key={index}
                                                 variant={link.active ? "default" : "outline"}
                                                 size="sm"
-                                                asChild={!link.active && link.url}
+                                                asChild={!link.active && !!link.url}
                                                 disabled={!link.url}
                                                 onClick={() => link.url && router.get(link.url)}
                                             >
                                                 {link.active ? (
                                                     <span dangerouslySetInnerHTML={{ __html: link.label }} />
-                                                ) : (
+                                                ) : link.url ? (
                                                     <Link href={link.url} dangerouslySetInnerHTML={{ __html: link.label }} />
+                                                ) : (
+                                                    <span dangerouslySetInnerHTML={{ __html: link.label }} />
                                                 )}
                                             </Button>
                                         ))}

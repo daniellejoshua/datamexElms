@@ -126,6 +126,7 @@ Route::middleware(['auth', 'verified', 'role:super_admin'])->prefix('super-admin
     Route::get('/', [\App\Http\Controllers\SuperAdmin\SuperAdminDashboardController::class, 'index'])->name('dashboard');
     Route::get('/users', [\App\Http\Controllers\SuperAdmin\SuperAdminDashboardController::class, 'users'])->name('users');
     Route::patch('/users/{user}/status', [\App\Http\Controllers\SuperAdmin\SuperAdminDashboardController::class, 'updateUserStatus'])->name('users.update-status');
+    Route::patch('/users/{user}/email', [\App\Http\Controllers\SuperAdmin\SuperAdminDashboardController::class, 'updateUserEmail'])->name('users.update-email');
     Route::post('/users/head-teacher', [\App\Http\Controllers\SuperAdmin\HeadTeacherController::class, 'store'])->name('users.head-teacher.store');
 
     // Head teacher management (view / edit / update / delete)

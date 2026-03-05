@@ -104,8 +104,8 @@ class AcademicHistoryController extends Controller
 
                 $subjectGradesMap[$subject->subject_code] = $gradeInfo;
 
-                // Add to completed if final grade exists
-                if ($grade->final_grade) {
+                // Mark as completed only when the internal grade is passing.
+                if ($this->isPassingInternalGrade($grade->semester_grade, $grade->final_grade)) {
                     $completedSubjects[] = [
                         'subject_id' => $subject->id,
                         'subject_code' => $subject->subject_code,
@@ -654,7 +654,7 @@ class AcademicHistoryController extends Controller
 
                 $subjectGradesMap[$subject->subject_code] = $gradeInfo;
 
-                if ($grade->final_grade) {
+                if ($this->isPassingInternalGrade($grade->semester_grade, $grade->final_grade)) {
                     $completedSubjects[] = [
                         'subject_id' => $subject->id,
                         'subject_code' => $subject->subject_code,
@@ -1013,6 +1013,24 @@ class AcademicHistoryController extends Controller
         $pdf = Pdf::loadView('pdf.academic-history', $data);
 
         return $pdf->download('academic-history-'.str_replace(' ', '-', $student->user->name).'-'.now('Asia/Manila')->format('Y-m-d-H-i-s').'.pdf');
+    }
+
+    private function isPassingInternalGrade($semesterGrade = null, $finalGrade = null): bool
+    {
+        $gradeValue = $semesterGrade ?? $finalGrade;
+
+        if (is_null($gradeValue) || $gradeValue === '' || ! is_numeric($gradeValue)) {
+            return false;
+        }
+
+        $numericGrade = (float) $gradeValue;
+
+        // Support both percentage (>= 75) and GPA-style scales (<= 3.00 pass).
+        if ($numericGrade <= 5.0) {
+            return $numericGrade <= 3.0;
+        }
+
+        return $numericGrade >= 75;
     }
 
     private function findTeacherForSubject($student, $subjectId = null, $subjectCode = null, $originalSubjectCode = null)
