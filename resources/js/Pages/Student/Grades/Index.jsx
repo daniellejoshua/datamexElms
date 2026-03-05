@@ -119,6 +119,7 @@ const getVisibleGrades = (paymentStatus) => {
 const Index = ({ auth, student, currentGrades, paymentStatus, visibleGradePeriods, stats, academicYear, semester }) => {
     // ensure safe defaults
     const grades = Array.isArray(currentGrades) ? currentGrades : [];
+    const isShsView = grades.length > 0 && grades.every((grade) => grade.type === 'shs');
     // academic period values may be undefined when no grades exist
     academicYear = academicYear || '';
     semester = semester || '';
@@ -195,9 +196,7 @@ const Index = ({ auth, student, currentGrades, paymentStatus, visibleGradePeriod
                                 <Badge variant="secondary" className="bg-blue-100 text-blue-800">
                                     {stats.totalSubjects} subject{stats.totalSubjects !== 1 ? 's' : ''}
                                 </Badge>
-                                <Badge variant="secondary" className="bg-blue-100 text-blue-800">
-                                    Avg. grade: {stats.averageGrade ? stats.averageGrade.toFixed(2) : '—'}
-                                </Badge>
+                                
                             </div>
                         )}
                     </div>
@@ -209,11 +208,21 @@ const Index = ({ auth, student, currentGrades, paymentStatus, visibleGradePeriod
                         <thead className="bg-gray-50">
                             <tr>
                                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500">Subject</th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500">Prelim</th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500">Midterm</th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500">Prefinal</th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500">Final</th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500">Semester</th>
+                                {isShsView ? (
+                                    <>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500">Quarter 1</th>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500">Quarter 2</th>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500">Semester Grade</th>
+                                    </>
+                                ) : (
+                                    <>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500">Prelim</th>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500">Midterm</th>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500">Prefinal</th>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500">Final</th>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500">Semester</th>
+                                    </>
+                                )}
                                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500">Remarks</th>
                                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500">Status</th>
                             </tr>
@@ -226,6 +235,8 @@ const Index = ({ auth, student, currentGrades, paymentStatus, visibleGradePeriod
                                 const midterm = grade.midterm_grade ?? null;
                                 const prefinal = grade.prefinal_grade ?? null;
                                 const finalg = grade.final_grade ?? null;
+                                const q1 = grade.q1_grade ?? null;
+                                const q2 = grade.q2_grade ?? null;
                                 const semester = grade.semester_grade ?? null;
                                 const status = grade.overall_status || grade.completion_status || (semester ? 'Completed' : '');
 
@@ -243,72 +254,80 @@ const Index = ({ auth, student, currentGrades, paymentStatus, visibleGradePeriod
                                                 </Tooltip>
                                             </TooltipProvider>
                                         </td>
-                                        {/* term cells show grade, locked indicator, or link */}
-                                        {/* Prelim */}
-                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                            {visible.prelim ? (
-                                                isValidGrade(prelim)
-                                                    ? (gradeType === 'gpa' ? getGradePointEquivalence(prelim) : displayGrade(prelim))
-                                                    : (!paymentStatus?.prelim_paid && paymentStatus?.balance > 0)
-                                                        ? <Link href={route('student.payments')} className="text-red-600 underline">Pay Prelim</Link>
-                                                        : '—'
-                                            ) : (
-                                                isValidGrade(prelim) ? <span className="text-gray-400">Grade hidden</span> : '—'
-                                            )}
-                                        </td>
-                                        {/* Midterm */}
-                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                            {visible.midterm ? (
-                                                isValidGrade(midterm)
-                                                    ? (gradeType === 'gpa' ? getGradePointEquivalence(midterm) : displayGrade(midterm))
-                                                    : (!paymentStatus?.midterm_paid && paymentStatus?.balance > 0)
-                                                        ? <Link href={route('student.payments')} className="text-red-600 underline">Pay Midterm</Link>
-                                                        : '—'
-                                            ) : (
-                                                isValidGrade(midterm) ? <span className="text-gray-400">Grade hidden</span> : '—'
-                                            )}
-                                        </td>
-                                        {/* Prefinal */}
-                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                            {visible.prefinal ? (
-                                                isValidGrade(prefinal)
-                                                    ? (gradeType === 'gpa' ? getGradePointEquivalence(prefinal) : displayGrade(prefinal))
-                                                    : (!paymentStatus?.prefinal_paid && paymentStatus?.balance > 0)
-                                                        ? <Link href={route('student.payments')} className="text-red-600 underline">Pay Pre-final</Link>
-                                                        : '—'
-                                            ) : (
-                                                isValidGrade(prefinal) ? <span className="text-gray-400">Grade hidden</span> : '—'
-                                            )}
-                                        </td>
-                                        {/* Final */}
-                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                            {visible.final ? (
-                                                isValidGrade(finalg)
-                                                    ? (gradeType === 'gpa' ? getGradePointEquivalence(finalg) : displayGrade(finalg))
-                                                    : (!paymentStatus?.final_paid && paymentStatus?.balance > 0)
-                                                        ? <Link href={route('student.payments')} className="text-red-600 underline">Pay Final</Link>
-                                                        : '—'
-                                            ) : (
-                                                isValidGrade(finalg) ? <span className="text-gray-400">Grade hidden</span> : '—'
-                                            )}
-                                        </td>
-                                        {/* Semester */}
-                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                            {visible.semester ? (
-                                                isValidGrade(semester)
-                                                    ? (gradeType === 'gpa' ? getGradePointEquivalence(semester) : displayGrade(semester))
-                                                    : (paymentStatus?.balance <= 0)
-                                                        ? <span className="text-orange-600">Missing term grades</span>
-                                                        : (!paymentStatus?.semester_paid && paymentStatus?.balance == 0)
-                                                            ? <Link href={route('student.payments')} className="text-red-600 underline">Pay Semester</Link>
-                                                            : '—'
-                                            ) : (
-                                                isValidGrade(semester) ? <span className="text-gray-400">Grade hidden</span> : '—'
-                                            )}
-                                        </td>
-                                        <td className="px-6 py-4 text-sm text-gray-900">
-                                            {grade.teacher_remarks || '-'}
-                                        </td>
+                                        {isShsView ? (
+                                            <>
+                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                                    {isValidGrade(q1) ? (gradeType === 'gpa' ? getGradePointEquivalence(q1) : displayGrade(q1)) : '—'}
+                                                </td>
+                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                                    {isValidGrade(q2) ? (gradeType === 'gpa' ? getGradePointEquivalence(q2) : displayGrade(q2)) : '—'}
+                                                </td>
+                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                                    {isValidGrade(semester) ? (gradeType === 'gpa' ? getGradePointEquivalence(semester) : displayGrade(semester)) : '—'}
+                                                </td>
+                                            </>
+                                        ) : (
+                                            <>
+                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                                    {visible.prelim ? (
+                                                        isValidGrade(prelim)
+                                                            ? (gradeType === 'gpa' ? getGradePointEquivalence(prelim) : displayGrade(prelim))
+                                                            : (!paymentStatus?.prelim_paid && paymentStatus?.balance > 0)
+                                                                ? <Link href={route('student.payments')} className="text-red-600 underline">Pay Prelim</Link>
+                                                                : '—'
+                                                    ) : (
+                                                        isValidGrade(prelim) ? <span className="text-gray-400">Grade hidden</span> : '—'
+                                                    )}
+                                                </td>
+                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                                    {visible.midterm ? (
+                                                        isValidGrade(midterm)
+                                                            ? (gradeType === 'gpa' ? getGradePointEquivalence(midterm) : displayGrade(midterm))
+                                                            : (!paymentStatus?.midterm_paid && paymentStatus?.balance > 0)
+                                                                ? <Link href={route('student.payments')} className="text-red-600 underline">Pay Midterm</Link>
+                                                                : '—'
+                                                    ) : (
+                                                        isValidGrade(midterm) ? <span className="text-gray-400">Grade hidden</span> : '—'
+                                                    )}
+                                                </td>
+                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                                    {visible.prefinal ? (
+                                                        isValidGrade(prefinal)
+                                                            ? (gradeType === 'gpa' ? getGradePointEquivalence(prefinal) : displayGrade(prefinal))
+                                                            : (!paymentStatus?.prefinal_paid && paymentStatus?.balance > 0)
+                                                                ? <Link href={route('student.payments')} className="text-red-600 underline">Pay Pre-final</Link>
+                                                                : '—'
+                                                    ) : (
+                                                        isValidGrade(prefinal) ? <span className="text-gray-400">Grade hidden</span> : '—'
+                                                    )}
+                                                </td>
+                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                                    {visible.final ? (
+                                                        isValidGrade(finalg)
+                                                            ? (gradeType === 'gpa' ? getGradePointEquivalence(finalg) : displayGrade(finalg))
+                                                            : (!paymentStatus?.final_paid && paymentStatus?.balance > 0)
+                                                                ? <Link href={route('student.payments')} className="text-red-600 underline">Pay Final</Link>
+                                                                : '—'
+                                                    ) : (
+                                                        isValidGrade(finalg) ? <span className="text-gray-400">Grade hidden</span> : '—'
+                                                    )}
+                                                </td>
+                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                                    {visible.semester ? (
+                                                        isValidGrade(semester)
+                                                            ? (gradeType === 'gpa' ? getGradePointEquivalence(semester) : displayGrade(semester))
+                                                            : (paymentStatus?.balance <= 0)
+                                                                ? <span className="text-orange-600">Missing term grades</span>
+                                                                : (!paymentStatus?.semester_paid && paymentStatus?.balance == 0)
+                                                                    ? <Link href={route('student.payments')} className="text-red-600 underline">Pay Semester</Link>
+                                                                    : '—'
+                                                    ) : (
+                                                        isValidGrade(semester) ? <span className="text-gray-400">Grade hidden</span> : '—'
+                                                    )}
+                                                </td>
+                                            </>
+                                        )}
+                                        <td className="px-6 py-4 text-sm text-gray-900">{grade.teacher_remarks || '-'}</td>
                                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{status}</td>
                                     </tr>
                                 );

@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\PaymentTransaction;
+use App\Models\FeeAdjustment;
 use App\Models\Student;
 use App\Models\StudentEnrollment;
 use App\Models\StudentSemesterPayment;
@@ -31,21 +32,22 @@ class StudentPaymentService
             return $existingPayment;
         }
 
-        // Determine current term if provided via customRates (useful when computing per-term penalties)
-        $term = $customRates['term'] ?? null;
-
-        // pull today's adjustments; college_only adjustments should only apply to college students
-        $today = now()->toDateString();
-        $adjQuery = \App\Models\FeeAdjustment::where('effective_date', $today);
-        if ($term) {
-            $adjQuery->where(function ($q) use ($term) {
-                $q->whereNull('term')->orWhere('term', $term);
-            });
+        $earlyEnrollmentDiscount = $this->getEarlyEnrollmentDiscountAmount($student);
+        $adjustments = collect();
+        if ($earlyEnrollmentDiscount > 0) {
+            $adjustments = FeeAdjustment::query()
+                ->where('type', 'early_enrollment')
+                ->where('college_only', true)
+                ->where(function ($query) {
+                    $today = now()->toDateString();
+                    $query->whereDate('effective_date', $today)
+                        ->orWhere(function ($periodQuery) use ($today) {
+                            $periodQuery->whereDate('start_date', '<=', $today)
+                                ->whereDate('end_date', '>=', $today);
+                        });
+                })
+                ->get();
         }
-        if ($student->program->education_level !== 'college') {
-            $adjQuery->where('college_only', false);
-        }
-        $adjustments = $adjQuery->get();
 
         // Calculate fees based on student enrollment type
         $enrollment = $this->getStudentEnrollment($student, $academicYear, $semester);
@@ -74,7 +76,8 @@ class StudentPaymentService
 
         // Add irregular subject fees
         $irregularFees = $irregularSubjectsCount * $irregularSubjectFee;
-        $totalSemesterFee = $baseSemesterFee + $irregularFees;
+        $grossSemesterFee = $baseSemesterFee + $irregularFees;
+        $totalSemesterFee = max(0, $grossSemesterFee - $earlyEnrollmentDiscount);
 
         // For SHS, fees are annual, so pay full amount at enrollment
         if ($student->program->education_level === 'senior_high') {
@@ -82,10 +85,10 @@ class StudentPaymentService
             $termPayment = 0;
         } else {
             // Calculate enrollment fee (downpayment)
-            $enrollmentFee = $baseSemesterFee * $enrollmentFeePercentage;
+            $enrollmentFee = $totalSemesterFee * $enrollmentFeePercentage;
 
             // Calculate remaining balance to be divided among terms
-            $remainingBalance = $totalSemesterFee - $enrollmentFee;
+            $remainingBalance = max(0, $totalSemesterFee - $enrollmentFee);
             $termPayment = $remainingBalance / 4; // Divide among 4 terms
         }
 
@@ -400,7 +403,12 @@ class StudentPaymentService
         $creditedSubjectsDeduction = $creditedSubjectsCount * 300;
 
         // Calculate final balance
-        $calculatedBalance = $pastYearSubjectsFee + $baseFee - $creditedSubjectsDeduction;
+        $grossBalance = $pastYearSubjectsFee + $baseFee - $creditedSubjectsDeduction;
+
+        // Apply early enrollment discount for college students even when base fee
+        // becomes zero so irregular students still receive the discount.
+        $earlyEnrollmentDiscount = $this->getEarlyEnrollmentDiscountAmount($student);
+        $calculatedBalance = $grossBalance - $earlyEnrollmentDiscount;
 
         // Ensure balance is not negative
         $calculatedBalance = max($calculatedBalance, 0);
@@ -417,7 +425,8 @@ class StudentPaymentService
                 'credited_subjects_deduction' => $creditedSubjectsDeduction,
                 'credited_subjects' => $creditedSubjects,
                 'current_year_level' => $currentYearLevel,
-                'breakdown' => "({$pastYearSubjectsCount} past subjects × ₱300) + ₱".number_format($baseFee, 2)." - ({$creditedSubjectsCount} credits × ₱300)",
+                'early_enrollment_discount' => $earlyEnrollmentDiscount,
+                'breakdown' => "({$pastYearSubjectsCount} past subjects × ₱300) + ₱".number_format($baseFee, 2)." - ({$creditedSubjectsCount} credits × ₱300) - ₱".number_format($earlyEnrollmentDiscount, 2),
             ],
             'is_balance_calculated' => true,
         ]);
@@ -430,9 +439,31 @@ class StudentPaymentService
             'credited_subjects_count' => $creditedSubjectsCount,
             'credited_subjects_deduction' => $creditedSubjectsDeduction,
             'credited_subjects' => $creditedSubjects,
+            'early_enrollment_discount' => $earlyEnrollmentDiscount,
             'calculated_balance' => $calculatedBalance,
             'current_year_level' => $currentYearLevel,
-            'breakdown' => "({$pastYearSubjectsCount} past subjects × ₱300) + ₱".number_format($baseFee, 2)." - ({$creditedSubjectsCount} credits × ₱300)",
+            'breakdown' => "({$pastYearSubjectsCount} past subjects × ₱300) + ₱".number_format($baseFee, 2)." - ({$creditedSubjectsCount} credits × ₱300) - ₱".number_format($earlyEnrollmentDiscount, 2),
         ];
+    }
+
+    private function getEarlyEnrollmentDiscountAmount(Student $student): float
+    {
+        if ($student->education_level !== 'college') {
+            return 0;
+        }
+
+        $today = now()->toDateString();
+
+        return (float) FeeAdjustment::query()
+            ->where('type', 'early_enrollment')
+            ->where('college_only', true)
+            ->where(function ($query) use ($today) {
+                $query->whereDate('effective_date', $today)
+                    ->orWhere(function ($periodQuery) use ($today) {
+                        $periodQuery->whereDate('start_date', '<=', $today)
+                            ->whereDate('end_date', '>=', $today);
+                    });
+            })
+            ->sum('amount');
     }
 }

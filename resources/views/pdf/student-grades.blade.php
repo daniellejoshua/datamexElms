@@ -39,85 +39,104 @@
                     <th style="width:5%;">#</th>
                     <th style="width:20%;">Subject Code</th>
                     <th style="width:35%;">Subject Name</th>
-                    <th style="width:8%;">Prelim</th>
-                    <th style="width:8%;">Midterm</th>
-                    <th style="width:8%;">Prefinal</th>
-                    <th style="width:8%;">Final</th>
-                    <th style="width:8%;">Semester</th>
-                    <th style="width:10%;">Status</th>
+                    @if(!empty($isShsView))
+                        <th style="width:8%;">Quarter 1</th>
+                        <th style="width:8%;">Quarter 2</th>
+                        <th style="width:8%;">Semester Grade</th>
+                        <th style="width:16%;">Remarks</th>
+                    @else
+                        <th style="width:8%;">Prelim</th>
+                        <th style="width:8%;">Midterm</th>
+                        <th style="width:8%;">Prefinal</th>
+                        <th style="width:8%;">Final</th>
+                        <th style="width:8%;">Semester</th>
+                        <th style="width:10%;">Remarks</th>
+                        <th style="width:10%;">Status</th>
+                    @endif
                 </tr>
             </thead>
             <tbody>
                 @foreach($grades as $idx => $grade)
                     <?php
                         $subject = $grade['sectionSubject']['subject'] ?? null;
-                        $prelim = $grade['prelim_grade'] ?? ($grade['q1_grade'] ?? null);
-                        $midterm = $grade['midterm_grade'] ?? ($grade['q2_grade'] ?? null);
+                        $prelim = $grade['prelim_grade'] ?? null;
+                        $midterm = $grade['midterm_grade'] ?? null;
                         $prefinal = $grade['prefinal_grade'] ?? null;
                         $finalg = $grade['final_grade'] ?? null;
+                        $q1 = $grade['q1_grade'] ?? null;
+                        $q2 = $grade['q2_grade'] ?? null;
                         $semesterGrade = $grade['semester_grade'] ?? null;
+                        $remarks = $grade['teacher_remarks'] ?? '—';
                         $status = $grade['overall_status'] ?? $grade['completion_status'] ?? ($semesterGrade ? 'Completed' : '');
                     ?>
                     <tr>
                         <td>{{ $idx + 1 }}</td>
                         <td>{{ $subject['subject_code'] ?? 'N/A' }}</td>
                         <td>{{ $subject['subject_name'] ?? 'N/A' }}</td>
-                        <td>
-                            @if($visiblePeriods['prelim'])
-                                {{ $prelim ?? '—' }}
-                            @else
-                                @if($prelim !== null)
-                                    Grade hidden
+                        @if(!empty($isShsView))
+                            <td>{{ $q1 ?? '—' }}</td>
+                            <td>{{ $q2 ?? '—' }}</td>
+                            <td>{{ $semesterGrade ?? '—' }}</td>
+                            <td>{{ $remarks }}</td>
+                        @else
+                            <td>
+                                @if($visiblePeriods['prelim'])
+                                    {{ $prelim ?? '—' }}
                                 @else
-                                    —
+                                    @if($prelim !== null)
+                                        Grade hidden
+                                    @else
+                                        —
+                                    @endif
                                 @endif
-                            @endif
-                        </td>
-                        <td>
-                            @if($visiblePeriods['midterm'])
-                                {{ $midterm ?? '—' }}
-                            @else
-                                @if($midterm !== null)
-                                    Grade hidden
+                            </td>
+                            <td>
+                                @if($visiblePeriods['midterm'])
+                                    {{ $midterm ?? '—' }}
                                 @else
-                                    —
+                                    @if($midterm !== null)
+                                        Grade hidden
+                                    @else
+                                        —
+                                    @endif
                                 @endif
-                            @endif
-                        </td>
-                        <td>
-                            @if($visiblePeriods['prefinal'])
-                                {{ $prefinal ?? '—' }}
-                            @else
-                                @if($prefinal !== null)
-                                    Grade hidden
+                            </td>
+                            <td>
+                                @if($visiblePeriods['prefinal'])
+                                    {{ $prefinal ?? '—' }}
                                 @else
-                                    —
+                                    @if($prefinal !== null)
+                                        Grade hidden
+                                    @else
+                                        —
+                                    @endif
                                 @endif
-                            @endif
-                        </td>
-                        <td>
-                            @if($visiblePeriods['final'])
-                                {{ $finalg ?? '—' }}
-                            @else
-                                @if($finalg !== null)
-                                    Grade hidden
+                            </td>
+                            <td>
+                                @if($visiblePeriods['final'])
+                                    {{ $finalg ?? '—' }}
                                 @else
-                                    —
+                                    @if($finalg !== null)
+                                        Grade hidden
+                                    @else
+                                        —
+                                    @endif
                                 @endif
-                            @endif
-                        </td>
-                        <td>
-                            @if($visiblePeriods['semester'])
-                                {{ $semesterGrade ?? '—' }}
-                            @else
-                                @if($semesterGrade !== null)
-                                    Grade hidden
+                            </td>
+                            <td>
+                                @if($visiblePeriods['semester'])
+                                    {{ $semesterGrade ?? '—' }}
                                 @else
-                                    —
+                                    @if($semesterGrade !== null)
+                                        Grade hidden
+                                    @else
+                                        —
+                                    @endif
                                 @endif
-                            @endif
-                        </td>
-                        <td>{{ $status }}</td>
+                            </td>
+                            <td>{{ $remarks }}</td>
+                            <td>{{ $status }}</td>
+                        @endif
                     </tr>
                 @endforeach
             </tbody>

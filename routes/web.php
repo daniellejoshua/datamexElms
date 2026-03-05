@@ -111,8 +111,8 @@ Route::middleware(['auth', 'verified', 'role:registrar'])->prefix('registrar')->
         Route::patch('/{creditTransfer}/grade', [\App\Http\Controllers\Registrar\CreditTransferController::class, 'updateCreditGrade'])->name('update-grade');
     });
 
-    // Fee adjustment calendar (early enrollments / term penalties)
-    Route::middleware(['auth','role:registrar'])->prefix('registrar/calendar')->name('registrar.calendar.')->group(function () {
+    // Early enrollment discount calendar (college only)
+    Route::prefix('calendar')->name('calendar.')->group(function () {
         Route::get('/', [\App\Http\Controllers\Registrar\CalendarController::class, 'index'])->name('index');
         Route::post('/', [\App\Http\Controllers\Registrar\CalendarController::class, 'store'])->name('store');
         Route::delete('/{adjustment}', [\App\Http\Controllers\Registrar\CalendarController::class, 'destroy'])->name('destroy');

@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\ArchivedStudent;
 use App\Models\ArchivedStudentEnrollment;
 use App\Models\Curriculum;
+use App\Models\FeeAdjustment;
 use App\Models\PaymentTransaction;
 use App\Models\Program;
 use App\Models\SchoolSetting;
@@ -15,6 +16,7 @@ use App\Models\StudentEnrollment;
 use App\Models\StudentSemesterPayment;
 use App\Models\Teacher;
 use App\Models\User;
+use App\Services\StudentPaymentService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
@@ -631,10 +633,13 @@ class RegistrarController extends Controller
             ->orderBy('program_name')
             ->get();
 
+        $earlyEnrollmentDiscount = $this->getActiveCollegeEarlyEnrollmentDiscount();
+
         return Inertia::render('Registrar/Students/Create', [
             'programs' => $programs,
             'currentAcademicYear' => SchoolSetting::getCurrentAcademicYear(),
             'currentSemester' => SchoolSetting::getCurrentSemester(),
+            'earlyEnrollmentDiscount' => $earlyEnrollmentDiscount,
         ]);
     }
 
@@ -1018,6 +1023,7 @@ class RegistrarController extends Controller
                         'programs' => $programs,
                         'currentAcademicYear' => SchoolSetting::getCurrentAcademicYear(),
                         'currentSemester' => SchoolSetting::getCurrentSemester(),
+                        'earlyEnrollmentDiscount' => $this->getActiveCollegeEarlyEnrollmentDiscount(),
                         'course_shift_required' => [
                             'current_program' => $currentProgram->program_name ?? 'Unknown',
                             'current_program_code' => $currentProgram->program_code ?? null,
@@ -1059,6 +1065,7 @@ class RegistrarController extends Controller
                             ->get(),
                         'currentAcademicYear' => SchoolSetting::getCurrentAcademicYear(),
                         'currentSemester' => SchoolSetting::getCurrentSemester(),
+                        'earlyEnrollmentDiscount' => $this->getActiveCollegeEarlyEnrollmentDiscount(),
                         'course_shift_required' => [
                             'current_program' => $currentProgram->program_name ?? 'Unknown',
                             'current_program_code' => $currentProgram->program_code ?? null,
@@ -1291,6 +1298,18 @@ class RegistrarController extends Controller
                 $paymentAmount = (float) $validated['payment_amount'];
             }
 
+            // Apply college early enrollment discount.
+            // For regular students, subtract discount immediately from enrollment/program fee.
+            // For irregular students, discount is applied after irregular balance calculation.
+            $earlyEnrollmentDiscount = 0.0;
+            if ($validated['education_level'] === 'college') {
+                $earlyEnrollmentDiscount = $this->getCollegeEarlyEnrollmentDiscountAmount();
+
+                if ($validated['student_type'] !== 'irregular' && $earlyEnrollmentDiscount > 0) {
+                    $enrollmentFee = max(0, $enrollmentFee - $earlyEnrollmentDiscount);
+                }
+            }
+
             // Ensure values are numeric and non-negative
             if (! is_numeric($enrollmentFee) || $enrollmentFee < 0) {
                 return back()->withErrors([
@@ -1328,6 +1347,7 @@ class RegistrarController extends Controller
             // Also allow zero for all irregular students (fees calculated based on enrolled subjects)
             if ($enrollmentFee == 0 &&
                 ! ($validated['education_level'] === 'senior_high' && ($studentData['has_voucher'] ?? false)) &&
+                $earlyEnrollmentDiscount <= 0 &&
                 $validated['student_type'] !== 'irregular') {
                 return back()->withErrors([
                     'enrollment_fee' => 'Enrollment fee cannot be zero.',
@@ -1538,6 +1558,11 @@ class RegistrarController extends Controller
 
                     $totalSemesterFee = $baseSemesterFee + $irregularFees;
 
+                    // Apply discount directly for regular college students.
+                    if ($validated['student_type'] !== 'irregular' && $earlyEnrollmentDiscount > 0) {
+                        $totalSemesterFee = max(0, $totalSemesterFee - $earlyEnrollmentDiscount);
+                    }
+
                     // Create the payment record (without setting enrollment_paid yet)
                     $semesterPayment = StudentSemesterPayment::create([
                         'student_id' => $student->id,
@@ -1559,10 +1584,36 @@ class RegistrarController extends Controller
                 } else {
                     $semesterPayment = $existingPayment;
                 }
+
+                // For irregular college students, apply discount after irregular balance
+                // calculation and persist the effective total immediately.
+                if ($validated['student_type'] === 'irregular' && $semesterPayment) {
+                    try {
+                        $paymentService = app(StudentPaymentService::class);
+                        $calculation = $paymentService->calculateIrregularBalance($semesterPayment);
+
+                        $semesterPayment->update([
+                            'total_semester_fee' => $calculation['calculated_balance'],
+                            'balance' => max(0, $calculation['calculated_balance'] - (float) $semesterPayment->calculateTotalPaid()),
+                            'irregular_subject_fee' => 300.00,
+                            'irregular_subjects_count' => $calculation['past_year_subjects_count'] ?? $semesterPayment->irregular_subjects_count,
+                        ]);
+                    } catch (\Throwable $exception) {
+                        // Keep original calculated totals if dynamic calculation fails.
+                    }
+                }
             }
 
             // If there's an initial payment and it's a college student, create a payment transaction
             if ($paymentAmount > 0 && $validated['education_level'] !== 'senior_high') {
+                $isEarlyEnrollmentPayment = $validated['education_level'] === 'college' && $earlyEnrollmentDiscount > 0;
+                $paymentDescription = $isEarlyEnrollmentPayment
+                    ? 'Early enrollment fee payment'
+                    : 'Enrollment fee payment';
+                $paymentNotes = $isEarlyEnrollmentPayment
+                    ? 'Payment made during student enrollment (early enrollment discount applied: ₱'.number_format($earlyEnrollmentDiscount, 2).')'
+                    : 'Payment made during student enrollment';
+
                 PaymentTransaction::create([
                     'student_id' => $student->id,
                     'payable_type' => StudentSemesterPayment::class,
@@ -1571,11 +1622,11 @@ class RegistrarController extends Controller
                     'payment_type' => 'enrollment_fee',
                     'payment_method' => 'cash',
                     'reference_number' => 'REG-'.now()->format('YmdHis').'-'.$student->id,
-                    'description' => 'Enrollment fee payment',
+                    'description' => $paymentDescription,
                     'payment_date' => now(),
                     'status' => 'completed',
                     'processed_by' => Auth::id(),
-                    'notes' => 'Payment made during student enrollment',
+                    'notes' => $paymentNotes,
                 ]);
 
                 // Mark enrollment as paid since they registered (regardless of amount)
@@ -2122,6 +2173,57 @@ class RegistrarController extends Controller
         $creditedInSemester = array_intersect($creditedSubjectIds, $requiredSubjectIds);
 
         return count($creditedInSemester);
+    }
+
+    private function getCollegeEarlyEnrollmentDiscountAmount(): float
+    {
+        return (float) ($this->getActiveCollegeEarlyEnrollmentDiscount()['amount'] ?? 0);
+    }
+
+    private function getActiveCollegeEarlyEnrollmentDiscount(): array
+    {
+        $today = now()->toDateString();
+
+        $adjustments = FeeAdjustment::query()
+            ->where('type', 'early_enrollment')
+            ->where('college_only', true)
+            ->where(function ($query) use ($today) {
+                $query->whereDate('effective_date', $today)
+                    ->orWhere(function ($periodQuery) use ($today) {
+                        $periodQuery->whereDate('start_date', '<=', $today)
+                            ->whereDate('end_date', '>=', $today);
+                    });
+            })
+            ->orderByRaw('COALESCE(start_date, effective_date) ASC')
+            ->get();
+
+        if ($adjustments->isEmpty()) {
+            return [
+                'active' => false,
+                'amount' => 0,
+                'start_date' => null,
+                'end_date' => null,
+            ];
+        }
+
+        $startDate = $adjustments
+            ->map(fn ($adjustment) => $adjustment->start_date ?? $adjustment->effective_date)
+            ->filter()
+            ->sort()
+            ->first();
+
+        $endDate = $adjustments
+            ->map(fn ($adjustment) => $adjustment->end_date ?? $adjustment->effective_date)
+            ->filter()
+            ->sort()
+            ->last();
+
+        return [
+            'active' => true,
+            'amount' => (float) $adjustments->sum('amount'),
+            'start_date' => $startDate ? \Carbon\Carbon::parse($startDate)->toDateString() : null,
+            'end_date' => $endDate ? \Carbon\Carbon::parse($endDate)->toDateString() : null,
+        ];
     }
 
     /**

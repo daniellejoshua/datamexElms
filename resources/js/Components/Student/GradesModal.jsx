@@ -90,8 +90,9 @@ export default function GradesModal({ isOpen, onClose, subject, paymentStatus, v
     // Prefer server-provided `visibleGradePeriods` when available (keeps logic identical to Grades index)
     const visibleGrades = isSHS ? null : (visibleGradePeriods ?? getVisibleGrades(paymentStatus));
     const gradeItems = isSHS ? [
-        { label: 'Q1', value: subject.grades?.q1_grade, weight: '50%' },
-        { label: 'Q2', value: subject.grades?.q2_grade, weight: '50%' },
+        { label: 'Quarter 1', value: subject.grades?.q1_grade, weight: '50%' },
+        { label: 'Quarter 2', value: subject.grades?.q2_grade, weight: '50%' },
+        { label: 'Semester Grade', value: subject.grades?.semester_grade ?? subject.grades?.final_grade, weight: 'Overall' },
     ] : [
         { label: 'Prelim', value: subject.grades?.prelim_grade, weight: '25%', show: !visibleGrades || visibleGrades.prelim },
         { label: 'Midterm', value: subject.grades?.midterm_grade, weight: '25%', show: !visibleGrades || visibleGrades.midterm },
@@ -219,6 +220,16 @@ const getGradePointEquivalence = (grade) => {
                                     </div>
                                 </CardContent>
                             </Card>
+                            {subject.grades?.teacher_remarks && (
+                                <Card>
+                                    <CardHeader className="pb-3">
+                                        <CardTitle className="text-lg">Remarks</CardTitle>
+                                    </CardHeader>
+                                    <CardContent>
+                                        <p className="text-sm text-gray-700">{subject.grades.teacher_remarks}</p>
+                                    </CardContent>
+                                </Card>
+                            )}
                         </>
                     ) : (
                         <Card>

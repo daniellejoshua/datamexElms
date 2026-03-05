@@ -41,11 +41,10 @@ export default function SubjectsIndex({ subjects, programs, auth, filters = {}, 
         { value: 'college', label: 'College' },
         { value: 'senior_high', label: 'Senior High School' },
     ];
-
+ 
     const subjectTypes = [
         { value: 'major', label: 'Major' },
         { value: 'minor', label: 'Minor' },
-        { value: 'general', label: 'General' },
         { value: 'core', label: 'Core' },
         { value: 'applied', label: 'Applied' },
         { value: 'specialized', label: 'Specialized' },

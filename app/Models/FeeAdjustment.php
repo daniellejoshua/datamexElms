@@ -11,6 +11,8 @@ class FeeAdjustment extends Model
 
     protected $fillable = [
         'effective_date',
+        'start_date',
+        'end_date',
         'type',
         'term',
         'amount',
@@ -20,6 +22,8 @@ class FeeAdjustment extends Model
 
     protected $casts = [
         'effective_date' => 'date',
+        'start_date' => 'date',
+        'end_date' => 'date',
         'amount' => 'decimal:2',
         'college_only' => 'boolean',
         'term' => 'string',

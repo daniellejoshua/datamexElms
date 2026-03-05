@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Student;
 use App\Http\Controllers\Controller;
 use App\Models\ArchivedStudentEnrollment;
 use App\Models\CourseMaterial;
+use App\Models\CurriculumSubject;
 use App\Models\MaterialAccessLog;
 use App\Models\SchoolSetting;
 use App\Models\Student;
@@ -30,6 +31,7 @@ class SubjectController extends Controller
         // Get current academic year and semester from school settings
         $currentYear = SchoolSetting::getCurrentAcademicYear();
         $currentSemester = SchoolSetting::getCurrentSemester();
+        $normalizedCurrentSemester = $this->normalizeSemester($currentSemester);
 
         // Get current payment status for the student
         $paymentStatus = StudentSemesterPayment::where('student_id', $student->id)
@@ -215,6 +217,7 @@ class SubjectController extends Controller
                             'prefinal_grade' => $grade->prefinal_grade,
                             'final_grade' => $grade->final_grade,
                             'semester_grade' => $grade->semester_grade,
+                            'teacher_remarks' => $grade->teacher_remarks ?? null,
                             'status' => $grade->overall_status,
                         ];
                     } elseif ($gradeType === 'shs') {
@@ -222,6 +225,8 @@ class SubjectController extends Controller
                             'q1_grade' => $grade->first_quarter_grade,
                             'q2_grade' => $grade->second_quarter_grade,
                             'final_grade' => $grade->final_grade,
+                            'semester_grade' => $grade->final_grade,
+                            'teacher_remarks' => $grade->teacher_remarks ?? null,
                             'status' => $grade->completion_status,
                         ];
                     }
@@ -272,6 +277,19 @@ class SubjectController extends Controller
                 ];
             }
         } else {
+            // Build curriculum subject filter for regular students.
+            // Only subjects in the student's assigned curriculum for the
+            // current year/semester should be shown.
+            $curriculumSubjectMap = collect();
+            if (! empty($student->curriculum_id)) {
+                $curriculumSubjectMap = CurriculumSubject::query()
+                    ->where('curriculum_id', $student->curriculum_id)
+                    ->get()
+                    ->groupBy(function ($row) {
+                        return (int) $row->year_level.'|'.$this->normalizeSemester((string) $row->semester);
+                    });
+            }
+
             // For regular students: show all subjects in their enrolled sections
             foreach ($enrollments as $enrollment) {
                 // Skip enrollments without sections
@@ -279,8 +297,26 @@ class SubjectController extends Controller
                     continue;
                 }
 
+                $sectionYearLevel = (int) ($enrollment->section->year_level ?? 0);
+                $curriculumKey = $sectionYearLevel.'|'.$normalizedCurrentSemester;
+                $allowedSubjectIds = $curriculumSubjectMap->has($curriculumKey)
+                    ? $curriculumSubjectMap->get($curriculumKey)->pluck('subject_id')->unique()->values()->all()
+                    : [];
+
+                // If student has an assigned curriculum and it has entries for this
+                // year/semester, enforce that filter strictly.
+                $enforceCurriculum = ! empty($student->curriculum_id) && count($allowedSubjectIds) > 0;
+
                 foreach ($enrollment->section->sectionSubjects as $sectionSubject) {
                     $subject = $sectionSubject->subject;
+                    if (! $subject) {
+                        continue;
+                    }
+
+                    if ($enforceCurriculum && ! in_array($subject->id, $allowedSubjectIds, true)) {
+                        continue;
+                    }
+
                     $teacher = $sectionSubject->teacher;
 
                     // Get student grades for this enrollment (College)
@@ -303,6 +339,8 @@ class SubjectController extends Controller
                                 'q1_grade' => $shsStudentGrades->first_quarter_grade,
                                 'q2_grade' => $shsStudentGrades->second_quarter_grade,
                                 'final_grade' => $shsStudentGrades->final_grade,
+                                'semester_grade' => $shsStudentGrades->final_grade,
+                                'teacher_remarks' => $shsStudentGrades->teacher_remarks ?? null,
                                 'status' => $shsStudentGrades->completion_status,
                             ];
                             $gradeType = 'shs';
@@ -316,6 +354,7 @@ class SubjectController extends Controller
                                 'prefinal_grade' => $studentGrades->prefinal_grade,
                                 'final_grade' => $studentGrades->final_grade,
                                 'semester_grade' => $studentGrades->semester_grade,
+                                'teacher_remarks' => $studentGrades->teacher_remarks ?? null,
                                 'status' => $studentGrades->overall_status,
                             ];
                             $gradeType = 'college';
@@ -408,6 +447,18 @@ class SubjectController extends Controller
             'paymentStatus' => $paymentStatus,
             'visibleGradePeriods' => $visiblePeriods,
         ]);
+    }
+
+    private function normalizeSemester(?string $semester): string
+    {
+        $value = strtolower(trim((string) $semester));
+
+        return match ($value) {
+            '1', '1st', 'first' => '1st',
+            '2', '2nd', 'second' => '2nd',
+            'annual', 'yearly' => 'annual',
+            default => $value,
+        };
     }
 
     public function downloadMaterial(Request $request, CourseMaterial $material)

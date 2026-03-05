@@ -24,7 +24,7 @@ const formatCurrency = (value) => {
 }
 
 
-export default function CreateStudent({ programs, auth, currentAcademicYear, currentSemester, course_shift_required, old }) {
+export default function CreateStudent({ programs, auth, currentAcademicYear, currentSemester, course_shift_required, old, earlyEnrollmentDiscount = null }) {
     const { flash } = usePage().props;
     
     // Normalize old data to ensure no null values
@@ -189,6 +189,14 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
     }, [isExistingStudent, isReturningStudent, studentFound, data.program_id, data.year_level, data.education_level, currentSemester])
 
     const effectiveEnrollmentType = computedEnrollmentType || data.enrollment_type
+
+    const earlyDiscountAmount = Number(earlyEnrollmentDiscount?.amount || 0)
+    const isEarlyDiscountActiveForCollege = data.education_level === 'college' && earlyDiscountAmount > 0
+    const isDiscountPreviewApplicable = isEarlyDiscountActiveForCollege && data.student_type === 'regular'
+    const rawEnrollmentFee = parseFloat(data.enrollment_fee) || 0
+    const effectiveEnrollmentFee = isDiscountPreviewApplicable
+        ? Math.max(0, rawEnrollmentFee - earlyDiscountAmount)
+        : rawEnrollmentFee
 
     // Keep backend payload value in sync with the computed enrollment type
     useEffect(() => {
@@ -465,10 +473,9 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
     }, [data.program_id, data.year_level, data.student_type, data.enrollment_type, isShsVoucherApplicable])
 
     useEffect(() => {
-        const enrollmentFee = parseFloat(data.enrollment_fee) || 0
         const paymentAmount = parseFloat(data.payment_amount) || 0
-        setCalculatedBalance(enrollmentFee - paymentAmount)
-    }, [data.enrollment_fee, data.payment_amount])
+        setCalculatedBalance(effectiveEnrollmentFee - paymentAmount)
+    }, [effectiveEnrollmentFee, data.payment_amount])
 
     // Auto-set student_type based on enrollment type
     useEffect(() => {
@@ -2425,6 +2432,36 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                             </div>
                         )}
 
+                        {isEarlyDiscountActiveForCollege && (
+                            <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-4">
+                                <div className="flex items-start gap-3">
+                                    <div className="bg-emerald-100 p-2 rounded-full">
+                                        <CheckCircle2 className="h-5 w-5 text-emerald-600" />
+                                    </div>
+                                    <div className="flex-1">
+                                        <h4 className="font-semibold text-emerald-800 mb-1">
+                                            Early Enrollment Discount Active
+                                        </h4>
+                                        <p className="text-sm text-emerald-700">
+                                            Discount amount: <span className="font-semibold">₱{earlyDiscountAmount.toFixed(2)}</span>
+                                            {earlyEnrollmentDiscount?.start_date && earlyEnrollmentDiscount?.end_date && (
+                                                <span> (valid {earlyEnrollmentDiscount.start_date} to {earlyEnrollmentDiscount.end_date})</span>
+                                            )}
+                                        </p>
+                                        {data.student_type === 'irregular' ? (
+                                            <p className="text-xs text-emerald-700 mt-1">
+                                                For irregular students, this discount will be deducted after balance calculation.
+                                            </p>
+                                        ) : (
+                                            <p className="text-xs text-emerald-700 mt-1">
+                                                This discount will be deducted from the program fee upon enrollment save.
+                                            </p>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
 
 
                         {/* Error Messages */}
@@ -2517,6 +2554,18 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                                         className="text-lg font-semibold"
                                     />
                                 )}
+                                {isDiscountPreviewApplicable && rawEnrollmentFee > 0 && (
+                                    <div className="mt-2 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2">
+                                        <p className="text-xs text-emerald-800">
+                                            Early enrollment adjustment:
+                                            <span className="font-semibold"> ₱{rawEnrollmentFee.toFixed(2)}</span>
+                                            {' - '}
+                                            <span className="font-semibold">₱{earlyDiscountAmount.toFixed(2)}</span>
+                                            {' = '}
+                                            <span className="font-semibold">₱{effectiveEnrollmentFee.toFixed(2)}</span>
+                                        </p>
+                                    </div>
+                                )}
                             </div>
 
                             <div>
@@ -2538,7 +2587,7 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                                         }
 
                                         const numeric = parseFloat(raw)
-                                        const fee = parseFloat(data.enrollment_fee) || 0
+                                        const fee = effectiveEnrollmentFee
 
                                         if (!isNaN(numeric) && fee > 0 && numeric > fee) {
                                             // Prevent entering amount greater than program fee
@@ -3407,8 +3456,13 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                                     <p className="text-sm font-semibold">
                                         {data.enrollment_type === 'transferee' && (subjectsToCatchUp.length > 0 || feeAdjustments.isIrregular) || data.student_type !== 'regular'
                                             ? 'To be calculated'
-                                            : `₱${data.enrollment_fee || '0.00'}`}
+                                            : `₱${effectiveEnrollmentFee.toFixed(2)}`}
                                     </p>
+                                    {isDiscountPreviewApplicable && rawEnrollmentFee > 0 && (
+                                        <p className="text-xs text-emerald-700 mt-1">
+                                            Includes early enrollment discount of ₱{earlyDiscountAmount.toFixed(2)}.
+                                        </p>
+                                    )}
                                 </div>
                                 <div>
                                     <span className="text-sm font-medium text-gray-600">Payment Amount</span>

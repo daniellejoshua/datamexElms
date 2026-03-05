@@ -63,6 +63,7 @@ class GradesController extends Controller
                 'prefinal_grade' => $grade->prefinal_grade,
                 'final_grade' => $grade->final_grade,
                 'semester_grade' => $grade->semester_grade,
+                'teacher_remarks' => $grade->teacher_remarks ?? null,
                 'overall_status' => $grade->overall_status,
                 'studentEnrollment' => $grade->studentEnrollment,
                 'sectionSubject' => $grade->sectionSubject,
@@ -79,6 +80,9 @@ class GradesController extends Controller
                 'q1_grade' => $grade->first_quarter_grade,
                 'q2_grade' => $grade->second_quarter_grade,
                 'final_grade' => $grade->final_grade,
+                // Keep a common key so frontend can render "Semester Grade" for SHS.
+                'semester_grade' => $grade->final_grade,
+                'teacher_remarks' => $grade->teacher_remarks ?? null,
                 'completion_status' => $grade->completion_status,
                 'studentEnrollment' => $grade->studentEnrollment,
                 'sectionSubject' => $grade->sectionSubject,
@@ -168,6 +172,7 @@ class GradesController extends Controller
         }
 
         return Inertia::render('Student/Grades/Index', [
+            'student' => $student->loadMissing(['program']),
             'currentGrades' => $currentGrades,
             'paymentStatus' => $paymentStatus,
             'visibleGradePeriods' => $visiblePeriods,
@@ -224,6 +229,7 @@ class GradesController extends Controller
                 'prefinal_grade' => $grade->prefinal_grade,
                 'final_grade' => $grade->final_grade,
                 'semester_grade' => $grade->semester_grade,
+                'teacher_remarks' => $grade->teacher_remarks ?? null,
                 'overall_status' => $grade->overall_status,
                 'studentEnrollment' => $grade->studentEnrollment,
                 'sectionSubject' => $grade->sectionSubject,
@@ -238,12 +244,15 @@ class GradesController extends Controller
                 'q1_grade' => $grade->first_quarter_grade,
                 'q2_grade' => $grade->second_quarter_grade,
                 'final_grade' => $grade->final_grade,
+                'semester_grade' => $grade->final_grade,
+                'teacher_remarks' => $grade->teacher_remarks ?? null,
                 'completion_status' => $grade->completion_status,
                 'studentEnrollment' => $grade->studentEnrollment,
                 'sectionSubject' => $grade->sectionSubject,
             ]);
         }
         $currentGrades = $allGrades->sortByDesc('created_at');
+        $isShsView = $student->education_level === 'senior_high';
 
         // determine visible periods based on payment status (same algorithm used in index)
         $visiblePeriods = [
@@ -254,10 +263,10 @@ class GradesController extends Controller
             'semester' => false,
         ];
 
-        if ($paymentStatus = StudentSemesterPayment::where('student_id', $student->id)
+        if (! $isShsView && ($paymentStatus = StudentSemesterPayment::where('student_id', $student->id)
             ->where('academic_year', $currentAcademicYear)
             ->where('semester', $currentSemester)
-            ->first()) {
+            ->first())) {
             $prelim = (bool) $paymentStatus->prelim_paid;
             $midterm = (bool) $paymentStatus->midterm_paid;
             $prefinal = (bool) $paymentStatus->prefinal_paid;
@@ -287,6 +296,7 @@ class GradesController extends Controller
             'semester' => $currentSemester,
             'generatedAt' => now('Asia/Manila')->format('F j, Y g:i A'),
             'visiblePeriods' => $visiblePeriods,
+            'isShsView' => $isShsView,
         ];
 
         $pdf = Pdf::loadView('pdf.student-grades', $data);
