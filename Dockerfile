@@ -27,15 +27,12 @@ RUN apk add --no-cache \
     libpng-dev \
     libjpeg-turbo-dev \
     freetype-dev \
-    postgresql-dev \
     mysql-client \
-    postgresql-client \
     nginx \
     && docker-php-ext-configure gd --with-freetype --with-jpeg \
     && docker-php-ext-install -j$(nproc) \
         pdo \
         pdo_mysql \
-        pdo_pgsql \
         bcmath \
         intl \
         gd \
@@ -58,6 +55,10 @@ COPY --from=frontend-builder /app/public/build ./public/build
 COPY docker/nginx.conf /etc/nginx/conf.d/default.conf
 RUN rm -f public/hot \
     && test -f public/build/manifest.json
+
+# Run package discovery now that full app files are present
+RUN php artisan package:discover --ansi || true \
+    && composer dump-autoload -o
 
 # enable OPcache for better PHP performance
 RUN { \
