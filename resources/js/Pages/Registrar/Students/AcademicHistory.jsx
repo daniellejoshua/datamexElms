@@ -61,8 +61,50 @@ export default function AcademicHistory({ student, curriculumSubjects, completed
 
     // credit table helpers
     const renderGradeBadge = (subject) => {
+<<<<<<< HEAD
         if (subject.final_grade) {
             return <Badge className="bg-green-500 text-white">{subject.final_grade}</Badge>
+=======
+        // credits and regular grade records may store grade in different keys;
+        // check several common fields that might contain the final/semester grade
+        const gradeValue = subject.final_grade ?? subject.semester_grade ?? subject.grade ?? subject.semester_grade_value ?? null
+
+        if (gradeValue !== null && gradeValue !== undefined && gradeValue !== '') {
+            const gv = String(gradeValue).trim()
+            const num = parseFloat(gv)
+            const passWords = ['p', 'pass', 'passed', 'cr', 'credit']
+
+            // Credits may be from a previous school (transferee) where grades
+            // are reported as GPA (1.00 - 3.00) — treat those as passing when <= 3.0.
+            const isCredited = subject.type === 'credited' || !!subject.credited_from || !!subject.credit_type
+            let isPassed = false
+
+            if (!isNaN(num)) {
+                if (isCredited) {
+                    // Heuristic: if numeric value is small (<=5) treat as GPA-scale,
+                    // otherwise treat as percentage. GPA passing threshold remains <=3.0.
+                    if (num <= 5.0) {
+                        isPassed = num <= 3.0
+                    } else {
+                        isPassed = num >= 75
+                    }
+                } else {
+                    // default numeric logic: percentage scale
+                    isPassed = num >= 75
+                }
+            }
+
+            if (!isPassed && passWords.includes(gv.toLowerCase())) {
+                isPassed = true
+            }
+
+            if (isPassed) {
+                return <Badge className="bg-green-500 text-white">{gv}</Badge>
+            }
+
+            // show failed values in red for quick scanning
+            return <Badge className="bg-red-600 text-white">{gv}</Badge>
+>>>>>>> 27d4226 (final fix before defense)
         }
         if (subject.credit_type) {
             return <Badge variant="outline" className="text-gray-600">-</Badge>
@@ -206,6 +248,39 @@ export default function AcademicHistory({ student, curriculumSubjects, completed
                     </CardContent>
                 </Card>
 
+<<<<<<< HEAD
+=======
+                {/* Legend for colors used */}
+                <div className="mt-4">
+                    <Card>
+                        <CardContent className="p-4">
+                            <div className="flex items-center flex-wrap gap-4 text-sm">
+                                <div className="flex items-center gap-2">
+                                    <span className="w-3 h-3 bg-green-500 rounded-full inline-block" />
+                                    <span>Completed / Passed</span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <span className="w-3 h-3 bg-blue-500 rounded-full inline-block" />
+                                    <span>Currently Enrolled / Grades Pending</span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <span className="w-3 h-3 bg-yellow-400 rounded-full inline-block" />
+                                    <span>Missing Grades / Action Required</span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <span className="w-3 h-3 bg-red-500 rounded-full inline-block" />
+                                    <span>Failed</span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <span className="w-3 h-3 bg-gray-300 rounded-full inline-block" />
+                                    <span>Not Taken</span>
+                                </div>
+                            </div>
+                        </CardContent>
+                    </Card>
+                </div>
+
+>>>>>>> 27d4226 (final fix before defense)
                 {/* Curriculum Progress */}
                 <Card>
                     <CardHeader>
@@ -257,6 +332,10 @@ export default function AcademicHistory({ student, curriculumSubjects, completed
                                                         const gradeInfo = getSubjectGradeInfo(subject.subject_code)
                                                         const hasMissingGrades = gradeInfo && gradeInfo.missing_grades && gradeInfo.missing_grades.length > 0
                                                         const isEnrolled = gradeInfo && gradeInfo.type === 'enrolled'
+                                                        const rawGradeValue = gradeInfo?.semester_grade ?? gradeInfo?.final_grade ?? null
+                                                        const numericGrade = rawGradeValue === null || rawGradeValue === '' ? NaN : parseFloat(rawGradeValue)
+                                                        const isFailed = !!gradeInfo && !completed && !isEnrolled && !hasMissingGrades && !Number.isNaN(numericGrade) && numericGrade < 75
+                                                        const isNotTaken = !completed && !isEnrolled && !hasMissingGrades && !isFailed && (!gradeInfo || gradeInfo?.type === 'archived')
                                                         
                                                         return (
                                                             <Card 
@@ -264,9 +343,11 @@ export default function AcademicHistory({ student, curriculumSubjects, completed
                                                                 className={`transition-all duration-200 ${
                                                                     completed 
                                                                         ? 'bg-green-50 border-green-200 shadow-sm' 
+                                                                        : isFailed
+                                                                        ? 'bg-red-50 border-red-200 shadow-sm'
                                                                         : isEnrolled
                                                                         ? 'bg-blue-50 border-blue-200 shadow-sm'
-                                                                        : gradeInfo?.type === 'archived' && !hasMissingGrades
+                                                                        : isNotTaken
                                                                         ? 'bg-gray-100 border-dashed border-gray-400'
                                                                         : hasMissingGrades
                                                                         ? 'bg-yellow-50 border-yellow-200'
@@ -277,12 +358,15 @@ export default function AcademicHistory({ student, curriculumSubjects, completed
                                                                     <div className="flex items-start gap-3">
                                                                         <div className={`mt-1 ${
                                                                             completed ? 'text-green-600' : 
+                                                                            isFailed ? 'text-red-600' :
                                                                             isEnrolled ? 'text-blue-600' :
                                                                             hasMissingGrades ? 'text-yellow-600' : 
                                                                             'text-gray-400'
                                                                         }`}>
                                                                             {completed ? (
                                                                                 <CheckCircle2 className="w-5 h-5" />
+                                                                            ) : isFailed ? (
+                                                                                <AlertCircle className="w-5 h-5" />
                                                                             ) : isEnrolled ? (
                                                                                 <Clock className="w-5 h-5" />
                                                                             ) : hasMissingGrades ? (
@@ -332,6 +416,22 @@ export default function AcademicHistory({ student, curriculumSubjects, completed
                                                                                         <div className="w-1.5 h-1.5 bg-gray-500 rounded-full"></div>
                                                                                     </School>
                                                                                     <span>{gradeInfo.credited_from}</span>
+                                                                                </div>
+                                                                            )}
+
+                                                                            {isFailed && (
+                                                                                <div className="mt-2">
+                                                                                    <Badge variant="outline" className="text-[10px] leading-none py-0.5 px-2 bg-red-100 text-red-800 border-red-300">
+                                                                                        Failed
+                                                                                    </Badge>
+                                                                                </div>
+                                                                            )}
+
+                                                                            {isNotTaken && (
+                                                                                <div className="mt-2">
+                                                                                    <Badge variant="outline" className="text-[10px] leading-none py-0.5 px-2 bg-gray-100 text-gray-700 border-gray-300">
+                                                                                        Not Taken
+                                                                                    </Badge>
                                                                                 </div>
                                                                             )}
                                                                             

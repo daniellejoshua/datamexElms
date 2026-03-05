@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 
 class SuperAdminDashboardController extends Controller
@@ -140,6 +141,19 @@ class SuperAdminDashboardController extends Controller
         ]);
 
         return redirect()->route('superadmin.users')->with('success', 'User status updated successfully.');
+    }
+
+    public function updateUserEmail(Request $request, User $user)
+    {
+        $validated = $request->validate([
+            'email' => ['required', 'email', 'max:255', Rule::unique('users', 'email')->ignore($user->id)],
+        ]);
+
+        $user->update([
+            'email' => $validated['email'],
+        ]);
+
+        return redirect()->route('superadmin.users')->with('success', 'User email updated successfully.');
     }
 
     public function systemLogs(Request $request)

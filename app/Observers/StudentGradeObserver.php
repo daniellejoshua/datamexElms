@@ -5,6 +5,7 @@ namespace App\Observers;
 use App\Models\StudentCreditTransfer;
 use App\Models\StudentGrade;
 use App\Models\StudentSubjectCredit;
+use App\Services\StudentRegularityCheckService;
 use Illuminate\Support\Facades\Log;
 
 class StudentGradeObserver
@@ -22,6 +23,9 @@ class StudentGradeObserver
 
             // Also process pending credit transfers for irregular/transferee students
             $this->processPendingCredits($grade);
+
+            // Recompute student type (regular/irregular) after this grade update.
+            $this->syncStudentTypeFromCredits($grade);
         }
     }
 
@@ -30,11 +34,11 @@ class StudentGradeObserver
      */
     protected function hasCompletedAllGrades(StudentGrade $grade): bool
     {
-        return ! empty($grade->prelim_grade) &&
-               ! empty($grade->midterm_grade) &&
-               ! empty($grade->prefinal_grade) &&
-               ! empty($grade->final_grade) &&
-               ! empty($grade->semester_grade);
+        return ! is_null($grade->prelim_grade) &&
+               ! is_null($grade->midterm_grade) &&
+               ! is_null($grade->prefinal_grade) &&
+               ! is_null($grade->final_grade) &&
+               ! is_null($grade->semester_grade);
     }
 
     /**
@@ -71,7 +75,7 @@ class StudentGradeObserver
         }
 
         // Determine credit status based on grade
-        $isPassed = $grade->semester_grade >= 60;
+        $isPassed = $grade->semester_grade >= 75;
         $creditStatus = $isPassed ? 'credited' : 'failed';
 
         // Create or update the credit record
@@ -131,8 +135,8 @@ class StudentGradeObserver
             ->get();
 
         foreach ($pendingCredits as $credit) {
-            // Check if the student passed (semester_grade >= 60)
-            if ($grade->semester_grade >= 60) {
+            // Check if the student passed (semester_grade >= 75)
+            if ($grade->semester_grade >= 75) {
                 // Update credit status to "credited"
                 $credit->update([
                     'credit_status' => 'credited',
@@ -157,6 +161,34 @@ class StudentGradeObserver
                     'credit_transfer_id' => $credit->id,
                 ]);
             }
+        }
+    }
+
+    protected function syncStudentTypeFromCredits(StudentGrade $grade): void
+    {
+        $student = $grade->studentEnrollment?->student;
+        if (! $student) {
+            return;
+        }
+
+        $hasFailedBacklogs = StudentSubjectCredit::where('student_id', $student->id)
+            ->where('credit_status', 'failed')
+            ->exists();
+
+        if ($hasFailedBacklogs) {
+            if ($student->student_type !== 'irregular') {
+                $student->update(['student_type' => 'irregular']);
+                Log::info('Student marked irregular due to failed subject', [
+                    'student_id' => $student->id,
+                    'student_number' => $student->student_number,
+                ]);
+            }
+
+            return;
+        }
+
+        if ($student->student_type === 'irregular') {
+            app(StudentRegularityCheckService::class)->checkAndUpdateRegularityAfterReenrollment($student);
         }
     }
 }

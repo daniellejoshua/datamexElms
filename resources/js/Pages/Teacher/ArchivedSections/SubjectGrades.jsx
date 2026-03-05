@@ -311,7 +311,7 @@ const SubjectGrades = ({ archivedSection, subject, enrollments }) => {
                                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
                                                 Semester Grade
                                             </th>
-                                            <th style={{width: '40%'}} className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                                            <th style={{width: '55%'}} className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
                                                 Remarks
                                             </th>
                                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
@@ -395,13 +395,13 @@ const SubjectGrades = ({ archivedSection, subject, enrollments }) => {
                                                             {formatGradeDisplay(enrollment.final_semester_grade)}
                                                         </span>
                                                     </td>
-                                                    <td className="px-6 py-4" style={{width: '40%'}}>
+                                                    <td className="px-6 py-4" style={{width: '55%'}}>
                                                         {isEditing ? (
                                                             <Textarea
                                                                 value={editValues.teacher_remarks || ''}
                                                                 onChange={(e) => updateGrade(enrollment.id, 'teacher_remarks', e.target.value)}
-                                                                className="w-full min-w-0 resize-none text-sm min-h-[60px] max-h-[100px]"
-                                                                rows={2}
+                                                                className="w-full min-w-[420px] resize-y text-sm min-h-[88px] max-h-[200px]"
+                                                                rows={3}
                                                                 placeholder="Enter remarks..."
                                                             />
                                                         ) : (

@@ -294,7 +294,11 @@ class ArchivedSectionsController extends Controller
 
         // Filter out dropped students and process remaining enrollments to check grade status
         // Try to use normalized archived subject rows for this specific subject first
-        $archivedEnrollmentIds = $archivedSection->archivedEnrollments->pluck('id')->filter()->values();
+        $archivedEnrollmentIds = $archivedSection->archivedEnrollments
+            ->filter(fn ($enrollment) => $enrollment->final_status !== 'dropped')
+            ->pluck('id')
+            ->filter()
+            ->values();
         $enrollmentsWithStatus = collect();
 
         if ($archivedEnrollmentIds->isNotEmpty()) {
@@ -330,6 +334,9 @@ class ArchivedSectionsController extends Controller
 
                 foreach ($subjectRows as $row) {
                     $enrollment = $archivedSection->archivedEnrollments->firstWhere('id', $row->archived_student_enrollment_id);
+                    if (! $enrollment || $enrollment->final_status === 'dropped') {
+                        continue;
+                    }
 
                     if ($isShsLevel) {
                         // SHS quarters (only Q1 and Q2)

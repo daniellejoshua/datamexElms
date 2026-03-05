@@ -1978,6 +1978,27 @@ class SectionController extends Controller
             $enrolledCount = 0;
 
             foreach ($request->subject_ids as $sectionSubjectId) {
+                $sectionSubject = SectionSubject::with('subject')->find($sectionSubjectId);
+                if (! $sectionSubject || ! $sectionSubject->subject_id) {
+                    continue;
+                }
+
+                // Prevent parallel active attempts for the same subject in the same period.
+                $existingSameSubjectThisTerm = StudentSubjectEnrollment::where('student_id', $student->id)
+                    ->where('academic_year', $section->academic_year)
+                    ->where('semester', $section->semester)
+                    ->where('status', 'active')
+                    ->whereHas('sectionSubject', function ($query) use ($sectionSubject) {
+                        $query->where('subject_id', $sectionSubject->subject_id);
+                    })
+                    ->first();
+
+                if ($existingSameSubjectThisTerm) {
+                    $alreadyEnrolled[] = $sectionSubject->subject->subject_name;
+
+                    continue;
+                }
+
                 // Check if already enrolled in this subject (active enrollment)
                 $existingActiveEnrollment = StudentSubjectEnrollment::where('student_id', $student->id)
                     ->where('section_subject_id', $sectionSubjectId)
@@ -1985,7 +2006,6 @@ class SectionController extends Controller
                     ->first();
 
                 if ($existingActiveEnrollment) {
-                    $sectionSubject = SectionSubject::with('subject')->find($sectionSubjectId);
                     $alreadyEnrolled[] = $sectionSubject->subject->subject_name;
 
                     continue;
