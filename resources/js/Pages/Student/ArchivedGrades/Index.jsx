@@ -7,7 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Archive, Calendar, BookOpen, Eye, GraduationCap, Building, Award, Target, TrendingUp, Users, ArrowRight } from 'lucide-react';
 
-const Index = ({ archivedEnrollments }) => {
+const Index = ({ archivedEnrollments, isShsStudent = false }) => {
     const { auth } = usePage().props;
 
     // Group enrollments by academic year and semester
@@ -34,15 +34,16 @@ const Index = ({ archivedEnrollments }) => {
             }
 
             grouped[key].sections.add(enrollment.archived_section_id);
-            // Use the total subjects offered in all sections for this period
-            if (grouped[key].total_subjects === 0) {
-                grouped[key].total_subjects = enrollment.period_total_subjects || 0;
-            }
+            // Use backend-computed student-specific period totals.
+            grouped[key].total_subjects = Math.max(
+                grouped[key].total_subjects || 0,
+                enrollment.period_total_subjects || 0
+            );
+            grouped[key].completed_subjects = Math.max(
+                grouped[key].completed_subjects || 0,
+                enrollment.period_completed_subjects || 0
+            );
             grouped[key].enrollments.push(enrollment);
-
-            if (enrollment.final_status === 'completed') {
-                grouped[key].completed_subjects++;
-            }
 
             if (enrollment.final_semester_grade && parseFloat(enrollment.final_semester_grade) > grouped[key].best_grade) {
                 grouped[key].best_grade = parseFloat(enrollment.final_semester_grade);
@@ -97,7 +98,9 @@ const Index = ({ archivedEnrollments }) => {
                     </div>
                     <div>
                         <h2 className="text-lg font-semibold text-gray-900">My Archived Grades</h2>
-                        <p className="text-xs text-gray-500 mt-0.5">View all your past semester grades and academic performance</p>
+                        <p className="text-xs text-gray-500 mt-0.5">
+                            View all your past {isShsStudent ? 'semester/quarter' : 'semester'} grades and academic performance
+                        </p>
                     </div>
                 </div>
             }

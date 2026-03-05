@@ -19,6 +19,8 @@ class AcademicHistoryController extends Controller
 
         // Load student with necessary relationships
         $student->load(['user', 'program', 'curriculum']);
+        $isSHS = in_array(strtolower((string) ($student->education_level ?? $student->program?->education_level ?? '')), ['shs', 'senior_high'], true)
+            || in_array((int) ($student->current_year_level ?? 0), [11, 12], true);
 
         // Get curriculum subjects
         $curriculumSubjects = [];
@@ -63,17 +65,26 @@ class AcademicHistoryController extends Controller
 
                 // Determine missing grades
                 $missingGrades = [];
-                if (is_null($grade->prelim_grade)) {
-                    $missingGrades[] = 'Prelim';
-                }
-                if (is_null($grade->midterm_grade)) {
-                    $missingGrades[] = 'Midterm';
-                }
-                if (is_null($grade->prefinal_grade)) {
-                    $missingGrades[] = 'Prefinal';
-                }
-                if (is_null($grade->final_grade)) {
-                    $missingGrades[] = 'Final';
+                if ($isSHS) {
+                    if (is_null($grade->prelim_grade)) {
+                        $missingGrades[] = 'Quarter 1';
+                    }
+                    if (is_null($grade->midterm_grade)) {
+                        $missingGrades[] = 'Quarter 2';
+                    }
+                } else {
+                    if (is_null($grade->prelim_grade)) {
+                        $missingGrades[] = 'Prelim';
+                    }
+                    if (is_null($grade->midterm_grade)) {
+                        $missingGrades[] = 'Midterm';
+                    }
+                    if (is_null($grade->prefinal_grade)) {
+                        $missingGrades[] = 'Prefinal';
+                    }
+                    if (is_null($grade->final_grade)) {
+                        $missingGrades[] = 'Final';
+                    }
                 }
 
                 $gradeInfo = [
@@ -156,9 +167,8 @@ class AcademicHistoryController extends Controller
                             $isPartial = ! empty($credit['is_partial']) || is_null($credit['grade']);
                             $missingGrades = [];
                             if ($isPartial) {
-                                $isSHS = $student->current_year_level >= 11 && $student->current_year_level <= 12;
                                 $missingGrades = $isSHS
-                                    ? ['Q1', 'Q2']
+                                    ? ['Quarter 1', 'Quarter 2']
                                     : ['Prelim', 'Midterm', 'Prefinal', 'Final'];
                             }
 
@@ -345,8 +355,7 @@ class AcademicHistoryController extends Controller
 
                         // This is an enrolled subject without grades
                         // Determine missing grades based on education level
-                        $isSHS = $student->current_year_level >= 11 && $student->current_year_level <= 12;
-                        $missingGrades = $isSHS ? ['Q1', 'Q2'] : ['Prelim', 'Midterm', 'Prefinal', 'Final'];
+                        $missingGrades = $isSHS ? ['Quarter 1', 'Quarter 2'] : ['Prelim', 'Midterm', 'Prefinal', 'Final'];
 
                         $gradeInfo = [
                             'subject_id' => $subject->id,
@@ -406,24 +415,38 @@ class AcademicHistoryController extends Controller
             ->get()
             ->map(function ($arch) {
                 $finals = $arch->final_grades ?? [];
+                $isShsArchived = in_array(strtolower((string) optional($arch->archivedSection->program)->education_level), ['shs', 'senior_high'], true)
+                    || in_array((int) ($arch->archivedSection->year_level ?? 0), [11, 12], true);
                 $missing = [];
-                foreach (['prelim', 'midterm', 'prefinals', 'finals'] as $p) {
-                    if (empty($finals[$p])) {
-                        $missing[] = ucfirst($p);
+                if ($isShsArchived) {
+                    $q1 = $finals['first_quarter'] ?? $finals['q1'] ?? $finals['quarter_1'] ?? $finals['prelim'] ?? null;
+                    $q2 = $finals['second_quarter'] ?? $finals['q2'] ?? $finals['quarter_2'] ?? $finals['midterm'] ?? null;
+                    if (is_null($q1)) {
+                        $missing[] = 'Quarter 1';
+                    }
+                    if (is_null($q2)) {
+                        $missing[] = 'Quarter 2';
+                    }
+                } else {
+                    foreach (['prelim', 'midterm', 'prefinals', 'finals'] as $p) {
+                        if (empty($finals[$p])) {
+                            $missing[] = ucfirst($p);
+                        }
                     }
                 }
                 $arch->missing_grades = $missing;
 
                 // add list of subject rows for easier rendering
                 $arch->subjects = $arch->archivedStudentSubjects->map(function ($s) use ($arch) {
-                    $isShs = optional($arch->archivedSection->program)->education_level === 'shs';
+                    $isShs = in_array(strtolower((string) optional($arch->archivedSection->program)->education_level), ['shs', 'senior_high'], true)
+                        || in_array((int) ($arch->archivedSection->year_level ?? 0), [11, 12], true);
                     $missingGrades = [];
                     if ($isShs) {
-                        if (is_null($s->prelim_grade)) {
-                            $missingGrades[] = 'Q1';
+                        if (is_null($s->first_quarter_grade ?? $s->prelim_grade)) {
+                            $missingGrades[] = 'Quarter 1';
                         }
-                        if (is_null($s->midterm_grade)) {
-                            $missingGrades[] = 'Q2';
+                        if (is_null($s->second_quarter_grade ?? $s->midterm_grade)) {
+                            $missingGrades[] = 'Quarter 2';
                         }
                     } else {
                         if (is_null($s->prelim_grade)) {
@@ -459,10 +482,23 @@ class AcademicHistoryController extends Controller
                 $key = "archived_{$arch->id}";
                 if (! isset($subjectGradesMap[$key])) {
                     $finals = $arch->final_grades ?? [];
+                    $isShsArchived = in_array(strtolower((string) optional($arch->archivedSection->program)->education_level), ['shs', 'senior_high'], true)
+                        || in_array((int) ($arch->archivedSection->year_level ?? 0), [11, 12], true);
                     $missing = [];
-                    foreach (['prelim', 'midterm', 'prefinals', 'finals'] as $p) {
-                        if (empty($finals[$p])) {
-                            $missing[] = ucfirst($p);
+                    if ($isShsArchived) {
+                        $q1 = $finals['first_quarter'] ?? $finals['q1'] ?? $finals['quarter_1'] ?? $finals['prelim'] ?? null;
+                        $q2 = $finals['second_quarter'] ?? $finals['q2'] ?? $finals['quarter_2'] ?? $finals['midterm'] ?? null;
+                        if (is_null($q1)) {
+                            $missing[] = 'Quarter 1';
+                        }
+                        if (is_null($q2)) {
+                            $missing[] = 'Quarter 2';
+                        }
+                    } else {
+                        foreach (['prelim', 'midterm', 'prefinals', 'finals'] as $p) {
+                            if (empty($finals[$p])) {
+                                $missing[] = ucfirst($p);
+                            }
                         }
                     }
 
@@ -548,6 +584,8 @@ class AcademicHistoryController extends Controller
 
         // Reuse the same data-gathering logic from index()
         $student->load(['user', 'program', 'curriculum']);
+        $isSHS = in_array(strtolower((string) ($student->education_level ?? $student->program?->education_level ?? '')), ['shs', 'senior_high'], true)
+            || in_array((int) ($student->current_year_level ?? 0), [11, 12], true);
 
         $curriculumSubjects = [];
         if ($student->curriculum_id) {
@@ -577,17 +615,26 @@ class AcademicHistoryController extends Controller
                 }
 
                 $missingGrades = [];
-                if (is_null($grade->prelim_grade)) {
-                    $missingGrades[] = 'Prelim';
-                }
-                if (is_null($grade->midterm_grade)) {
-                    $missingGrades[] = 'Midterm';
-                }
-                if (is_null($grade->prefinal_grade)) {
-                    $missingGrades[] = 'Prefinal';
-                }
-                if (is_null($grade->final_grade)) {
-                    $missingGrades[] = 'Final';
+                if ($isSHS) {
+                    if (is_null($grade->prelim_grade)) {
+                        $missingGrades[] = 'Quarter 1';
+                    }
+                    if (is_null($grade->midterm_grade)) {
+                        $missingGrades[] = 'Quarter 2';
+                    }
+                } else {
+                    if (is_null($grade->prelim_grade)) {
+                        $missingGrades[] = 'Prelim';
+                    }
+                    if (is_null($grade->midterm_grade)) {
+                        $missingGrades[] = 'Midterm';
+                    }
+                    if (is_null($grade->prefinal_grade)) {
+                        $missingGrades[] = 'Prefinal';
+                    }
+                    if (is_null($grade->final_grade)) {
+                        $missingGrades[] = 'Final';
+                    }
                 }
 
                 $gradeInfo = [
@@ -751,8 +798,7 @@ class AcademicHistoryController extends Controller
                             continue;
                         }
 
-                        $isSHS = $student->current_year_level >= 11 && $student->current_year_level <= 12;
-                        $missingGrades = $isSHS ? ['Q1', 'Q2'] : ['Prelim', 'Midterm', 'Prefinal', 'Final'];
+                        $missingGrades = $isSHS ? ['Quarter 1', 'Quarter 2'] : ['Prelim', 'Midterm', 'Prefinal', 'Final'];
 
                         $gradeInfo = [
                             'subject_id' => $subject->id,
@@ -822,24 +868,38 @@ class AcademicHistoryController extends Controller
             ->get()
             ->map(function ($arch) {
                 $finals = $arch->final_grades ?? [];
+                $isShsArchived = in_array(strtolower((string) optional($arch->archivedSection->program)->education_level), ['shs', 'senior_high'], true)
+                    || in_array((int) ($arch->archivedSection->year_level ?? 0), [11, 12], true);
                 $missing = [];
-                foreach (['prelim', 'midterm', 'prefinals', 'finals'] as $p) {
-                    if (empty($finals[$p])) {
-                        $missing[] = ucfirst($p);
+                if ($isShsArchived) {
+                    $q1 = $finals['first_quarter'] ?? $finals['q1'] ?? $finals['quarter_1'] ?? $finals['prelim'] ?? null;
+                    $q2 = $finals['second_quarter'] ?? $finals['q2'] ?? $finals['quarter_2'] ?? $finals['midterm'] ?? null;
+                    if (is_null($q1)) {
+                        $missing[] = 'Quarter 1';
+                    }
+                    if (is_null($q2)) {
+                        $missing[] = 'Quarter 2';
+                    }
+                } else {
+                    foreach (['prelim', 'midterm', 'prefinals', 'finals'] as $p) {
+                        if (empty($finals[$p])) {
+                            $missing[] = ucfirst($p);
+                        }
                     }
                 }
                 $arch->missing_grades = $missing;
 
                 // add list of subject rows for easier rendering
                 $arch->subjects = $arch->archivedStudentSubjects->map(function ($s) use ($arch) {
-                    $isShs = optional($arch->archivedSection->program)->education_level === 'shs';
+                    $isShs = in_array(strtolower((string) optional($arch->archivedSection->program)->education_level), ['shs', 'senior_high'], true)
+                        || in_array((int) ($arch->archivedSection->year_level ?? 0), [11, 12], true);
                     $missingGrades = [];
                     if ($isShs) {
-                        if (is_null($s->prelim_grade)) {
-                            $missingGrades[] = 'Q1';
+                        if (is_null($s->first_quarter_grade ?? $s->prelim_grade)) {
+                            $missingGrades[] = 'Quarter 1';
                         }
-                        if (is_null($s->midterm_grade)) {
-                            $missingGrades[] = 'Q2';
+                        if (is_null($s->second_quarter_grade ?? $s->midterm_grade)) {
+                            $missingGrades[] = 'Quarter 2';
                         }
                     } else {
                         if (is_null($s->prelim_grade)) {
@@ -875,10 +935,23 @@ class AcademicHistoryController extends Controller
                 $key = "archived_{$arch->id}";
                 if (! isset($subjectGradesMap[$key])) {
                     $finals = $arch->final_grades ?? [];
+                    $isShsArchived = in_array(strtolower((string) optional($arch->archivedSection->program)->education_level), ['shs', 'senior_high'], true)
+                        || in_array((int) ($arch->archivedSection->year_level ?? 0), [11, 12], true);
                     $missing = [];
-                    foreach (['prelim', 'midterm', 'prefinals', 'finals'] as $p) {
-                        if (empty($finals[$p])) {
-                            $missing[] = ucfirst($p);
+                    if ($isShsArchived) {
+                        $q1 = $finals['first_quarter'] ?? $finals['q1'] ?? $finals['quarter_1'] ?? $finals['prelim'] ?? null;
+                        $q2 = $finals['second_quarter'] ?? $finals['q2'] ?? $finals['quarter_2'] ?? $finals['midterm'] ?? null;
+                        if (is_null($q1)) {
+                            $missing[] = 'Quarter 1';
+                        }
+                        if (is_null($q2)) {
+                            $missing[] = 'Quarter 2';
+                        }
+                    } else {
+                        foreach (['prelim', 'midterm', 'prefinals', 'finals'] as $p) {
+                            if (empty($finals[$p])) {
+                                $missing[] = ucfirst($p);
+                            }
                         }
                     }
 

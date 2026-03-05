@@ -262,6 +262,19 @@ class SectionController extends Controller
 
         // Filter students based on enrollment rules
         $availableStudents = $availableStudentsQuery->get()->filter(function ($student) use ($section) {
+            // For SHS, student must be currently enrolled in the same academic period.
+            if ($section->program->education_level === 'senior_high') {
+                $hasActiveEnrollmentThisPeriod = $student->studentEnrollments->contains(function ($enrollment) use ($section) {
+                    return $enrollment->academic_year === $section->academic_year &&
+                           $enrollment->semester === $section->semester &&
+                           $enrollment->status === 'active';
+                });
+
+                if (! $hasActiveEnrollmentThisPeriod) {
+                    return false;
+                }
+            }
+
             // For regular students: ensure year-level matches the section and exclude only if
             // they already have an active enrollment with an assigned section in the current period.
             if ($student->student_type !== 'irregular') {
@@ -618,6 +631,19 @@ class SectionController extends Controller
             });
 
         $availableStudents = $availableStudentsQuery->get()->filter(function ($student) use ($section) {
+            // For SHS, student must be currently enrolled in the same academic period.
+            if ($section->program->education_level === 'senior_high') {
+                $hasActiveEnrollmentThisPeriod = $student->studentEnrollments->contains(function ($enrollment) use ($section) {
+                    return $enrollment->academic_year === $section->academic_year &&
+                           $enrollment->semester === $section->semester &&
+                           $enrollment->status === 'active';
+                });
+
+                if (! $hasActiveEnrollmentThisPeriod) {
+                    return false;
+                }
+            }
+
             // For regular students: require exact year-level match and exclude if they
             // already have an active enrollment with an assigned section in the same period.
             if ($student->student_type !== 'irregular') {

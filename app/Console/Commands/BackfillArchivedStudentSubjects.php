@@ -4,6 +4,7 @@ namespace App\Console\Commands;
 
 use App\Models\ArchivedStudentEnrollment;
 use App\Models\ArchivedStudentSubject;
+use App\Models\ShsStudentGrade;
 use App\Models\StudentGrade;
 use App\Models\StudentSubjectEnrollment;
 use Illuminate\Console\Command;
@@ -17,7 +18,7 @@ class BackfillArchivedStudentSubjects extends Command
         {--start-id= : Resume from archived_enrollment id}
     ';
 
-    protected $description = 'Populate missing rows in archived_student_subjects from StudentGrade / StudentSubjectEnrollment';
+    protected $description = 'Populate missing rows in archived_student_subjects from StudentGrade / ShsStudentGrade / StudentSubjectEnrollment';
 
     public function handle()
     {
@@ -95,6 +96,7 @@ class BackfillArchivedStudentSubjects extends Command
                             'final_grade' => $grade->final_grade,
                             'semester_grade' => $computedSemester,
                             'teacher_id' => $grade->teacher_id ?? $sectionSubject?->teacher_id ?? null,
+                            'teacher_remarks' => $grade->teacher_remarks,
                             'created_at' => now(),
                             'updated_at' => now(),
                         ];
@@ -103,6 +105,61 @@ class BackfillArchivedStudentSubjects extends Command
                             $this->line("[DRY] Would insert archived student subject for archived_enrollment={$archived->id}, section_subject_id={$grade->section_subject_id}");
                         } else {
                             // Use insert to avoid firing model events repeatedly; rely on uniqueness checks above
+                            DB::table('archived_student_subjects')->insert($row);
+                        }
+
+                        $createdForEnrollment++;
+                        $totalInserted++;
+                    }
+
+                    // SHS grades source (Q1/Q2 mapped to prelim/midterm columns)
+                    $shsGrades = ShsStudentGrade::where('student_enrollment_id', $archived->original_enrollment_id)
+                        ->with(['sectionSubject.subject'])
+                        ->get();
+
+                    foreach ($shsGrades as $grade) {
+                        $existsQuery = ArchivedStudentSubject::where('archived_student_enrollment_id', $archived->id);
+
+                        if ($grade->section_subject_id) {
+                            $existsQuery->where('section_subject_id', $grade->section_subject_id);
+                        } else {
+                            $subjectCode = $grade->sectionSubject?->subject?->subject_code ?? null;
+                            $existsQuery->where('subject_code', $subjectCode);
+                        }
+
+                        if ($existsQuery->exists()) {
+                            continue;
+                        }
+
+                        $sectionSubject = $grade->sectionSubject;
+                        $subject = $sectionSubject?->subject;
+
+                        $row = [
+                            'archived_student_enrollment_id' => $archived->id,
+                            'student_id' => $archived->student_id,
+                            'original_enrollment_id' => $archived->original_enrollment_id,
+                            'section_subject_id' => $grade->section_subject_id,
+                            'subject_id' => $subject?->id ?? null,
+                            'subject_code' => $subject?->subject_code ?? null,
+                            'subject_name' => $subject?->subject_name ?? ($sectionSubject?->subject?->subject_name ?? null),
+                            'units' => $subject?->units ?? null,
+                            // Q1/Q2 mapped to prelim/midterm storage for compatibility
+                            'first_quarter_grade' => $grade->first_quarter_grade,
+                            'second_quarter_grade' => $grade->second_quarter_grade,
+                            'prelim_grade' => $grade->first_quarter_grade,
+                            'midterm_grade' => $grade->second_quarter_grade,
+                            'prefinal_grade' => null,
+                            'final_grade' => null,
+                            'semester_grade' => $grade->final_grade,
+                            'teacher_id' => $grade->teacher_id ?? $sectionSubject?->teacher_id ?? null,
+                            'teacher_remarks' => $grade->teacher_remarks,
+                            'created_at' => now(),
+                            'updated_at' => now(),
+                        ];
+
+                        if ($isDryRun) {
+                            $this->line("[DRY] Would insert SHS archived subject for archived_enrollment={$archived->id}, section_subject_id={$grade->section_subject_id}");
+                        } else {
                             DB::table('archived_student_subjects')->insert($row);
                         }
 
@@ -166,6 +223,7 @@ class BackfillArchivedStudentSubjects extends Command
                         'final_grade' => null,
                         'semester_grade' => null,
                         'teacher_id' => $sectionSubject?->teacher_id ?? null,
+                        'teacher_remarks' => $archived->teacher_remarks,
                         'created_at' => now(),
                         'updated_at' => now(),
                     ];

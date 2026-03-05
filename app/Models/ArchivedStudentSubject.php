@@ -19,12 +19,15 @@ class ArchivedStudentSubject extends Model
         'subject_code',
         'subject_name',
         'units',
+        'first_quarter_grade',
+        'second_quarter_grade',
         'prelim_grade',
         'midterm_grade',
         'prefinal_grade',
         'final_grade',
         'semester_grade',
         'teacher_id',
+        'teacher_remarks',
     ];
 
     /**
@@ -53,8 +56,38 @@ class ArchivedStudentSubject extends Model
             'prefinal_grade' => 'decimal:2',
             'final_grade' => 'decimal:2',
             'semester_grade' => 'decimal:2',
+            'first_quarter_grade' => 'decimal:2',
+            'second_quarter_grade' => 'decimal:2',
             'units' => 'decimal:2',
         ];
+    }
+
+    /**
+     * SHS compatibility alias:
+     * Store quarter grades in prelim/midterm columns while exposing SHS names.
+     */
+    public function getFirstQuarterGradeAttribute()
+    {
+        return $this->attributes['first_quarter_grade'] ?? $this->prelim_grade;
+    }
+
+    public function setFirstQuarterGradeAttribute($value): void
+    {
+        $this->attributes['first_quarter_grade'] = $value;
+        // Keep legacy mapping for compatibility with existing college-term logic.
+        $this->attributes['prelim_grade'] = $value;
+    }
+
+    public function getSecondQuarterGradeAttribute()
+    {
+        return $this->attributes['second_quarter_grade'] ?? $this->midterm_grade;
+    }
+
+    public function setSecondQuarterGradeAttribute($value): void
+    {
+        $this->attributes['second_quarter_grade'] = $value;
+        // Keep legacy mapping for compatibility with existing college-term logic.
+        $this->attributes['midterm_grade'] = $value;
     }
 
     public function archivedEnrollment(): BelongsTo

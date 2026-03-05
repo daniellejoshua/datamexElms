@@ -6,7 +6,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Archive, ArrowLeft } from 'lucide-react';
 
-const Show = ({ subjects, academic_year, semester }) => {
+const Show = ({ subjects, academic_year, semester, isShsStudent = false }) => {
     const { auth } = usePage().props;
 
     const allEnrollments = React.useMemo(() => {
@@ -114,6 +114,24 @@ const Show = ({ subjects, academic_year, semester }) => {
         return { groups, labels };
     }, [allEnrollments, auth]);
 
+    const isShsArchivedView = React.useMemo(() => {
+        if (isShsStudent) return true;
+        return allEnrollments.some((enr) => {
+            const yearLevel = Number(
+                enr?.year_level ??
+                enr?.archived_section?.year_level ??
+                enr?.section?.year_level
+            );
+            const hasQuarterKeys = enr?.final_grades && (
+                enr.final_grades.q1 !== undefined ||
+                enr.final_grades.q2 !== undefined ||
+                enr.final_grades.first_quarter !== undefined ||
+                enr.final_grades.second_quarter !== undefined
+            );
+            return hasQuarterKeys || yearLevel === 11 || yearLevel === 12;
+        });
+    }, [isShsStudent, allEnrollments]);
+
     const getSemesterDisplay = (s) => {
         const semesters = {
             'first': '1st Semester',
@@ -180,10 +198,19 @@ const Show = ({ subjects, academic_year, semester }) => {
                                                 <tr>
                                                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500">Subject Code</th>
                                                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500">Teacher</th>
-                                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500">Prelim</th>
-                                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500">Midterm</th>
-                                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500">Prefinal</th>
-                                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500">Final</th>
+                                                    {isShsArchivedView ? (
+                                                        <>
+                                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500">Quarter 1</th>
+                                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500">Quarter 2</th>
+                                                        </>
+                                                    ) : (
+                                                        <>
+                                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500">Prelim</th>
+                                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500">Midterm</th>
+                                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500">Prefinal</th>
+                                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500">Final</th>
+                                                        </>
+                                                    )}
                                                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500">Semester</th>
                                                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500">Remarks</th>
                                                 </tr>
@@ -199,11 +226,19 @@ const Show = ({ subjects, academic_year, semester }) => {
                                                         <td className="px-6 py-4 text-sm text-gray-900">
                                                             {enr.teacher_name || '—'}
                                                         </td>
-                                                    
-                                                        <td className="px-6 py-4 text-sm text-gray-900">{displayGrade(enr.final_grades?.prelim)}</td>
-                                                        <td className="px-6 py-4 text-sm text-gray-900">{displayGrade(enr.final_grades?.midterm)}</td>
-                                                        <td className="px-6 py-4 text-sm text-gray-900">{displayGrade(enr.final_grades?.prefinals)}</td>
-                                                        <td className="px-6 py-4 text-sm text-gray-900">{displayGrade(enr.final_grades?.finals)}</td>
+                                                        {isShsArchivedView ? (
+                                                            <>
+                                                                <td className="px-6 py-4 text-sm text-gray-900">{displayGrade(enr.final_grades?.q1 ?? enr.final_grades?.first_quarter ?? enr.final_grades?.prelim)}</td>
+                                                                <td className="px-6 py-4 text-sm text-gray-900">{displayGrade(enr.final_grades?.q2 ?? enr.final_grades?.second_quarter ?? enr.final_grades?.midterm)}</td>
+                                                            </>
+                                                        ) : (
+                                                            <>
+                                                                <td className="px-6 py-4 text-sm text-gray-900">{displayGrade(enr.final_grades?.prelim)}</td>
+                                                                <td className="px-6 py-4 text-sm text-gray-900">{displayGrade(enr.final_grades?.midterm)}</td>
+                                                                <td className="px-6 py-4 text-sm text-gray-900">{displayGrade(enr.final_grades?.prefinals)}</td>
+                                                                <td className="px-6 py-4 text-sm text-gray-900">{displayGrade(enr.final_grades?.finals)}</td>
+                                                            </>
+                                                        )}
                                                         <td className="px-6 py-4 text-sm text-gray-900">{displayGrade(enr.final_semester_grade)}</td>
                                                         <td className="px-6 py-4 text-sm text-gray-900">{enr.teacher_remarks || '—'}</td>
                                                     </tr>

@@ -362,7 +362,7 @@ class ArchivedSectionsController extends Controller
                             'final_status' => $enrollment?->final_status ?? 'archived',
                             'grade_status' => $gradeStatus,
                             'missing_grades' => $missing,
-                            'teacher_remarks' => $enrollment?->teacher_remarks ?? null,
+                            'teacher_remarks' => $row->teacher_remarks ?? $enrollment?->teacher_remarks ?? null,
                         ]);
                     } else {
                         // College terms
@@ -403,7 +403,7 @@ class ArchivedSectionsController extends Controller
                             'final_status' => $enrollment?->final_status ?? 'archived',
                             'grade_status' => $gradeStatus,
                             'missing_grades' => $missing,
-                            'teacher_remarks' => $enrollment?->teacher_remarks ?? null,
+                            'teacher_remarks' => $row->teacher_remarks ?? $enrollment?->teacher_remarks ?? null,
                         ]);
                     }
                 }
@@ -440,18 +440,15 @@ class ArchivedSectionsController extends Controller
 
                 if ($isShsLevel) {
                     // Check SHS quarter grades (only Q1 and Q2)
-                    $requiredGrades = ['first_quarter', 'second_quarter'];
+                    $q1 = $finalGrades['first_quarter'] ?? $finalGrades['q1'] ?? $finalGrades['prelim'] ?? null;
+                    $q2 = $finalGrades['second_quarter'] ?? $finalGrades['q2'] ?? $finalGrades['midterm'] ?? null;
                     $missingGrades = [];
 
-                    foreach ($requiredGrades as $grade) {
-                        if (empty($finalGrades[$grade])) {
-                            $displayName = match ($grade) {
-                                'first_quarter' => 'Q1',
-                                'second_quarter' => 'Q2',
-                                default => ucfirst(str_replace('_', ' ', $grade))
-                            };
-                            $missingGrades[] = $displayName;
-                        }
+                    if (is_null($q1)) {
+                        $missingGrades[] = 'Q1';
+                    }
+                    if (is_null($q2)) {
+                        $missingGrades[] = 'Q2';
                     }
                 } else {
                     // Check college term grades
@@ -485,7 +482,10 @@ class ArchivedSectionsController extends Controller
                         'middle_name' => $currentStudents[$enrollment->student_id]->middle_name ?? '',
                         'suffix' => $currentStudents[$enrollment->student_id]->suffix ?? '',
                     ] : ($enrollment->student_data ?? []),
-                    'final_grades' => $finalGrades,
+                    'final_grades' => $isShsLevel ? array_merge($finalGrades, [
+                        'first_quarter' => $finalGrades['first_quarter'] ?? $finalGrades['q1'] ?? $finalGrades['prelim'] ?? null,
+                        'second_quarter' => $finalGrades['second_quarter'] ?? $finalGrades['q2'] ?? $finalGrades['midterm'] ?? null,
+                    ]) : $finalGrades,
                     'final_semester_grade' => $enrollment->final_semester_grade,
                     'final_status' => $enrollment->final_status,
                     'grade_status' => $gradeStatus,
@@ -730,6 +730,12 @@ class ArchivedSectionsController extends Controller
 
             if ($archivedSubject) {
                 // Map enrollment-level final_grades to normalized fields if present
+                if (isset($finalGrades['first_quarter'])) {
+                    $archivedSubject->first_quarter_grade = $finalGrades['first_quarter'];
+                }
+                if (isset($finalGrades['second_quarter'])) {
+                    $archivedSubject->second_quarter_grade = $finalGrades['second_quarter'];
+                }
                 if (isset($finalGrades['prelim'])) {
                     $archivedSubject->prelim_grade = $finalGrades['prelim'];
                 }
@@ -745,6 +751,10 @@ class ArchivedSectionsController extends Controller
 
                 if ($enrollment->final_semester_grade !== null) {
                     $archivedSubject->semester_grade = $enrollment->final_semester_grade;
+                }
+
+                if (isset($grades['teacher_remarks'])) {
+                    $archivedSubject->teacher_remarks = $grades['teacher_remarks'];
                 }
 
                 $archivedSubject->save();

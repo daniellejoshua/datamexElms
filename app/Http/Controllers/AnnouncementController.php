@@ -270,6 +270,7 @@ class AnnouncementController extends Controller
         // Get recent announcements (excluding current one)
         $recentAnnouncements = Announcement::with(['creator', 'attachments'])
             ->published()
+            ->visibleTo(Auth::user())
             ->where('id', '!=', $announcement->id)
             ->orderBy('priority', 'desc')
             ->orderBy('published_at', 'desc')

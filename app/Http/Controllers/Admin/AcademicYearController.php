@@ -677,43 +677,17 @@ class AcademicYearController extends Controller
             // Only mark sections as archived instead of deleting them
             // This preserves the ability to query historical data without relying solely on archive tables
 
-            // Mark sections as archived (non-destructive), but skip SHS sections transitioning to 2nd semester
+            // Mark sections as archived (non-destructive) for all programs.
             Section::where('academic_year', $validated['academic_year'])
                 ->where(function ($q) use ($semesterToCheck) {
                     $q->whereIn('semester', $semesterToCheck);
                 })
-                ->where(function ($q) {
-                    $q->whereDoesntHave('program', function ($programQuery) {
-                        $programQuery->whereRaw('LOWER(program_name) LIKE ?', ['%shs%'])
-                            ->orWhereRaw('LOWER(program_name) LIKE ?', ['%senior high%']);
-                    })
-                        ->orWhere(function ($yearLevelQuery) {
-                            $yearLevelQuery->whereRaw('LOWER(year_level) NOT LIKE ?', ['%grade 11%'])
-                                ->whereRaw('LOWER(year_level) NOT LIKE ?', ['%grade 12%'])
-                                ->whereRaw('LOWER(year_level) NOT LIKE ?', ['%11%'])
-                                ->whereRaw('LOWER(year_level) NOT LIKE ?', ['%12%']);
-                        });
-                })
                 ->update(['status' => 'archived']);
 
-            // Mark enrollments as completed (non-destructive), but skip SHS sections transitioning to 2nd semester
+            // Mark enrollments as completed (non-destructive) for all programs.
             StudentEnrollment::where('academic_year', $validated['academic_year'])
                 ->where(function ($q) use ($semesterToCheck) {
                     $q->whereIn('semester', $semesterToCheck);
-                })
-                ->where(function ($q) {
-                    $q->whereDoesntHave('section.program', function ($programQuery) {
-                        $programQuery->whereRaw('LOWER(program_name) LIKE ?', ['%shs%'])
-                            ->orWhereRaw('LOWER(program_name) LIKE ?', ['%senior high%']);
-                    })
-                        ->orWhere(function ($yearLevelQuery) {
-                            $yearLevelQuery->whereDoesntHave('section', function ($sectionQuery) {
-                                $sectionQuery->whereRaw('LOWER(year_level) LIKE ?', ['%grade 11%'])
-                                    ->orWhereRaw('LOWER(year_level) LIKE ?', ['%grade 12%'])
-                                    ->orWhereRaw('LOWER(year_level) LIKE ?', ['%11%'])
-                                    ->orWhereRaw('LOWER(year_level) LIKE ?', ['%12%']);
-                            });
-                        });
                 })
                 ->where('status', 'active')
                 ->update([
@@ -791,17 +765,6 @@ class AcademicYearController extends Controller
             // Skip sections with no enrollments
             if ($enrollments->isEmpty()) {
                 continue;
-            }
-
-            // Check if this is an SHS section that should be handled differently
-            $isShsSection = $this->isShsSection($section);
-
-            // Special handling for SHS sections transitioning from 1st to 2nd semester
-            if ($isShsSection && $semester === '1st') {
-                // For SHS sections in 1st semester, update subjects to 2nd semester curriculum instead of archiving
-                $this->updateShsSectionForNextSemester($section, $academicYear);
-
-                continue; // Skip archiving this section
             }
 
             // Collect student IDs for tracking
