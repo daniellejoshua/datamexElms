@@ -7,11 +7,18 @@ import { Label } from '@/components/ui/label';
 import { AlertCircle, Lock } from 'lucide-react';
 import { toast } from 'sonner';
 
-const INACTIVITY_TIMEOUT = 2 * 60 * 1000; // 2 minutes
+const INACTIVITY_TIMEOUT = 5 * 60 * 1000; // 5 minutes
 const MAX_PASSWORD_ATTEMPTS = 3;
 
 export default function InactivityMonitor() {
-    const [isInactive, setIsInactive] = useState(false);
+    const [isInactive, setIsInactive] = useState(() => {
+        // restore from local storage so reload doesn't clear modal
+        try {
+            return JSON.parse(localStorage.getItem('inactive')) || false;
+        } catch {
+            return false;
+        }
+    });
     const [password, setPassword] = useState('');
     const [isVerifying, setIsVerifying] = useState(false);
     const [attempts, setAttempts] = useState(0);
@@ -25,6 +32,7 @@ export default function InactivityMonitor() {
         }
         timeoutRef.current = setTimeout(() => {
             setIsInactive(true);
+            localStorage.setItem('inactive', 'true');
         }, INACTIVITY_TIMEOUT);
     };
 
@@ -56,6 +64,7 @@ export default function InactivityMonitor() {
 
             if (response.ok && data.success) {
                 setIsInactive(false);
+                localStorage.removeItem('inactive');
                 setPassword('');
                 setAttempts(0);
                 resetTimer();
