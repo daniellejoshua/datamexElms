@@ -40,7 +40,12 @@ export default function CollegePaymentsIndex({ payments, stats, filters, current
         payment_date: new Date().toISOString().split('T')[0],
         term: isPastFilter ? 'followup' : 'prelim',
         or_number: '',
-        notes: ''
+        notes: '',
+        // New fields for special payment records and penalties
+        special_note: '',
+        has_penalty: false,
+        penalty_amount: '',
+        penalty_note: ''
     })
 
     const getCurrentBalance = (payment) => {
@@ -107,6 +112,8 @@ export default function CollegePaymentsIndex({ payments, stats, filters, current
             {value: 'midterm', label: 'Midterm'},
             {value: 'prefinal', label: 'Pre-final'},
             {value: 'final', label: 'Final'}
+            ,
+            {value: 'special', label: 'Special Record'}
         ]
     }
 
@@ -128,7 +135,12 @@ export default function CollegePaymentsIndex({ payments, stats, filters, current
             payment_date: new Date().toISOString().split('T')[0],
             term: defaultTerm,
             or_number: '',
-            notes: ''
+            notes: '',
+            is_special: false,
+            special_note: '',
+            has_penalty: false,
+            penalty_amount: '',
+            penalty_note: ''
         })
 
         // If irregular student and prelim not paid yet and balance hasn't been calculated, calculate balance first
@@ -173,7 +185,47 @@ export default function CollegePaymentsIndex({ payments, stats, filters, current
             toast.error('Amount exceeds remaining balance')
             return
         }
-        router.post(route('registrar.payments.college.record', selectedPayment.id), paymentForm, {
+        // If penalty checkbox is checked, ensure penalty amount is a positive number
+        if (paymentForm.has_penalty) {
+            const pAmt = Number(paymentForm.penalty_amount)
+            if (isNaN(pAmt) || pAmt <= 0) {
+                toast.error('Enter a valid penalty amount')
+                return
+            }
+        }
+        // Prepare payload, appending penalty/special info into notes as requested
+        const payload = { ...paymentForm }
+        let composedNotes = payload.notes ? String(payload.notes).trim() : ''
+        if (payload.has_penalty && payload.penalty_amount) {
+            const amt = Number(payload.penalty_amount)
+            if (!isNaN(amt) && amt > 0) {
+                composedNotes = composedNotes ? composedNotes + ' | ' : composedNotes
+                composedNotes += `Penalty: ₱${amt.toLocaleString('en-PH', {minimumFractionDigits:2, maximumFractionDigits:2})}`
+                if (payload.penalty_note) {
+                    composedNotes += ` (${payload.penalty_note})`
+                }
+            }
+        }
+        if (payload.term === 'special' && payload.special_note) {
+            composedNotes = composedNotes ? composedNotes + ' | ' : composedNotes
+            composedNotes += `Special Record: ${payload.special_note}`
+        }
+        payload.notes = composedNotes
+
+        // Prevent sending internal helper fields to backend; only notes should carry penalty/special info
+        delete payload.has_penalty
+        delete payload.penalty_amount
+        delete payload.penalty_note
+        delete payload.special_note
+
+        // Validate payment date is not in the future
+        const todayStr = new Date().toISOString().split('T')[0]
+        if (payload.payment_date > todayStr) {
+            toast.error('Payment date cannot be in the future')
+            return
+        }
+
+        router.post(route('registrar.payments.college.record', selectedPayment.id), payload, {
             onSuccess: () => {
                 setShowPaymentModal(false)
                 setSelectedPayment(null)
@@ -618,6 +670,20 @@ export default function CollegePaymentsIndex({ payments, stats, filters, current
                                                 </label>
                                             ))}
                                         </div>
+                                        {/* Special note appears when 'Special' term is selected */}
+                                        {paymentForm.term === 'special' && (
+                                            <div className="mt-4 mb-4">
+                                                <label className="block text-sm font-semibold text-gray-900 mb-2">
+                                                    Special Note *
+                                                </label>
+                                                <Input
+                                                    value={paymentForm.special_note}
+                                                    onChange={(e) => setPaymentForm({...paymentForm, special_note: e.target.value})}
+                                                    placeholder="Reason for special record (required)"
+                                                    required
+                                                />
+                                            </div>
+                                        )}
                                     </>
                                 )}
                             </div>
@@ -672,6 +738,7 @@ export default function CollegePaymentsIndex({ payments, stats, filters, current
                                         type="date"
                                         value={paymentForm.payment_date}
                                         onChange={(e) => setPaymentForm({...paymentForm, payment_date: e.target.value})}
+                                        max={new Date().toISOString().split('T')[0]}
                                         required
                                     />
                                 </div>
@@ -691,16 +758,62 @@ export default function CollegePaymentsIndex({ payments, stats, filters, current
                             </div>
 
                             {/* Notes */}
-                            <div className="mb-6">
-                                <label className="block text-sm font-semibold text-gray-900 mb-2">
-                                    Notes <span className="text-gray-500 font-normal">(Optional)</span>
-                                </label>
-                                <Input
-                                    value={paymentForm.notes}
-                                    onChange={(e) => setPaymentForm({...paymentForm, notes: e.target.value})}
-                                    placeholder="Add payment notes..."
-                                />
+                            {/* Special / Penalty Options */}
+                            <div className="mb-4 border rounded p-3 bg-gray-50">
+                                {/* Special payment is handled via selecting the 'Special' term radio below the term selection. */}
+
+                                <div className="flex items-center gap-3 mb-3">
+                                    <input
+                                        id="has_penalty"
+                                        type="checkbox"
+                                        checked={paymentForm.has_penalty}
+                                        onChange={(e) => setPaymentForm({...paymentForm, has_penalty: e.target.checked})}
+                                        className="w-4 h-4"
+                                    />
+                                    <label htmlFor="has_penalty" className="text-sm font-medium text-gray-900">Include Penalty in Description</label>
+                                </div>
+                                {paymentForm.has_penalty && (
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <div>
+                                            <label className="block text-sm text-gray-700 mb-1">Penalty Amount</label>
+                                            <Input
+                                                type="text"
+                                                value={paymentForm.penalty_amount}
+                                                onChange={(e) => {
+                                                    const value = e.target.value.replace(/,/g, '')
+                                                    if (value === '' || !isNaN(value)) {
+                                                        setPaymentForm({...paymentForm, penalty_amount: value})
+                                                    }
+                                                }}
+                                                placeholder="0.00"
+                                                required={paymentForm.has_penalty}
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-sm text-gray-700 mb-1">Penalty Note (optional)</label>
+                                            <Input
+                                                value={paymentForm.penalty_note}
+                                                onChange={(e) => setPaymentForm({...paymentForm, penalty_note: e.target.value})}
+                                                placeholder="e.g. Late payment fee"
+                                            />
+                                        </div>
+                                    </div>
+                                )}
                             </div>
+
+                            {/* Notes - hidden when special term selected */}
+                            {paymentForm.term !== 'special' && (
+                                <div className="mb-6">
+                                    <label className="block text-sm font-semibold text-gray-900 mb-2">
+                                        Notes <span className="text-gray-500 font-normal">(Optional)</span>
+                                    </label>
+                                    <Input
+                                        value={paymentForm.notes}
+                                        onChange={(e) => setPaymentForm({...paymentForm, notes: e.target.value})}
+                                        placeholder="Add payment notes..."
+                                    />
+                                </div>
+                            )}
 
                             {/* Buttons */}
                             <div className="flex gap-3 pt-4 border-t">
@@ -713,7 +826,13 @@ export default function CollegePaymentsIndex({ payments, stats, filters, current
                                 </Button>
                                 <Button
                                     onClick={submitPayment}
-                                    disabled={!paymentForm.amount_paid || !paymentForm.or_number || amountError}
+                                    disabled={
+                                        !paymentForm.amount_paid ||
+                                        !paymentForm.or_number ||
+                                        amountError ||
+                                        (paymentForm.term === 'special' && !paymentForm.special_note) ||
+                                        (paymentForm.has_penalty && !paymentForm.penalty_amount)
+                                    }
                                     className="flex-1 bg-blue-600 hover:bg-blue-700 text-white"
                                 >
                                     <CreditCard className="w-4 h-4 mr-2" />

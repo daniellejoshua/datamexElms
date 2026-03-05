@@ -307,8 +307,10 @@ class CollegePaymentController extends Controller
             'payment_date' => 'required|date',
             // 'followup' term is used for payments on past semesters; backend
             // treats it as an uncategorized transaction that simply reduces
-            // the balance without mapping to a specific term.
-            'term' => 'required|string|in:enrollment,prelim,midterm,prefinal,final,followup',
+            // the balance without mapping to a specific term. We also accept
+            // 'special' here; it will be treated as a followup-type transaction
+            // internally but preserve a 'Special Record' description.
+            'term' => 'required|string|in:enrollment,prelim,midterm,prefinal,final,followup,special',
             'or_number' => 'required|string|max:50',
             'notes' => 'nullable|string',
         ]);
@@ -335,6 +337,15 @@ class CollegePaymentController extends Controller
 
         if ($payment->academic_year !== $currentYear || $payment->semester !== $currentSemester) {
             // force followup on past semesters
+            $validated['term'] = 'followup';
+        }
+
+        // Treat 'special' as a followup-type transaction internally but keep
+        // a marker so we can set a more descriptive label for the transaction.
+        $isSpecial = false;
+        if (isset($validated['term']) && $validated['term'] === 'special') {
+            $isSpecial = true;
+            // process as followup for payment logic so no term flags are set
             $validated['term'] = 'followup';
         }
 
@@ -393,9 +404,12 @@ class CollegePaymentController extends Controller
         $paymentType = $paymentTypeMap[$validated['term']] ?? 'enrollment_fee';
 
         // Create PaymentTransaction record
-        $description = $validated['term'] === 'followup'
-            ? 'Follow-up payment'
-            : ucfirst($validated['term']).' payment';
+        $description = 'Follow-up payment';
+        if (! $isSpecial && $validated['term'] !== 'followup') {
+            $description = ucfirst($validated['term']).' payment';
+        } elseif ($isSpecial) {
+            $description = 'Special Record';
+        }
 
         \App\Models\PaymentTransaction::create([
             'student_id' => $payment->student_id,
