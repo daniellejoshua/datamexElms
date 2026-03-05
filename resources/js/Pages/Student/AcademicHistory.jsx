@@ -61,9 +61,41 @@ export default function AcademicHistory({ student, curriculumSubjects, completed
 
     // credit table helpers
     const renderGradeBadge = (subject) => {
-        if (subject.final_grade) {
-            return <Badge className="bg-green-500 text-white">{subject.final_grade}</Badge>
+        // check multiple possible grade fields
+        const gradeValue = subject.final_grade ?? subject.semester_grade ?? subject.grade ?? subject.semester_grade_value ?? null
+
+        if (gradeValue !== null && gradeValue !== undefined && gradeValue !== '') {
+            const gv = String(gradeValue).trim()
+            const num = parseFloat(gv)
+            const passWords = ['p', 'pass', 'passed', 'cr', 'credit']
+
+            const isCredited = subject.type === 'credited' || !!subject.credited_from || !!subject.credit_type
+            let isPassed = false
+
+            if (!isNaN(num)) {
+                if (isCredited) {
+                    // small numeric values (<=5) treated as GPA-scale; larger as percentages
+                    if (num <= 5.0) {
+                        isPassed = num <= 3.0
+                    } else {
+                        isPassed = num >= 75
+                    }
+                } else {
+                    isPassed = num >= 75
+                }
+            }
+
+            if (!isPassed && passWords.includes(gv.toLowerCase())) {
+                isPassed = true
+            }
+
+            if (isPassed) {
+                return <Badge className="bg-green-500 text-white">{gv}</Badge>
+            }
+
+            return <Badge className="bg-gray-700 text-white">{gv}</Badge>
         }
+
         if (subject.credit_type) {
             return <Badge variant="outline" className="text-gray-600">-</Badge>
         }
@@ -209,6 +241,32 @@ export default function AcademicHistory({ student, curriculumSubjects, completed
                         </div>
                     </CardContent>
                 </Card>
+
+                {/* Legend for colors used */}
+                <div className="mt-4">
+                    <Card>
+                        <CardContent className="p-4">
+                            <div className="flex items-center flex-wrap gap-4 text-sm">
+                                <div className="flex items-center gap-2">
+                                    <span className="w-3 h-3 bg-green-500 rounded-full inline-block" />
+                                    <span>Completed / Passed</span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <span className="w-3 h-3 bg-blue-500 rounded-full inline-block" />
+                                    <span>Currently Enrolled / Grades Pending</span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <span className="w-3 h-3 bg-yellow-400 rounded-full inline-block" />
+                                    <span>Missing Grades / Action Required</span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <span className="w-3 h-3 bg-gray-300 rounded-full inline-block" />
+                                    <span>Archived / No Grades</span>
+                                </div>
+                            </div>
+                        </CardContent>
+                    </Card>
+                </div>
 
                 {/* Curriculum Progress */}
                 <Card>

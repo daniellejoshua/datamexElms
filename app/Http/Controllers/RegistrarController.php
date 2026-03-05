@@ -721,6 +721,7 @@ class RegistrarController extends Controller
 
             // Credit transfer data (for shiftees/transferees)
             'transfer_type' => ['nullable', Rule::in(['shiftee', 'transferee'])],
+            'grading_type' => ['nullable', Rule::in(['numeric', 'gpa'])],
             'previous_program_id' => ['nullable', 'exists:programs,id'],
             'previous_school' => ['nullable', 'string', 'max:255'],
             'credited_subjects' => ['nullable', 'array'],
@@ -1652,8 +1653,9 @@ class RegistrarController extends Controller
                         $originalGrade = $creditedSubject['grade'] ?? null;
                         $grade = $originalGrade;
 
-                        // Convert GPA to percentage for transferees (for storage)
-                        if ($validated['transfer_type'] === 'transferee' && $originalGrade !== null) {
+                        // Convert GPA to percentage for transferees, but only if the grading
+                        // type is GPA. Numeric transfers should be stored as entered.
+                        if ($validated['transfer_type'] === 'transferee' && ($validated['grading_type'] ?? 'gpa') === 'gpa' && $originalGrade !== null) {
                             $grade = \App\Helpers\AcademicHelper::convertGpaToPercentage((float) $originalGrade);
                             \Log::info('Converted transferee GPA to percentage', [
                                 'original_gpa' => $originalGrade,
@@ -1665,12 +1667,19 @@ class RegistrarController extends Controller
                         // For validation, use the original input grade
                         $validationGrade = (float) $originalGrade;
 
-                        // Different validation for transferees (GPA) vs shiftees (percentage)
+                        // Determine how to interpret the grade
+                        $gradingType = $validated['grading_type'] ?? ($validated['transfer_type'] === 'transferee' ? 'gpa' : 'numeric');
+
                         if ($validated['transfer_type'] === 'transferee') {
-                            // For transferees: GPA system (1.00-3.00 passing, 5.00 failing)
-                            $isPassing = $validationGrade >= 1.00 && $validationGrade <= 3.00;
+                            if ($gradingType === 'gpa') {
+                                // For transferees with GPA: 1.00-3.00 passing (3.0 ≈ 75%)
+                                $isPassing = $validationGrade >= 1.00 && $validationGrade <= 3.00;
+                            } else {
+                                // Numeric percentage system: >=75 passing
+                                $isPassing = $validationGrade >= 75;
+                            }
                         } else {
-                            // For shiftees: percentage system (>= 75 passing)
+                            // Shiftees always use percentage
                             $isPassing = $validationGrade >= 75;
                         }
 
@@ -1770,7 +1779,8 @@ class RegistrarController extends Controller
                             'semester' => $creditedSubject['semester'] ?? '1st',
                             'transfer_type' => $validated['transfer_type'],
                             'credit_status' => 'credited',
-                            'verified_semester_grade' => $creditedSubject['grade'] ?? null,
+                            // store the possibly converted $grade (percentage for GPA, same numeric otherwise)
+                            'verified_semester_grade' => $grade,
                             'fee_adjustment' => $creditedSubject['fee_adjustment'] ?? -300,
                             'previous_school' => $validated['previous_school'] ?? null,
                             'approved_by' => Auth::id(),
@@ -1791,7 +1801,7 @@ class RegistrarController extends Controller
                             'semester' => $creditedSubject['semester'],
                             'credit_type' => 'transfer',
                             'credit_status' => 'credited',
-                            'final_grade' => $creditedSubject['grade'] ?? null,
+                            'final_grade' => $grade,
                             'credited_at' => now(),
                             'student_credit_transfer_id' => $creditTransfer->id,
                             'approved_by' => Auth::id(),
@@ -2588,8 +2598,13 @@ class RegistrarController extends Controller
                 } elseif (is_numeric($gradeValue)) {
                     $numericGrade = (float) $gradeValue;
                     if ($isTransfereeCredit) {
-                        // Transferee credits use GPA: 1.00-3.00 are passing
-                        $isPassing = $numericGrade <= 3.0;
+                        // Heuristic: small numeric values (<=5) are GPA-scale (1.00-3.00),
+                        // larger values are percentage scores. Apply appropriate pass rule.
+                        if ($numericGrade <= 5.0) {
+                            $isPassing = $numericGrade <= 3.0;
+                        } else {
+                            $isPassing = $numericGrade >= 75;
+                        }
                     } else {
                         // Regular credits use percentage: >= 75 is passing
                         $isPassing = $numericGrade >= 75;
@@ -2631,7 +2646,6 @@ class RegistrarController extends Controller
                 $subjectGradesMap[$transfer->subject->subject_code] = $creditInfo;
 
                 // Only add to completed subjects if grade is passing
-                // Credit transfers are always from transferees, so use GPA logic (1.00-3.00 passing)
                 $gradeValue = $transfer->verified_semester_grade;
                 $isPassing = false;
                 if (is_null($gradeValue) || $gradeValue === 'CR') {
@@ -2639,8 +2653,12 @@ class RegistrarController extends Controller
                     $isPassing = true;
                 } elseif (is_numeric($gradeValue)) {
                     $numericGrade = (float) $gradeValue;
-                    // GPA format: 1.00-3.00 are passing
-                    $isPassing = $numericGrade <= 3.0;
+                    // Heuristic: treat small numbers (<=5) as GPA-scale, larger numbers as percentages
+                    if ($numericGrade <= 5.0) {
+                        $isPassing = $numericGrade <= 3.0;
+                    } else {
+                        $isPassing = $numericGrade >= 75;
+                    }
                 }
 
                 if ($isPassing) {

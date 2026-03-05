@@ -31,6 +31,22 @@ class StudentPaymentService
             return $existingPayment;
         }
 
+        // Determine current term if provided via customRates (useful when computing per-term penalties)
+        $term = $customRates['term'] ?? null;
+
+        // pull today's adjustments; college_only adjustments should only apply to college students
+        $today = now()->toDateString();
+        $adjQuery = \App\Models\FeeAdjustment::where('effective_date', $today);
+        if ($term) {
+            $adjQuery->where(function ($q) use ($term) {
+                $q->whereNull('term')->orWhere('term', $term);
+            });
+        }
+        if ($student->program->education_level !== 'college') {
+            $adjQuery->where('college_only', false);
+        }
+        $adjustments = $adjQuery->get();
+
         // Calculate fees based on student enrollment type
         $enrollment = $this->getStudentEnrollment($student, $academicYear, $semester);
         $subjectEnrollments = $this->getStudentSubjectEnrollments($student, $academicYear, $semester);
@@ -101,6 +117,9 @@ class StudentPaymentService
                 $semester !== \App\Models\SchoolSetting::getCurrentSemester()
             ),
         ]);
+
+        // attach adjustments for use by caller/front end (not persisted)
+        $payment->setRelation('adjustments', $adjustments);
 
         // if the student is irregular or a transferee we calculate and persist
         // their balance immediately. this prevents later program fee updates

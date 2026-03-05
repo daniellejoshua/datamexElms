@@ -143,7 +143,7 @@ export default function InactivityMonitor() {
                         Session Timeout
                     </DialogTitle>
                     <DialogDescription>
-                        Your session has been inactive for 2 minutes. Please enter your password to continue.
+                        Your session has been inactive for 5 minutes. Please enter your password to continue.
                     </DialogDescription>
                     {attempts > 0 && (
                         <div className="flex items-center gap-2 mt-2 text-red-600">

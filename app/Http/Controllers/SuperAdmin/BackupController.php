@@ -6,6 +6,8 @@ use App\Http\Controllers\Controller;
 use App\Services\BackupManagerService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 use Inertia\Response;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
@@ -16,24 +18,30 @@ class BackupController extends Controller
 
     public function index(): Response
     {
+        // fetch the most recent restore job audit entry so UI can show its output
+        $lastRestore = DB::table('audit_logs')
+            ->where('event', 'restore')
+            ->orderBy('id', 'desc')
+            ->first();
+
         return Inertia::render('SuperAdmin/Backup', [
             'settings' => $this->backupManager->getSettings(),
             'backups' => $this->backupManager->listBackups(),
+            'lastRestore' => $lastRestore,
         ]);
     }
 
     public function backup(Request $request): JsonResponse
     {
         $validated = $request->validate([
-            'destination' => 'required|string|in:local,cloud',
-            'cloud_disk' => 'nullable|string',
+            'destination' => 'required|string|in:local',
+            // cloud option removed, backups remain local; manual copies elsewhere recommended
         ]);
 
         try {
             $backup = $this->backupManager->createBackup(
                 mode: 'manual',
                 destination: $validated['destination'],
-                cloudDisk: $validated['cloud_disk'] ?? null,
             );
 
             return response()->json([
@@ -55,8 +63,8 @@ class BackupController extends Controller
             'automatic_enabled' => 'required|boolean',
             'frequency' => 'required|string|in:hourly,daily,weekly',
             'time' => 'required|string',
-            'destination' => 'required|string|in:local,cloud',
-            'cloud_disk' => 'nullable|string',
+            'destination' => 'required|string|in:local',
+            // cloud fields removed
         ]);
 
         $settings = $this->backupManager->saveSettings($validated);
@@ -88,16 +96,49 @@ class BackupController extends Controller
 
     public function restore(Request $request): JsonResponse
     {
+        // confirm user password before doing anything
         $request->validate([
             'backup' => 'required|file|mimes:sql,gz,zip|max:51200',
+            'current_password' => 'required|string',
         ]);
+
+        $user = $request->user();
+        if (! \Hash::check($request->input('current_password'), $user->password)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Password confirmation failed.',
+            ], 422);
+        }
 
         $file = $request->file('backup');
         $path = $file->storeAs('backups/restores', 'restore-'.time().'-'.$file->getClientOriginalName(), 'local');
 
+        // record audit log for upload action (restore completion logged in job)
+        DB::table('audit_logs')->insert([
+            'user_id' => $user->id,
+            'user_type' => get_class($user),
+            'user_name' => $user->name ?? $user->email,
+            'event' => 'restore_uploaded',
+            'auditable_type' => 'backup',
+            'auditable_id' => null,
+            'old_values' => null,
+            'new_values' => json_encode(['path' => $path]),
+            'metadata' => null,
+            'ip_address' => $request->ip(),
+            'user_agent' => $request->userAgent(),
+            'url' => $request->fullUrl(),
+            'method' => $request->method(),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        // queue job rather than blocking HTTP thread
+        
+        \App\Jobs\RestoreBackupJob::dispatch($path, $user->id);
+
         return response()->json([
             'success' => true,
-            'message' => 'Restore file uploaded. Restore execution remains a manual server-side safety step.',
+            'message' => 'Restore file uploaded, restore queued for execution.',
             'path' => $path,
         ]);
     }

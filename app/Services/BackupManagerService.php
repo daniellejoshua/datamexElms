@@ -167,6 +167,85 @@ class BackupManagerService
     }
 
     /**
+     * Restore a previously generated backup file directly into the database.
+     *
+     * This will decompress and pipe the SQL to the MySQL client using the same
+     * connection details the application currently uses. The method will throw
+     * a RuntimeException on failure.
+     *
+     * @param  string  $relativePath
+     * @throws \RuntimeException
+     */
+    /**
+     * Restore a previously generated backup file directly into the database.
+     *
+     * This will decompress and pipe the SQL to the MySQL client using the same
+     * connection details the application currently uses. The method will throw
+     * a RuntimeException on failure. On success the raw output of the mysql
+     * process is returned so callers can log or inspect it.
+     *
+     * @param  string  $relativePath
+     * @return string  stdout from the restore command
+     * @throws \RuntimeException
+     */
+    public function restoreBackup(string $relativePath): string
+    {
+        $absolutePath = Storage::disk('local')->path($relativePath);
+
+        if (! file_exists($absolutePath)) {
+            throw new RuntimeException('Backup file not found for restore.');
+        }
+
+        $connection = Config::get('database.default', 'mysql');
+        $db = Config::get("database.connections.{$connection}");
+
+        if (! is_array($db)) {
+            throw new RuntimeException('Database connection configuration is invalid.');
+        }
+
+        $host = $db['host'] ?? '127.0.0.1';
+        $port = $db['port'] ?? 3306;
+        $database = $db['database'] ?? null;
+        $username = $db['username'] ?? null;
+        $password = $db['password'] ?? null;
+
+        if (! $database || ! $username) {
+            throw new RuntimeException('Database credentials are missing.');
+        }
+
+        $cmd = '';
+        if (str_ends_with($absolutePath, '.gz')) {
+            $cmd = "gunzip -c ".escapeshellarg($absolutePath);
+        } elseif (str_ends_with($absolutePath, '.sql')) {
+            $cmd = "cat ".escapeshellarg($absolutePath);
+        } else {
+            throw new RuntimeException('Unsupported file type for restore.');
+        }
+
+        $escapedPassword = str_replace("'", "'\"'\"'", (string) $password);
+
+        $command = sprintf(
+            "%s | mysql -h %s -P %s -u%s -p'%s' %s",
+            $cmd,
+            escapeshellarg((string) $host),
+            escapeshellarg((string) $port),
+            escapeshellarg((string) $username),
+            $escapedPassword,
+            escapeshellarg((string) $database)
+        );
+
+        $process = Process::fromShellCommandline($command);
+        $process->setTimeout(0);
+        $process->run();
+
+        if (! $process->isSuccessful()) {
+            throw new RuntimeException('Restore failed: '.trim($process->getErrorOutput()));
+        }
+
+        return $process->getOutput();
+    }
+
+    /**
      * @param  array<string, mixed>  $settings
      */
     private function isDue(array $settings): bool

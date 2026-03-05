@@ -1261,24 +1261,33 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
         // Add credit transfer data for transferees and shiftees
         if (data.enrollment_type === 'transferee') {
             console.log('📚 TRANSFEREE detected - Adding credit transfer data')
+
+            // Include grading type so backend knows how to interpret the grades
+            submitData.grading_type = gradingType
             
             // Filter credited subjects: only include passing grades
-            // For transferees: GPA grades (1.00-3.00 are passing, 5.00 is failing)
-            // For shiftees: percentage grades (>= 75 are passing)
+            // Transferees may supply either numeric percentages or GPA depending on the
+            // gradingType selector; shiftees always use percentages.
             const passingSubjects = (creditedSubjects || []).filter(subject => {
                 const grade = parseFloat(subject.grade)
                 let isPassing = false
-                
+
                 if (isTransferee) {
-                    // For transferees, GPA system: 1.00-3.00 passing, 5.00 failing
-                    isPassing = !isNaN(grade) && grade >= 1.00 && grade <= 3.00
+                    if (gradingType === 'gpa') {
+                        // GPA system: 1.00-3.00 passing, 5.00 failing
+                        isPassing = !isNaN(grade) && grade >= 1.00 && grade <= 3.00
+                    } else {
+                        // Numeric percentage system: >= 75 passing
+                        isPassing = !isNaN(grade) && grade >= 75
+                    }
                 } else {
-                    // For shiftees, percentage system: >= 75 passing
+                    // Shiftees always percentage
                     isPassing = !isNaN(grade) && grade >= 75
                 }
-                
+
                 if (!isPassing && subject.grade) {
-                    console.log(`❌ Excluding subject ${subject.subject_code} - Grade ${subject.grade} is not passing (${isTransferee ? 'GPA' : 'percentage'} system)`)
+                    const scale = isTransferee ? (gradingType === 'gpa' ? 'GPA' : 'percentage') : 'percentage'
+                    console.log(`❌ Excluding subject ${subject.subject_code} - Grade ${subject.grade} is not passing (${scale} system)`) 
                 }
                 return isPassing
             })
@@ -3792,34 +3801,47 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                                                                         <div className="flex items-center gap-2">
                                                                             <Input
                                                                                 type="number"
+                                                                                inputMode="numeric"
+                                                                                pattern="[0-9]*"
                                                                                 placeholder="Grade"
                                                                                 value={selectedSubject.grade || ''}
+                                                                                onKeyDown={(e) => {
+                                                                                    // block e, E, +, -, and other non-numeric keys
+                                                                                    if (['e','E','+','-','.'].includes(e.key)) {
+                                                                                        e.preventDefault()
+                                                                                    }
+                                                                                }}
                                                                                 onChange={(e) => {
-                                                                                    const grade = e.target.value
-                                                                                    const numericGrade = parseFloat(grade)
+                                                                                    let grade = e.target.value;
+                                                                                    // strip any nondigit characters
+                                                                                    grade = grade.replace(/[^0-9]/g, '');
+                                                                                    // cap at 3 digits so we can't type 1000 etc
+                                                                                    if (grade.length > 3) {
+                                                                                        grade = grade.slice(0, 3);
+                                                                                    }
+                                                                                    // if it's numeric and above 100, clamp to 100 immediately
+                                                                                    const numericGrade = parseFloat(grade);
+                                                                                    if (!isNaN(numericGrade) && numericGrade > 100) {
+                                                                                        grade = '100';
+                                                                                    }
                                                                                     
-                                                                                    // Validate grade range (1-100)
-                                                                                    const isValid = grade === '' || (!isNaN(numericGrade) && numericGrade >= 1 && numericGrade <= 100)
+                                                                                    const finalNumeric = parseFloat(grade);
+                                                                                    const isValid = grade === '' || (!isNaN(finalNumeric) && finalNumeric >= 1 && finalNumeric <= 100);
                                                                                     
-                                                                                    // Update invalid grades state
                                                                                     setInvalidGrades(prev => ({
                                                                                         ...prev,
                                                                                         [subject.subject_id]: !isValid
-                                                                                    }))
+                                                                                    }));
                                                                                     
-                                                                                    // Show toast error for invalid grades
-                                                                                    if (!isValid && grade !== '') {
-                                                                                        toast.error('Grade must be between 1 and 100')
-                                                                                    }
+                                                                                    // no toast here; we silently clamp above
                                                                                     
-                                                                                    // Update credited subjects
                                                                                     setCreditedSubjects(prev =>
                                                                                         prev.map(cs =>
                                                                                             cs.subject_id === subject.subject_id
                                                                                                 ? { ...cs, grade }
                                                                                                 : cs
                                                                                         )
-                                                                                    )
+                                                                                    );
                                                                                 }}
                                                                                 className={`flex-1 h-8 text-sm ${
                                                                                     invalidGrades[subject.subject_id]
@@ -3877,13 +3899,13 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                                                     <div className="p-2 bg-green-100 rounded-lg">
                                                         <CheckCircle2 className="w-5 h-5 text-green-600" />
                                                     </div>
-                                                    <h4 className="font-bold text-green-900">Credited Subjects ({isTransferee ? 'GPA ≤ 3.00' : 'Grade ≥ 75'})</h4>
+                                                    <h4 className="font-bold text-green-900">Credited Subjects ({isTransferee ? (gradingType === 'gpa' ? 'GPA ≤ 3.00' : 'Grade ≥ 75') : 'Grade ≥ 75'})</h4>
                                                 </div>
                                                 <Badge variant="outline" className="bg-green-100 text-green-700 border-green-300 px-3 py-1">
                                                     {feeAdjustments.creditedPassed.length} subject{feeAdjustments.creditedPassed.length !== 1 ? 's' : ''}
                                                 </Badge>
                                             </div>
-                                            <div className="space-y-3 max-h-64 overflow-y-auto">
+                                            <div className="space-y-3 max-h-84 overflow-y-auto">
                                                 {feeAdjustments.creditedPassed.map((subj, idx) => (
                                                     <div key={idx} className="flex items-center justify-between bg-white rounded-lg p-3 border border-green-200 shadow-sm">
                                                         <div className="flex-1 min-w-0">
@@ -3962,7 +3984,7 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                                                     <div className="p-2 bg-red-100 rounded-lg">
                                                         <AlertTriangle className="w-5 h-5 text-red-600" />
                                                     </div>
-                                                    <h4 className="font-bold text-red-900">Failed Subjects ({isTransferee ? 'GPA > 3.00' : 'Grade < 75'})</h4>
+                                                    <h4 className="font-bold text-red-900">Failed Subjects ({isTransferee ? (gradingType === 'gpa' ? 'GPA > 3.00' : 'Grade < 75') : 'Grade < 75'})</h4>
                                                 </div>
                                                 <Badge variant="outline" className="bg-red-100 text-red-700 border-red-300 px-3 py-1">
                                                     {feeAdjustments.creditedFailed.length} subject{feeAdjustments.creditedFailed.length !== 1 ? 's' : ''}
@@ -3970,7 +3992,7 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                                             </div>
                                             <div className="bg-white rounded-lg p-3 mb-4 border border-red-200">
                                                 <p className="text-sm text-red-800">
-                                                    These subjects were attempted but not passed ({isTransferee ? 'GPA above 3.00' : 'grade below 75'}).
+                                                    These subjects were attempted but not passed ({isTransferee ? (gradingType === 'gpa' ? 'GPA above 3.00' : 'grade below 75') : 'grade below 75'}).
                                                 </p>
                                             </div>
                                             <div className="space-y-3 max-h-64 overflow-y-auto">
@@ -4135,8 +4157,22 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
                                             creditedSubjects.forEach(cs => {
                                                 const grade = parseFloat(cs.grade)
                                                 if (!isNaN(grade)) {
-                                                    // For transferees, GPA <= 3.0 is passing (3.0 = 75%, below 3.0 = higher %); for others, percentage >= 75 is passing
-                                                    const isPassing = isTransferee ? (grade <= 3.0) : (grade >= 75)
+                                                    let isPassing = false
+
+                                                    if (isTransferee) {
+                                                        // transferees can choose grading type
+                                                        if (gradingType === 'gpa') {
+                                                            // GPA system: 1.00-3.00 passing (3.0 ≈ 75%)
+                                                            isPassing = grade <= 3.0
+                                                        } else {
+                                                            // Numeric percentage system: >= 75 passing
+                                                            isPassing = grade >= 75
+                                                        }
+                                                    } else {
+                                                        // non-transferees always percentage
+                                                        isPassing = grade >= 75
+                                                    }
+
                                                     if (isPassing) {
                                                         creditedPassed.push(cs)
                                                     } else {

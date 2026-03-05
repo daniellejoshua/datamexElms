@@ -116,7 +116,20 @@
                                 @php
                                     $code = $sub->subject_code;
                                     $g = $gradesMap[$code] ?? null;
-                                    $displayGrade = $g['semester_grade'] ?? $g['final_grade'] ?? ($g['final_gpa'] ?? null);
+
+                                    // Prefer an explicit GPA if present. If a numeric grade is present
+                                    // convert it to GPA for the export using AcademicHelper.
+                                    $displayGrade = null;
+                                    if (! empty($g['final_gpa'])) {
+                                        $displayGrade = $g['final_gpa'];
+                                    } elseif (isset($g['semester_grade']) && is_numeric($g['semester_grade'])) {
+                                        $displayGrade = \App\Helpers\AcademicHelper::convertToGPA((float) $g['semester_grade']);
+                                    } elseif (isset($g['final_grade']) && is_numeric($g['final_grade'])) {
+                                        $displayGrade = \App\Helpers\AcademicHelper::convertToGPA((float) $g['final_grade']);
+                                    } else {
+                                        // fallback to any available non-numeric label (CR, P) or null
+                                        $displayGrade = $g['semester_grade'] ?? $g['final_grade'] ?? ($g['final_gpa'] ?? null);
+                                    }
                                 @endphp
                                 <tr>
                                     <td style="width:12%">{{ $code }}</td>
