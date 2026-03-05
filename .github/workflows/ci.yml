@@ -10,21 +10,7 @@ jobs:
   test-and-build:
     runs-on: ubuntu-latest
 
-    services:
-      mysql:
-        image: mysql:8.0
-        env:
-          MYSQL_DATABASE: datamex_ci
-          MYSQL_USER: laravel
-          MYSQL_PASSWORD: secret
-          MYSQL_ROOT_PASSWORD: root
-        ports:
-          - 3306:3306
-        options: >-
-          --health-cmd="mysqladmin ping -h 127.0.0.1 -uroot -proot"
-          --health-interval=10s
-          --health-timeout=5s
-          --health-retries=10
+    # Using SQLite for tests to avoid external DB/network flakiness in CI
 
     steps:
       - name: Checkout
@@ -56,22 +42,16 @@ jobs:
           php artisan key:generate
           echo "APP_ENV=testing" >> .env
           echo "APP_DEBUG=false" >> .env
-          echo "DB_CONNECTION=mysql" >> .env
-          echo "DB_HOST=127.0.0.1" >> .env
-          echo "DB_PORT=3306" >> .env
-          echo "DB_DATABASE=datamex_ci" >> .env
-          echo "DB_USERNAME=laravel" >> .env
-          echo "DB_PASSWORD=secret" >> .env
+          echo "DB_CONNECTION=sqlite" >> .env
+          echo "DB_DATABASE="$(pwd)"/database/database.sqlite" >> .env
           echo "CACHE_STORE=array" >> .env
           echo "SESSION_DRIVER=array" >> .env
           echo "QUEUE_CONNECTION=sync" >> .env
 
-      - name: Wait for MySQL
+      - name: Create SQLite database file
         run: |
-          for i in {1..30}; do
-            mysql -h 127.0.0.1 -ularavel -psecret -e "SELECT 1" datamex_ci && break
-            sleep 2
-          done
+          mkdir -p database
+          touch database/database.sqlite
 
       - name: Run migrations
         run: php artisan migrate --force
