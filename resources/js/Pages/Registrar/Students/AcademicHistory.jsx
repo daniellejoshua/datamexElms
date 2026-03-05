@@ -61,10 +61,6 @@ export default function AcademicHistory({ student, curriculumSubjects, completed
 
     // credit table helpers
     const renderGradeBadge = (subject) => {
-<<<<<<< HEAD
-        if (subject.final_grade) {
-            return <Badge className="bg-green-500 text-white">{subject.final_grade}</Badge>
-=======
         // credits and regular grade records may store grade in different keys;
         // check several common fields that might contain the final/semester grade
         const gradeValue = subject.final_grade ?? subject.semester_grade ?? subject.grade ?? subject.semester_grade_value ?? null
@@ -104,7 +100,6 @@ export default function AcademicHistory({ student, curriculumSubjects, completed
 
             // show failed values in red for quick scanning
             return <Badge className="bg-red-600 text-white">{gv}</Badge>
->>>>>>> 27d4226 (final fix before defense)
         }
         if (subject.credit_type) {
             return <Badge variant="outline" className="text-gray-600">-</Badge>
@@ -248,8 +243,6 @@ export default function AcademicHistory({ student, curriculumSubjects, completed
                     </CardContent>
                 </Card>
 
-<<<<<<< HEAD
-=======
                 {/* Legend for colors used */}
                 <div className="mt-4">
                     <Card>
@@ -280,7 +273,6 @@ export default function AcademicHistory({ student, curriculumSubjects, completed
                     </Card>
                 </div>
 
->>>>>>> 27d4226 (final fix before defense)
                 {/* Curriculum Progress */}
                 <Card>
                     <CardHeader>
