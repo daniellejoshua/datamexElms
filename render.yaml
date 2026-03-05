@@ -16,6 +16,8 @@ services:
       npm ci
       npm run build
     startCommand: php artisan serve --host 0.0.0.0 --port $PORT
+    # Run migrations after the service is deployed (better network/context than build time)
+    releaseCommand: php artisan migrate --force --no-interaction
     envVars:
       - key: APP_ENV
         value: production
