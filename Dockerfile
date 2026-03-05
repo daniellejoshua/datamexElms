@@ -55,7 +55,7 @@ RUN composer install --no-dev --prefer-dist --optimize-autoloader --no-interacti
 
 COPY . .
 COPY --from=frontend-builder /app/public/build ./public/build
-COPY docker/nginx.conf /etc/nginx/conf.d/default.conf
+COPY docker/nginx.conf /etc/nginx/http.d/default.conf
 RUN rm -f public/hot \
     && test -f public/build/manifest.json
 
