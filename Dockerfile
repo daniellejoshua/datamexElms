@@ -27,12 +27,15 @@ RUN apk add --no-cache \
     libpng-dev \
     libjpeg-turbo-dev \
     freetype-dev \
+    postgresql-dev \
     mysql-client \
+    postgresql-client \
     nginx \
     && docker-php-ext-configure gd --with-freetype --with-jpeg \
     && docker-php-ext-install -j$(nproc) \
         pdo \
         pdo_mysql \
+        pdo_pgsql \
         bcmath \
         intl \
         gd \
@@ -40,8 +43,15 @@ RUN apk add --no-cache \
 
 COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 
+# Copy minimal files needed for Composer post scripts (artisan package discovery)
 COPY composer.json composer.lock ./
-RUN composer install --no-dev --prefer-dist --optimize-autoloader --no-interaction --no-scripts
+COPY artisan ./
+COPY bootstrap/app.php bootstrap/app.php
+# Ensure bootstrap/cache exists for package discovery scripts
+RUN mkdir -p bootstrap/cache \
+    && chmod -R 0777 bootstrap/cache
+RUN composer install --no-dev --prefer-dist --optimize-autoloader --no-interaction --no-scripts \
+    && composer dump-autoload -o
 
 COPY . .
 COPY --from=frontend-builder /app/public/build ./public/build

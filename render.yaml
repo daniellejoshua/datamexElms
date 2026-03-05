@@ -24,7 +24,9 @@ services:
       - key: APP_KEY
         sync: false
       - key: DB_CONNECTION
-        value: mysql
+        value: pgsql
+      - key: DB_SSLMODE
+        value: require
       - key: DATABASE_URL
         sync: false
       - key: QUEUE_CONNECTION
