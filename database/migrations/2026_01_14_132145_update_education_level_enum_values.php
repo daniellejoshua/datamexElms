@@ -19,7 +19,15 @@ return new class extends Migration
      */
     public function down(): void
     {
-        // Revert back to original enum values
+        // first expand the enum to allow both old and new values so we can safely
+        // convert existing rows.
+        DB::statement("ALTER TABLE students MODIFY COLUMN education_level ENUM('shs', 'senior_high', 'college') DEFAULT 'college'");
+
+        DB::table('students')
+            ->where('education_level', 'senior_high')
+            ->update(['education_level' => 'shs']);
+
+        // now shrink back to the original set
         DB::statement("ALTER TABLE students MODIFY COLUMN education_level ENUM('shs', 'college') DEFAULT 'college'");
     }
 };

@@ -24,9 +24,21 @@ return new class extends Migration
      */
     public function down(): void
     {
+        if (! Schema::hasTable('courses')) {
+            return;
+        }
+
         Schema::table('courses', function (Blueprint $table) {
-            $table->dropIndex(['education_level', 'status']);
-            $table->dropColumn(['education_level', 'track']);
+            try {
+                $table->dropIndex(['education_level', 'status']);
+            } catch (\Exception $e) {
+                // ignore
+            }
+            try {
+                $table->dropColumn(['education_level', 'track']);
+            } catch (\Exception $e) {
+                // ignore
+            }
         });
     }
 };

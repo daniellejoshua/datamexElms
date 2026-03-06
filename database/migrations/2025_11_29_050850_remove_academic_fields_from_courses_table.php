@@ -21,6 +21,10 @@ return new class extends Migration
      */
     public function down(): void
     {
+        if (! Schema::hasTable('courses')) {
+            return;
+        }
+
         Schema::table('courses', function (Blueprint $table) {
             $table->string('academic_year');
             $table->enum('semester', ['1st', '2nd', 'summer'])->default('1st');

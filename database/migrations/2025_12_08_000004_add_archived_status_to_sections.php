@@ -12,6 +12,11 @@ return new class extends Migration
 
     public function down(): void
     {
+        // convert any archived statuses to inactive so the enum can be shrunk
+        DB::table('sections')
+            ->where('status', 'archived')
+            ->update(['status' => 'inactive']);
+
         DB::statement("ALTER TABLE sections MODIFY `status` ENUM('active','inactive') NOT NULL DEFAULT 'active'");
     }
 };

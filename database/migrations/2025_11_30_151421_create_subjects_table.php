@@ -33,6 +33,17 @@ return new class extends Migration
      */
     public function down(): void
     {
+        // sections.subject_id references subjects.id; drop the FK first if present
+        if (Schema::hasTable('sections')) {
+            Schema::table('sections', function (Blueprint $table) {
+                try {
+                    $table->dropForeign(['subject_id']);
+                } catch (\Exception $e) {
+                    // ignore if constraint already removed
+                }
+            });
+        }
+
         Schema::dropIfExists('subjects');
     }
 };

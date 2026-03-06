@@ -25,6 +25,11 @@ return new class extends Migration
      */
     public function down(): void
     {
+        // cleanse any rows before shrinking the enum so there are no invalid values
+        DB::table('payment_transactions')
+            ->where('payment_type', 'followup_payment')
+            ->update(['payment_type' => 'enrollment_fee']);
+
         Schema::table('payment_transactions', function (Blueprint $table) {
             if (Schema::getConnection()->getDriverName() === 'mysql') {
                 DB::statement("ALTER TABLE `payment_transactions` MODIFY `payment_type` ENUM('enrollment_fee','prelim_payment','midterm_payment','prefinal_payment','final_payment','irregular_subject_fee','penalty','refund') NOT NULL");

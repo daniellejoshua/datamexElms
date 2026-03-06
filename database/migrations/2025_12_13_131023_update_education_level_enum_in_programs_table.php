@@ -18,6 +18,13 @@ return new class extends Migration
      */
     public function down(): void
     {
+        // temporarily allow all values so data can be cleaned
+        DB::statement("ALTER TABLE programs MODIFY COLUMN education_level ENUM('college', 'senior_high', 'associate', 'shs') NOT NULL");
+
+        DB::table('programs')
+            ->whereNotIn('education_level', ['college', 'shs'])
+            ->update(['education_level' => 'college']);
+
         DB::statement("ALTER TABLE programs MODIFY COLUMN education_level ENUM('college', 'shs') NOT NULL");
     }
 };

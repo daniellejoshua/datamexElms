@@ -31,6 +31,17 @@ return new class extends Migration
      */
     public function down(): void
     {
+        // sections.program_id references programs.id
+        if (Schema::hasTable('sections')) {
+            Schema::table('sections', function (Blueprint $table) {
+                try {
+                    $table->dropForeign(['program_id']);
+                } catch (\Exception $e) {
+                    // ignore
+                }
+            });
+        }
+
         Schema::dropIfExists('programs');
     }
 };

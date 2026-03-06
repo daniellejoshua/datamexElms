@@ -26,14 +26,21 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::table('students', function (Blueprint $table) {
-            $table->dropColumn([
-                'has_voucher',
-                'voucher_id',
-                'voucher_status',
-                'voucher_invalidated_at',
-                'voucher_invalidation_reason',
-            ]);
-        });
+        // use raw SQL so that we can catch execution-time errors instead of
+        // relying on the blueprint builder which only throws while building the
+        // commands.
+        foreach ([
+            'has_voucher',
+            'voucher_id',
+            'voucher_status',
+            'voucher_invalidated_at',
+            'voucher_invalidation_reason',
+        ] as $column) {
+            try {
+                DB::statement("ALTER TABLE `students` DROP COLUMN `$column`");
+            } catch (\Exception $e) {
+                // ignore if column doesn't exist
+            }
+        }
     }
 };

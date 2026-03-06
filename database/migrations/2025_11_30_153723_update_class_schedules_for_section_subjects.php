@@ -47,21 +47,58 @@ return new class extends Migration
             return;
         }
 
-        Schema::table('class_schedules', function (Blueprint $table) {
-            // Drop new foreign key and column
-            $table->dropForeign(['section_subject_id']);
-            $table->dropColumn('section_subject_id');
+        Schema::disableForeignKeyConstraints();
 
-            // Restore original structure
-            $table->foreignId('section_id')->after('id')->constrained()->onDelete('cascade');
-            $table->string('room')->nullable()->after('end_time');
+        // drop foreign key and column with raw statements so missing objects are ignored
+        try {
+            DB::statement('ALTER TABLE `class_schedules` DROP FOREIGN KEY `class_schedules_section_subject_id_foreign`');
+        } catch (\Exception) {
+            // ignore
+        }
+        try {
+            DB::statement('ALTER TABLE `class_schedules` DROP COLUMN `section_subject_id`');
+        } catch (\Exception) {
+            // ignore
+        }
 
-            // Restore original indexes
-            $table->dropIndex(['section_subject_id', 'day_of_week']);
-            $table->dropIndex(['day_of_week', 'start_time', 'end_time']);
+        // restore columns if needed
+        if (! Schema::hasColumn('class_schedules', 'section_id')) {
+            Schema::table('class_schedules', function (Blueprint $table) {
+                $table->foreignId('section_id')->after('id')->constrained()->onDelete('cascade');
+            });
+        }
 
-            $table->index(['day_of_week', 'start_time']);
-            $table->index(['room', 'day_of_week', 'start_time']);
-        });
+        if (! Schema::hasColumn('class_schedules', 'room')) {
+            Schema::table('class_schedules', function (Blueprint $table) {
+                $table->string('room')->nullable()->after('end_time');
+            });
+        }
+
+        // repair indexes: drop old ones using raw SQL to avoid blueprint errors
+        try {
+            DB::statement('ALTER TABLE `class_schedules` DROP INDEX `class_schedules_section_subject_id_day_of_week_index`');
+        } catch (\Exception) {
+            // ignore if missing
+        }
+        try {
+            DB::statement('ALTER TABLE `class_schedules` DROP INDEX `class_schedules_day_of_week_start_time_end_time_index`');
+        } catch (\Exception) {
+            // ignore
+        }
+
+        // add back the simple indexes using raw SQL to avoid duplicate-key
+        // errors during execution
+        try {
+            DB::statement('ALTER TABLE `class_schedules` ADD INDEX `class_schedules_day_of_week_start_time_index` (`day_of_week`, `start_time`)');
+        } catch (\Exception) {
+            // ignore if already exists
+        }
+        try {
+            DB::statement('ALTER TABLE `class_schedules` ADD INDEX `class_schedules_room_day_of_week_start_time_index` (`room`, `day_of_week`, `start_time`)');
+        } catch (\Exception) {
+            // ignore
+        }
+
+        Schema::enableForeignKeyConstraints();
     }
 };

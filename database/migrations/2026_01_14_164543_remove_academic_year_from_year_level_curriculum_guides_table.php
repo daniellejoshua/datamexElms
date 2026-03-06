@@ -3,6 +3,7 @@
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\DB;
 
 return new class extends Migration
 {
@@ -19,10 +20,8 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::table('year_level_curriculum_guides', function (Blueprint $table) {
-            $table->dropUnique('ylcg_program_year_level_unique');
-            $table->string('academic_year');
-            $table->unique(['program_id', 'academic_year', 'year_level'], 'ylcg_program_academic_year_level_unique');
-        });
+        // this migration had no actionable "up" because the schema was already
+        // altered manually before it was committed. therefore the down() method
+        // should also be a no-op to avoid inserting duplicate columns or indexes.
     }
 };
