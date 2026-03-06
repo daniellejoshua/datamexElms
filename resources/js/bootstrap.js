@@ -108,7 +108,12 @@ window.Echo = new Echo({
 // -----------------------------------------------------------------------------
 import { io } from 'socket.io-client';
 
-window.Socket = io(`http://${window.location.hostname}:6001`, {
+// Use secure WebSocket when page is loaded over HTTPS to avoid mixed-content
+// errors; otherwise default to plain WS for local LAN usage.
+const socketProtocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
+const socketPort = import.meta.env.VITE_PUSHER_PORT || 6001;
+
+window.Socket = io(`${socketProtocol}://${window.location.hostname}:${socketPort}`, {
     transports: ['websocket'],
 });
 
