@@ -1186,7 +1186,9 @@ class RegistrarController extends Controller
             // but do NOT assign vouchers to transferees (they should pay like regular/college students)
             if ($validated['education_level'] === 'senior_high' && (($validated['enrollment_type'] ?? null) !== 'transferee')) {
                 $studentData['has_voucher'] = true;
-                $studentData['voucher_id'] = 'shsvoucher('.$studentData['student_number'].')';
+                // Use LRN as the voucher identifier when available; fall back to student number
+                $voucherIdentifier = $studentData['lrn'] ? $studentData['lrn'] : $studentData['student_number'];
+                $studentData['voucher_id'] = 'shsvoucher('.$voucherIdentifier.')';
                 $studentData['voucher_status'] = 'active';
                 $studentData['voucher_invalidated_at'] = null;
                 $studentData['voucher_invalidation_reason'] = null;
