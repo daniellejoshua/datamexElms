@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Head, router, usePage } from '@inertiajs/react'
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -7,9 +7,10 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { CalendarDays, CalendarRange, Plus, Trash2 } from 'lucide-react'
+import { toast } from 'sonner'
 
 export default function Calendar({ events = [] }) {
-    const { flash, errors = {} } = usePage().props
+    const { errors = {} } = usePage().props
     const [form, setForm] = useState({
         start_date: '',
         end_date: '',
@@ -21,6 +22,15 @@ export default function Calendar({ events = [] }) {
     const totalDiscount = useMemo(() => {
         return (events || []).reduce((sum, event) => sum + Number(event.amount || 0), 0)
     }, [events])
+
+    useEffect(() => {
+        if (!errors || Object.keys(errors).length === 0) return
+
+        const firstError = Object.values(errors)[0]
+        if (firstError) {
+            toast.error(Array.isArray(firstError) ? firstError[0] : firstError)
+        }
+    }, [errors])
 
     const handleSubmit = (e) => {
         e.preventDefault()
@@ -67,12 +77,6 @@ export default function Calendar({ events = [] }) {
             <Head title="Enrollment Calendar" />
 
             <div className="space-y-4 m-2">
-                {flash?.success && (
-                    <div className="rounded-md border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-700">
-                        {flash.success}
-                    </div>
-                )}
-
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                     <Card>
                         <CardHeader className="pb-2">

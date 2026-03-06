@@ -410,6 +410,9 @@ class SectionController extends Controller
 
         $teachers = Teacher::with('user')
             ->where('status', 'active')
+            ->whereHas('user', function ($query) {
+                $query->where('role', 'teacher');
+            })
             ->get();
 
         return $this->inertia->render('Admin/Sections/Subjects', [
@@ -430,6 +433,19 @@ class SectionController extends Controller
             'start_time' => 'nullable|date_format:H:i',
             'end_time' => 'nullable|date_format:H:i|after:start_time',
         ]);
+
+        if (! empty($validated['teacher_id'])) {
+            $isTeacherRole = Teacher::query()
+                ->whereKey($validated['teacher_id'])
+                ->whereHas('user', function ($query) {
+                    $query->where('role', 'teacher');
+                })
+                ->exists();
+
+            if (! $isTeacherRole) {
+                return back()->withErrors(['teacher_id' => 'Only teacher accounts can be assigned to subjects.'])->withInput();
+            }
+        }
 
         // Additional teacher schedule conflict validation if teacher and schedule are provided
         if ($validated['teacher_id'] && $validated['schedule_days'] && $validated['start_time'] && $validated['end_time']) {
@@ -514,6 +530,19 @@ class SectionController extends Controller
             'start_time' => 'nullable|date_format:H:i',
             'end_time' => 'nullable|date_format:H:i|after:start_time',
         ]);
+
+        if (! empty($validated['teacher_id'])) {
+            $isTeacherRole = Teacher::query()
+                ->whereKey($validated['teacher_id'])
+                ->whereHas('user', function ($query) {
+                    $query->where('role', 'teacher');
+                })
+                ->exists();
+
+            if (! $isTeacherRole) {
+                return back()->withErrors(['teacher_id' => 'Only teacher accounts can be assigned to subjects.'])->withInput();
+            }
+        }
 
         // Get the current section subject pivot record for exclusion in conflict check
         $sectionSubject = $section->sectionSubjects()->where('subject_id', $subject->id)->firstOrFail();

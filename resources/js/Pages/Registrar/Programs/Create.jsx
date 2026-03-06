@@ -34,7 +34,13 @@ export default function CreateProgram({ auth }) {
 
         const fees = [];
         for (let year = 1; year <= maxYears; year++) {
-            fees.push({ year_level: year, fee_type: 'regular', semester_fee: 0 });
+            fees.push({
+                year_level: year,
+                fee_type: 'regular',
+                tuition_fee: 0,
+                miscellaneous_fee: 0,
+                semester_fee: 0,
+            });
         }
 
         setForm(prev => ({ ...prev, program_fees: fees, semester_fee: fees[0]?.semester_fee ?? 0 }));
@@ -61,11 +67,17 @@ export default function CreateProgram({ auth }) {
         }))
     }
 
-    const updateFee = (yearLevel, amount) => {
+    const updateFeeComponent = (yearLevel, feeKey, amount) => {
         const numericAmount = amount === '' ? 0 : parseFloat(amount) || 0;
         const updatedFees = (form.program_fees || []).map(fee =>
             fee.year_level === yearLevel && fee.fee_type === 'regular'
-                ? { ...fee, semester_fee: numericAmount }
+                ? {
+                    ...fee,
+                    [feeKey]: numericAmount,
+                    semester_fee: feeKey === 'tuition_fee'
+                        ? numericAmount + (parseFloat(fee.miscellaneous_fee) || 0)
+                        : (parseFloat(fee.tuition_fee) || 0) + numericAmount,
+                }
                 : fee
         );
         setForm(prev => ({ ...prev, program_fees: updatedFees, semester_fee: updatedFees[0]?.semester_fee ?? prev.semester_fee }));
@@ -78,11 +90,11 @@ export default function CreateProgram({ auth }) {
     };
 
     // Handle fee input change with formatting
-    const handleFeeChange = (yearLevel, inputValue) => {
+    const handleFeeChange = (yearLevel, feeKey, inputValue) => {
         // Remove any non-numeric characters except decimal point
         const cleanValue = inputValue.replace(/[^0-9.]/g, '');
         const numericValue = cleanValue === '' ? 0 : parseFloat(cleanValue) || 0;
-        updateFee(yearLevel, numericValue.toString());
+        updateFeeComponent(yearLevel, feeKey, numericValue.toString());
     };
 
     return (
@@ -222,26 +234,45 @@ export default function CreateProgram({ auth }) {
                                                 const fee = (form.program_fees || []).find(
                                                     f => f.year_level === year && f.fee_type === 'regular'
                                                 );
-                                                const amount = fee ? fee.semester_fee : 0;
+                                                const tuitionAmount = fee ? (fee.tuition_fee ?? fee.semester_fee ?? 0) : 0;
+                                                const miscellaneousAmount = fee ? (fee.miscellaneous_fee ?? 0) : 0;
+                                                const totalAmount = (parseFloat(tuitionAmount) || 0) + (parseFloat(miscellaneousAmount) || 0);
 
                                                 return (
-                                                    <div key={year} className="flex items-center gap-3 p-3 border rounded-lg bg-gray-50">
+                                                    <div key={year} className="p-3 border rounded-lg bg-gray-50 space-y-2">
                                                         <Label className="text-sm font-medium w-24 flex-shrink-0">
                                                             {form.education_level === 'senior_high' ? `Grade ${year + 10}` : `${year}${year === 1 ? 'st' : year === 2 ? 'nd' : year === 3 ? 'rd' : 'th'} Year`}:
                                                         </Label>
-                                                        <div className="relative flex-1">
-                                                            <span className="absolute left-2 top-1/2 transform -translate-y-1/2 text-gray-500 text-xs z-10">
-                                                                ₱
-                                                            </span>
-                                                            <Input
-                                                                type="text"
-                                                                value={formatCurrency(amount)}
-                                                                onChange={(e) => handleFeeChange(year, e.target.value)}
-                                                                className="pl-6 h-8 text-sm w-full"
-                                                                placeholder="0"
-                                                            />
+                                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                                            <div className="relative">
+                                                                <span className="absolute left-2 top-1/2 transform -translate-y-1/2 text-gray-500 text-xs z-10">
+                                                                    ₱
+                                                                </span>
+                                                                <Input
+                                                                    type="text"
+                                                                    value={formatCurrency(tuitionAmount)}
+                                                                    onChange={(e) => handleFeeChange(year, 'tuition_fee', e.target.value)}
+                                                                    className="pl-6 h-8 text-sm w-full"
+                                                                    placeholder="Tuition fee"
+                                                                />
+                                                            </div>
+                                                            <div className="relative">
+                                                                <span className="absolute left-2 top-1/2 transform -translate-y-1/2 text-gray-500 text-xs z-10">
+                                                                    ₱
+                                                                </span>
+                                                                <Input
+                                                                    type="text"
+                                                                    value={formatCurrency(miscellaneousAmount)}
+                                                                    onChange={(e) => handleFeeChange(year, 'miscellaneous_fee', e.target.value)}
+                                                                    className="pl-6 h-8 text-sm w-full"
+                                                                    placeholder="Miscellaneous fee"
+                                                                />
+                                                            </div>
                                                         </div>
-                                                        <span className="text-xs text-gray-500">{form.education_level === 'senior_high' ? 'per year level' : 'per semester'}</span>
+                                                        <div className="flex justify-between text-xs text-gray-600">
+                                                            <span>{form.education_level === 'senior_high' ? 'per year level' : 'per semester'}</span>
+                                                            <span className="font-semibold text-green-700">Total: ₱{formatCurrency(totalAmount) || '0'}</span>
+                                                        </div>
                                                     </div>
                                                 );
                                             })}

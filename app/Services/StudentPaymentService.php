@@ -454,7 +454,7 @@ class StudentPaymentService
 
         $today = now()->toDateString();
 
-        return (float) FeeAdjustment::query()
+        $adjustment = FeeAdjustment::query()
             ->where('type', 'early_enrollment')
             ->where('college_only', true)
             ->where(function ($query) use ($today) {
@@ -464,6 +464,10 @@ class StudentPaymentService
                             ->whereDate('end_date', '>=', $today);
                     });
             })
-            ->sum('amount');
+            ->orderByRaw('COALESCE(start_date, effective_date) ASC')
+            ->orderByDesc('id')
+            ->first();
+
+        return (float) ($adjustment->amount ?? 0);
     }
 }

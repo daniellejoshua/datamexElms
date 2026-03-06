@@ -155,25 +155,7 @@ export default function ProgramsShow({ program, enrolled_students_count, curricu
                     {/* Sidebar */}
                     <div className="space-y-6">
                         {/* Quick Actions */}
-                        <Card>
-                            <CardHeader>
-                                <CardTitle className="text-lg">Quick Actions</CardTitle>
-                            </CardHeader>
-                            <CardContent className="space-y-3">
-                                <Button asChild className="w-full" variant="outline">
-                                    <Link href={route('registrar.programs.edit', program.id)}>
-                                        <Edit className="w-4 h-4 mr-2" />
-                                        Edit Program
-                                    </Link>
-                                </Button>
-                                <Button asChild className="w-full" variant="outline">
-                                    <Link href={route('registrar.programs.index')}>
-                                        <ArrowLeft className="w-4 h-4 mr-2" />
-                                        Back to Programs
-                                    </Link>
-                                </Button>
-                            </CardContent>
-                        </Card>
+                     
                     </div>
                     </div>
                     </div>

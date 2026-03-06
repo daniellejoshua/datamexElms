@@ -29,6 +29,33 @@ class CalendarController extends Controller
             'notes'          => ['nullable','string'],
         ]);
 
+        $hasOverlap = FeeAdjustment::query()
+            ->where('type', 'early_enrollment')
+            ->where('college_only', true)
+            ->where(function ($query) use ($data) {
+                $query
+                    // Period-based adjustments
+                    ->where(function ($periodQuery) use ($data) {
+                        $periodQuery->whereNotNull('start_date')
+                            ->whereNotNull('end_date')
+                            ->whereDate('start_date', '<=', $data['end_date'])
+                            ->whereDate('end_date', '>=', $data['start_date']);
+                    })
+                    // Legacy single-date adjustments
+                    ->orWhere(function ($singleDateQuery) use ($data) {
+                        $singleDateQuery->whereNotNull('effective_date')
+                            ->whereDate('effective_date', '>=', $data['start_date'])
+                            ->whereDate('effective_date', '<=', $data['end_date']);
+                    });
+            })
+            ->exists();
+
+        if ($hasOverlap) {
+            return back()->withErrors([
+                'start_date' => 'Only one discount is allowed for a date range. Please delete or adjust the existing period first.',
+            ])->withInput();
+        }
+
         $data['type'] = 'early_enrollment';
         $data['college_only'] = true;
         // Keep effective_date for backwards compatibility with any existing logic.

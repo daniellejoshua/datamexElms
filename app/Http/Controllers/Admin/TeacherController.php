@@ -3,8 +3,6 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
-use App\Models\ShsStudentGrade;
-use App\Models\StudentGrade;
 use App\Models\Teacher;
 use App\Models\User;
 use Barryvdh\DomPDF\Facade\Pdf;
@@ -202,16 +200,18 @@ class TeacherController extends Controller
 
         // Check if status is being changed to inactive
         if ($validated['status'] === 'inactive') {
-            // Check for incomplete grades
+            // gather incomplete grades and flash them so the shared Inertia props
+            // can access them after the redirect.
             $incompleteGrades = $this->getIncompleteGradesForTeacher($teacher->id);
 
             if (! empty($incompleteGrades)) {
-                // Prevent status change and show incomplete grades
-                return redirect()->back()->with([
-                    'show_confirmation' => true,
-                    'incomplete_grades' => $incompleteGrades,
-                    'incomplete_count' => count($incompleteGrades),
-                ])->withErrors(['status' => 'Cannot change status to inactive. Teacher has incomplete grades that must be submitted first.']);
+                session()->flash('show_confirmation', true);
+                session()->flash('incomplete_grades', $incompleteGrades);
+                session()->flash('incomplete_count', count($incompleteGrades));
+
+                throw \Illuminate\Validation\ValidationException::withMessages([
+                    'status' => 'Cannot change status to inactive. Teacher has incomplete grades that must be submitted first.',
+                ]);
             }
         }
 
@@ -223,23 +223,28 @@ class TeacherController extends Controller
     {
         $incompleteGrades = [];
 
-        // Check college grades with missing components
-        $collegeGrades = StudentGrade::join('section_subjects', 'student_grades.section_subject_id', '=', 'section_subjects.id')
+        // College: include current and past grade records with missing components.
+        $collegeGrades = \App\Models\StudentGrade::query()
+            ->join('section_subjects', 'student_grades.section_subject_id', '=', 'section_subjects.id')
             ->where('section_subjects.teacher_id', $teacherId)
             ->join('student_enrollments', 'student_grades.student_enrollment_id', '=', 'student_enrollments.id')
             ->join('students', 'student_enrollments.student_id', '=', 'students.id')
             ->join('sections', 'student_enrollments.section_id', '=', 'sections.id')
+            ->join('programs', 'sections.program_id', '=', 'programs.id')
+            ->where('programs.education_level', 'college')
             ->join('subjects', 'section_subjects.subject_id', '=', 'subjects.id')
-            ->where('students.status', 'active')
-            ->where('student_enrollments.status', 'active')
-            ->whereRaw('(student_grades.prelim_grade IS NULL OR student_grades.midterm_grade IS NULL OR student_grades.prefinal_grade IS NULL OR student_grades.final_grade IS NULL)')
+            ->where(function ($query) {
+                $query->whereNull('student_grades.prelim_grade')
+                    ->orWhereNull('student_grades.midterm_grade')
+                    ->orWhereNull('student_grades.prefinal_grade')
+                    ->orWhereNull('student_grades.final_grade');
+            })
             ->select(
                 'students.first_name',
                 'students.last_name',
                 'subjects.subject_code',
                 'sections.section_name',
                 'sections.year_level',
-                'sections.program_id',
                 'sections.academic_year',
                 'sections.semester',
                 'student_grades.prelim_grade',
@@ -266,9 +271,9 @@ class TeacherController extends Controller
             }
 
             $incompleteGrades[] = [
-                'student' => $grade->first_name.' '.$grade->last_name,
+                'student' => trim(($grade->first_name ?? '').' '.($grade->last_name ?? '')) ?: 'Unknown Student',
                 'subject' => $grade->subject_code,
-                'section' => $grade->year_level.($grade->program_id ? '-'.$grade->section_name : $grade->section_name),
+                'section' => $grade->year_level.'-'.$grade->section_name,
                 'missing_grades' => implode(', ', $missingGrades),
                 'academic_year' => $grade->academic_year,
                 'semester' => ucfirst($grade->semester),
@@ -276,17 +281,21 @@ class TeacherController extends Controller
             ];
         }
 
-        // Check SHS grades with missing components
-        $shsGrades = ShsStudentGrade::join('section_subjects', 'shs_student_grades.section_subject_id', '=', 'section_subjects.id')
+        // SHS: include current and past grade records with missing components.
+        $shsGrades = \App\Models\ShsStudentGrade::query()
+            ->join('section_subjects', 'shs_student_grades.section_subject_id', '=', 'section_subjects.id')
             ->where('section_subjects.teacher_id', $teacherId)
             ->join('student_enrollments', 'shs_student_grades.student_enrollment_id', '=', 'student_enrollments.id')
             ->join('students', 'student_enrollments.student_id', '=', 'students.id')
             ->join('sections', 'student_enrollments.section_id', '=', 'sections.id')
+            ->join('programs', 'sections.program_id', '=', 'programs.id')
+            ->where('programs.education_level', 'senior_high')
             ->join('subjects', 'section_subjects.subject_id', '=', 'subjects.id')
-            ->leftJoin('programs', 'sections.program_id', '=', 'programs.id')
-            ->where('students.status', 'active')
-            ->where('student_enrollments.status', 'active')
-            ->whereRaw('(shs_student_grades.first_quarter_grade IS NULL OR shs_student_grades.second_quarter_grade IS NULL OR shs_student_grades.final_grade IS NULL)')
+            ->where(function ($query) {
+                $query->whereNull('shs_student_grades.first_quarter_grade')
+                    ->orWhereNull('shs_student_grades.second_quarter_grade')
+                    ->orWhereNull('shs_student_grades.final_grade');
+            })
             ->select(
                 'students.first_name',
                 'students.last_name',
@@ -306,17 +315,17 @@ class TeacherController extends Controller
             // Determine which grades are missing
             $missingGrades = [];
             if (is_null($grade->first_quarter_grade)) {
-                $missingGrades[] = '1Q';
+                $missingGrades[] = 'Q1';
             }
             if (is_null($grade->second_quarter_grade)) {
-                $missingGrades[] = '2Q';
+                $missingGrades[] = 'Q2';
             }
             if (is_null($grade->final_grade)) {
-                $missingGrades[] = 'F';
+                $missingGrades[] = 'Semester';
             }
 
             $incompleteGrades[] = [
-                'student' => $grade->first_name.' '.$grade->last_name,
+                'student' => trim(($grade->first_name ?? '').' '.($grade->last_name ?? '')) ?: 'Unknown Student',
                 'subject' => $grade->subject_code,
                 'section' => 'Grade '.$grade->year_level.($grade->track ? ' - '.$grade->track : ''),
                 'missing_grades' => implode(', ', $missingGrades),
@@ -326,7 +335,118 @@ class TeacherController extends Controller
             ];
         }
 
-        return $incompleteGrades;
+        // Archived subjects: include historical records not fully graded at archival time.
+        $archivedGrades = \App\Models\ArchivedStudentSubject::query()
+            ->where('archived_student_subjects.teacher_id', $teacherId)
+            ->join('archived_student_enrollments', 'archived_student_subjects.archived_student_enrollment_id', '=', 'archived_student_enrollments.id')
+            ->join('archived_sections', 'archived_student_enrollments.archived_section_id', '=', 'archived_sections.id')
+            ->leftJoin('programs', 'archived_sections.program_id', '=', 'programs.id')
+            ->leftJoin('students', 'archived_student_subjects.student_id', '=', 'students.id')
+            ->where(function ($query) {
+                $query
+                    ->where(function ($collegeQuery) {
+                        $collegeQuery->where('programs.education_level', 'college')
+                            ->where(function ($missingQuery) {
+                                $missingQuery->whereNull('archived_student_subjects.prelim_grade')
+                                    ->orWhereNull('archived_student_subjects.midterm_grade')
+                                    ->orWhereNull('archived_student_subjects.prefinal_grade')
+                                    ->orWhereNull('archived_student_subjects.final_grade');
+                            });
+                    })
+                    ->orWhere(function ($shsQuery) {
+                        $shsQuery->where('programs.education_level', 'senior_high')
+                            ->where(function ($missingQuery) {
+                                $missingQuery->whereNull('archived_student_subjects.first_quarter_grade')
+                                    ->orWhereNull('archived_student_subjects.second_quarter_grade')
+                                    ->orWhereNull('archived_student_subjects.final_grade');
+                            });
+                    })
+                    ->orWhere(function ($unknownLevelQuery) {
+                        $unknownLevelQuery->whereNull('programs.education_level')
+                            ->where(function ($missingQuery) {
+                                $missingQuery->whereNull('archived_student_subjects.prelim_grade')
+                                    ->orWhereNull('archived_student_subjects.midterm_grade')
+                                    ->orWhereNull('archived_student_subjects.prefinal_grade')
+                                    ->orWhereNull('archived_student_subjects.final_grade');
+                            });
+                    });
+            })
+            ->select(
+                'students.first_name',
+                'students.last_name',
+                'archived_student_subjects.subject_code',
+                'archived_sections.section_name',
+                'archived_sections.year_level',
+                'archived_sections.academic_year',
+                'archived_sections.semester',
+                'programs.education_level',
+                'programs.track',
+                'archived_student_subjects.prelim_grade',
+                'archived_student_subjects.midterm_grade',
+                'archived_student_subjects.prefinal_grade',
+                'archived_student_subjects.final_grade',
+                'archived_student_subjects.first_quarter_grade',
+                'archived_student_subjects.second_quarter_grade'
+            )
+            ->get();
+
+        foreach ($archivedGrades as $grade) {
+            $isShs = ($grade->education_level === 'senior_high');
+            $missingGrades = [];
+
+            if ($isShs) {
+                if (is_null($grade->first_quarter_grade)) {
+                    $missingGrades[] = 'Q1';
+                }
+                if (is_null($grade->second_quarter_grade)) {
+                    $missingGrades[] = 'Q2';
+                }
+                if (is_null($grade->final_grade)) {
+                    $missingGrades[] = 'F';
+                }
+            } else {
+                if (is_null($grade->prelim_grade)) {
+                    $missingGrades[] = 'P';
+                }
+                if (is_null($grade->midterm_grade)) {
+                    $missingGrades[] = 'M';
+                }
+                if (is_null($grade->prefinal_grade)) {
+                    $missingGrades[] = 'PF';
+                }
+                if (is_null($grade->final_grade)) {
+                    $missingGrades[] = 'F';
+                }
+            }
+
+            if (count($missingGrades) === 0) {
+                continue;
+            }
+
+            $incompleteGrades[] = [
+                'student' => trim(($grade->first_name ?? '').' '.($grade->last_name ?? '')) ?: 'Unknown Student',
+                'subject' => $grade->subject_code ?? 'N/A',
+                'section' => $isShs
+                    ? 'Grade '.$grade->year_level.($grade->track ? ' - '.$grade->track : '')
+                    : ($grade->year_level.'-'.$grade->section_name),
+                'missing_grades' => implode(', ', $missingGrades),
+                'academic_year' => $grade->academic_year,
+                'semester' => ucfirst($grade->semester),
+                'type' => $isShs ? 'SHS (Archived)' : 'College (Archived)',
+            ];
+        }
+
+        // Use a collection to eliminate any accidental duplicates that may arise from
+        // overlapping joins or archived records. We consider a grade "duplicate" if
+        // the student, subject, section, academic year, semester, and type all match.
+        $unique = collect($incompleteGrades)
+            ->unique(fn ($item) =>
+                $item['student'].'|'.$item['subject'].'|'.$item['section'].'|'.$item['academic_year'].'|'.$item['semester'].'|'.$item['type']
+            )
+            ->values()
+            ->all();
+
+        return $unique;
     }
 
     private function performTeacherUpdate(Request $request, Teacher $teacher, array $validated)

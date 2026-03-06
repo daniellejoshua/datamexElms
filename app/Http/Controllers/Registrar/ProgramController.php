@@ -98,9 +98,25 @@ class ProgramController extends Controller
             'program_fees' => 'nullable|array',
             'program_fees.*.year_level' => 'required_with:program_fees|integer|min:1|max:6',
             'program_fees.*.fee_type' => 'required_with:program_fees|in:regular',
-            'program_fees.*.semester_fee' => 'required_with:program_fees|numeric|min:0',
+            'program_fees.*.tuition_fee' => 'nullable|numeric|min:0',
+            'program_fees.*.miscellaneous_fee' => 'nullable|numeric|min:0',
+            'program_fees.*.semester_fee' => 'nullable|numeric|min:0',
             'status' => 'required|in:active,inactive',
         ]);
+
+        if (! empty($validated['program_fees'])) {
+            $validated['program_fees'] = collect($validated['program_fees'])->map(function ($fee) {
+                $tuitionFee = isset($fee['tuition_fee']) ? (float) $fee['tuition_fee'] : null;
+                $miscellaneousFee = isset($fee['miscellaneous_fee']) ? (float) $fee['miscellaneous_fee'] : null;
+                $semesterFee = isset($fee['semester_fee']) ? (float) $fee['semester_fee'] : 0.0;
+
+                if ($tuitionFee !== null || $miscellaneousFee !== null) {
+                    $semesterFee = ($tuitionFee ?? 0) + ($miscellaneousFee ?? 0);
+                }
+
+                return array_merge($fee, ['semester_fee' => $semesterFee]);
+            })->toArray();
+        }
 
         // If program_fees provided, use first regular fee as the program's base semester_fee when not explicitly set
         if (empty($validated['semester_fee']) && ! empty($validated['program_fees'])) {
@@ -192,11 +208,27 @@ class ProgramController extends Controller
             'education_level' => 'required|in:college,masteral,senior_high',
             'semester_fee' => 'nullable|numeric|min:0',
             'program_fees' => 'required|array',
-            'program_fees.*.year_level' => 'required|integer|min:1|max:4',
+            'program_fees.*.year_level' => 'required|integer|min:1|max:6',
             'program_fees.*.fee_type' => 'required|in:regular',
-            'program_fees.*.semester_fee' => 'required|numeric|min:0',
+            'program_fees.*.tuition_fee' => 'nullable|numeric|min:0',
+            'program_fees.*.miscellaneous_fee' => 'nullable|numeric|min:0',
+            'program_fees.*.semester_fee' => 'nullable|numeric|min:0',
             'modal' => 'sometimes|boolean',
         ]);
+
+        if (! empty($validated['program_fees'])) {
+            $validated['program_fees'] = collect($validated['program_fees'])->map(function ($fee) {
+                $tuitionFee = isset($fee['tuition_fee']) ? (float) $fee['tuition_fee'] : null;
+                $miscellaneousFee = isset($fee['miscellaneous_fee']) ? (float) $fee['miscellaneous_fee'] : null;
+                $semesterFee = isset($fee['semester_fee']) ? (float) $fee['semester_fee'] : 0.0;
+
+                if ($tuitionFee !== null || $miscellaneousFee !== null) {
+                    $semesterFee = ($tuitionFee ?? 0) + ($miscellaneousFee ?? 0);
+                }
+
+                return array_merge($fee, ['semester_fee' => $semesterFee]);
+            })->toArray();
+        }
 
         // Update program basic info
         $program->update([

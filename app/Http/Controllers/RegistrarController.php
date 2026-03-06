@@ -804,8 +804,9 @@ class RegistrarController extends Controller
             }
         }
 
-        // Custom validation: enrollment_fee and payment_amount are required for all students
-        // except existing SHS students with active vouchers
+        // Custom validation: payment_amount is required for all students except
+        // existing SHS students with active vouchers. enrollment_fee is required
+        // only for non-SHS regular students (irregular fees are computed later).
         $hasActiveVoucher = false;
         if (! empty($validated['student_number'])) {
             $existingStudentForVoucher = Student::where('student_number', $validated['student_number'])->first();
@@ -824,8 +825,8 @@ class RegistrarController extends Controller
         }
 
         if (! $hasActiveVoucher) {
-            // For SHS students, enrollment_fee is calculated in the controller, not required from form
-            if ($validated['education_level'] !== 'senior_high') {
+            // For SHS students and irregular students, enrollment_fee is not required from form.
+            if ($validated['education_level'] !== 'senior_high' && ($validated['student_type'] ?? null) !== 'irregular') {
                 if (! isset($validated['enrollment_fee']) || $validated['enrollment_fee'] === null || $validated['enrollment_fee'] === '') {
                     return back()->withErrors([
                         'enrollment_fee' => 'Enrollment fee is required.',
@@ -2184,7 +2185,7 @@ class RegistrarController extends Controller
     {
         $today = now()->toDateString();
 
-        $adjustments = FeeAdjustment::query()
+        $adjustment = FeeAdjustment::query()
             ->where('type', 'early_enrollment')
             ->where('college_only', true)
             ->where(function ($query) use ($today) {
@@ -2195,9 +2196,10 @@ class RegistrarController extends Controller
                     });
             })
             ->orderByRaw('COALESCE(start_date, effective_date) ASC')
-            ->get();
+            ->orderByDesc('id')
+            ->first();
 
-        if ($adjustments->isEmpty()) {
+        if (! $adjustment) {
             return [
                 'active' => false,
                 'amount' => 0,
@@ -2206,23 +2208,11 @@ class RegistrarController extends Controller
             ];
         }
 
-        $startDate = $adjustments
-            ->map(fn ($adjustment) => $adjustment->start_date ?? $adjustment->effective_date)
-            ->filter()
-            ->sort()
-            ->first();
-
-        $endDate = $adjustments
-            ->map(fn ($adjustment) => $adjustment->end_date ?? $adjustment->effective_date)
-            ->filter()
-            ->sort()
-            ->last();
-
         return [
             'active' => true,
-            'amount' => (float) $adjustments->sum('amount'),
-            'start_date' => $startDate ? \Carbon\Carbon::parse($startDate)->toDateString() : null,
-            'end_date' => $endDate ? \Carbon\Carbon::parse($endDate)->toDateString() : null,
+            'amount' => (float) $adjustment->amount,
+            'start_date' => $adjustment->start_date ? \Carbon\Carbon::parse($adjustment->start_date)->toDateString() : ($adjustment->effective_date ? \Carbon\Carbon::parse($adjustment->effective_date)->toDateString() : null),
+            'end_date' => $adjustment->end_date ? \Carbon\Carbon::parse($adjustment->end_date)->toDateString() : ($adjustment->effective_date ? \Carbon\Carbon::parse($adjustment->effective_date)->toDateString() : null),
         ];
     }
 

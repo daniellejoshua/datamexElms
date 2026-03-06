@@ -11,6 +11,12 @@ return new class extends Migration
      */
     public function up(): void
     {
+        // SQLite does not support dropping columns or indexes easily, so skip
+        // this migration when running tests on the in-memory sqlite connection.
+        if (Schema::getConnection()->getDriverName() === 'sqlite') {
+            return;
+        }
+
         Schema::table('class_schedules', function (Blueprint $table) {
             // Drop existing foreign key and column
             $table->dropForeign(['section_id']);
@@ -37,6 +43,10 @@ return new class extends Migration
      */
     public function down(): void
     {
+        if (Schema::getConnection()->getDriverName() === 'sqlite') {
+            return;
+        }
+
         Schema::table('class_schedules', function (Blueprint $table) {
             // Drop new foreign key and column
             $table->dropForeign(['section_subject_id']);

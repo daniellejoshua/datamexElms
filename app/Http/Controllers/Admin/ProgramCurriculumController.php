@@ -12,6 +12,7 @@ use App\Models\SectionSubject;
 use App\Models\CurriculumSubject;
 use App\Models\StudentEnrollment;
 use App\Models\Student;
+use App\Models\YearLevelCurriculumGuide;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -204,6 +205,36 @@ class ProgramCurriculumController extends Controller
 
         // Set the selected curriculum as current
         $programCurriculum->update(['is_current' => true]);
+
+        // If the program has no year level guides for the *current* academic
+        // year, populate them with this curriculum. This ensures that older
+        // guides for past years don't prevent creating guides for the current
+        // year when an admin sets the current curriculum.
+        $currentAcademicYear = SchoolSetting::getCurrentAcademicYear();
+        $existingGuides = YearLevelCurriculumGuide::where('program_id', $program->id)
+            ->where('academic_year', $currentAcademicYear)
+            ->count();
+
+        if ($existingGuides === 0) {
+            $yearLevels = $isShsProgram ? [11, 12] : range(1, $program->total_years);
+            foreach ($yearLevels as $level) {
+                YearLevelCurriculumGuide::create([
+                    'program_id' => $program->id,
+                    'academic_year' => $currentAcademicYear,
+                    'year_level' => $level,
+                    'curriculum_id' => $programCurriculum->curriculum_id,
+                ]);
+            }
+        }
+        else {
+            // If guides exist for the current academic year but some don't have
+            // a linked curriculum, fill those with the newly selected current
+            // curriculum instead of leaving them null.
+            YearLevelCurriculumGuide::where('program_id', $program->id)
+                ->where('academic_year', $currentAcademicYear)
+                ->whereNull('curriculum_id')
+                ->update(['curriculum_id' => $programCurriculum->curriculum_id]);
+        }
 
         // Perform updates to entry-level sections and students so they point
         // to the new curriculum. Wrap in a transaction to keep changes

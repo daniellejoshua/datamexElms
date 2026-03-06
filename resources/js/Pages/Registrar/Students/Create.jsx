@@ -1345,6 +1345,11 @@ export default function CreateStudent({ programs, auth, currentAcademicYear, cur
             submitData.student_type = 'irregular'
             console.log('📚 TRANSFEREE with subjects to catch up - Setting as IRREGULAR student')
         }
+
+        // Irregular fees are computed after subject scheduling; submit zero when blank.
+        if (submitData.student_type === 'irregular' && (submitData.enrollment_fee === '' || submitData.enrollment_fee === null || submitData.enrollment_fee === undefined)) {
+            submitData.enrollment_fee = '0'
+        }
         
         console.log('Form submitting with data:', submitData)
         

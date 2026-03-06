@@ -16,6 +16,11 @@ use Illuminate\Support\Facades\Log;
 class StudentRegularityCheckService
 {
     /**
+     * Cached list of failed subject IDs collected during checks.
+     * @var array<int>
+     */
+    protected array $lastFailedIds = [];
+    /**
      * Check if a student can transition from irregular to regular status.
      *
      * A student can become regular if they have completed all subjects
@@ -95,21 +100,32 @@ class StudentRegularityCheckService
         // Get all subjects student should have completed by now
         $expectedSubjects = $this->getExpectedSubjects($student, $currentYearNum, $currentSemester);
 
+        // If the student has any recorded failed subjects (current or archived),
+        // they should not be promoted to regular, even if expected subjects list is empty.
+        $failedSubjectIds = $this->getFailedSubjectIds($student);
+        if (! empty($failedSubjectIds)) {
+            return false;
+        }
+
         if ($expectedSubjects->isEmpty()) {
-            // No expected subjects means first year first semester - should be regular
+            // No expected subjects means first year first semester - and no failures found
             return true;
         }
 
-        // Get all subjects the student has actually completed
+        // Get all subjects the student has actually completed (passing grades)
         $completedSubjectIds = $this->getCompletedSubjectIds($student);
 
-        // Check if student has completed ALL expected subjects
+        // A student can become regular if none of the expected subjects are failed.
         foreach ($expectedSubjects as $subject) {
-            if (! in_array($subject->subject_id, $completedSubjectIds)) {
-                // Missing at least one required subject - still irregular
+            $subId = $subject->subject_id;
+            if (in_array($subId, $failedSubjectIds, true)) {
+                // Failing a required subject disqualifies them
                 return false;
             }
+            // missing subjects are acceptable; we don't require them to appear in completed list
         }
+
+        return true;
 
         // All expected subjects completed - can be regular
         return true;
@@ -172,19 +188,34 @@ class StudentRegularityCheckService
     protected function getCompletedSubjectIds(Student $student): array
     {
         $completedIds = [];
+        $failedIds = [];
+        // reset cached failed ids for this computation
+        $this->lastFailedIds = [];
 
-        // Get completed subjects from current student grades
+        // Get current student grades (consider various grade columns)
         $currentGrades = StudentGrade::whereHas('studentEnrollment', function ($query) use ($student) {
             $query->where('student_id', $student->id);
         })
-            ->whereNotNull('final_grade')
-            ->where('final_grade', '>=', 75) // Passing grade
+            ->where(function ($q) {
+                $q->whereNotNull('final_grade')
+                  ->orWhereNotNull('semester_grade')
+                  ->orWhereNotNull('prefinal_grade')
+                  ->orWhereNotNull('midterm_grade')
+                  ->orWhereNotNull('prelim_grade');
+            })
             ->with('sectionSubject.subject')
             ->get();
 
         foreach ($currentGrades as $grade) {
             if ($grade->sectionSubject && $grade->sectionSubject->subject) {
-                $completedIds[] = $grade->sectionSubject->subject_id;
+                $subjectId = $grade->sectionSubject->subject_id;
+                $value = $grade->semester_grade ?? $grade->final_grade ?? $grade->prefinal_grade ?? $grade->midterm_grade ?? $grade->prelim_grade;
+                if ($value >= 75) {
+                    $completedIds[] = $subjectId;
+                } else {
+                    // record failed current grades so they disqualify promotion
+                    $failedIds[] = $subjectId;
+                }
             }
         }
 
@@ -199,13 +230,38 @@ class StudentRegularityCheckService
             ->get();
 
         foreach ($archivedEnrollments as $enrollment) {
+            // Prefer explicit archived subject rows when available
+            if ($enrollment->relationLoaded('archivedStudentSubjects') || $enrollment->archivedStudentSubjects()->exists()) {
+                $archivedSubjects = $enrollment->archivedStudentSubjects()->get();
+                foreach ($archivedSubjects as $archSub) {
+                    if (! $archSub->subject_id) {
+                        continue;
+                    }
+                    $value = $archSub->semester_grade ?? $archSub->final_grade ?? $archSub->prefinal_grade ?? $archSub->midterm_grade ?? $archSub->prelim_grade;
+                    if ($value === null) {
+                        continue;
+                    }
+                    if ($value >= 75) {
+                        $completedIds[] = $archSub->subject_id;
+                    } else {
+                        $failedIds[] = $archSub->subject_id;
+                    }
+                }
+                continue;
+            }
+
+            // Fallback: inspect legacy final_grades array stored on the enrollment
             if (isset($enrollment->final_grades) && is_array($enrollment->final_grades)) {
                 foreach ($enrollment->final_grades as $subjectName => $grades) {
-                    if (isset($grades['final_average']) && $grades['final_average'] >= 75) {
-                        // Try to find subject by name (approximate match)
+                    if (isset($grades['final_average'])) {
                         $subject = \App\Models\Subject::where('name', 'like', '%'.$subjectName.'%')->first();
-                        if ($subject) {
+                        if (! $subject) {
+                            continue;
+                        }
+                        if ($grades['final_average'] >= 75) {
                             $completedIds[] = $subject->id;
+                        } else {
+                            $failedIds[] = $subject->id;
                         }
                     }
                 }
@@ -219,6 +275,9 @@ class StudentRegularityCheckService
             ->toArray();
 
         $completedIds = array_merge($completedIds, $creditedSubjects);
+
+        // store failed ids as property for later use
+        $this->lastFailedIds = array_unique($failedIds);
 
         return array_unique($completedIds);
     }
@@ -300,6 +359,25 @@ class StudentRegularityCheckService
     }
 
     /**
+     * Return failed subject IDs recorded during computation.
+     * If they haven't been computed yet, compute via `getCompletedSubjectIds`.
+     *
+     * @return array<int>
+     */
+    protected function getFailedSubjectIds(?Student $student = null): array
+    {
+        if (! empty($this->lastFailedIds)) {
+            return $this->lastFailedIds;
+        }
+
+        if ($student) {
+            $this->getCompletedSubjectIds($student);
+        }
+
+        return $this->lastFailedIds ?? [];
+    }
+
+    /**
      * Get detailed status of why a student is still irregular.
      */
     public function getIrregularityDetails(Student $student): array
@@ -329,11 +407,30 @@ class StudentRegularityCheckService
             }
         }
 
+        // Also check for any failed subjects (current or archived) — these disqualify promotion.
+        $failedIds = $this->getFailedSubjectIds($student);
+        $failedSubjects = [];
+        if (! empty($failedIds)) {
+            foreach ($failedIds as $fid) {
+                $subject = \App\Models\Subject::find($fid);
+                if (! $subject) {
+                    continue;
+                }
+                $failedSubjects[] = [
+                    'subject_code' => $subject->subject_code,
+                    'subject_name' => $subject->name,
+                    'units' => $subject->units,
+                ];
+            }
+        }
+
         return [
             'status' => 'irregular',
-            'can_become_regular' => empty($missingSubjects),
+            'can_become_regular' => empty($missingSubjects) && empty($failedSubjects),
             'missing_subjects_count' => count($missingSubjects),
             'missing_subjects' => $missingSubjects,
+            'failed_subjects_count' => count($failedSubjects),
+            'failed_subjects' => $failedSubjects,
             'completed_subjects_count' => count($completedSubjectIds),
             'expected_subjects_count' => $expectedSubjects->count(),
         ];
