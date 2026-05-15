@@ -1,9 +1,13 @@
 import React from 'react';
-import { Head, router } from '@inertiajs/react';
+import { Head, router, Link } from '@inertiajs/react';
+import { route } from 'ziggy-js';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import {
     TrendingUp,
     BookOpen,
@@ -17,7 +21,8 @@ import {
     AlertCircle,
     Clock,
     Star,
-    BarChart3
+    BarChart3,
+    Download
 } from 'lucide-react';
 
 // Helper function to format section name
@@ -32,7 +37,7 @@ const formatSectionName = (section) => {
 
 // Helper function to get grade color
 const getGradeColor = (grade) => {
-    if (!grade) return 'text-gray-500';
+    if (grade === null || grade === undefined || isNaN(grade)) return 'text-gray-500';
     if (grade >= 90) return 'text-green-600'
     if (grade >= 80) return 'text-blue-600'
     if (grade >= 75) return 'text-yellow-600'
@@ -41,40 +46,110 @@ const getGradeColor = (grade) => {
 
 // Helper function to display grade safely
 const displayGrade = (grade) => {
-    return (grade !== null && grade !== undefined && !isNaN(grade) && grade > 0) ? grade : '—';
+    return (grade !== null && grade !== undefined && !isNaN(grade)) ? grade : '—';
 };
 
 // Helper function to check if grade is valid for color indicators
 const isValidGrade = (grade) => {
-    return grade !== null && grade !== undefined && !isNaN(grade) && grade > 0;
+    return grade !== null && grade !== undefined && !isNaN(grade);
+};
+
+// Helper function to get grade point equivalence
+const getGradePointEquivalence = (grade) => {
+    if (!grade || grade === '—' || isNaN(grade)) return '—';
+    const num = parseFloat(grade);
+    if (num >= 96) return '1.00';
+    if (num >= 94) return '1.25';
+    if (num >= 91) return '1.50';
+    if (num >= 88) return '1.75';
+    if (num >= 85) return '2.00';
+    if (num >= 83) return '2.25';
+    if (num >= 80) return '2.50';
+    if (num >= 78) return '2.75';
+    if (num >= 75) return '3.00';
+    if (num < 75) return '5.00';
+    return '—';
 };
 
 // Helper function to get grade status
 const getGradeStatus = (grade) => {
-    if (!grade || isNaN(grade)) return 'No grade yet';
+    if (grade === null || grade === undefined || isNaN(grade)) return 'No grade';
     if (grade >= 90) return 'Excellent'
     if (grade >= 80) return 'Very Good'
     if (grade >= 75) return 'Good'
     return 'Needs Improvement'
 }
 
-const Index = ({ auth, student, currentGrades, recentGrades, stats }) => {
+// Helper function to determine which grades to show based on payment status (College only)
+const getVisibleGrades = (paymentStatus) => {
+    if (!paymentStatus) {
+        return { prelim: false, midterm: false, prefinal: false, final: false, semester: false };
+    }
+
+    // If balance is 0, show all grades including semester grade
+    if (paymentStatus.balance === 0) {
+        return { prelim: true, midterm: true, prefinal: true, final: true, semester: true };
+    }
+
+    const prelimPaid = Boolean(paymentStatus.prelim_paid);
+    const midtermPaid = Boolean(paymentStatus.midterm_paid);
+    const prefinalPaid = Boolean(paymentStatus.prefinal_paid);
+    const finalPaid = Boolean(paymentStatus.final_paid);
+
+    // Precedence: final > prefinal > midterm > prelim
+    if (finalPaid) {
+        return { prelim: true, midterm: true, prefinal: true, final: true, semester: false };
+    }
+
+    if (prefinalPaid) {
+        return { prelim: true, midterm: true, prefinal: true, final: false, semester: false };
+    }
+
+    if (midtermPaid) {
+        return { prelim: true, midterm: true, prefinal: false, final: false, semester: false };
+    }
+
+    if (prelimPaid) {
+        return { prelim: true, midterm: false, prefinal: false, final: false, semester: false };
+    }
+
+    return { prelim: false, midterm: false, prefinal: false, final: false, semester: false };
+};
+
+const Index = ({ auth, student, currentGrades, paymentStatus, visibleGradePeriods, stats, academicYear, semester }) => {
+    // ensure safe defaults
+    const grades = Array.isArray(currentGrades) ? currentGrades : [];
+    const isShsView = grades.length > 0 && grades.every((grade) => grade.type === 'shs');
+    // academic period values may be undefined when no grades exist
+    academicYear = academicYear || '';
+    semester = semester || '';
+    // use backend‑computed visibility based on payment status
+    const visible = visibleGradePeriods || { prelim: true, midterm: true, prefinal: true, final: true, semester: true };
+
+    // user can toggle how grades are displayed
+    const [gradeType, setGradeType] = React.useState('gpa');
+
     return (
         <AuthenticatedLayout
             auth={auth}
             header={
                 <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
-                        <button 
-                            onClick={() => router.visit(route('student.dashboard'))}
-                            className="flex items-center gap-2 px-3 py-1.5 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-md transition-colors"
-                        >
-                            <ArrowLeft className="w-4 h-4" />
-                            Back to Dashboard
-                        </button>
+                        <Button asChild variant="ghost" size="sm">
+                            <Link href={route('student.dashboard')} className="flex items-center gap-2">
+                                <ArrowLeft className="w-4 h-4" />
+                                <span className="hidden sm:inline">Back to Dashboard</span>
+                            </Link>
+                        </Button>
                         <div className="h-6 w-px bg-gray-300"></div>
                         <div>
-                            <h2 className="text-2xl font-bold text-gray-900">My Grades</h2>
+                            <h2 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
+                                <GraduationCap className="w-6 h-6 text-blue-600" />
+                                My Grades
+                            </h2>
+                            <p className="text-sm text-blue-600 font-medium mt-1">
+                                Review your grades for the current academic term
+                            </p>
                         </div>
                     </div>
                 </div>
@@ -82,477 +157,239 @@ const Index = ({ auth, student, currentGrades, recentGrades, stats }) => {
         >
             <Head title="My Grades" />
 
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                <div className="space-y-8">
-                    {/* Welcome Section with Student Info */}
-                    {student && (
-                        <Card className="bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-200">
-                            <CardContent className="p-6">
-                                <div className="flex items-center gap-4">
-                                    <div className="bg-blue-100 p-3 rounded-full">
-                                        <GraduationCap className="w-8 h-8 text-blue-600" />
-                                    </div>
-                                    <div className="flex-1">
-                                        <h3 className="text-lg font-semibold text-gray-900">
-                                            Welcome back, {student.user?.first_name || student.user?.name}!
-                                        </h3>
-                                        <p className="text-sm text-gray-600">
-                                            Student ID: {student.student_number || 'N/A'} • {student.program?.program_name || 'Program N/A'}
-                                        </p>
-                                    </div>
-                                    <div className="text-right">
-                                        <div className="text-2xl font-bold text-blue-600">
-                                            {stats.averageGrade ? `${stats.averageGrade.toFixed(1)}%` : 'No grades yet'}
-                                        </div>
-                                        <div className="text-sm text-gray-500">Current Average</div>
-                                    </div>
-                                </div>
-                            </CardContent>
-                        </Card>
-                    )}
-
-                    {/* Grade Statistics Cards */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                        <Card className="border-l-4 border-l-blue-500 hover:shadow-md transition-shadow">
-                            <CardContent className="p-6">
-                                <div className="flex items-center justify-between">
-                                    <div>
-                                        <p className="text-sm font-medium text-gray-600">Total Subjects</p>
-                                        <p className="text-3xl font-bold text-blue-600">{stats.totalSubjects || 0}</p>
-                                        <p className="text-xs text-gray-500 mt-1">Enrolled this semester</p>
-                                    </div>
-                                    <div className="p-3 bg-blue-100 rounded-full">
-                                        <BookOpen className="w-6 h-6 text-blue-600" />
-                                    </div>
-                                </div>
-                            </CardContent>
-                        </Card>
-
-                        <Card className="border-l-4 border-l-green-500 hover:shadow-md transition-shadow">
-                            <CardContent className="p-6">
-                                <div className="flex items-center justify-between">
-                                    <div>
-                                        <p className="text-sm font-medium text-gray-600">Average Grade</p>
-                                        <p className={`text-3xl font-bold ${getGradeColor(stats.averageGrade)}`}>
-                                            {stats.averageGrade ? `${stats.averageGrade.toFixed(1)}%` : 'N/A'}
-                                        </p>
-                                        <p className="text-xs text-gray-500 mt-1">
-                                            {getGradeStatus(stats.averageGrade)}
-                                        </p>
-                                    </div>
-                                    <div className="p-3 bg-green-100 rounded-full">
-                                        <TrendingUp className="w-6 h-6 text-green-600" />
-                                    </div>
-                                </div>
-                            </CardContent>
-                        </Card>
-
-                        <Card className="border-l-4 border-l-purple-500 hover:shadow-md transition-shadow">
-                            <CardContent className="p-6">
-                                <div className="flex items-center justify-between">
-                                    <div>
-                                        <p className="text-sm font-medium text-gray-600">Graded Subjects</p>
-                                        <p className="text-3xl font-bold text-purple-600">
-                                            {stats.gradedSubjects || 0}
-                                        </p>
-                                        <p className="text-xs text-gray-500 mt-1">With posted grades</p>
-                                    </div>
-                                    <div className="p-3 bg-purple-100 rounded-full">
-                                        <CheckCircle className="w-6 h-6 text-purple-600" />
-                                    </div>
-                                </div>
-                            </CardContent>
-                        </Card>
-
-                        <Card className="border-l-4 border-l-orange-500 hover:shadow-md transition-shadow">
-                            <CardContent className="p-6">
-                                <div className="flex items-center justify-between">
-                                    <div>
-                                        <p className="text-sm font-medium text-gray-600">Grade Status</p>
-                                        <div className="flex items-center gap-2 mt-1">
-                                            <div className={`w-3 h-3 rounded-full ${
-                                                stats.averageGrade >= 90 ? 'bg-green-500' :
-                                                stats.averageGrade >= 80 ? 'bg-blue-500' :
-                                                stats.averageGrade >= 75 ? 'bg-yellow-500' : 'bg-red-500'
-                                            }`}></div>
-                                            <span className="text-sm font-medium text-gray-900">
-                                                {getGradeStatus(stats.averageGrade)}
-                                            </span>
-                                        </div>
-                                        <p className="text-xs text-gray-500 mt-1">
-                                            Overall performance
-                                        </p>
-                                    </div>
-                                    <div className="p-3 bg-orange-100 rounded-full">
-                                        <Target className="w-6 h-6 text-orange-600" />
-                                    </div>
-                                </div>
-                            </CardContent>
-                        </Card>
+            {grades.length > 0 ? (
+                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+                    {/* grade display toggle and export */}
+                    <div className="flex justify-between items-center mb-4">
+                        <div>
+                            <label className="flex items-center gap-2 text-sm">
+                                <span>View As:</span>
+                                <Select value={gradeType} onValueChange={setGradeType}>
+                                    <SelectTrigger className="w-32 h-8">
+                                        <SelectValue placeholder="Numeric" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="numeric">Numeric</SelectItem>
+                                        <SelectItem value="gpa">GPA</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                            </label>
+                        </div>
+                        <a
+                            href={route('student.grades.export')}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center px-3 py-1.5 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50"
+                        >
+                            <Download className="w-4 h-4 mr-2" />
+                            Export PDF
+                        </a>
                     </div>
 
-                    {/* Recent Grades Section */}
-                    <Card className="shadow-sm">
-                        <CardHeader className="pb-4">
-                            <div className="flex items-center justify-between">
-                                <div>
-                                    <CardTitle className="flex items-center gap-2 text-xl">
-                                        <BarChart3 className="w-5 h-5 text-blue-600" />
-                                        Recent Grades
-                                    </CardTitle>
-                                    <CardDescription className="mt-1">
-                                        Your latest grade entries and academic progress
-                                    </CardDescription>
-                                </div>
-                                <Badge variant="secondary" className="bg-blue-50 text-blue-700">
-                                    {recentGrades?.length || 0} Recent
+                    {/* academic period and quick stats */}
+                    <div className="flex flex-col md:flex-row md:justify-between items-start md:items-center mb-4 space-y-2 md:space-y-0">
+                        <div className="text-sm text-gray-600">
+                            Academic Year: <span className="font-semibold">{academicYear}</span> &nbsp;|&nbsp; Semester: <span className="font-semibold">{semester}</span>
+                        </div>
+                        {stats && (
+                            <div className="flex gap-2">
+                                <Badge variant="secondary" className="bg-blue-100 text-blue-800">
+                                    {stats.totalSubjects} subject{stats.totalSubjects !== 1 ? 's' : ''}
                                 </Badge>
+                                
                             </div>
-                        </CardHeader>
-                        <CardContent>
-                            {recentGrades && recentGrades.length > 0 ? (
-                                <div className="space-y-4">
-                                    {recentGrades.map((grade, index) => (
-                                        <div key={index} className="flex items-center justify-between p-4 bg-gradient-to-r from-gray-50 to-white border border-gray-200 rounded-lg hover:shadow-md transition-shadow">
-                                            <div className="flex items-center gap-4">
-                                                <div className={`p-3 rounded-lg shadow-sm ${
-                                                    (grade.semester_grade || grade.prelim_grade) >= 90 ? 'bg-green-100' :
-                                                    (grade.semester_grade || grade.prelim_grade) >= 80 ? 'bg-blue-100' :
-                                                    (grade.semester_grade || grade.prelim_grade) >= 75 ? 'bg-yellow-100' : 'bg-red-100'
-                                                }`}>
-                                                    <Award className={`w-6 h-6 ${
-                                                        (grade.semester_grade || grade.prelim_grade) >= 90 ? 'text-green-600' :
-                                                        (grade.semester_grade || grade.prelim_grade) >= 80 ? 'text-blue-600' :
-                                                        (grade.semester_grade || grade.prelim_grade) >= 75 ? 'text-yellow-600' : 'text-red-600'
-                                                    }`} />
-                                                </div>
-                                                <div className="flex-1">
-                                                    <h4 className="font-semibold text-gray-900 text-lg">
-                                                        {grade.sectionSubject?.subject?.subject_name || 'Subject Name'}
-                                                    </h4>
-                                                    <div className="flex items-center gap-4 mt-1">
-                                                        <p className="text-sm text-gray-600 flex items-center gap-1">
-                                                            <Calendar className="w-4 h-4" />
-                                                            {grade.grading_period}
-                                                        </p>
-                                                        <Badge variant={grade.semester_grade ? 'default' : 'secondary'} className="text-xs">
-                                                            {grade.semester_grade ? 'Final Grade' : 'Partial Grade'}
-                                                        </Badge>
-                                                    </div>
-                                                    <p className="text-xs text-gray-500 mt-1">
-                                                        {formatSectionName(grade.student_enrollment?.section)}
-                                                    </p>
-                                                </div>
-                                            </div>
-                                            <div className="text-right">
-                                                <div className={`text-3xl font-bold ${getGradeColor(grade.semester_grade || grade.prelim_grade)}`}>
-                                                    {grade.semester_grade || grade.prelim_grade || 'N/A'}
-                                                </div>
-                                                <div className="text-sm text-gray-500 mt-1">
-                                                    {getGradeStatus(grade.semester_grade || grade.prelim_grade)}
-                                                </div>
-                                                <div className="text-xs text-gray-400 mt-1">
-                                                    {new Date(grade.created_at).toLocaleDateString()}
-                                                </div>
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-                            ) : (
-                                <div className="text-center py-12">
-                                    <div className="p-6 bg-gray-100 rounded-full w-20 h-20 mx-auto mb-4 flex items-center justify-center">
-                                        <TrendingUp className="w-10 h-10 text-gray-400" />
-                                    </div>
-                                    <h3 className="text-xl font-semibold text-gray-900 mb-2">No Recent Grades</h3>
-                                    <p className="text-gray-500 mb-6 max-w-md mx-auto">
-                                        Your recent grades will appear here once they are posted by your instructors.
-                                        Check back later or contact your teachers for updates.
-                                    </p>
-                                    <div className="flex gap-3 justify-center">
-                                        <Button asChild variant="outline">
-                                            <Link href={route('student.subjects')}>
-                                                <BookOpen className="w-4 h-4 mr-2" />
-                                                View Subjects
-                                            </Link>
-                                        </Button>
-                                        <Button asChild>
-                                            <Link href={route('student.dashboard')}>
-                                                <ArrowRight className="w-4 h-4 mr-2" />
-                                                Go to Dashboard
-                                            </Link>
-                                        </Button>
-                                    </div>
-                                </div>
-                            )}
-                        </CardContent>
-                    </Card>
+                        )}
+                    </div>
 
-                    {/* All Current Grades Section */}
-                    <Card className="shadow-sm">
-                        <CardHeader className="pb-4">
-                            <div className="flex items-center justify-between">
-                                <div>
-                                    <CardTitle className="flex items-center gap-2 text-xl">
-                                        <BookOpen className="w-5 h-5 text-green-600" />
-                                        All Current Grades
-                                    </CardTitle>
-                                    <CardDescription className="mt-1">
-                                        Complete overview of your current semester performance
-                                    </CardDescription>
-                                </div>
-                                <div className="flex items-center gap-2">
-                                    <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
-                                        {stats.totalSubjects || 0} Subjects
-                                    </Badge>
-                                    {stats.averageGrade && (
-                                        <Badge variant="secondary" className="bg-blue-50 text-blue-700">
-                                            Avg: {stats.averageGrade.toFixed(1)}%
-                                        </Badge>
-                                    )}
-                                </div>
-                            </div>
-                        </CardHeader>
-                        <CardContent>
-                            {currentGrades && currentGrades.data && currentGrades.data.length > 0 ? (
-                                <div className="space-y-4">
-                                    {/* Summary Cards for Mobile */}
-                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:hidden">
-                                        <Card className="bg-blue-50 border-blue-200">
-                                            <CardContent className="p-4 text-center">
-                                                <div className="text-2xl font-bold text-blue-600">{stats.totalSubjects || 0}</div>
-                                                <div className="text-sm text-blue-700">Total Subjects</div>
-                                            </CardContent>
-                                        </Card>
-                                        <Card className="bg-green-50 border-green-200">
-                                            <CardContent className="p-4 text-center">
-                                                <div className={`text-2xl font-bold ${getGradeColor(stats.averageGrade)}`}>
-                                                    {stats.averageGrade ? `${stats.averageGrade.toFixed(1)}%` : 'N/A'}
-                                                </div>
-                                                <div className="text-sm text-green-700">Average Grade</div>
-                                            </CardContent>
-                                        </Card>
-                                        <Card className="bg-purple-50 border-purple-200">
-                                            <CardContent className="p-4 text-center">
-                                                <div className="text-2xl font-bold text-purple-600">{stats.gradedSubjects || 0}</div>
-                                                <div className="text-sm text-purple-700">Graded</div>
-                                            </CardContent>
-                                        </Card>
-                                    </div>
+                    <Card>
+                        <CardContent className="p-0 overflow-x-auto">
+                            <table className="min-w-full divide-y divide-gray-200">
 
-                                    {/* Grades Cards */}
-                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                                        {(() => {
-                                            // Group grades by subject
-                                            const gradesBySubject = {};
-                                            currentGrades.data.forEach(grade => {
-                                                const subjectId = grade.section_subject?.subject?.id;
-                                                if (subjectId && !gradesBySubject[subjectId]) {
-                                                    gradesBySubject[subjectId] = {
-                                                        subject: grade.section_subject?.subject,
-                                                        section: grade.student_enrollment?.section,
-                                                        grades: []
-                                                    };
-                                                }
-                                                if (subjectId) {
-                                                    gradesBySubject[subjectId].grades.push(grade);
-                                                }
-                                            });
+                        <thead className="bg-gray-50">
+                            <tr>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500">Subject</th>
+                                {isShsView ? (
+                                    <>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500">Quarter 1</th>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500">Quarter 2</th>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500">Semester Grade</th>
+                                    </>
+                                ) : (
+                                    <>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500">Prelim</th>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500">Midterm</th>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500">Prefinal</th>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500">Final</th>
+                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500">Semester</th>
+                                    </>
+                                )}
+                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500">Remarks</th>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500">Status</th>
+                            </tr>
+                        </thead>
+                        <tbody className="bg-white divide-y divide-gray-200">
+                            {grades.map((grade, idx) => {
+                                const subject = grade.sectionSubject?.subject;
+                                const section = grade.studentEnrollment?.section;
+                                const prelim = grade.prelim_grade ?? null;
+                                const midterm = grade.midterm_grade ?? null;
+                                const prefinal = grade.prefinal_grade ?? null;
+                                const finalg = grade.final_grade ?? null;
+                                const q1 = grade.q1_grade ?? null;
+                                const q2 = grade.q2_grade ?? null;
+                                const semester = grade.semester_grade ?? null;
+                                const status = grade.overall_status || grade.completion_status || (semester ? 'Completed' : '');
 
-                                            return Object.values(gradesBySubject).map((subjectData, index) => {
-                                                const { subject, section, grades } = subjectData;
-
-                                                // Find grades for each period - each subject has one grade record with all periods
-                                                const grade = grades[0]; // There should be one grade record per subject
-                                                const prelimGrade = grade?.prelim_grade ? parseFloat(grade.prelim_grade) : null;
-                                                const midtermGrade = grade?.midterm_grade ? parseFloat(grade.midterm_grade) : null;
-                                                const prefinalGrade = grade?.prefinal_grade ? parseFloat(grade.prefinal_grade) : null;
-                                                const finalGrade = grade?.final_grade ? parseFloat(grade.final_grade) : null;
-                                                const semesterGrade = grade?.semester_grade ? parseFloat(grade.semester_grade) : null;
-
-                                                // Filter out invalid grades (NaN, null, undefined)
-                                                const validGrades = [prelimGrade, midtermGrade, prefinalGrade, finalGrade, semesterGrade]
-                                                    .filter(g => g !== null && g !== undefined && !isNaN(g) && g > 0);
-
-                                                // Calculate average grade for card color
-                                                const averageGrade = validGrades.length > 0 ? validGrades.reduce((a, b) => a + b, 0) / validGrades.length : null;
-
-                                                return (
-                                                    <Card key={index} className="hover:shadow-lg transition-all duration-300 border-l-4 border-l-blue-500">
-                                                        <CardHeader className="pb-3">
-                                                            <div className="flex items-start justify-between">
-                                                                <div className="flex-1">
-                                                                    <CardTitle className="text-lg font-bold text-gray-900 leading-tight">
-                                                                        {subject?.subject_name || 'Subject Name'}
-                                                                    </CardTitle>
-                                                                    <CardDescription className="text-sm text-gray-600 mt-1">
-                                                                        {subject?.subject_code || 'N/A'} • {formatSectionName(section)}
-                                                                    </CardDescription>
-                                                                </div>
-                                                                <div className={`p-2 rounded-full ${
-                                                                    averageGrade >= 90 ? 'bg-green-100' :
-                                                                    averageGrade >= 80 ? 'bg-blue-100' :
-                                                                    averageGrade >= 75 ? 'bg-yellow-100' :
-                                                                    averageGrade ? 'bg-red-100' : 'bg-gray-100'
-                                                                }`}>
-                                                                    <span className={`text-sm font-bold ${
-                                                                        averageGrade >= 90 ? 'text-green-600' :
-                                                                        averageGrade >= 80 ? 'text-blue-600' :
-                                                                        averageGrade >= 75 ? 'text-yellow-600' :
-                                                                        averageGrade ? 'text-red-600' : 'text-gray-400'
-                                                                    }`}>
-                                                                        {averageGrade ? averageGrade.toFixed(1) : '—'}
-                                                                    </span>
-                                                                </div>
-                                                            </div>
-                                                        </CardHeader>
-                                                        <CardContent className="pt-0">
-                                                            <div className="space-y-3">
-                                                                {/* Prelim Grade */}
-                                                                <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                                                                    <div className="flex items-center gap-2">
-                                                                        <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-                                                                        <span className="text-sm font-medium text-gray-700">Prelim</span>
-                                                                    </div>
-                                                                    <div className="flex items-center gap-2">
-                                                                        <span className={`text-lg font-bold ${getGradeColor(prelimGrade)}`}>
-                                                                            {displayGrade(prelimGrade)}
-                                                                        </span>
-                                                                        {isValidGrade(prelimGrade) && (
-                                                                            <div className={`w-2 h-2 rounded-full ${
-                                                                                prelimGrade >= 90 ? 'bg-green-500' :
-                                                                                prelimGrade >= 80 ? 'bg-blue-500' :
-                                                                                prelimGrade >= 75 ? 'bg-yellow-500' : 'bg-red-500'
-                                                                            }`}></div>
-                                                                        )}
-                                                                    </div>
-                                                                </div>
-
-                                                                {/* Midterm Grade */}
-                                                                <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                                                                    <div className="flex items-center gap-2">
-                                                                        <div className="w-2 h-2 bg-purple-500 rounded-full"></div>
-                                                                        <span className="text-sm font-medium text-gray-700">Midterm</span>
-                                                                    </div>
-                                                                    <div className="flex items-center gap-2">
-                                                                        <span className={`text-lg font-bold ${getGradeColor(midtermGrade)}`}>
-                                                                            {displayGrade(midtermGrade)}
-                                                                        </span>
-                                                                        {isValidGrade(midtermGrade) && (
-                                                                            <div className={`w-2 h-2 rounded-full ${
-                                                                                midtermGrade >= 90 ? 'bg-green-500' :
-                                                                                midtermGrade >= 80 ? 'bg-blue-500' :
-                                                                                midtermGrade >= 75 ? 'bg-yellow-500' : 'bg-red-500'
-                                                                            }`}></div>
-                                                                        )}
-                                                                    </div>
-                                                                </div>
-
-                                                                {/* Pre-finals Grade */}
-                                                                <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                                                                    <div className="flex items-center gap-2">
-                                                                        <div className="w-2 h-2 bg-orange-500 rounded-full"></div>
-                                                                        <span className="text-sm font-medium text-gray-700">Pre-finals</span>
-                                                                    </div>
-                                                                    <div className="flex items-center gap-2">
-                                                                        <span className={`text-lg font-bold ${getGradeColor(prefinalGrade)}`}>
-                                                                            {displayGrade(prefinalGrade)}
-                                                                        </span>
-                                                                        {isValidGrade(prefinalGrade) && (
-                                                                            <div className={`w-2 h-2 rounded-full ${
-                                                                                prefinalGrade >= 90 ? 'bg-green-500' :
-                                                                                prefinalGrade >= 80 ? 'bg-blue-500' :
-                                                                                prefinalGrade >= 75 ? 'bg-yellow-500' : 'bg-red-500'
-                                                                            }`}></div>
-                                                                        )}
-                                                                    </div>
-                                                                </div>
-
-                                                                {/* Finals Grade */}
-                                                                <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                                                                    <div className="flex items-center gap-2">
-                                                                        <div className="w-2 h-2 bg-red-500 rounded-full"></div>
-                                                                        <span className="text-sm font-medium text-gray-700">Finals</span>
-                                                                    </div>
-                                                                    <div className="flex items-center gap-2">
-                                                                        <span className={`text-lg font-bold ${getGradeColor(finalGrade || semesterGrade)}`}>
-                                                                            {displayGrade(finalGrade || semesterGrade)}
-                                                                        </span>
-                                                                        {isValidGrade(finalGrade || semesterGrade) && (
-                                                                            <div className={`w-2 h-2 rounded-full ${
-                                                                                (finalGrade || semesterGrade) >= 90 ? 'bg-green-500' :
-                                                                                (finalGrade || semesterGrade) >= 80 ? 'bg-blue-500' :
-                                                                                (finalGrade || semesterGrade) >= 75 ? 'bg-yellow-500' : 'bg-red-500'
-                                                                            }`}></div>
-                                                                        )}
-                                                                    </div>
-                                                                </div>
-                                                            </div>
-
-                                                        </CardContent>
-                                                    </Card>
-                                                );
-                                            });
-                                        })()}
-                                    </div>
-
-                                    {/* Pagination */}
-                                    {currentGrades.links && currentGrades.links.length > 3 && (
-                                        <div className="mt-6 flex justify-center">
-                                            <div className="flex space-x-1">
-                                                {currentGrades.links.map((link, index) => (
-                                                    link.url ? (
-                                                        <Link
-                                                            key={index}
-                                                            href={link.url}
-                                                            className={`px-4 py-2 text-sm border rounded-lg transition-colors ${
-                                                                link.active
-                                                                    ? 'bg-blue-500 text-white border-blue-500 shadow-sm'
-                                                                    : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50 hover:border-blue-300'
-                                                            }`}
-                                                            dangerouslySetInnerHTML={{ __html: link.label }}
-                                                        />
+                                return (
+                                    <tr key={grade.id ?? idx} className="hover:bg-gray-50">
+                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                            <TooltipProvider>
+                                                <Tooltip>
+                                                    <TooltipTrigger asChild>
+                                                        <span className="cursor-help">{subject?.subject_code || 'N/A'}</span>
+                                                    </TooltipTrigger>
+                                                    <TooltipContent>
+                                                        <p>{subject?.subject_name || 'N/A'}</p>
+                                                    </TooltipContent>
+                                                </Tooltip>
+                                            </TooltipProvider>
+                                        </td>
+                                        {isShsView ? (
+                                            <>
+                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                                    {isValidGrade(q1) ? (gradeType === 'gpa' ? getGradePointEquivalence(q1) : displayGrade(q1)) : '—'}
+                                                </td>
+                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                                    {isValidGrade(q2) ? (gradeType === 'gpa' ? getGradePointEquivalence(q2) : displayGrade(q2)) : '—'}
+                                                </td>
+                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                                    {isValidGrade(semester) ? (gradeType === 'gpa' ? getGradePointEquivalence(semester) : displayGrade(semester)) : '—'}
+                                                </td>
+                                            </>
+                                        ) : (
+                                            <>
+                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                                    {visible.prelim ? (
+                                                        isValidGrade(prelim)
+                                                            ? (gradeType === 'gpa' ? getGradePointEquivalence(prelim) : displayGrade(prelim))
+                                                            : (!paymentStatus?.prelim_paid && paymentStatus?.balance > 0)
+                                                                ? <Link href={route('student.payments')} className="text-red-600 underline">Pay Prelim</Link>
+                                                                : '—'
                                                     ) : (
-                                                        <span
-                                                            key={index}
-                                                            className="px-4 py-2 text-sm border rounded-lg bg-gray-100 text-gray-400 border-gray-300 cursor-not-allowed"
-                                                            dangerouslySetInnerHTML={{ __html: link.label }}
-                                                        />
-                                                    )
-                                                ))}
-                                            </div>
-                                        </div>
-                                    )}
-                                </div>
-                            ) : (
-                                <div className="text-center py-16">
-                                    <div className="p-8 bg-gradient-to-br from-gray-100 to-gray-200 rounded-full w-24 h-24 mx-auto mb-6 flex items-center justify-center">
-                                        <BookOpen className="w-12 h-12 text-gray-400" />
-                                    </div>
-                                    <h3 className="text-2xl font-semibold text-gray-900 mb-3">No Current Grades</h3>
-                                    <p className="text-gray-500 mb-8 max-w-md mx-auto leading-relaxed">
-                                        You don't have any grades posted for your current subjects yet.
-                                        Grades will appear here once your instructors post them.
-                                    </p>
-                                    <div className="flex gap-4 justify-center">
-                                        <Button asChild variant="outline">
-                                            <Link href={route('student.subjects')}>
-                                                <BookOpen className="w-4 h-4 mr-2" />
-                                                View My Subjects
-                                            </Link>
-                                        </Button>
-                                        <Button asChild className="bg-blue-600 hover:bg-blue-700">
-                                            <Link href={route('student.dashboard')}>
-                                                <ArrowRight className="w-4 h-4 mr-2" />
-                                                Back to Dashboard
-                                            </Link>
-                                        </Button>
-                                    </div>
-                                </div>
-                            )}
+                                                        isValidGrade(prelim) ? <span className="text-gray-400">Grade hidden</span> : '—'
+                                                    )}
+                                                </td>
+                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                                    {visible.midterm ? (
+                                                        isValidGrade(midterm)
+                                                            ? (gradeType === 'gpa' ? getGradePointEquivalence(midterm) : displayGrade(midterm))
+                                                            : (!paymentStatus?.midterm_paid && paymentStatus?.balance > 0)
+                                                                ? <Link href={route('student.payments')} className="text-red-600 underline">Pay Midterm</Link>
+                                                                : '—'
+                                                    ) : (
+                                                        isValidGrade(midterm) ? <span className="text-gray-400">Grade hidden</span> : '—'
+                                                    )}
+                                                </td>
+                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                                    {visible.prefinal ? (
+                                                        isValidGrade(prefinal)
+                                                            ? (gradeType === 'gpa' ? getGradePointEquivalence(prefinal) : displayGrade(prefinal))
+                                                            : (!paymentStatus?.prefinal_paid && paymentStatus?.balance > 0)
+                                                                ? <Link href={route('student.payments')} className="text-red-600 underline">Pay Pre-final</Link>
+                                                                : '—'
+                                                    ) : (
+                                                        isValidGrade(prefinal) ? <span className="text-gray-400">Grade hidden</span> : '—'
+                                                    )}
+                                                </td>
+                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                                    {visible.final ? (
+                                                        isValidGrade(finalg)
+                                                            ? (gradeType === 'gpa' ? getGradePointEquivalence(finalg) : displayGrade(finalg))
+                                                            : (!paymentStatus?.final_paid && paymentStatus?.balance > 0)
+                                                                ? <Link href={route('student.payments')} className="text-red-600 underline">Pay Final</Link>
+                                                                : '—'
+                                                    ) : (
+                                                        isValidGrade(finalg) ? <span className="text-gray-400">Grade hidden</span> : '—'
+                                                    )}
+                                                </td>
+                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                                    {visible.semester ? (
+                                                        isValidGrade(semester)
+                                                            ? (gradeType === 'gpa' ? getGradePointEquivalence(semester) : displayGrade(semester))
+                                                            : (paymentStatus?.balance <= 0)
+                                                                ? <span className="text-orange-600">Missing term grades</span>
+                                                                : (!paymentStatus?.semester_paid && paymentStatus?.balance == 0)
+                                                                    ? <Link href={route('student.payments')} className="text-red-600 underline">Pay Semester</Link>
+                                                                    : '—'
+                                                    ) : (
+                                                        isValidGrade(semester) ? <span className="text-gray-400">Grade hidden</span> : '—'
+                                                    )}
+                                                </td>
+                                            </>
+                                        )}
+                                        <td className="px-6 py-4 text-sm text-gray-900">{grade.teacher_remarks || '-'}</td>
+                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{status}</td>
+                                    </tr>
+                                );
+                            })}
+                        </tbody>
+                    </table>
                         </CardContent>
                     </Card>
+                    {/* pagination placeholder - kept for future use
+                    {currentGrades.links && currentGrades.links.length > 3 && (
+                        <div className="mt-6 flex justify-center">
+                            <div className="flex space-x-1">
+                                {currentGrades.links.map((link, index) => (
+                                    link.url ? (
+                                        <Link
+                                            key={index}
+                                            href={link.url}
+                                            className={`px-4 py-2 text-sm border rounded-lg transition-colors ${
+                                                link.active
+                                                    ? 'bg-blue-500 text-white border-blue-500 shadow-sm'
+                                                    : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50 hover:border-blue-300'
+                                            }`}
+                                            dangerouslySetInnerHTML={{ __html: link.label }}
+                                        />
+                                    ) : (
+                                        <span
+                                            key={index}
+                                            className="px-4 py-2 text-sm border rounded-lg bg-gray-100 text-gray-400 border-gray-300 cursor-not-allowed"
+                                            dangerouslySetInnerHTML={{ __html: link.label }}
+                                        />
+                                    )
+                                ))}
+                            </div>
+                        </div>
+                    )} */}
                 </div>
-            </div>
+            ) : (
+                <div className="text-center py-16">
+                    <div className="p-8 bg-gradient-to-br from-gray-100 to-gray-200 rounded-full w-24 h-24 mx-auto mb-6 flex items-center justify-center">
+                        <BookOpen className="w-12 h-12 text-gray-400" />
+                    </div>
+                    <h3 className="text-2xl font-semibold text-gray-900 mb-3">No Current Grades</h3>
+                    <p className="text-gray-500 mb-8 max-w-md mx-auto leading-relaxed">
+                        You don't have any grades posted for your current subjects yet.
+                        Grades will appear here once your instructors post them.
+                    </p>
+                    <div className="flex gap-4 justify-center">
+                        <Button asChild variant="outline">
+                            <Link href={route('student.subjects')}>
+                                <BookOpen className="w-4 h-4 mr-2" />
+                                View My Subjects
+                            </Link>
+                        </Button>
+                        <Button asChild className="bg-blue-600 hover:bg-blue-700">
+                            <Link href={route('student.dashboard')}>
+                                <ArrowRight className="w-4 h-4 mr-2" />
+                                <span className="hidden sm:inline">Back to Dashboard</span>
+                            </Link>
+                        </Button>
+                    </div>
+                </div>
+            )}
         </AuthenticatedLayout>
     );
 };

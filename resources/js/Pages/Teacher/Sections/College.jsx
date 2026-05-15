@@ -14,14 +14,16 @@ import {
     Search,
     FileText,
     BarChart3,
-    ChevronRight,
-    Upload,
+    ChevronDown,
+    ChevronUp,
     Clock,
-    MapPin
+    MapPin,
+    Layers
 } from 'lucide-react';
 
 export default function CollegeSections({ sections, filters }) {
     const [searchTerm, setSearchTerm] = useState(filters?.search || '');
+    const [expandedSection, setExpandedSection] = useState(null);
 
     // Format schedule for display
     const formatSchedule = (scheduleDays, startTime, endTime) => {
@@ -108,202 +110,198 @@ export default function CollegeSections({ sections, filters }) {
     const handleSearch = (e) => {
         e.preventDefault();
         router.get(route('teacher.sections.college'), { search: searchTerm }, {
-            preserveState: true,
-            replace: true,
+            preserveState: false,
+            replace: false,
+            only: ['sections']
         });
     };
 
     const clearSearch = () => {
         setSearchTerm('');
         router.get(route('teacher.sections.college'), {}, {
-            preserveState: true,
-            replace: true,
+            preserveState: false,
+            replace: false,
+            only: ['sections']
         });
     };
 
     return (
         <AuthenticatedLayout
             header={
-                <div className="flex items-center gap-3">
-                    <div className="bg-blue-100 p-2 rounded-lg">
-                        <GraduationCap className="w-6 h-6 text-blue-600" />
-                    </div>
-                    <div>
-                        <h2 className="text-2xl font-bold text-gray-900">College Sections</h2>
-                        <p className="text-sm text-gray-600 mt-1">Manage your college section assignments</p>
+                <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                        <div className="bg-blue-100 p-1.5 rounded-md">
+                            <GraduationCap className="w-4 h-4 text-blue-600" />
+                        </div>
+                        <div>
+                            <h2 className="text-lg font-semibold text-gray-900">College Sections</h2>
+                            <p className="text-xs text-gray-500 mt-0.5">View and manage your assigned sections</p>
+                        </div>
                     </div>
                 </div>
             }
         >
             <Head title="My College Sections" />
             
-            <div className="p-6">
+            <div className="p-4 sm:p-6">
                 {/* Search Section */}
                 <Card className="mb-6 border-0 shadow-sm bg-gradient-to-r from-blue-50 to-indigo-50">
                     <CardContent className="pt-6">
-                        <form onSubmit={handleSearch} className="flex items-center gap-3">
-                            <div className="relative flex-1">
+                        <form onSubmit={handleSearch} className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+                            <div className="relative flex-1 min-w-0">
                                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
                                 <Input
                                     type="text"
-                                    placeholder="Search sections, programs, or subjects..."
+                                    placeholder="Search sections or programs..."
                                     value={searchTerm}
                                     onChange={(e) => setSearchTerm(e.target.value)}
-                                    className="pl-10"
+                                    className="pl-10 w-full"
                                 />
                             </div>
-                            <Button type="submit" className="bg-blue-600 hover:bg-blue-700">
-                                Search
-                            </Button>
-                            {filters?.search && (
-                                <Button 
-                                    type="button" 
-                                    variant="outline" 
-                                    onClick={clearSearch}
-                                    className="text-gray-600"
-                                >
-                                    Clear
+                            <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
+                                <Button type="submit" className="bg-blue-600 hover:bg-blue-700 w-full sm:w-auto">
+                                    Search
                                 </Button>
-                            )}
+                                {filters?.search && (
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        onClick={clearSearch}
+                                        className="text-gray-600 w-full sm:w-auto"
+                                    >
+                                        Clear
+                                    </Button>
+                                )}
+                            </div>
                         </form>
                     </CardContent>
                 </Card>
 
-                {/* Sections Grid */}
+                {/* Sections List */}
                 {sections.data && sections.data.length > 0 ? (
                     <>
-                        <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
+                        <div className="space-y-4">
                             {sections.data.map((section) => (
-                                <Card key={section.id} className="group hover:shadow-xl transition-all duration-300 border-2 hover:border-blue-300 relative overflow-hidden">
-                                    {/* Status Badge */}
-                                    <div className="absolute top-4 right-4">
-                                        <Badge className="bg-white text-green-600 border-green-600 shadow-md font-semibold">
-                                            active
-                                        </Badge>
+                                <Card key={section.id} className="group hover:shadow-lg transition-all duration-200 border border-gray-200 overflow-hidden">
+                                    <div 
+                                        className="cursor-pointer" 
+                                        onClick={() => setExpandedSection(expandedSection === section.id ? null : section.id)}
+                                    >
+                                        <CardHeader className="pb-4 bg-gradient-to-r from-blue-50 to-indigo-50">
+                                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                                                <div className="flex items-center space-x-3 sm:space-x-4 flex-1 min-w-0">
+                                                    <div className="flex items-center justify-center w-10 h-10 sm:w-12 sm:h-12 p-2 sm:p-3 rounded-lg border border-blue-200 bg-blue-50 hover:bg-blue-100 transition-colors shadow-sm flex-shrink-0">
+                                                        <School className="w-5 h-5 sm:w-6 sm:h-6 text-blue-600" />
+                                                    </div>
+                                                    <div className="flex-1 min-w-0">
+                                                        <CardTitle className="text-lg sm:text-xl font-bold text-gray-900 truncate">
+                                                            {section.program?.program_code}-{section.year_level}{section.section_name}
+                                                        </CardTitle>
+                                                        <CardDescription className="text-blue-700 font-medium text-sm mt-1">
+                                                            {section.program?.program_name || 'N/A'}
+                                                        </CardDescription>
+                                                        <div className="flex flex-wrap items-center gap-2 sm:gap-4 mt-3">
+                                                            <Badge variant="secondary" className="bg-blue-100 text-blue-700 border-blue-300 text-xs">
+                                                                <Users className="w-3 h-3 mr-1" />
+                                                                {section.enrolled_count || 0} Students
+                                                            </Badge>
+                                                            <Badge variant="secondary" className="bg-green-100 text-green-700 border-green-300 text-xs">
+                                                                <Layers className="w-3 h-3 mr-1" />
+                                                                {section.teacher_subjects?.length || 0} Subjects
+                                                            </Badge>
+                                                            <Badge variant="outline" className="text-gray-600 border-gray-300 text-xs">
+                                                                <Calendar className="w-3 h-3 mr-1" />
+                                                                {section.semester} Sem • {section.academic_year}
+                                                            </Badge>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                <Button
+                                                    variant="ghost"
+                                                    size="sm"
+                                                    className="self-start sm:self-center flex-shrink-0"
+                                                >
+                                                    {expandedSection === section.id ? (
+                                                        <ChevronUp className="w-5 h-5 text-gray-600" />
+                                                    ) : (
+                                                        <ChevronDown className="w-5 h-5 text-gray-600" />
+                                                    )}
+                                                </Button>
+                                            </div>
+                                        </CardHeader>
                                     </div>
-
-                                    <CardHeader className="pb-4">
-                                        <div className="flex items-start space-x-3">
-                                            <div className="p-3 bg-blue-600 rounded-xl flex-shrink-0 shadow-md group-hover:scale-110 transition-transform duration-300">
-                                                <School className="w-6 h-6 text-white" />
-                                            </div>
-                                            <div className="flex-1 min-w-0">
-                                                <CardTitle className="text-lg font-bold text-gray-900 truncate group-hover:text-blue-700 transition-colors">
-                                                    {section.program?.program_code}-{section.year_level}{section.section_name}
-                                                </CardTitle>
-                                                <CardDescription className="text-blue-600 font-semibold truncate">
-                                                    {section.program?.program_name || 'N/A'}
-                                                </CardDescription>
-                                            </div>
-                                        </div>
-                                    </CardHeader>
                                     
-                                    <CardContent className="space-y-6">
-                                        {/* Subject Info */}
-                                        {section.teacher_subject?.subject && (
-                                            <Card className="p-3 bg-gradient-to-r from-orange-50 to-yellow-50 border border-orange-200">
-                                                <div className="flex items-center text-sm">
-                                                    <BookOpen className="w-4 h-4 text-orange-600 mr-3 flex-shrink-0" />
-                                                    <div className="flex-1">
-                                                        <span className="font-medium text-orange-600 block">
-                                                            {section.teacher_subject.subject.subject_code}
-                                                        </span>
-                                                        <span className="text-xs text-gray-600 truncate">
-                                                            {section.teacher_subject.subject.subject_name}
-                                                        </span>
-                                                    </div>
+                                    {expandedSection === section.id && (
+                                        <CardContent className="pt-6 pb-4 bg-white">
+                                            <div className="mb-4">
+                                                <h3 className="text-sm font-semibold text-gray-700 mb-4 flex items-center">
+                                                    <BookOpen className="w-4 h-4 mr-2 text-blue-600" />
+                                                    Assigned Subjects ({section.teacher_subjects?.length || 0})
+                                                </h3>
+                                                <div className="space-y-3">
+                                                    {section.teacher_subjects && section.teacher_subjects.length > 0 ? (
+                                                        section.teacher_subjects.map((teacherSubject) => (
+                                                            <div key={teacherSubject.id} className="bg-gradient-to-r from-gray-50 to-blue-50 border border-blue-200 rounded-lg p-3 sm:p-4 hover:shadow-md transition-shadow">
+                                                                <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3 sm:gap-4">
+                                                                    <div className="flex-1 min-w-0">
+                                                                        <div className="flex items-center gap-2 mb-2">
+                                                                            <div className="bg-blue-600 p-1.5 rounded flex-shrink-0">
+                                                                                <BookOpen className="w-3.5 h-3.5 text-white" />
+                                                                            </div>
+                                                                            <span className="font-bold text-blue-700 text-sm truncate">
+                                                                                {teacherSubject.subject.subject_code}
+                                                                            </span>
+                                                                        </div>
+                                                                        <p className="text-sm font-medium text-gray-800 mb-3 line-clamp-2">
+                                                                            {teacherSubject.subject.subject_name}
+                                                                        </p>
+                                                                        <div className="space-y-1.5">
+                                                                            {teacherSubject.schedule_days && (
+                                                                                <div className="flex items-center text-xs text-gray-600">
+                                                                                    <Clock className="w-3.5 h-3.5 mr-1.5 text-blue-600 flex-shrink-0" />
+                                                                                    <span className="truncate">
+                                                                                        {formatSchedule(
+                                                                                            teacherSubject.schedule_days, 
+                                                                                            teacherSubject.start_time, 
+                                                                                            teacherSubject.end_time
+                                                                                        )}
+                                                                                    </span>
+                                                                                </div>
+                                                                            )}
+                                                                            {teacherSubject.room && (
+                                                                                <div className="flex items-center text-xs text-gray-600">
+                                                                                    <MapPin className="w-3.5 h-3.5 mr-1.5 text-blue-600 flex-shrink-0" />
+                                                                                    <span className="truncate">Room {teacherSubject.room}</span>
+                                                                                </div>
+                                                                            )}
+                                                                        </div>
+                                                                    </div>
+                                                                    <div className="flex flex-col sm:flex-row gap-2 flex-shrink-0 w-full sm:w-auto">
+                                                                        <Link href={route('teacher.grades.show', teacherSubject.id)} className="w-full sm:w-auto">
+                                                                            <Button size="sm" className="bg-blue-600 hover:bg-blue-700 text-white w-full">
+                                                                                <BarChart3 className="w-3.5 h-3.5 mr-1.5" />
+                                                                                Manage Grades
+                                                                            </Button>
+                                                                        </Link>
+                                                                        <Link href={route('teacher.materials.index', teacherSubject.id)} className="w-full sm:w-auto">
+                                                                            <Button size="sm" variant="outline" className="border-green-300 text-green-700 hover:bg-green-50 w-full">
+                                                                                <FileText className="w-3.5 h-3.5 mr-1.5" />
+                                                                                Materials
+                                                                            </Button>
+                                                                        </Link>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        ))
+                                                    ) : (
+                                                        <p className="text-sm text-gray-500 text-center py-8 bg-gray-50 rounded-lg">
+                                                            No subjects assigned to this section
+                                                        </p>
+                                                    )}
                                                 </div>
-                                            </Card>
-                                        )}
-
-                                        {/* Section Details */}
-                                        <div className="space-y-4">
-                                            <Card className="p-3 bg-gradient-to-r from-green-50 to-blue-50 border border-green-200">
-                                                <div className="flex items-center text-sm">
-                                                    <GraduationCap className="w-4 h-4 text-green-600 mr-3 flex-shrink-0" />
-                                                    <span className="text-gray-700 font-medium truncate">
-                                                        Year {section.year_level} - Section {section.section_name}
-                                                    </span>
-                                                </div>
-                                            </Card>
-                                            
-                                            <div className="grid grid-cols-2 gap-2">
-                                                <Card className="p-2 text-center bg-blue-50 border-blue-200">
-                                                    <div className="flex flex-col items-center">
-                                                        <Users className="w-4 h-4 text-blue-600 mb-1" />
-                                                        <span className="text-xs font-semibold text-gray-700">
-                                                            {section.enrolled_count || 0}
-                                                        </span>
-                                                        <span className="text-xs text-gray-600">Students</span>
-                                                    </div>
-                                                </Card>
-                                                
-                                                <Card className="p-2 text-center bg-green-50 border-green-200">
-                                                    <div className="flex flex-col items-center">
-                                                        <Calendar className="w-4 h-4 text-green-600 mb-1" />
-                                                        <span className="text-xs font-semibold text-gray-700">
-                                                            {section.semester}
-                                                        </span>
-                                                        <span className="text-xs text-gray-600">Semester</span>
-                                                    </div>
-                                                </Card>
                                             </div>
-                                            
-                                            <Card className="p-3 bg-blue-50 border-blue-200">
-                                                <div className="flex items-center text-sm">
-                                                    <Calendar className="w-4 h-4 text-blue-600 mr-3 flex-shrink-0" />
-                                                    <span className="text-gray-700 font-medium truncate">
-                                                        {section.academic_year}
-                                                    </span>
-                                                </div>
-                                            </Card>
-                                            
-                                            {/* Schedule Information */}
-                                            {section.teacher_subject && (
-                                                <Card className="p-3 bg-emerald-50 border-emerald-200">
-                                                    <div className="flex items-center text-sm">
-                                                        <Clock className="w-61 h-4 text-emerald-600 mr-3 flex-shrink-0" />
-                                                        <span className="text-gray-700 font-medium truncate">
-                                                            {formatSchedule(
-                                                                section.teacher_subject.schedule_days, 
-                                                                section.teacher_subject.start_time, 
-                                                                section.teacher_subject.end_time
-                                                            )}
-                                                        </span>
-                                                    </div>
-                                                </Card>
-                                            )}
-                                            
-                                            {/* Room Information */}
-                                            {section.teacher_subject?.room && (
-                                                <Card className="p-3 bg-purple-50 border-purple-200">
-                                                    <div className="flex items-center text-sm">
-                                                        <MapPin className="w-4 h-4 text-purple-600 mr-3 flex-shrink-0" />
-                                                        <span className="text-gray-700 font-medium truncate">
-                                                            Room {section.teacher_subject.room}
-                                                        </span>
-                                                    </div>
-                                                </Card>
-                                            )}
-                                        </div>
-                                        
-                                        {/* Action Buttons */}
-                                        <div className="grid grid-cols-2 gap-2">
-                                            <Button asChild variant="outline" className="border-2 border-blue-300 text-blue-700 hover:bg-blue-50 font-medium">
-                                                <Link href={route('teacher.materials.index', section.id)}>
-                                                    <Upload className="w-3 h-3 mr-1" />
-                                                    Materials
-                                                </Link>
-                                            </Button>
-                                            
-                                            <Button asChild className="bg-blue-600 hover:bg-blue-700 text-white shadow-md">
-                                                <Link href={route('teacher.grades.show', section.id)}>
-                                                    <BarChart3 className="w-3 h-3 mr-1" />
-                                                    Grades
-                                                </Link>
-                                            </Button>
-                                        </div>
-                                    </CardContent>
+                                        </CardContent>
+                                    )}
                                 </Card>
                             ))}
                         </div>

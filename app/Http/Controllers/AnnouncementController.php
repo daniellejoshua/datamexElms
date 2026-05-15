@@ -270,6 +270,7 @@ class AnnouncementController extends Controller
         // Get recent announcements (excluding current one)
         $recentAnnouncements = Announcement::with(['creator', 'attachments'])
             ->published()
+            ->visibleTo(Auth::user())
             ->where('id', '!=', $announcement->id)
             ->orderBy('priority', 'desc')
             ->orderBy('published_at', 'desc')
@@ -543,8 +544,8 @@ class AnnouncementController extends Controller
         }
 
         // Fallback: if stored locally (though we use Cloudinary)
-        if ($attachment->file_path && file_exists(storage_path('app/public/' . $attachment->file_path))) {
-            return response()->download(storage_path('app/public/' . $attachment->file_path), $attachment->original_name);
+        if ($attachment->file_path && file_exists(storage_path('app/public/'.$attachment->file_path))) {
+            return response()->download(storage_path('app/public/'.$attachment->file_path), $attachment->original_name);
         }
 
         abort(404, 'File not found');

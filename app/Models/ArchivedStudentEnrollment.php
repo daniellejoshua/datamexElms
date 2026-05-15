@@ -23,6 +23,7 @@ class ArchivedStudentEnrollment extends Model
         'final_semester_grade',
         'letter_grade',
         'student_data',
+        'teacher_remarks',
     ];
 
     protected function casts(): array
@@ -44,6 +45,14 @@ class ArchivedStudentEnrollment extends Model
     public function student(): BelongsTo
     {
         return $this->belongsTo(Student::class);
+    }
+
+    /**
+     * Get all normalized subject rows attached to this archived enrollment.
+     */
+    public function archivedStudentSubjects(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->hasMany(\App\Models\ArchivedStudentSubject::class);
     }
 
     public function scopeByStatus($query, string $status)

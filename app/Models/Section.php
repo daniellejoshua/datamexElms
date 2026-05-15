@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasManyThrough;
+use App\Models\Curriculum;
 
 class Section extends Model
 {
@@ -23,6 +24,8 @@ class Section extends Model
         'semester',
         'status',
     ];
+
+    protected $appends = ['formatted_name'];
 
     public function program(): BelongsTo
     {
@@ -80,5 +83,31 @@ class Section extends Model
     public function classSchedules(): HasManyThrough
     {
         return $this->hasManyThrough(ClassSchedule::class, SectionSubject::class);
+    }
+
+    public function getFormattedNameAttribute(): string
+    {
+        $programCode = $this->program?->program_code ?? '';
+        $yearLevel = $this->year_level ?? '';
+        $sectionName = $this->section_name ?? '';
+
+        return $programCode ? "{$programCode}-{$yearLevel}{$sectionName}" : $sectionName;
+    }
+
+    protected static function booted(): void
+    {
+        static::saving(function (Section $section) {
+            // Ensure first-year sections always use the program's current curriculum
+            if ((int) $section->year_level === 1 && $section->program_id) {
+                // Determine the program's current curriculum from the `curriculum` table
+                $current = Curriculum::where('program_id', $section->program_id)
+                    ->where('is_current', true)
+                    ->first();
+
+                if ($current) {
+                    $section->curriculum_id = $current->id;
+                }
+            }
+        });
     }
 }

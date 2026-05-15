@@ -23,21 +23,21 @@ class ProgramSeeder extends Seeder
                 'status' => 'active',
             ],
             [
-                'program_code' => 'ACT',
-                'program_name' => 'Associate in Computer Technology',
-                'description' => 'A two-year program focused on computer technology fundamentals.',
-                'education_level' => 'college',
-                'track' => null,
-                'total_years' => 2,
-                'status' => 'active',
-            ],
-            [
                 'program_code' => 'BSHM',
                 'program_name' => 'Bachelor of Science in Hospitality Management',
                 'description' => 'A program focused on hospitality and tourism management.',
                 'education_level' => 'college',
                 'track' => null,
                 'total_years' => 4,
+                'status' => 'active',
+            ],
+            [
+                'program_code' => 'ICT',
+                'program_name' => 'Information and Communications Technology',
+                'description' => 'Senior High School ICT track.',
+                'education_level' => 'senior_high',
+                'track' => 'ICT',
+                'total_years' => 2,
                 'status' => 'active',
             ],
             [
@@ -68,21 +68,30 @@ class ProgramSeeder extends Seeder
                 'status' => 'active',
             ],
             [
-                'program_code' => 'GAS',
-                'program_name' => 'General Academic Strand',
-                'description' => 'Senior High School General Academic Strand.',
+                'program_code' => 'HE',
+                'program_name' => 'Home Economics',
+                'description' => 'Senior High School Home Economics track.',
                 'education_level' => 'senior_high',
-                'track' => 'GAS',
+                'track' => 'HE',
                 'total_years' => 2,
                 'status' => 'active',
             ],
         ];
 
         foreach ($programs as $program) {
-            Program::updateOrCreate(
+            $prog = Program::updateOrCreate(
                 ['program_code' => $program['program_code']],
                 $program
             );
+
+            // ensure default regular fees: 10k per semester/year level
+            $years = $prog->total_years ?? 1;
+            for ($yr = 1; $yr <= $years; $yr++) {
+                $prog->programFees()->updateOrCreate(
+                    ['year_level' => $yr, 'fee_type' => 'regular'],
+                    ['education_level' => $prog->education_level === 'senior_high' ? 'shs' : 'college', 'semester_fee' => 10000]
+                );
+            }
         }
     }
 }

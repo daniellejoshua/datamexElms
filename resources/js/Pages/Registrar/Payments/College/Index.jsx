@@ -4,6 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { DollarSign, Users, AlertTriangle, Clock, Search, Plus, Eye, CreditCard, X } from 'lucide-react'
 import { useState, useEffect } from 'react'
 import { toast } from 'sonner'
@@ -23,25 +24,65 @@ export default function CollegePaymentsIndex({ payments, stats, filters, current
     const [academicYear, setAcademicYear] = useState(filters?.academic_year || currentAcademicYear)
     const [semester, setSemester] = useState(filters?.semester || currentSemester)
     const [studentType, setStudentType] = useState(filters?.student_type || 'all')
+
+    // when the page is filtered to a term other than the current one we
+    // consider the view "past"; payments in that mode are treated as follow-
+    // up transactions instead of being assigned to a specific term.
+    const isPastFilter = academicYear !== currentAcademicYear || semester !== currentSemester;
+
     const [showPaymentModal, setShowPaymentModal] = useState(false)
     const [selectedPayment, setSelectedPayment] = useState(null)
+    const [calculatedBalance, setCalculatedBalance] = useState(null)
+    const [isCalculating, setIsCalculating] = useState(false)
+    const [amountError, setAmountError] = useState('')
     const [paymentForm, setPaymentForm] = useState({
         amount_paid: '',
         payment_date: new Date().toISOString().split('T')[0],
-        term: 'prelim',
+        term: isPastFilter ? 'followup' : 'prelim',
         or_number: '',
-        notes: ''
+        notes: '',
+        // New fields for special payment records and penalties
+        special_note: '',
+        has_penalty: false,
+        penalty_amount: '',
+        penalty_note: ''
     })
 
+    const getCurrentBalance = (payment) => {
+        if (payment?.student?.student_type === 'irregular' && !payment.prelim_paid && payment.total_semester_fee === 0) {
+            return calculatedBalance ?? 0
+        }
+        return payment?.balance ?? 0
+    }
+
     const handleFilterChange = () => {
+        // Get current page from URL if it exists
+        const urlParams = new URLSearchParams(window.location.search);
+        const currentPage = urlParams.get('page');
+
         router.get(route('registrar.payments.college.index'), {
             academic_year: academicYear,
             semester: semester,
             student_type: studentType,
+            ...(currentPage && { page: currentPage }),
         }, {
             preserveState: true,
             preserveScroll: true,
         })
+    }
+
+    const handlePageChange = (url) => {
+        const urlObj = new URL(url);
+        const page = urlObj.searchParams.get('page');
+        
+        router.get(route('registrar.payments.college.index'), {
+            page: page,
+            academic_year: academicYear,
+            semester: semester,
+            student_type: studentType,
+        }, {
+            preserveScroll: true,
+        });
     }
 
     // Auto-apply filters when they change
@@ -60,32 +101,136 @@ export default function CollegePaymentsIndex({ payments, stats, filters, current
     }
 
     const getAvailableTerms = (payment) => {
+        // when viewing a past semester we don't allow term selection at all
+        if (isPastFilter) {
+            return [];
+        }
+
         // Return all terms - user can choose any term to pay
         return [
             {value: 'prelim', label: 'Prelim'},
             {value: 'midterm', label: 'Midterm'},
             {value: 'prefinal', label: 'Pre-final'},
             {value: 'final', label: 'Final'}
+            ,
+            {value: 'special', label: 'Special Record'}
         ]
     }
 
-    const handleRecordPayment = (payment) => {
+    const handleRecordPayment = async (payment) => {
+        // Prevent opening modal if balance is 0 (for regular students)
+        if (payment.balance <= 0 && payment.student?.student_type !== 'irregular') {
+            toast.error('Payment Not Allowed', {
+                description: 'This student has already fully paid. No additional payment can be recorded.',
+            })
+            return
+        }
+        
         setSelectedPayment(payment)
-        setShowPaymentModal(true)
+        
+        // prepare default form values; use followup term when viewing past semester
+        const defaultTerm = isPastFilter ? 'followup' : 'prelim'
         setPaymentForm({
             amount_paid: '',
             payment_date: new Date().toISOString().split('T')[0],
-            term: 'prelim', // Default to prelim
+            term: defaultTerm,
             or_number: '',
-            notes: ''
+            notes: '',
+            is_special: false,
+            special_note: '',
+            has_penalty: false,
+            penalty_amount: '',
+            penalty_note: ''
         })
+
+        // If irregular student and prelim not paid yet and balance hasn't been calculated, calculate balance first
+        if (payment.student?.student_type === 'irregular' && !payment.prelim_paid && payment.total_semester_fee === 0) {
+            setIsCalculating(true)
+            try {
+                const response = await fetch(route('registrar.payments.college.calculate-irregular', payment.id))
+                const data = await response.json()
+                
+                if (data.success) {
+                    setCalculatedBalance(data.calculated_balance)
+                    // Update payment object with calculated balance
+                    payment.balance = data.calculated_balance
+                    payment.total_semester_fee = data.calculated_balance
+                    toast.success('Balance Calculated', {
+                        description: `Irregular student balance calculated: ₱${data.calculated_balance.toFixed(2)}`,
+                    })
+                    // refresh table so new amounts are visible
+                    router.reload()
+                } else {
+                    toast.error('Calculation Failed', {
+                        description: data.message || 'Failed to calculate irregular student balance.',
+                    })
+                }
+            } catch (error) {
+                console.error('Error calculating irregular balance:', error)
+                toast.error('Calculation Error', {
+                    description: 'An error occurred while calculating the balance.',
+                })
+            } finally {
+                setIsCalculating(false)
+            }
+        }
+        
+        setShowPaymentModal(true)
     }
 
     const submitPayment = () => {
-        router.post(route('registrar.payments.college.record', selectedPayment.id), paymentForm, {
+        const numeric = parseFloat(paymentForm.amount_paid || 0)
+        const bal = getCurrentBalance(selectedPayment)
+        if (numeric > bal) {
+            toast.error('Amount exceeds remaining balance')
+            return
+        }
+        // If penalty checkbox is checked, ensure penalty amount is a positive number
+        if (paymentForm.has_penalty) {
+            const pAmt = Number(paymentForm.penalty_amount)
+            if (isNaN(pAmt) || pAmt <= 0) {
+                toast.error('Enter a valid penalty amount')
+                return
+            }
+        }
+        // Prepare payload, appending penalty/special info into notes as requested
+        const payload = { ...paymentForm }
+        let composedNotes = payload.notes ? String(payload.notes).trim() : ''
+        if (payload.has_penalty && payload.penalty_amount) {
+            const amt = Number(payload.penalty_amount)
+            if (!isNaN(amt) && amt > 0) {
+                composedNotes = composedNotes ? composedNotes + ' | ' : composedNotes
+                composedNotes += `Penalty: ₱${amt.toLocaleString('en-PH', {minimumFractionDigits:2, maximumFractionDigits:2})}`
+                if (payload.penalty_note) {
+                    composedNotes += ` (${payload.penalty_note})`
+                }
+            }
+        }
+        if (payload.term === 'special' && payload.special_note) {
+            composedNotes = composedNotes ? composedNotes + ' | ' : composedNotes
+            composedNotes += `Special Record: ${payload.special_note}`
+        }
+        payload.notes = composedNotes
+
+        // Prevent sending internal helper fields to backend; only notes should carry penalty/special info
+        delete payload.has_penalty
+        delete payload.penalty_amount
+        delete payload.penalty_note
+        delete payload.special_note
+
+        // Validate payment date is not in the future
+        const todayStr = new Date().toISOString().split('T')[0]
+        if (payload.payment_date > todayStr) {
+            toast.error('Payment date cannot be in the future')
+            return
+        }
+
+        router.post(route('registrar.payments.college.record', selectedPayment.id), payload, {
             onSuccess: () => {
                 setShowPaymentModal(false)
                 setSelectedPayment(null)
+                // when payment is saved, reload so amount due and status update
+                router.reload()
             },
             onError: (errors) => {
                 toast.error('Failed to record payment', {
@@ -95,17 +240,19 @@ export default function CollegePaymentsIndex({ payments, stats, filters, current
         })
     }
 
-    const filteredPayments = payments.data.filter(payment =>
-        payment.student?.user?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        payment.student?.student_number?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        payment.payment_type?.toLowerCase().includes(searchTerm.toLowerCase())
-    )
+    const filteredPayments = Array.isArray(payments?.data) ? payments.data.filter(payment =>
+        !searchTerm ||
+        payment?.student?.user?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        payment?.student?.student_number?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        payment?.payment_type?.toLowerCase().includes(searchTerm.toLowerCase())
+    ) : []
 
     const getStatusColor = (status) => {
         const colors = {
             'pending': 'bg-yellow-100 text-yellow-800',
             'partial': 'bg-blue-100 text-blue-800',
             'paid': 'bg-green-100 text-green-800',
+            'completed': 'bg-green-100 text-green-800',
             'overdue': 'bg-red-100 text-red-800'
         }
         return colors[status] || 'bg-gray-100 text-gray-800'
@@ -247,7 +394,7 @@ export default function CollegePaymentsIndex({ payments, stats, filters, current
                                     </select>
                                 </div>
                             </div>
-                            {(academicYear !== currentAcademicYear || semester !== currentSemester || studentType !== 'all') && (
+                            {(academicYear !== currentAcademicYear || studentType !== 'all') && (
                                 <div className="flex items-center gap-2 text-sm text-blue-600">
                                     <span>Showing filtered results</span>
                                     <Button 
@@ -288,13 +435,24 @@ export default function CollegePaymentsIndex({ payments, stats, filters, current
                             <table className="w-full">
                                 <thead>
                                     <tr className="border-b">
-                                        <th className="text-left py-3 px-4">Student</th>
-                                        <th className="text-left py-3 px-4">Section</th>
-                                        <th className="text-left py-3 px-4">Last Payment Term</th>
-                                        <th className="text-left py-3 px-4">Amount Due</th>
-                                        <th className="text-left py-3 px-4">Balance</th>
-                                        <th className="text-left py-3 px-4">Status</th>
-                                        <th className="text-right py-3 px-4">Actions</th>
+                                        <th className="text-left py-3 px-4 whitespace-nowrap">Student</th>
+                                        <th className="text-left py-3 px-4 whitespace-nowrap">Section</th>
+                                        <th className="text-left py-3 px-4 whitespace-nowrap">
+                                            <TooltipProvider>
+                                                <Tooltip>
+                                                    <TooltipTrigger asChild>
+                                                        <span className="cursor-help">LPT</span>
+                                                    </TooltipTrigger>
+                                                    <TooltipContent>
+                                                        <p>Last Payment Term</p>
+                                                    </TooltipContent>
+                                                </Tooltip>
+                                            </TooltipProvider>
+                                        </th>
+                                        <th className="text-left py-3 px-4 whitespace-nowrap">Amount Due</th>
+                                        <th className="text-left py-3 px-4 whitespace-nowrap">Balance</th>
+                                        <th className="text-left py-3 px-4 whitespace-nowrap">Status</th>
+                                        <th className="text-right py-3 px-4 whitespace-nowrap">Actions</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -313,26 +471,18 @@ export default function CollegePaymentsIndex({ payments, stats, filters, current
                                                     </div>
                                                 </div>
                                             </td>
-                                            <td className="py-3 px-4">
+                                            <td className="py-3 px-4 whitespace-nowrap">
                                                 <div>
                                                     {payment.student?.student_type === 'irregular' ? (
                                                         <div className="text-center">
                                                             <span className="inline-block px-2 py-1 text-xs rounded-full bg-orange-100 text-orange-700">
                                                                 Irregular
                                                             </span>
-                                                            <div className="text-sm text-gray-500 mt-1">
-                                                                {payment.academic_year} - {payment.semester}
-                                                            </div>
                                                         </div>
                                                     ) : (
-                                                        <>
-                                                            <div className="font-medium">
-                                                                {formatSectionName(payment.section)}
-                                                            </div>
-                                                            <div className="text-sm text-gray-500">
-                                                                {payment.academic_year} - {payment.semester}
-                                                            </div>
-                                                        </>
+                                                        <div className="text-sm text-gray-500">
+                                                            {formatSectionName(payment.section)}
+                                                        </div>
                                                     )}
                                                 </div>
                                             </td>
@@ -347,17 +497,23 @@ export default function CollegePaymentsIndex({ payments, stats, filters, current
                                                     </span>
                                                 </div>
                                             </td>
-                                            <td className="py-3 px-4 font-medium">
-                                                {formatCurrency(payment.total_semester_fee)}
+                                            <td className="py-3 px-4 font-medium whitespace-nowrap">
+                                                {formatCurrency(payment.calculated_total_amount ?? payment.total_semester_fee)}
                                             </td>
-                                            <td className="py-3 px-4">
-                                                <span className={`font-medium ${
-                                                    payment.balance > 0 ? 'text-red-600' : 'text-green-600'
-                                                }`}>
-                                                    {formatCurrency(payment.balance)}
-                                                </span>
+                                            <td className="py-3 px-4 whitespace-nowrap">
+                                                {payment.student?.student_type === 'irregular' && !payment.prelim_paid && payment.total_semester_fee === 0 ? (
+                                                    <span className="text-orange-600 font-medium italic">
+                                                        To be calculated
+                                                    </span>
+                                                ) : (
+                                                    <span className={`font-medium ${
+                                                        payment.balance > 0 ? 'text-red-600' : 'text-green-600'
+                                                    }`}>
+                                                        {formatCurrency(payment.balance)}
+                                                    </span>
+                                                )}
                                             </td>
-                                            <td className="py-3 px-4">
+                                            <td className="py-3 px-4 whitespace-nowrap">
                                                 <Badge 
                                                     variant="secondary"
                                                     className={getStatusColor(payment.status)}
@@ -365,7 +521,7 @@ export default function CollegePaymentsIndex({ payments, stats, filters, current
                                                     {payment.status?.charAt(0).toUpperCase() + payment.status?.slice(1)}
                                                 </Badge>
                                             </td>
-                                            <td className="py-3 px-4">
+                                            <td className="py-3 px-4 whitespace-nowrap">
                                                 <div className="flex justify-end gap-2">
                                                     <Button
                                                         size="sm"
@@ -410,9 +566,9 @@ export default function CollegePaymentsIndex({ payments, stats, filters, current
                                 <div className="flex gap-1">
                                     {payments.links.map((link, index) => (
                                         link.url ? (
-                                            <Link
+                                            <button
                                                 key={index}
-                                                href={link.url}
+                                                onClick={() => handlePageChange(link.url)}
                                                 className={`px-3 py-1 text-sm border rounded ${
                                                     link.active 
                                                         ? 'bg-blue-500 text-white border-blue-500' 
@@ -435,20 +591,33 @@ export default function CollegePaymentsIndex({ payments, stats, filters, current
                 </Card>
             </div>
 
+            {/* hidden note for tests / screen readers when viewing past semester */}
+            {isPastFilter && (
+                <div className="sr-only">
+                    This view is for a past semester; payments will be applied to the outstanding balance and there is no term selection.
+                </div>
+            )}
+
             {/* Payment Recording Modal */}
             {showPaymentModal && (
                 <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
                     <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-                        {/* Gradient Header */}
-                        <div className="bg-gradient-to-r from-blue-600 to-purple-600 text-white p-6 rounded-t-xl">
+                        {/* Header (no gradient) */}
+                        <div className="bg-blue-600 text-white p-6 rounded-t-xl">
                             <div className="flex items-center justify-between">
                                 <div className="flex items-center gap-3">
                                     <div className="p-2 bg-white bg-opacity-20 rounded-lg">
                                         <CreditCard className="w-6 h-6" />
                                     </div>
                                     <div>
-                                        <h3 className="text-xl font-bold">Record Payment</h3>
-                                        <p className="text-blue-100 text-sm">Process student payment transaction</p>
+                                        <h3 className="text-xl font-bold">
+                                            {isPastFilter ? 'Record Follow-up Payment' : 'Record Payment'}
+                                        </h3>
+                                        <p className="text-blue-100 text-sm">
+                                            {isPastFilter
+                                                ? 'Apply payment toward outstanding balance without term selection'
+                                                : 'Process student payment transaction'}
+                                        </p>
                                     </div>
                                 </div>
                                 <button
@@ -475,26 +644,48 @@ export default function CollegePaymentsIndex({ payments, stats, filters, current
                                 </div>
                             </div>
 
-                            {/* Payment Term Selection */}
+                            {/* Payment Term Selection or past-semester notice */}
                             <div className="mb-6">
-                                <label className="block text-sm font-semibold text-gray-900 mb-4">
-                                    Select Payment Term
-                                </label>
-                                <div className="grid grid-cols-2 gap-3">
-                                    {selectedPayment && getAvailableTerms(selectedPayment).map(term => (
-                                        <label key={term.value} className="flex items-center gap-3 p-4 border-2 border-gray-200 rounded-lg hover:border-blue-300 transition-all duration-200 cursor-pointer">
-                                            <input
-                                                type="radio"
-                                                name="paymentTerm"
-                                                value={term.value}
-                                                checked={paymentForm.term === term.value}
-                                                onChange={(e) => setPaymentForm({...paymentForm, term: e.target.value})}
-                                                className="w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500"
-                                            />
-                                            <span className="text-sm font-medium text-gray-900">{term.label}</span>
+                                {isPastFilter ? (
+                                    <p className="text-sm font-medium text-gray-900">
+                                        Follow‑up payment for past semester (no term specified)
+                                    </p>
+                                ) : (
+                                    <>
+                                        <label className="block text-sm font-semibold text-gray-900 mb-4">
+                                            Select Payment Term
                                         </label>
-                                    ))}
-                                </div>
+                                        <div className="grid grid-cols-2 gap-3">
+                                            {selectedPayment && getAvailableTerms(selectedPayment).map(term => (
+                                                <label key={term.value} className="flex items-center gap-3 p-4 border-2 border-gray-200 rounded-lg hover:border-blue-300 transition-all duration-200 cursor-pointer">
+                                                    <input
+                                                        type="radio"
+                                                        name="paymentTerm"
+                                                        value={term.value}
+                                                        checked={paymentForm.term === term.value}
+                                                        onChange={(e) => setPaymentForm({...paymentForm, term: e.target.value})}
+                                                        className="w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500"
+                                                    />
+                                                    <span className="text-sm font-medium text-gray-900">{term.label}</span>
+                                                </label>
+                                            ))}
+                                        </div>
+                                        {/* Special note appears when 'Special' term is selected */}
+                                        {paymentForm.term === 'special' && (
+                                            <div className="mt-4 mb-4">
+                                                <label className="block text-sm font-semibold text-gray-900 mb-2">
+                                                    Special Note *
+                                                </label>
+                                                <Input
+                                                    value={paymentForm.special_note}
+                                                    onChange={(e) => setPaymentForm({...paymentForm, special_note: e.target.value})}
+                                                    placeholder="Reason for special record (required)"
+                                                    required
+                                                />
+                                            </div>
+                                        )}
+                                    </>
+                                )}
                             </div>
 
                             {/* Amount and Date Row */}
@@ -508,14 +699,13 @@ export default function CollegePaymentsIndex({ payments, stats, filters, current
                                             <span className="text-gray-500 sm:text-sm">₱</span>
                                         </div>
                                         <Input
-                                            type="number"
-                                            step="0.01"
-                                            value={paymentForm.amount_paid}
-                                            onChange={(e) => setPaymentForm({...paymentForm, amount_paid: e.target.value})}
-                                            onKeyDown={(e) => {
-                                                // Prevent 'e', '+', and '-' characters
-                                                if (e.key === 'e' || e.key === 'E' || e.key === '+' || e.key === '-') {
-                                                    e.preventDefault();
+                                            type="text"
+                                            value={paymentForm.amount_paid ? Number(paymentForm.amount_paid).toLocaleString('en-US', {minimumFractionDigits: 0, maximumFractionDigits: 2}) : ''}
+                                            onChange={(e) => {
+                                                // Remove commas and parse as number
+                                                const value = e.target.value.replace(/,/g, '')
+                                                if (value === '' || !isNaN(value)) {
+                                                    setPaymentForm({...paymentForm, amount_paid: value})
                                                 }
                                             }}
                                             placeholder="0.00"
@@ -525,7 +715,17 @@ export default function CollegePaymentsIndex({ payments, stats, filters, current
                                     </div>
                                     {selectedPayment && (
                                         <p className="text-xs text-gray-500 mt-1">
-                                            Balance: {formatCurrency(selectedPayment.balance)}
+                                            {selectedPayment.student?.student_type === 'irregular' && calculatedBalance !== null ? (
+                                                <>Balance: {formatCurrency(calculatedBalance)}</>
+                                            ) : (
+                                                <>Balance: {formatCurrency(selectedPayment.balance)}</>
+                                            )}
+                                        </p>
+                                    )}
+                                    {isCalculating && (
+                                        <p className="text-xs text-blue-600 mt-1 flex items-center gap-1">
+                                            <Clock className="w-3 h-3 animate-spin" />
+                                            Calculating irregular student fees...
                                         </p>
                                     )}
                                 </div>
@@ -538,6 +738,7 @@ export default function CollegePaymentsIndex({ payments, stats, filters, current
                                         type="date"
                                         value={paymentForm.payment_date}
                                         onChange={(e) => setPaymentForm({...paymentForm, payment_date: e.target.value})}
+                                        max={new Date().toISOString().split('T')[0]}
                                         required
                                     />
                                 </div>
@@ -557,16 +758,62 @@ export default function CollegePaymentsIndex({ payments, stats, filters, current
                             </div>
 
                             {/* Notes */}
-                            <div className="mb-6">
-                                <label className="block text-sm font-semibold text-gray-900 mb-2">
-                                    Notes <span className="text-gray-500 font-normal">(Optional)</span>
-                                </label>
-                                <Input
-                                    value={paymentForm.notes}
-                                    onChange={(e) => setPaymentForm({...paymentForm, notes: e.target.value})}
-                                    placeholder="Add payment notes..."
-                                />
+                            {/* Special / Penalty Options */}
+                            <div className="mb-4 border rounded p-3 bg-gray-50">
+                                {/* Special payment is handled via selecting the 'Special' term radio below the term selection. */}
+
+                                <div className="flex items-center gap-3 mb-3">
+                                    <input
+                                        id="has_penalty"
+                                        type="checkbox"
+                                        checked={paymentForm.has_penalty}
+                                        onChange={(e) => setPaymentForm({...paymentForm, has_penalty: e.target.checked})}
+                                        className="w-4 h-4"
+                                    />
+                                    <label htmlFor="has_penalty" className="text-sm font-medium text-gray-900">Include Penalty in Description</label>
+                                </div>
+                                {paymentForm.has_penalty && (
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <div>
+                                            <label className="block text-sm text-gray-700 mb-1">Penalty Amount</label>
+                                            <Input
+                                                type="text"
+                                                value={paymentForm.penalty_amount}
+                                                onChange={(e) => {
+                                                    const value = e.target.value.replace(/,/g, '')
+                                                    if (value === '' || !isNaN(value)) {
+                                                        setPaymentForm({...paymentForm, penalty_amount: value})
+                                                    }
+                                                }}
+                                                placeholder="0.00"
+                                                required={paymentForm.has_penalty}
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-sm text-gray-700 mb-1">Penalty Note (optional)</label>
+                                            <Input
+                                                value={paymentForm.penalty_note}
+                                                onChange={(e) => setPaymentForm({...paymentForm, penalty_note: e.target.value})}
+                                                placeholder="e.g. Late payment fee"
+                                            />
+                                        </div>
+                                    </div>
+                                )}
                             </div>
+
+                            {/* Notes - hidden when special term selected */}
+                            {paymentForm.term !== 'special' && (
+                                <div className="mb-6">
+                                    <label className="block text-sm font-semibold text-gray-900 mb-2">
+                                        Notes <span className="text-gray-500 font-normal">(Optional)</span>
+                                    </label>
+                                    <Input
+                                        value={paymentForm.notes}
+                                        onChange={(e) => setPaymentForm({...paymentForm, notes: e.target.value})}
+                                        placeholder="Add payment notes..."
+                                    />
+                                </div>
+                            )}
 
                             {/* Buttons */}
                             <div className="flex gap-3 pt-4 border-t">
@@ -579,11 +826,17 @@ export default function CollegePaymentsIndex({ payments, stats, filters, current
                                 </Button>
                                 <Button
                                     onClick={submitPayment}
-                                    disabled={!paymentForm.amount_paid || !paymentForm.or_number}
+                                    disabled={
+                                        !paymentForm.amount_paid ||
+                                        !paymentForm.or_number ||
+                                        amountError ||
+                                        (paymentForm.term === 'special' && !paymentForm.special_note) ||
+                                        (paymentForm.has_penalty && !paymentForm.penalty_amount)
+                                    }
                                     className="flex-1 bg-blue-600 hover:bg-blue-700 text-white"
                                 >
                                     <CreditCard className="w-4 h-4 mr-2" />
-                                    Record Payment
+                                    {isPastFilter ? 'Record Follow-up' : 'Record Payment'}
                                 </Button>
                             </div>
                         </div>

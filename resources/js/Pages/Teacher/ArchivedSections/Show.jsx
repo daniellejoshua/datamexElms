@@ -1,12 +1,22 @@
 import React from 'react';
-import { Head } from '@inertiajs/react';
+import { Head, Link, router, usePage } from '@inertiajs/react';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { ArrowLeft, Archive, BookOpen } from 'lucide-react';
 
 const Show = ({ archivedSection }) => {
+    const { auth } = usePage().props;
+    const teacherId = auth.user.teacher?.id;
+
+    const getTeacherSubjects = (section) => {
+        const courseData = section.course_data || [];
+        return courseData.filter(course => course.teacher_id === teacherId);
+    };
+
     const getSemesterDisplay = (semester) => {
         const semesters = {
-            'first': 'First Semester',
-            'second': 'Second Semester',
+            'first': '1st Semester',
+            'second': '2nd Semester',
             'summer': 'Summer'
         };
         return semesters[semester] || semester;
@@ -15,119 +25,85 @@ const Show = ({ archivedSection }) => {
     return (
         <AuthenticatedLayout
             header={
-                <h2 className="text-xl font-semibold leading-tight text-gray-800 dark:text-gray-200">
-                    Archived Grades: {archivedSection.section_name} ({archivedSection.academic_year} {getSemesterDisplay(archivedSection.semester)})
-                </h2>
+                <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                        <Link
+                            href="/teacher/archived-sections"
+                            className="inline-flex items-center text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 p-1.5 rounded-md hover:bg-gray-100 dark:hover:bg-gray-800"
+                        >
+                            <ArrowLeft className="h-4 w-4" />
+                        </Link>
+                        <div className="bg-blue-100 p-1.5 rounded-md">
+                            <Archive className="w-4 h-4 text-blue-600" />
+                        </div>
+                        <div>
+                            <h2 className="text-lg font-semibold text-gray-900">{archivedSection.program?.program_code || 'N/A'} - {archivedSection.year_level}{archivedSection.section_name} </h2>
+                            <p className="text-xs text-gray-500 mt-0.5">{archivedSection.academic_year} • {getSemesterDisplay(archivedSection.semester)}</p>
+                        </div>
+                    </div>
+                </div>
             }
         >
             <Head title={`Archived Grades - ${archivedSection.section_name}`} />
-            <div className="py-12">
-                <div className="max-w-7xl mx-auto sm:px-6 lg:px-8">
-                    <div className="bg-white dark:bg-gray-800 overflow-hidden shadow-sm sm:rounded-lg">
-                        <div className="p-6 text-gray-900 dark:text-gray-100">
-                            <div className="mb-6">
-                                <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100">
-                                    Section Summary
-                                </h3>
-                                <div className="mt-2 grid grid-cols-2 md:grid-cols-4 gap-4">
-                                    <div className="bg-gray-50 dark:bg-gray-700 p-4 rounded-lg">
-                                        <div className="text-sm text-gray-500 dark:text-gray-400">Total Students</div>
-                                        <div className="text-2xl font-bold text-gray-900 dark:text-gray-100">
-                                            {archivedSection.total_enrolled_students}
-                                        </div>
-                                    </div>
-                                    <div className="bg-gray-50 dark:bg-gray-700 p-4 rounded-lg">
-                                        <div className="text-sm text-gray-500 dark:text-gray-400">Completed</div>
-                                        <div className="text-2xl font-bold text-green-600 dark:text-green-400">
-                                            {archivedSection.completed_students}
-                                        </div>
-                                    </div>
-                                    <div className="bg-gray-50 dark:bg-gray-700 p-4 rounded-lg">
-                                        <div className="text-sm text-gray-500 dark:text-gray-400">Dropped</div>
-                                        <div className="text-2xl font-bold text-yellow-600 dark:text-yellow-400">
-                                            {archivedSection.dropped_students}
-                                        </div>
-                                    </div>
-                                    <div className="bg-gray-50 dark:bg-gray-700 p-4 rounded-lg">
-                                        <div className="text-sm text-gray-500 dark:text-gray-400">Average Grade</div>
-                                        <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">
-                                            {archivedSection.section_average_grade || 'N/A'}
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
+            
+            <div className="py-6">
+                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6">
 
-                            <div className="overflow-x-auto">
-                                <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-                                    <thead className="bg-gray-50 dark:bg-gray-700">
-                                        <tr>
-                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                                                Student Name
-                                            </th>
-                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                                                Student Number
-                                            </th>
-                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                                                Final Grade
-                                            </th>
-                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                                                Letter Grade
-                                            </th>
-                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                                                Status
-                                            </th>
-                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                                                Grade Details
-                                            </th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-                                        {archivedSection.archived_enrollments.map((enrollment) => (
-                                            <tr key={enrollment.id}>
-                                                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-gray-100">
-                                                    {enrollment.student_data.name}
-                                                </td>
-                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">
-                                                    {enrollment.student_data.student_number}
-                                                </td>
-                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">
-                                                    {enrollment.final_semester_grade || 'N/A'}
-                                                </td>
-                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">
-                                                    {enrollment.letter_grade || 'N/A'}
-                                                </td>
-                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">
-                                                    <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                                                        enrollment.final_status === 'completed'
-                                                            ? 'bg-green-100 text-green-800'
-                                                            : enrollment.final_status === 'dropped'
-                                                            ? 'bg-yellow-100 text-yellow-800'
-                                                            : 'bg-red-100 text-red-800'
-                                                    }`}>
-                                                        {enrollment.final_status}
-                                                    </span>
-                                                </td>
-                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">
-                                                    {enrollment.final_grades ? (
-                                                        <details className="cursor-pointer">
-                                                            <summary className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300">
-                                                                View Details
-                                                            </summary>
-                                                            <div className="mt-2 p-2 bg-gray-50 dark:bg-gray-700 rounded text-xs">
-                                                                <pre>{JSON.stringify(enrollment.final_grades, null, 2)}</pre>
-                                                            </div>
-                                                        </details>
-                                                    ) : (
-                                                        'No grades recorded'
-                                                    )}
-                                                </td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
+                    {/* Assigned Subjects */}
+                    <Card>
+                        <CardHeader>
+                            <CardTitle>Assigned Subjects</CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                                {getTeacherSubjects(archivedSection).length === 0 ? (
+                                    <div className="col-span-full text-center py-8">
+                                        <p className="text-gray-500 dark:text-gray-400">No subjects assigned to you in this section.</p>
+                                    </div>
+                                ) : (
+                                    getTeacherSubjects(archivedSection).map((subject, index) => (
+                                    <Card
+                                        key={subject.id || index}
+                                        className="hover:shadow-md transition-shadow cursor-pointer"
+                                        onClick={() => {
+                                            router.visit(route('teacher.archived-sections.subject-grades', {
+                                                archivedSection: archivedSection.id,
+                                                subjectId: subject.id || subject.course_code
+                                            }));
+                                        }}
+                                    >
+                                        <CardContent className="p-4">
+                                            <div className="flex items-center gap-3">
+                                                <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
+                                                    <BookOpen className="w-5 h-5 text-blue-600" />
+                                                </div>
+                                                <div className="flex-1 min-w-0">
+                                                    <h3 className="font-medium text-gray-900 dark:text-gray-100 truncate">
+                                                        {subject.subject_name || subject.subject_code}
+                                                    </h3>
+                                                    <p className="text-sm text-gray-500 dark:text-gray-400">
+                                                        {subject.credits} units • {subject.course_code}
+                                                    </p>
+                                                    <div className="flex items-center gap-2 mt-1">
+                                                        <span className="text-xs text-gray-500 dark:text-gray-400">
+                                                            {archivedSection.academic_year}
+                                                        </span>
+                                                        <span className="text-xs text-gray-500 dark:text-gray-400">
+                                                            •
+                                                        </span>
+                                                        <span className="text-xs text-gray-500 dark:text-gray-400">
+                                                            {getSemesterDisplay(archivedSection.semester)}
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </CardContent>
+                                    </Card>
+                                ))
+                                )}
                             </div>
-                        </div>
-                    </div>
+                        </CardContent>
+                    </Card>
                 </div>
             </div>
         </AuthenticatedLayout>

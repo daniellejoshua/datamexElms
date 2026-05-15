@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { router } from '@inertiajs/react';
+import { route } from 'ziggy-js';
 import {
     Dialog,
     DialogContent,

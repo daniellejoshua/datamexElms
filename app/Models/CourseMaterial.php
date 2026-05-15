@@ -10,6 +10,7 @@ class CourseMaterial extends Model
 {
     protected $fillable = [
         'section_id',
+        'section_subject_id',
         'teacher_id',
         'title',
         'description',
@@ -42,6 +43,14 @@ class CourseMaterial extends Model
     public function references()
     {
         return $this->hasMany(CourseMaterial::class, 'referenced_file_id');
+    }
+
+    /**
+     * Relationship to the section subject
+     */
+    public function sectionSubject()
+    {
+        return $this->belongsTo(SectionSubject::class);
     }
 
     /**

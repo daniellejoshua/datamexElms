@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Http\Requests\ProfileUpdateRequest;
+use CloudinaryLabs\CloudinaryLaravel\Facades\Cloudinary;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -21,6 +22,11 @@ class ProfileController extends Controller
         return Inertia::render('Profile/Edit', [
             'mustVerifyEmail' => $request->user() instanceof MustVerifyEmail,
             'status' => session('status'),
+            'flash' => [
+                'success' => session('success'),
+                'requires_pin' => session('requires_pin'),
+                'pin_message' => session('pin_message'),
+            ],
         ]);
     }
 
@@ -33,6 +39,14 @@ class ProfileController extends Controller
 
         if ($request->user()->isDirty('email')) {
             $request->user()->email_verified_at = null;
+        }
+
+        if ($request->hasFile('profile_picture')) {
+            $file = $request->file('profile_picture');
+            $uploadResult = Cloudinary::uploadApi()->upload($file->getRealPath(), [
+                'folder' => 'profile_pictures',
+            ]);
+            $request->user()->profile_picture = $uploadResult['secure_url'];
         }
 
         $request->user()->save();

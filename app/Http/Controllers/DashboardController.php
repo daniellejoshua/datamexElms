@@ -16,7 +16,8 @@ class DashboardController extends Controller
             'student' => redirect()->route('student.dashboard'),
             'teacher' => redirect()->route('teacher.dashboard'),
             'registrar' => redirect()->route('registrar.dashboard'),
-            'head_teacher', 'super_admin' => redirect()->route('admin.dashboard'),
+            'head_teacher' => redirect()->route('admin.dashboard'),
+            'super_admin' => redirect()->route('superadmin.dashboard'),
             default => redirect()->route('login'),
         };
     }

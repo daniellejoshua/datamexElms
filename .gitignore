@@ -31,3 +31,12 @@ _ide_helper_models.php
 # Testing cookies
 cookies.txt
 session_cookies.txt
+
+# Supabase CLI local config
+.supabase/config.json
+
+# Ignore environment files
+.env.deploy
+.env.*
+!.env.example
+!.env.deploy.example

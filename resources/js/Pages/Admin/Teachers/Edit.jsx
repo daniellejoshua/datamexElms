@@ -1,17 +1,25 @@
 import React, { useRef, useState, useEffect } from 'react';
-import { Head, Link, router, useForm } from '@inertiajs/react';
+import { Head, Link, router, useForm, usePage } from '@inertiajs/react';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { ArrowLeft, Save, Edit as EditIcon, User } from 'lucide-react';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { ArrowLeft, Save, Edit as EditIcon, User, AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
 
 const Edit = ({ teacher }) => {
     const fileInputRef = useRef(null);
     const [imagePreview, setImagePreview] = useState(null);
+    const [showGradesModal, setShowGradesModal] = useState(false);
+    
+    const { flash } = usePage().props;
+    const show_confirmation = flash?.show_confirmation || false;
+    const incomplete_grades = flash?.incomplete_grades || [];
+    const incomplete_count = flash?.incomplete_count || 0;
+    
     // Format hire_date for date input (yyyy-MM-dd)
     const formatDateForInput = (dateString) => {
         if (!dateString) return '';
@@ -30,6 +38,15 @@ const Edit = ({ teacher }) => {
         status: teacher.status || 'active',
         profile_picture: null,
     });
+
+    // Show modal when confirmation is needed
+    useEffect(() => {
+        if (show_confirmation && incomplete_count > 0) {
+            setShowGradesModal(true);
+            // Reset status back to original value since we're blocking the change
+            setData('status', teacher.status);
+        }
+    }, [show_confirmation, incomplete_count]);
 
     const handleProfilePictureClick = () => {
         fileInputRef.current?.click();
@@ -61,110 +78,72 @@ const Edit = ({ teacher }) => {
     const handleSubmit = (e) => {
         e.preventDefault();
 
-        console.log('Form data before submission:', data);
+        console.log('Submitting form with status:', data.status);
 
-        // Prepare data for submission, excluding null profile_picture
-        const submitData = { ...data };
-        if (submitData.profile_picture === null) {
-            delete submitData.profile_picture;
-        }
-
-        console.log('Submitting teacher update with data:', submitData);
-
-        // Create FormData for submission
         const formData = new FormData();
-        Object.entries(submitData).forEach(([key, value]) => {
-            if (value !== null && value !== undefined) {
-                formData.append(key, value);
+        formData.append('_method', 'PUT');
+        
+        console.log('Submitting to route:', route('admin.teachers.update', teacher.id));
+        console.log('Teacher ID:', teacher.id);
+        
+        Object.keys(data).forEach(key => {
+            if (data[key] !== null && data[key] !== undefined) {
+                formData.append(key, data[key]);
+                console.log(`FormData ${key}:`, data[key]);
             }
         });
-        formData.append('_method', 'PUT'); // Spoof PUT method
 
-        console.log('FormData contents:');
-        for (let [key, value] of formData.entries()) {
-            console.log(key, value);
-        }
-
-        console.log('Submitting to URL:', route('admin.teachers.update', teacher.id));
-
-        // Use fetch to send FormData as POST with _method
-        fetch(route('admin.teachers.update', teacher.id), {
-            method: 'POST',
-            body: formData,
-            headers: {
-                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
-                'X-Requested-With': 'XMLHttpRequest',
-                'X-Inertia': 'true',
+        router.post(route('admin.teachers.update', teacher.id), formData, {
+            preserveScroll: true,
+            onSuccess: (page) => {
+                console.log('Success response, flash data:', page.props.flash);
+                console.log('show_confirmation?', page.props.flash?.show_confirmation);
+                console.log('Full page props:', page.props);
+                // Check if backend returned flash data for confirmation modal
+                if (!page.props.flash?.show_confirmation) {
+                    toast.success('Teacher updated successfully!', {
+                        style: {
+                            background: '#f0fdf4',
+                            color: '#166534',
+                            border: '1px solid #bbf7d0',
+                        },
+                    });
+                }
             },
-        })
-        .then(response => {
-            if (response.redirected || response.status === 302) {
-                console.log('Success response: redirect');
-                toast.success('Teacher updated successfully!', {
+            onError: (errors) => {
+                console.log('Error response:', errors);
+                toast.error('Failed to update teacher', {
                     style: {
-                        background: '#f0fdf4',
-                        color: '#166534',
-                        border: '1px solid #bbf7d0',
+                        background: '#fef2f2',
+                        color: '#dc2626',
+                        border: '1px solid #fecaca',
                     },
                 });
-                router.visit(route('admin.teachers.show', teacher.id));
-            } else {
-                return response.json().then(data => {
-                    if (data.errors) {
-                        console.log('Error response:', data.errors);
-                        const errorMessage = Object.values(data.errors).flat().join(', ');
-                        toast.error(`Failed to update teacher: ${errorMessage}`, {
-                            style: {
-                                background: '#fef2f2',
-                                color: '#dc2626',
-                                border: '1px solid #fecaca',
-                            },
-                        });
-                    } else {
-                        console.log('Success response:', data);
-                        toast.success('Teacher updated successfully!', {
-                            style: {
-                                background: '#f0fdf4',
-                                color: '#166534',
-                                border: '1px solid #bbf7d0',
-                            },
-                        });
-                        router.visit(route('admin.teachers.show', teacher.id));
-                    }
-                });
-            }
-        })
-        .catch(error => {
-            console.log('Fetch error:', error);
-            toast.error('An error occurred while updating the teacher.', {
-                style: {
-                    background: '#fef2f2',
-                    color: '#dc2626',
-                    border: '1px solid #fecaca',
-                },
-            });
+            },
         });
     };
+                
 
     return (
         <AuthenticatedLayout
             header={
-                <div className="flex items-center justify-between">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                     <div className="flex items-center gap-3">
                         <Button asChild variant="ghost" size="sm">
                             <Link href={route('admin.teachers.show', teacher.id)} className="flex items-center gap-2">
                                 <ArrowLeft className="w-4 h-4" />
-                                Back to Teacher
+                                <span className="hidden sm:inline">Back to Teacher</span>
+                                <span className="sm:hidden">Back</span>
                             </Link>
                         </Button>
-                        <div className="h-6 w-px bg-gray-300"></div>
+                        <div className="h-6 w-px bg-gray-300 hidden sm:block"></div>
                         <div className="flex items-center gap-2">
                             <div className="bg-blue-100 p-1.5 rounded-md">
                                 <User className="w-4 h-4 text-blue-600" />
                             </div>
                             <div>
                                 <h2 className="text-lg font-semibold text-gray-900">Edit Teacher</h2>
-                                <p className="text-xs text-gray-500 mt-0.5">Update teacher information and account details</p>
+                                <p className="text-xs text-gray-500 mt-0.5 hidden sm:block">Update teacher information and account details</p>
                             </div>
                         </div>
                     </div>
@@ -351,12 +330,22 @@ const Edit = ({ teacher }) => {
                                         <div>
                                             <Label htmlFor="status">Status *</Label>
                                             <Select value={data.status} onValueChange={(value) => setData('status', value)}>
-                                                <SelectTrigger className={errors.status ? 'border-red-500' : ''}>
+                                                <SelectTrigger className={`h-10 ${errors.status ? 'border-red-500' : 'border-gray-300 focus:border-blue-500'}`}>
                                                     <SelectValue placeholder="Select status" />
                                                 </SelectTrigger>
                                                 <SelectContent>
-                                                    <SelectItem value="active">Active</SelectItem>
-                                                    <SelectItem value="inactive">Inactive</SelectItem>
+                                                    <SelectItem value="active">
+                                                        <div className="flex items-center gap-2">
+                                                            <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                                                            <span className="text-green-700 font-medium">Active</span>
+                                                        </div>
+                                                    </SelectItem>
+                                                    <SelectItem value="inactive">
+                                                        <div className="flex items-center gap-2">
+                                                            <div className="w-2 h-2 bg-gray-500 rounded-full"></div>
+                                                            <span className="text-gray-700 font-medium">Inactive</span>
+                                                        </div>
+                                                    </SelectItem>
                                                 </SelectContent>
                                             </Select>
                                             {errors.status && (
@@ -404,6 +393,102 @@ const Edit = ({ teacher }) => {
                     </Card>
                 </div>
             </div>
+
+            {/* Grades Warning Modal */}
+            <Dialog open={showGradesModal} onOpenChange={setShowGradesModal}>
+                <DialogContent className="max-w-4xl max-h-[85vh] overflow-y-auto">
+                    <DialogHeader>
+                        <DialogTitle className="flex items-center gap-2">
+                            <AlertTriangle className="w-5 h-5 text-red-600" />
+                            Cannot Change Teacher Status to Inactive
+                        </DialogTitle>
+                        <DialogDescription>
+                            <span className="text-red-700 font-medium">
+                                This teacher has {incomplete_count} incomplete grade(s) that must be submitted before changing status to inactive.
+                            </span>
+                        </DialogDescription>
+                    </DialogHeader>
+                    
+                    <div className="mt-4">
+                        {/* Incomplete Grades Section */}
+                        {incomplete_count > 0 ? (
+                            <div className="space-y-3">
+                                <div className="flex items-center justify-between">
+                                    <h4 className="font-semibold text-red-900 flex items-center gap-2">
+                                        <AlertTriangle className="w-4 h-4" />
+                                        Incomplete Grades ({incomplete_count})
+                                    </h4>
+                                </div>
+                                
+                                <div className="border border-red-200 rounded-lg overflow-hidden bg-white">
+                                    <div className="max-h-[400px] overflow-y-auto">
+                                        <table className="w-full text-sm">
+                                            <thead className="bg-red-50 sticky top-0 z-10">
+                                                <tr className="border-b border-red-200">
+                                                    <th className="px-3 py-2.5 text-left font-semibold text-gray-700 w-12">#</th>
+                                                    <th className="px-3 py-2.5 text-left font-semibold text-gray-700">Student</th>
+                                                    <th className="px-3 py-2.5 text-left font-semibold text-gray-700">Subject</th>
+                                                    <th className="px-3 py-2.5 text-left font-semibold text-gray-700">Section</th>
+                                                    <th className="px-3 py-2.5 text-left font-semibold text-gray-700">Academic Year</th>
+                                                    <th className="px-3 py-2.5 text-left font-semibold text-gray-700">Semester</th>
+                                                    <th className="px-3 py-2.5 text-left font-semibold text-gray-700">Type</th>
+                                                    <th className="px-3 py-2.5 text-left font-semibold text-gray-700">Missing Grades</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-gray-200">
+                                                {incomplete_grades?.map((item, index) => (
+                                                    <tr 
+                                                        key={`incomplete-${index}`}
+                                                        className="hover:bg-red-50 transition-colors"
+                                                    >
+                                                        <td className="px-3 py-3 text-gray-600 font-medium">{index + 1}</td>
+                                                        <td className="px-3 py-3">
+                                                            <span className="font-medium text-gray-900">{item.student}</span>
+                                                        </td>
+                                                        <td className="px-3 py-3 text-gray-700">{item.subject}</td>
+                                                        <td className="px-3 py-3 text-gray-700">{item.section}</td>
+                                                        <td className="px-3 py-3 text-gray-700">{item.academic_year}</td>
+                                                        <td className="px-3 py-3">
+                                                            <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800">
+                                                                {item.semester}
+                                                            </span>
+                                                        </td>
+                                                        <td className="px-3 py-3">
+                                                            <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-800">
+                                                                {item.type}
+                                                            </span>
+                                                        </td>
+                                                        <td className="px-3 py-3">
+                                                            <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-800">
+                                                                {item.missing_grades}
+                                                            </span>
+                                                        </td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+
+                                {incomplete_count > 10 && (
+                                    <p className="text-xs text-gray-500 text-center">
+                                        Showing all {incomplete_count} incomplete grades. Scroll to view more.
+                                    </p>
+                                )}
+                            </div>
+                        ) : null}
+                    </div>
+
+                    <div className="mt-6 flex justify-end">
+                        <Button 
+                            onClick={() => setShowGradesModal(false)}
+                            variant="outline"
+                        >
+                            Close
+                        </Button>
+                    </div>
+                </DialogContent>
+            </Dialog>
         </AuthenticatedLayout>
     );
 };

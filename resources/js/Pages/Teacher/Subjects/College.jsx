@@ -70,13 +70,15 @@ export default function CollegeSubjects({ subjects, filters }) {
     return (
         <AuthenticatedLayout
             header={
-                <div className="flex items-center gap-3">
-                    <div className="bg-blue-100 p-2 rounded-lg">
-                        <BookOpen className="w-6 h-6 text-blue-600" />
-                    </div>
-                    <div>
-                        <h2 className="text-2xl font-bold text-gray-900">My College Subjects</h2>
-                        <p className="text-sm text-gray-600 mt-1">Manage grades and students for your college subjects</p>
+                <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                        <div className="bg-blue-100 p-1.5 rounded-md">
+                            <BookOpen className="w-4 h-4 text-blue-600" />
+                        </div>
+                        <div>
+                            <h2 className="text-lg font-semibold text-gray-900">My College Subjects</h2>
+                            <p className="text-xs text-gray-500 mt-0.5">Manage grades and students for your college subjects</p>
+                        </div>
                     </div>
                 </div>
             }
@@ -170,7 +172,7 @@ export default function CollegeSubjects({ subjects, filters }) {
                                     {/* Action Buttons */}
                                     <div className="flex gap-2">
                                         <Link
-                                            href={route('teacher.grades.show', subject.section.id)}
+                                            href={route('teacher.grades.show', subject.id)}
                                             className="flex-1"
                                         >
                                             <Button className="w-full bg-blue-600 hover:bg-blue-700 text-white">

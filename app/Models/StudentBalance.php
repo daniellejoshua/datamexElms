@@ -58,7 +58,7 @@ class StudentBalance extends Model
 
     public function scopeShs($query)
     {
-        return $query->where('education_level', 'shs');
+        return $query->where('education_level', 'senior_high');
     }
 
     public function scopeActive($query)

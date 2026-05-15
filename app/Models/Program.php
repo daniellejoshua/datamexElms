@@ -6,6 +6,8 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Facades\DB;
+use App\Models\YearLevelCurriculumGuide;
+use App\Models\SchoolSetting;
 
 class Program extends Model
 {
@@ -71,9 +73,7 @@ class Program extends Model
         $targetStart = (string) $batchYear;
 
         // Check for a year-level guide first (explicit mapping provided by admin)
-        $currentAcademicYear = SchoolSetting::getCurrentAcademicYear();
         $guide = YearLevelCurriculumGuide::where('program_id', $this->id)
-            ->where('academic_year', $currentAcademicYear)
             ->where('year_level', $numericYearLevel)
             ->with('curriculum')
             ->first();
@@ -126,5 +126,72 @@ class Program extends Model
     public function scopeByEducationLevel($query, string $level)
     {
         return $query->where('education_level', $level);
+    }
+
+    protected static function booted(): void
+    {
+        // Ensure newly created programs have year-level curriculum guides for the
+        // current academic year. If guides already exist for the program, do nothing.
+        static::created(function (self $program) {
+            $academicYear = SchoolSetting::getCurrentAcademicYear();
+
+            // Only skip if guides already exist for the current academic year.
+            if ($program->yearLevelGuides()->where('academic_year', $academicYear)->exists()) {
+                return;
+            }
+
+            if (strtolower($program->education_level ?? '') === 'shs') {
+                // For SHS, we create guides for Grade 11 and 12 mapped to year_level 11/12
+                $yearLevels = [11, 12];
+            } else {
+                $total = (int) ($program->total_years ?? 1);
+                $yearLevels = range(1, max(1, $total));
+            }
+
+            // Only create guides if there is an existing current curriculum to
+            // reference. Do not auto-create a Curriculum here.
+            $existingCurriculumId = null;
+
+            try {
+                // Prefer explicit ProgramCurriculum marked as current
+                $existingCurriculumId = \App\Models\ProgramCurriculum::where('program_id', $program->id)
+                    ->where('is_current', true)
+                    ->value('curriculum_id');
+            } catch (\Throwable $e) {
+                // ignore and try alternative lookup
+            }
+
+            if (! $existingCurriculumId) {
+                try {
+                    // Fallback: any Curriculum row marked as current
+                    $existingCurriculumId = \App\Models\Curriculum::where('program_id', $program->id)
+                        ->where('is_current', true)
+                        ->value('id');
+                } catch (\Throwable $e) {
+                    // ignore — if schema differs we will simply not create guides
+                }
+            }
+
+            // If we still don't have a curriculum id, do not create guides here.
+            if (! $existingCurriculumId) {
+                return;
+            }
+
+            $toCreate = [];
+            foreach ($yearLevels as $yl) {
+                $toCreate[] = [
+                    'program_id' => $program->id,
+                    'academic_year' => $academicYear,
+                    'year_level' => $yl,
+                    'curriculum_id' => $existingCurriculumId,
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ];
+            }
+
+            if (! empty($toCreate)) {
+                YearLevelCurriculumGuide::insert($toCreate);
+            }
+        });
     }
 }

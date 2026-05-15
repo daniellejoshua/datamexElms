@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useForm, router } from '@inertiajs/react';
+import { route } from 'ziggy-js';
 import { Button } from '@/Components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -281,11 +282,6 @@ export default function AnnouncementForm({ mode = 'create', announcement = null,
         .then(data => {
             console.log('Success:', data);
             toast.success(isEdit ? 'Announcement updated successfully!' : 'Announcement created successfully!', {
-                style: {
-                    border: '1px solid #10b981',
-                    backgroundColor: '#f0fdf4',
-                    color: '#166534'
-                },
                 duration: 5000,
             });
             onClose();
@@ -294,11 +290,6 @@ export default function AnnouncementForm({ mode = 'create', announcement = null,
         .catch(error => {
             console.error('Error:', error);
             toast.error('Failed to save announcement. Please try again.', {
-                style: {
-                    border: '1px solid #ef4444',
-                    backgroundColor: '#fef2f2',
-                    color: '#dc2626'
-                },
                 duration: 5000,
             });
         });

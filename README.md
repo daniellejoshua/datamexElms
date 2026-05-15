@@ -1,59 +1,155 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+# Datamex ELMS
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+Datamex ELMS is a Laravel 12 application designed for managing academic workflows, enrollment-related operations, and institutional data processes in a modern web interface.
 
-## About Laravel
+## Project Status
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+[![Laravel](https://img.shields.io/badge/Laravel-12-red)](https://laravel.com)
+[![PHP](https://img.shields.io/badge/PHP-8.2%2B-777bb4)](https://www.php.net)
+[![Inertia](https://img.shields.io/badge/Inertia.js-v2-9553E9)](https://inertiajs.com)
+[![React](https://img.shields.io/badge/React-18-61dafb)](https://react.dev)
+[![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-v3-06b6d4)](https://tailwindcss.com)
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+## Table of Contents
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+- [Overview](#overview)
+- [Core Features](#core-features)
+- [Technology Stack](#technology-stack)
+- [Local Development Setup](#local-development-setup)
+- [Environment Configuration](#environment-configuration)
+- [Common Commands](#common-commands)
+- [Testing](#testing)
+- [Deployment Notes](#deployment-notes)
+- [Project Structure](#project-structure)
+- [Security](#security)
+- [Contributing](#contributing)
+- [License](#license)
 
-## Learning Laravel
+## Overview
 
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework. You can also check out [Laravel Learn](https://laravel.com/learn), where you will be guided through building a modern Laravel application.
+This system provides a scalable foundation for school operations with a Laravel backend and an Inertia + React frontend. It includes real-time and reporting-related capabilities through queue workers, event handling, export utilities, and integrations used across academic administration workflows.
 
-If you don't feel like reading, [Laracasts](https://laracasts.com) can help. Laracasts contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
+## Core Features
 
-## Laravel Sponsors
+- Enrollment and student data workflow management
+- Role-aware access control and policy-based authorization
+- Dashboard and analytics-ready data structures
+- Import and export workflows for institutional records
+- Queue-driven background processing for heavy operations
+- Realtime-ready architecture with socket and event support
 
-We would like to extend our thanks to the following sponsors for funding Laravel development. If you are interested in becoming a sponsor, please visit the [Laravel Partners program](https://partners.laravel.com).
+## Technology Stack
 
-### Premium Partners
+- Backend: Laravel 12, PHP 8.2+, Sanctum
+- Frontend: Inertia.js v2, React 18, Tailwind CSS v3, Vite
+- Database: MySQL (via Laravel database layer)
+- Dev Environment: Laravel Sail (Docker-based)
+- Testing: Pest 4 / PHPUnit 12
+- Integrations: Laravel Excel, Cloudinary, Ziggy
 
-- **[Vehikl](https://vehikl.com)**
-- **[Tighten Co.](https://tighten.co)**
-- **[Kirschbaum Development Group](https://kirschbaumdevelopment.com)**
-- **[64 Robots](https://64robots.com)**
-- **[Curotec](https://www.curotec.com/services/technologies/laravel)**
-- **[DevSquad](https://devsquad.com/hire-laravel-developers)**
-- **[Redberry](https://redberry.international/laravel-development)**
-- **[Active Logic](https://activelogic.com)**
+## Local Development Setup
+
+### Prerequisites
+
+- Docker Desktop (or Docker Engine + Compose)
+- Git
+
+### 1. Clone the repository
+
+```bash
+git clone https://github.com/daniellejoshua/datamexElms.git
+cd datamexElms
+```
+
+### 2. Install dependencies and start Sail
+
+```bash
+cp .env.example .env
+vendor/bin/sail up -d
+vendor/bin/sail composer install
+vendor/bin/sail npm install
+```
+
+### 3. Application key, migrations, and frontend build
+
+```bash
+vendor/bin/sail artisan key:generate
+vendor/bin/sail artisan migrate
+vendor/bin/sail npm run build
+```
+
+### 4. Start development services
+
+```bash
+vendor/bin/sail composer run dev
+```
+
+## Environment Configuration
+
+- Never commit real environment files containing secrets.
+- Keep only template files such as `.env.example` and optional deployment templates.
+- Ensure secrets for production are managed in your hosting or CI/CD secret manager.
+
+## Common Commands
+
+```bash
+# Start / stop containers
+vendor/bin/sail up -d
+vendor/bin/sail stop
+
+# Laravel commands
+vendor/bin/sail artisan migrate
+vendor/bin/sail artisan queue:work
+
+# Frontend
+vendor/bin/sail npm run dev
+vendor/bin/sail npm run build
+
+# Code style
+vendor/bin/sail bin pint --dirty
+```
+
+## Testing
+
+Run the full test suite:
+
+```bash
+vendor/bin/sail artisan test --compact
+```
+
+Run a specific test file:
+
+```bash
+vendor/bin/sail artisan test --compact tests/Feature/ExampleTest.php
+```
+
+## Deployment Notes
+
+- Deployment-related files are included in the repository (`Dockerfile`, `compose.yaml`, `render.yaml`).
+- Use environment variables from your deployment platform instead of committing production `.env` files.
+- Build frontend assets during deployment with `vendor/bin/sail npm run build` (or equivalent non-Sail pipeline command on your target platform).
+
+## Project Structure
+
+```text
+app/            # Business logic (models, services, jobs, policies, etc.)
+bootstrap/      # App bootstrap and provider wiring
+config/         # Application configuration
+database/       # Migrations, factories, and seeders
+public/         # Public entrypoint and compiled assets
+resources/      # Frontend source (JS/CSS/views)
+routes/         # Web, API, auth, and console routes
+tests/          # Feature and unit tests (Pest)
+```
+
+## Security
+
+If you discover a security issue, please report it privately to the repository maintainer. Do not open a public issue with sensitive details.
 
 ## Contributing
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
-
-## Code of Conduct
-
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
-
-## Security Vulnerabilities
-
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
+Contributions are welcome. Please open an issue first for major changes, then submit a pull request with clear scope, test coverage, and migration notes when applicable.
 
 ## License
 
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+This project is open-sourced under the [MIT License](https://opensource.org/licenses/MIT).

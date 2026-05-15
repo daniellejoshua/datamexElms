@@ -2,9 +2,12 @@
 
 namespace App\Models;
 
+use App\Observers\StudentGradeObserver;
+use Illuminate\Database\Eloquent\Attributes\ObservedBy;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
+#[ObservedBy([StudentGradeObserver::class])]
 class StudentGrade extends Model
 {
     protected $fillable = [
@@ -16,12 +19,19 @@ class StudentGrade extends Model
         'prefinal_grade',
         'final_grade',
         'semester_grade',
+        'overall_status',
         'status',
+        'teacher_remarks',
     ];
 
     protected function casts(): array
     {
         return [
+            'prelim_grade' => 'float',
+            'midterm_grade' => 'float',
+            'prefinal_grade' => 'float',
+            'final_grade' => 'float',
+            'semester_grade' => 'float',
             'prelim_submitted_at' => 'datetime',
             'midterm_submitted_at' => 'datetime',
             'prefinal_submitted_at' => 'datetime',

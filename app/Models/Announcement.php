@@ -94,42 +94,21 @@ class Announcement extends Model
 
     public function scopeVisibleTo($query, $user)
     {
-        if (in_array($user->role, ['super_admin', 'registrar'])) {
+        if (in_array($user->role, ['super_admin', 'registrar', 'head_teacher'])) {
             return $query;
         }
 
-        return $query->where(function ($q) {
-            $q->where('visibility', 'all_users')
-                ->orWhere(function ($subQ) {
-                    $subQ->where('visibility', 'teachers_only')
-                        ->whereHas('creator', function ($creatorQ) {
-                            $creatorQ->where('role', 'teacher');
-                        });
-                })
-                ->orWhere(function ($subQ) {
-                    $subQ->where('visibility', 'students_only')
-                        ->whereHas('creator', function ($creatorQ) {
-                            $creatorQ->where('role', 'student');
-                        });
-                })
-                ->orWhere(function ($subQ) {
-                    $subQ->where('visibility', 'admins_only')
-                        ->whereHas('creator', function ($creatorQ) {
-                            $creatorQ->where('role', 'super_admin');
-                        });
-                })
-                ->orWhere(function ($subQ) {
-                    $subQ->where('visibility', 'registrars_only')
-                        ->whereHas('creator', function ($creatorQ) {
-                            $creatorQ->where('role', 'registrar');
-                        });
-                })
-                ->orWhere(function ($subQ) {
-                    $subQ->where('visibility', 'employees_only')
-                        ->whereHas('creator', function ($creatorQ) {
-                            $creatorQ->whereIn('role', ['teacher', 'registrar']);
-                        });
-                });
-        });
+        $visibleTypes = ['all_users'];
+
+        if ($user->role === 'teacher') {
+            $visibleTypes[] = 'teachers_only';
+            $visibleTypes[] = 'employees_only';
+        }
+
+        if ($user->role === 'student') {
+            $visibleTypes[] = 'students_only';
+        }
+
+        return $query->whereIn('visibility', $visibleTypes);
     }
 }

@@ -1,13 +1,14 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Head, router, usePage, Link } from '@inertiajs/react';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Check, X, Users, UserPlus, GraduationCap, ArrowLeft, Mail, Phone, MapPin, Calendar, BookOpen, User, Trash2, Settings, AlertTriangle } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Check, X, Users, UserPlus, GraduationCap, ArrowLeft, Mail, Phone, MapPin, Calendar, BookOpen, User, Trash2, Settings, AlertTriangle, Search } from 'lucide-react';
 import { toast } from 'sonner';
 
-export default function Students({ section, enrolledStudents, availableStudents, canCarryForward }) {
+export default function Students({ section, enrolledStudents, availableStudents, canCarryForward, programs }) {
     const { flash } = usePage().props;
     const [selectedStudents, setSelectedStudents] = useState([]);
     const [isEnrolling, setIsEnrolling] = useState(false);
@@ -19,6 +20,7 @@ export default function Students({ section, enrolledStudents, availableStudents,
     const [isCarryForwardModalOpen, setIsCarryForwardModalOpen] = useState(false);
     const [carryForwardResults, setCarryForwardResults] = useState(null);
     const [isResultsModalOpen, setIsResultsModalOpen] = useState(false);
+    const [studentSearch, setStudentSearch] = useState('');
 
     // Check if section is read-only (past academic year or past semester in current year)
     const isReadOnly = (() => {
@@ -47,6 +49,30 @@ export default function Students({ section, enrolledStudents, availableStudents,
             setSelectedStudents([]);
         }
     }, [flash?.success]);
+
+    // Filter enrolled and available students based on search
+    const filteredEnrolledStudents = useMemo(() => {
+        if (!studentSearch) return enrolledStudents;
+        return enrolledStudents.filter(enrollment => {
+            const student = enrollment.student;
+            const fullName = `${student.first_name || ''} ${student.middle_name || ''} ${student.last_name || ''}`.toLowerCase();
+            const studentNumber = student.student_number?.toLowerCase() || '';
+            const email = student.user?.email?.toLowerCase() || '';
+            const searchTerm = studentSearch.toLowerCase();
+            return fullName.includes(searchTerm) || studentNumber.includes(searchTerm) || email.includes(searchTerm);
+        });
+    }, [enrolledStudents, studentSearch]);
+
+    const filteredAvailableStudents = useMemo(() => {
+        if (!studentSearch) return availableStudents;
+        return availableStudents.filter(student => {
+            const fullName = `${student.first_name || ''} ${student.middle_name || ''} ${student.last_name || ''}`.toLowerCase();
+            const studentNumber = student.student_number?.toLowerCase() || '';
+            const email = student.user?.email?.toLowerCase() || '';
+            const searchTerm = studentSearch.toLowerCase();
+            return fullName.includes(searchTerm) || studentNumber.includes(searchTerm) || email.includes(searchTerm);
+        });
+    }, [availableStudents, studentSearch]);
 
     const handleEnrollStudents = () => {
         if (selectedStudents.length === 0) {
@@ -124,10 +150,14 @@ export default function Students({ section, enrolledStudents, availableStudents,
         );
     };
 
+
+
     const openStudentModal = (student) => {
         setSelectedStudent(student);
         setIsModalOpen(true);
     };
+
+
 
     const closeStudentModal = () => {
         setSelectedStudent(null);
@@ -145,6 +175,10 @@ export default function Students({ section, enrolledStudents, availableStudents,
         router.delete(route('admin.sections.remove-student', section.id), {
             data: {
                 student_id: studentToRemove.id
+            },
+            onSuccess: () => {
+                setIsRemoveModalOpen(false);
+                setStudentToRemove(null);
             },
             onError: (errors) => {
                 console.error('Remove student errors:', errors);
@@ -190,18 +224,25 @@ export default function Students({ section, enrolledStudents, availableStudents,
                 <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
                         <button 
-                            onClick={() => window.location.href = getBackRoute(section)}
-                            className="flex items-center gap-2 px-3 py-1.5 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-md transition-colors"
+                            onClick={() => router.visit(section.program.education_level === 'college' ? '/admin/college/sections' : '/admin/shs/sections')}
+                            className="hidden sm:flex items-center gap-2 px-3 py-1.5 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-md transition-colors"
                         >
                             <ArrowLeft className="w-4 h-4" />
-                            Back to Sections
+                            {section.program.education_level === 'college' ? 'Back to College Sections' : 'Back to SHS Sections'}
                         </button>
-                        <div className="h-6 w-px bg-gray-300"></div>
-                        <div>
-                            <h2 className="text-2xl font-bold text-gray-900">Section Students</h2>
-                            <p className="text-sm text-blue-600 font-medium mt-1">
-                                Manage enrollment for {formatSectionName(section)}
-                            </p>
+                        <div className="hidden sm:block h-6 w-px bg-gray-300"></div>
+                        <div className="flex items-center px-2 py-1">
+                            <div className="flex items-center gap-2">
+                                <div className="bg-green-100 p-1.5 rounded-md">
+                                    <Users className="w-4 h-4 text-green-600" />
+                                </div>
+                                <div>
+                                    <h2 className="text-lg font-semibold text-gray-900">Section Students</h2>
+                                    <p className="text-xs text-gray-500 mt-0.5">
+                                        Manage enrollment for {formatSectionName(section)}
+                                    </p>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -241,6 +282,23 @@ export default function Students({ section, enrolledStudents, availableStudents,
                         </div>
                     )}
 
+                    {/* Global Search for Students */}
+                    <div className="bg-white rounded-lg shadow-sm border p-4 mb-6">
+                        <div className="relative">
+                            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+                            <Input
+                                type="text"
+                                placeholder="Search all students by name, student number, or email..."
+                                value={studentSearch}
+                                onChange={(e) => setStudentSearch(e.target.value)}
+                                className="pl-10"
+                            />
+                        </div>
+                        <p className="text-xs text-gray-500 mt-2">
+                            This search affects both enrolled and available students below
+                        </p>
+                    </div>
+
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                     {/* Enrolled Students */}
                     <div className="bg-white rounded-lg shadow-sm border overflow-hidden">
@@ -249,7 +307,7 @@ export default function Students({ section, enrolledStudents, availableStudents,
                                 <div className="flex items-center gap-2">
                                     <Users className="h-4 w-4 text-gray-600" />
                                     <h2 className="font-medium text-gray-900">
-                                        Enrolled Students ({enrolledStudents.length})
+                                        Enrolled Students ({filteredEnrolledStudents.length}{studentSearch && ` of ${enrolledStudents.length}`})
                                     </h2>
                                 </div>
                                 <Button
@@ -266,13 +324,15 @@ export default function Students({ section, enrolledStudents, availableStudents,
                         </div>
                         <div className="p-4">
                             <div className="space-y-2 max-h-80 overflow-y-auto">
-                                {enrolledStudents.length === 0 ? (
+                                {filteredEnrolledStudents.length === 0 ? (
                                     <div className="text-center py-6">
                                         <Users className="h-8 w-8 text-gray-300 mx-auto mb-2" />
-                                        <p className="text-gray-500 text-sm">No students enrolled</p>
+                                        <p className="text-gray-500 text-sm">
+                                            {studentSearch ? 'No enrolled students match your search' : 'No students enrolled'}
+                                        </p>
                                     </div>
                                 ) : (
-                                    enrolledStudents.map((enrollment) => (
+                                    filteredEnrolledStudents.map((enrollment) => (
                                         <div key={enrollment.id} className="flex items-center justify-between p-3 bg-gray-50 rounded border group">
                                             <div className="min-w-0 flex-1">
                                                 <p 
@@ -285,10 +345,10 @@ export default function Students({ section, enrolledStudents, availableStudents,
                                                 >
                                                     {enrollment.student.user.name}
                                                 </p>
-                                                <div className="flex items-center gap-2 mt-0.5">
-                                                    <p className="text-sm text-gray-600">{enrollment.student.student_number}</p>
+                                                <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2 mt-0.5">
+                                                    <p className="text-xs sm:text-sm text-gray-600 truncate">{enrollment.student.student_number}</p>
                                                     {enrollment.student.student_type === 'irregular' && (
-                                                        <Badge variant="outline" className="text-xs bg-orange-50 text-orange-700 border-orange-200">
+                                                        <Badge variant="outline" className="text-xs bg-orange-50 text-orange-700 border-orange-200 px-1.5 py-0.5 sm:px-2 sm:py-1 w-fit">
                                                             Irregular
                                                         </Badge>
                                                     )}
@@ -312,7 +372,7 @@ export default function Students({ section, enrolledStudents, availableStudents,
                                                     >
                                                         <Settings className="h-3.5 w-3.5" />
                                                     </button>
-                                                )}
+                                                )} 
                                                 <button
                                                     onClick={(e) => {
                                                         e.stopPropagation();
@@ -343,7 +403,7 @@ export default function Students({ section, enrolledStudents, availableStudents,
                                 <div className="flex items-center gap-2">
                                     <UserPlus className="h-4 w-4 text-gray-600" />
                                     <h2 className="font-medium text-gray-900">
-                                        Available Students ({availableStudents.length})
+                                        Available Students ({filteredAvailableStudents.length}{studentSearch && ` of ${availableStudents.length}`})
                                     </h2>
                                 </div>
                                 {selectedStudents.length > 0 && (
@@ -375,13 +435,15 @@ export default function Students({ section, enrolledStudents, availableStudents,
                         <div className="p-4">
 
                             <div className="space-y-2 max-h-80 overflow-y-auto">
-                                {availableStudents.length === 0 ? (
+                                {filteredAvailableStudents.length === 0 ? (
                                     <div className="text-center py-6">
                                         <UserPlus className="h-8 w-8 text-gray-300 mx-auto mb-2" />
-                                        <p className="text-gray-500 text-sm">No available students</p>
+                                        <p className="text-gray-500 text-sm">
+                                            {studentSearch ? 'No students match your search' : 'No available students'}
+                                        </p>
                                     </div>
                                 ) : (
-                                    availableStudents.map((student) => (
+                                    filteredAvailableStudents.map((student) => (
                                         <div 
                                             key={student.id} 
                                             className={`flex items-center p-3 border rounded transition-colors ${
@@ -419,15 +481,15 @@ export default function Students({ section, enrolledStudents, availableStudents,
                                                 >
                                                     {student.user.name}
                                                 </p>
-                                                <div className="flex items-center gap-3 text-sm text-gray-600">
-                                                    <span>{student.student_number}</span>
+                                                <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-3 text-xs sm:text-sm text-gray-600">
+                                                    <span className="truncate">{student.student_number}</span>
                                                     {student.program?.program_code && (
-                                                        <span className="text-xs bg-gray-200 px-2 py-1 rounded">
+                                                        <span className="text-xs bg-gray-200 px-1.5 py-0.5 sm:px-2 sm:py-1 rounded w-fit">
                                                             {student.program.program_code}
                                                         </span>
                                                     )}
                                                     {student.student_type === 'irregular' && (
-                                                        <Badge variant="outline" className="text-xs bg-yellow-50 border-yellow-300 text-yellow-700">
+                                                        <Badge variant="outline" className="text-xs bg-yellow-50 border-yellow-300 text-yellow-700 px-1.5 py-0.5 sm:px-2 sm:py-1 w-fit">
                                                             Irregular
                                                         </Badge>
                                                     )}
@@ -447,12 +509,31 @@ export default function Students({ section, enrolledStudents, availableStudents,
         <Dialog open={isModalOpen} onOpenChange={closeStudentModal}>
             <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
                 <DialogHeader>
-                    <DialogTitle className="flex items-center gap-2 text-xl">
-                        <User className="w-5 h-5 text-blue-600" />
-                        Student Information
-                    </DialogTitle>
-                    <DialogDescription>
-                        Detailed information about the selected student
+                    <div className="flex items-center justify-between w-full">
+                        <div className="flex items-center gap-3">
+                            <div className="bg-blue-100 p-1.5 rounded-md">
+                                <User className="w-4 h-4 text-blue-600" />
+                            </div>
+                            <div>
+                                <h3 className="text-lg font-semibold text-gray-900">Student Details</h3>
+                                <p className="text-sm text-gray-500">{selectedStudent?.user?.name || 'Student Information'}</p>
+                            </div>
+                        </div>
+
+                        <div className="flex items-left relative right-8 gap-2">
+                                {selectedStudent?.student_type === 'irregular' && (
+                                <Button variant="ghost" size="sm" onClick={() => selectedStudent && handleManageSubjects(selectedStudent.id)} title="Manage subjects">
+                                    <Settings className="w-4 h-4" />
+                                </Button>
+                            )} 
+                            <Button variant="ghost" size="sm" className="text-red-600" onClick={() => selectedStudent && handleRemoveStudent(selectedStudent.id, selectedStudent.user.name)} title="Remove from section">
+                                <Trash2 className="w-4 h-4" />
+                            </Button>
+                            
+                        </div>
+                    </div>
+                    <DialogDescription className="mt-2 text-sm text-gray-600">
+                        View profile details and quick actions
                     </DialogDescription>
                 </DialogHeader>
                 
@@ -460,15 +541,15 @@ export default function Students({ section, enrolledStudents, availableStudents,
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-4">
                         {/* Personal Information */}
                         <div className="space-y-6">
-                            <div className="border rounded-lg p-4">
+                            <div className="border rounded-lg p-3 sm:p-4">
                                 <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
                                     <User className="w-4 h-4 text-blue-600" />
                                     Personal Information
                                 </h3>
-                                <div className="space-y-3">
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                     <div>
                                         <label className="text-sm font-medium text-gray-600">Full Name</label>
-                                        <p className="text-base font-medium text-gray-900">{selectedStudent.user.name}</p>
+                                        <p className="text-base font-medium text-gray-900 truncate">{selectedStudent.user.name}</p>
                                     </div>
                                     <div>
                                         <label className="text-sm font-medium text-gray-600">Student Number</label>
@@ -478,39 +559,33 @@ export default function Students({ section, enrolledStudents, availableStudents,
                                         <div>
                                             <label className="text-sm font-medium text-gray-600 flex items-center gap-1">
                                                 <Mail className="w-3 h-3" />
-                                                Email Address
+                                                Email
                                             </label>
-                                            <p className="text-base text-gray-900">{selectedStudent.user.email}</p>
+                                            <p className="text-sm text-gray-900 truncate">{selectedStudent.user.email}</p>
                                         </div>
                                     )}
                                     {selectedStudent.phone_number && (
                                         <div>
                                             <label className="text-sm font-medium text-gray-600 flex items-center gap-1">
                                                 <Phone className="w-3 h-3" />
-                                                Phone Number
+                                                Phone
                                             </label>
-                                            <p className="text-base text-gray-900">{selectedStudent.phone_number}</p>
+                                            <p className="text-sm text-gray-900">{selectedStudent.phone_number}</p>
                                         </div>
                                     )}
                                     {selectedStudent.date_of_birth && (
                                         <div>
                                             <label className="text-sm font-medium text-gray-600 flex items-center gap-1">
                                                 <Calendar className="w-3 h-3" />
-                                                Date of Birth
+                                                DOB
                                             </label>
-                                            <p className="text-base text-gray-900">
-                                                {new Date(selectedStudent.date_of_birth).toLocaleDateString('en-US', {
-                                                    year: 'numeric',
-                                                    month: 'long',
-                                                    day: 'numeric'
-                                                })}
-                                            </p>
+                                            <p className="text-sm text-gray-900">{new Date(selectedStudent.date_of_birth).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}</p>
                                         </div>
                                     )}
                                     {selectedStudent.gender && (
                                         <div>
                                             <label className="text-sm font-medium text-gray-600">Gender</label>
-                                            <p className="text-base text-gray-900 capitalize">{selectedStudent.gender}</p>
+                                            <p className="text-sm text-gray-900 capitalize">{selectedStudent.gender}</p>
                                         </div>
                                     )}
                                 </div>
@@ -518,7 +593,7 @@ export default function Students({ section, enrolledStudents, availableStudents,
 
                             {/* Address Information */}
                             {(selectedStudent.address || selectedStudent.city || selectedStudent.province || selectedStudent.postal_code) && (
-                                <div className="border rounded-lg p-4">
+                                <div className="border rounded-lg p-3 sm:p-4">
                                     <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
                                         <MapPin className="w-4 h-4 text-blue-600" />
                                         Address Information
@@ -557,58 +632,53 @@ export default function Students({ section, enrolledStudents, availableStudents,
 
                         {/* Academic Information */}
                         <div className="space-y-6">
-                            <div className="border rounded-lg p-4">
+                            <div className="border rounded-lg p-3 sm:p-4">
                                 <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
                                     <BookOpen className="w-4 h-4 text-blue-600" />
                                     Academic Information
                                 </h3>
-                                <div className="space-y-3">
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                     {selectedStudent.program && (
-                                        <div>
+                                        <div className="sm:col-span-2">
                                             <label className="text-sm font-medium text-gray-600">Program</label>
                                             <div className="flex items-center gap-2 mt-1">
-                                                <Badge variant="secondary" className="font-mono">
+                                                <Badge variant="outline" className="font-mono text-sm">
                                                     {selectedStudent.program.program_code}
                                                 </Badge>
-                                                <span className="text-base text-gray-900">{selectedStudent.program.program_name}</span>
+                                                <span className="text-sm text-gray-900 truncate">{selectedStudent.program.program_name}</span>
                                             </div>
                                         </div>
                                     )}
+
                                     {selectedStudent.year_level && (
                                         <div>
-                                            <label className="text-sm font-medium text-gray-600">Year Level</label>
-                                            <p className="text-base text-gray-900">
-                                                {selectedStudent.program?.type === 'shs' ? `Grade ${selectedStudent.year_level}` : `Year ${selectedStudent.year_level}`}
-                                            </p>
+                                            <label className="text-sm font-medium text-gray-600">Level</label>
+                                            <p className="text-sm text-gray-900">{selectedStudent.program?.type === 'shs' ? `Grade ${selectedStudent.year_level}` : `Year ${selectedStudent.year_level}`}</p>
                                         </div>
                                     )}
-                                    {selectedStudent.student_type && (
-                                        <div>
-                                            <label className="text-sm font-medium text-gray-600">Student Type</label>
-                                            <p className="text-base text-gray-900 capitalize">{selectedStudent.student_type.replace('_', ' ')}</p>
-                                        </div>
-                                    )}
+
                                     {selectedStudent.enrollment_date && (
                                         <div>
-                                            <label className="text-sm font-medium text-gray-600">Enrollment Date</label>
-                                            <p className="text-base text-gray-900">
-                                                {new Date(selectedStudent.enrollment_date).toLocaleDateString('en-US', {
-                                                    year: 'numeric',
-                                                    month: 'long',
-                                                    day: 'numeric'
-                                                })}
-                                            </p>
+                                            <label className="text-sm font-medium text-gray-600">Enrolled</label>
+                                            <p className="text-sm text-gray-900">{new Date(selectedStudent.enrollment_date).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}</p>
                                         </div>
                                     )}
+
+                                    {selectedStudent.student_type && (
+                                        <div>
+                                            <label className="text-sm font-medium text-gray-600">Type</label>
+                                            <p className="text-sm text-gray-900 capitalize">{selectedStudent.student_type.replace('_', ' ')}</p>
+                                        </div>
+                                    )}
+
                                     {selectedStudent.status && (
                                         <div>
                                             <label className="text-sm font-medium text-gray-600">Status</label>
-                                            <Badge 
-                                                variant={selectedStudent.status === 'active' ? 'default' : 'secondary'}
-                                                className="mt-1"
-                                            >
-                                                {selectedStudent.status.charAt(0).toUpperCase() + selectedStudent.status.slice(1)}
-                                            </Badge>
+                                            <div className="mt-1">
+                                                <Badge variant={selectedStudent.status === 'active' ? 'default' : 'secondary'} className="text-sm">
+                                                    {selectedStudent.status.charAt(0).toUpperCase() + selectedStudent.status.slice(1)}
+                                                </Badge>
+                                            </div>
                                         </div>
                                     )}
                                 </div>
@@ -616,7 +686,7 @@ export default function Students({ section, enrolledStudents, availableStudents,
 
                             {/* Emergency Contact Information */}
                             {(selectedStudent.emergency_contact_name || selectedStudent.emergency_contact_phone || selectedStudent.emergency_contact_relationship) && (
-                                <div className="border rounded-lg p-4">
+                                <div className="border rounded-lg p-3 sm:p-4">
                                     <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
                                         <Phone className="w-4 h-4 text-red-600" />
                                         Emergency Contact
@@ -646,7 +716,7 @@ export default function Students({ section, enrolledStudents, availableStudents,
 
                             {/* Additional Information */}
                             {(selectedStudent.guardian_name || selectedStudent.guardian_phone || selectedStudent.previous_school) && (
-                                <div className="border rounded-lg p-4">
+                                <div className="border rounded-lg p-3 sm:p-4">
                                     <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
                                         <GraduationCap className="w-4 h-4 text-green-600" />
                                         Additional Information
@@ -677,11 +747,7 @@ export default function Students({ section, enrolledStudents, availableStudents,
                     </div>
                 )}
 
-                <div className="flex justify-end mt-6 pt-4 border-t">
-                    <Button variant="outline" onClick={closeStudentModal}>
-                        Close
-                    </Button>
-                </div>
+
             </DialogContent>
         </Dialog>
 

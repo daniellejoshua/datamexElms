@@ -4,7 +4,7 @@ import { useMemo } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { School, Clock, Users, Calendar, GraduationCap, BookOpen, ChevronRight } from 'lucide-react'
+import { School, Clock, Users, Calendar, GraduationCap, BookOpen, ChevronRight, BarChart3 } from 'lucide-react'
 
 export default function TeacherDashboard({ 
     teacher, 
@@ -12,20 +12,12 @@ export default function TeacherDashboard({
     sections, 
     todaySchedule, 
     upcomingClasses, 
-    recentActivities 
+    recentActivities,
+    currentAcademicYear,
+    currentSemester
 }) {
     // Get current semester sections only
-    const currentSemester = '1st' // This should come from your app settings
-    const currentAcademicYear = '2024-2025' // This should come from your app settings
-
-    // Filter sections by current semester
-    const currentSemesterSections = useMemo(() => {
-        if (!sections) return []
-        
-        return sections.filter(section => 
-            section.semester === currentSemester && section.academic_year === currentAcademicYear
-        )
-    }, [sections])
+    const currentSemesterSections = sections || []
 
     // Separate college and SHS sections
     const collegeSections = useMemo(() => {
@@ -39,26 +31,25 @@ export default function TeacherDashboard({
     return (
         <AuthenticatedLayout
             header={
-                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
-                    <div>
-                        <h2 className="text-2xl font-bold text-gray-900">Teacher Dashboard</h2>
-                        <p className="text-sm text-blue-600 font-medium mt-1">
-                            Welcome back, {teacher.name} - Employee #{teacher.employee_number}
-                        </p>
+                <div className="flex items-center px-2 py-1">
+                    <div className="flex items-center gap-2">
+                        <div className="bg-blue-100 p-1.5 rounded-md">
+                            <BarChart3 className="w-4 h-4 text-blue-600" />
+                        </div>
+                        <div>
+                            <h2 className="text-lg font-semibold text-gray-900">Teacher Dashboard</h2>
+                            <p className="text-xs text-gray-500 mt-0.5">Manage your sections and grades</p>
+                        </div>
                     </div>
-                    
-                    
                 </div>
             }
         >
             <Head title="Teacher Dashboard" />
 
             <div className="p-4 sm:p-6 lg:p-8 space-y-6">
-            
-
                 {/* Search and Filters */}
                 {/* Navigation Cards */}
-                <div className="grid md:grid-cols-2 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
                     {/* College Sections Card */}
                     <Card className="group hover:shadow-xl transition-all duration-300 border-2 hover:border-blue-300 relative overflow-hidden">
                         <div className="absolute top-0 right-0 w-20 h-20 bg-gradient-to-br from-blue-200/30 to-indigo-300/30 rounded-bl-full transform translate-x-6 -translate-y-6 group-hover:scale-110 transition-transform duration-300"></div>
@@ -68,7 +59,7 @@ export default function TeacherDashboard({
                                 <div className="p-4 bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl shadow-lg group-hover:shadow-xl transition-shadow">
                                     <School className="w-8 h-8 text-white" />
                                 </div>
-                                <div>
+                                <div className="flex-1">
                                     <CardTitle className="text-xl font-bold text-gray-900 group-hover:text-blue-700 transition-colors">
                                         College Sections
                                     </CardTitle>
@@ -76,6 +67,9 @@ export default function TeacherDashboard({
                                         Manage your college section assignments
                                     </CardDescription>
                                 </div>
+                                <Badge variant="secondary" className="bg-blue-100 text-blue-800 border-blue-200">
+                                    {currentAcademicYear} - {currentSemester}
+                                </Badge>
                             </div>
                         </CardHeader>
                         
@@ -118,7 +112,7 @@ export default function TeacherDashboard({
                                 <div className="p-4 bg-gradient-to-br from-purple-500 to-purple-600 rounded-xl shadow-lg group-hover:shadow-xl transition-shadow">
                                     <GraduationCap className="w-8 h-8 text-white" />
                                 </div>
-                                <div>
+                                <div className="flex-1">
                                     <CardTitle className="text-xl font-bold text-gray-900 group-hover:text-purple-700 transition-colors">
                                         SHS Sections
                                     </CardTitle>
@@ -126,6 +120,9 @@ export default function TeacherDashboard({
                                         Manage your senior high section assignments
                                     </CardDescription>
                                 </div>
+                                <Badge variant="secondary" className="bg-purple-100 text-purple-800 border-purple-200">
+                                    {currentAcademicYear} - {currentSemester}
+                                </Badge>
                             </div>
                         </CardHeader>
                         
@@ -168,7 +165,7 @@ export default function TeacherDashboard({
                                 <div className="p-4 bg-gradient-to-br from-green-500 to-green-600 rounded-xl shadow-lg group-hover:shadow-xl transition-shadow">
                                     <GraduationCap className="w-8 h-8 text-white" />
                                 </div>
-                                <div>
+                                <div className="flex-1">
                                     <CardTitle className="text-xl font-bold text-gray-900 group-hover:text-green-700 transition-colors">
                                         Archived Sections
                                     </CardTitle>
@@ -176,6 +173,9 @@ export default function TeacherDashboard({
                                         View past semester grades and student performance
                                     </CardDescription>
                                 </div>
+                                <Badge variant="secondary" className="bg-green-100 text-green-800 border-green-200">
+                                    {currentAcademicYear} - {currentSemester}
+                                </Badge>
                             </div>
                         </CardHeader>
                         

@@ -4,16 +4,35 @@ import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { toast } from 'sonner';
 import { Check, X, Users, UserPlus, GraduationCap, ArrowLeft, Mail, Phone, MapPin, Calendar, BookOpen, User, Trash2, Settings, Clock, UserCheck } from 'lucide-react';
 
-export default function SubjectEnrollment({ section, student, availableSubjects, currentEnrollments }) {
+export default function SubjectEnrollment({ section, student, availableSubjects, currentEnrollments, creditedSubjects = [], enrolledInOtherSections = [] }) {
     const { flash } = usePage().props;
     const [selectedSubjects, setSelectedSubjects] = useState([]);
     const [isEnrolling, setIsEnrolling] = useState(false);
     const [isRemoveModalOpen, setIsRemoveModalOpen] = useState(false);
     const [subjectToRemove, setSubjectToRemove] = useState(null);
 
-    console.log('SubjectEnrollment props:', { section, student, availableSubjects, currentEnrollments });
+    // pagination for credited subjects
+    const [creditedPage, setCreditedPage] = useState(1);
+    const creditedPerPage = 5; // adjust as needed
+
+    // reset page when list changes to avoid out-of-range issues
+    React.useEffect(() => {
+        setCreditedPage(1);
+    }, [creditedSubjects]);
+
+    // Determine view-only mode: controller sets `student.can_manage_subjects` for irregular students
+    const isViewOnly = !student?.can_manage_subjects;
+
+    // If an irregular student is in the same year level as the section,
+    // treat them like a regular student for removals (auto-enrolled subjects).
+    const disableRemovalsForIrregular = student?.student_type === 'irregular'
+        && student?.current_year_level != null
+        && student?.current_year_level === section?.year_level;
+
+    console.log('SubjectEnrollment props:', { section, student, availableSubjects, currentEnrollments }); 
 
     // Safe function to parse schedule days (handles both JSON strings and plain strings)
     const parseScheduleDays = (scheduleDays) => {
@@ -72,9 +91,26 @@ export default function SubjectEnrollment({ section, student, availableSubjects,
                 onSuccess: (page) => {
                     setSelectedSubjects([]);
                     setIsEnrolling(false);
+
+                    // show immediate success toast (flash will still appear after redirect)
+                    toast.success('Subjects enrolled successfully');
                 },
                 onError: (errors) => {
                     console.error('Enrollment errors:', errors);
+
+                    // pick a sensible error message and show a Sonner toast immediately
+                    let message = 'Failed to enroll subjects. Please check the form.';
+
+                    if (errors && typeof errors === 'object') {
+                        if (errors.error) {
+                            message = Array.isArray(errors.error) ? errors.error[0] : errors.error;
+                        } else {
+                            const first = Object.values(errors)[0];
+                            message = Array.isArray(first) ? first[0] : String(first);
+                        }
+                    }
+
+                    toast.error(message || 'Failed to enroll subjects');
                     setIsEnrolling(false);
                 }
             });
@@ -115,12 +151,26 @@ export default function SubjectEnrollment({ section, student, availableSubjects,
             });
 
             if (response.ok) {
-                alert('Student removed from subject successfully!');
-                window.location.reload();
+                toast.success('Student removed from subject successfully');
+
+                // give the toast a short moment to appear, then reload so props/flash stay correct
+                setTimeout(() => window.location.reload(), 600);
             } else {
-                const responseText = await response.text();
-                console.log('Error response:', responseText);
-                alert(`Failed to remove student from subject. Status: ${response.status}`);
+                let errMsg = `Failed to remove student (status: ${response.status})`;
+
+                try {
+                    const json = await response.json();
+                    if (json && (json.error || json.message)) {
+                        errMsg = json.error || json.message;
+                    }
+                } catch (e) {
+                    // fallback to text
+                    const responseText = await response.text();
+                    console.log('Non-JSON error response:', responseText);
+                }
+
+                console.log('Error response:', errMsg);
+                toast.error(errMsg);
             }
         } catch (error) {
             console.error('Remove from subject error:', error);
@@ -132,12 +182,19 @@ export default function SubjectEnrollment({ section, student, availableSubjects,
     };
 
     const formatSectionName = (section) => {
-        if (section.program?.program_code) {
-            const identifier = section.semester === 'first' ? 'A' : 'B';
+        if (section.program?.program_code && section.year_level) {
+            const identifier = section.section_name;
             return `${section.program.program_code}-${section.year_level}${identifier}`;
         }
         return section.section_name || `Section ${section.id}`;
     };
+
+    // pagination calculations
+    const totalCredited = creditedSubjects.length;
+    const totalCreditedPages = Math.ceil(totalCredited / creditedPerPage);
+    const creditedStart = (creditedPage - 1) * creditedPerPage;
+    const creditedEnd = Math.min(creditedStart + creditedPerPage, totalCredited);
+    const paginatedCredited = creditedSubjects.slice(creditedStart, creditedEnd);
 
     const getBackUrl = () => {
         return route('admin.sections.students', section.id);
@@ -147,23 +204,26 @@ export default function SubjectEnrollment({ section, student, availableSubjects,
         <AuthenticatedLayout
             header={
                 <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-4">
-                        <Link
-                            href={getBackUrl()}
-                            className="p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-full transition-colors"
+                    <div className="flex items-center gap-3">
+                        <button
+                            onClick={() => router.visit(getBackUrl())}
+                            className="hidden sm:flex items-center gap-2 px-3 py-1.5 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-md transition-colors"
                         >
-                            <ArrowLeft className="h-5 w-5" />
-                        </Link>
-                        <div>
-                            <h2 className="font-semibold text-xl text-gray-800 leading-tight">
-                                Subject Enrollment: {student.user.name}
-                            </h2>
-                            <div className="flex items-center gap-3 text-sm text-gray-600 mt-1">
-                                <span>{student.student_number}</span>
-                                <span className="text-gray-400">•</span>
-                                <span>{formatSectionName(section)}</span>
-                                <span className="text-gray-400">•</span>
-                                <span>AY {section.academic_year} - {section.semester} Semester</span>
+                            <ArrowLeft className="w-4 h-4" />
+                            Back to Student Section
+                        </button>
+                        <div className="hidden sm:block h-6 w-px bg-gray-300"></div>
+                        <div className="flex items-center px-2 py-1">
+                            <div className="flex items-center gap-2">
+                                <div className="bg-green-100 p-1.5 rounded-md">
+                                    <BookOpen className="w-4 h-4 text-green-600" />
+                                </div>
+                                <div>
+                                    <h2 className="text-lg font-semibold text-gray-900">Subject Enrollment</h2>
+                                    <p className="text-xs text-gray-500 mt-0.5">
+                                        {student.user.name} • {student.student_number} • {formatSectionName(section)}
+                                    </p>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -241,16 +301,24 @@ export default function SubjectEnrollment({ section, student, availableSubjects,
                                                     </div>
                                                 </div>
                                                 <div className="flex items-center gap-2 ml-3">
-                                                    <button
-                                                        onClick={(e) => {
-                                                            e.stopPropagation();
-                                                            handleRemoveFromSubject(enrollment);
-                                                        }}
-                                                        className="opacity-0 group-hover:opacity-100 transition-opacity p-1.5 text-red-600 hover:text-red-800 hover:bg-red-50 rounded"
-                                                        title="Remove from subject"
-                                                    >
-                                                        <Trash2 className="h-3.5 w-3.5" />
-                                                    </button>
+                                                        {!isViewOnly && !disableRemovalsForIrregular && (
+                                                        <button
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                handleRemoveFromSubject(enrollment);
+                                                            }}
+                                                            className="opacity-0 group-hover:opacity-100 transition-opacity p-1.5 text-red-600 hover:text-red-800 hover:bg-red-50 rounded"
+                                                            title="Remove from subject"
+                                                        >
+                                                            <Trash2 className="h-3.5 w-3.5" />
+                                                        </button>
+                                                    )}
+                                                    {isViewOnly && (
+                                                        <span className="text-xs text-gray-400">Read-only</span>
+                                                    )}
+                                                    {!isViewOnly && disableRemovalsForIrregular && (
+                                                        <span className="text-xs text-gray-400">Removal disabled</span>
+                                                    )}
                                                 </div>
                                             </div>
                                         ))
@@ -287,7 +355,7 @@ export default function SubjectEnrollment({ section, student, availableSubjects,
                                                 </>
                                             )}
                                         </button>
-                                    )}
+                                    )} 
                                 </div>
                             </div>
                             
@@ -319,7 +387,7 @@ export default function SubjectEnrollment({ section, student, availableSubjects,
                                                             <Check className="h-3 w-3 text-white" />
                                                         )}
                                                     </div>
-                                                </div>
+                                                </div> 
                                                 <div className="flex-1">
                                                     <p className="font-medium text-gray-900">
                                                         {sectionSubject.subject.subject_code}
@@ -353,6 +421,128 @@ export default function SubjectEnrollment({ section, student, availableSubjects,
                             </div>
                         </div>
                     </div>
+
+                    {/* Subjects Already Credited */}
+                    {creditedSubjects && totalCredited > 0 && (
+                        <div className="bg-white rounded-lg shadow-sm border overflow-hidden mt-6">
+                            <div className="bg-blue-50 px-4 py-3 border-b border-blue-100">
+                                <div className="flex items-center gap-2">
+                                    <Check className="h-4 w-4 text-blue-600" />
+                                    <h2 className="font-medium text-gray-900">
+                                        Subjects Already Credited ({totalCredited})
+                                    </h2>
+                                </div>
+                                <p className="text-sm text-gray-600 mt-1">
+                                    These subjects have already been credited to the student and are excluded from enrollment.
+                                </p>
+                            </div>
+                            <div className="p-4">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                    {paginatedCredited.map((sectionSubject) => (
+                                        <div 
+                                            key={sectionSubject.id} 
+                                            className="flex items-start p-3 bg-blue-50 border border-blue-200 rounded"
+                                        >
+                                            <div className="flex-shrink-0 mr-3 mt-0.5">
+                                                <Check className="h-4 w-4 text-blue-600" />
+                                            </div>
+                                            <div className="flex-1 min-w-0">
+                                                <p className="font-medium text-gray-900">
+                                                    {sectionSubject.subject.subject_code}
+                                                </p>
+                                                <p className="text-sm text-gray-600 mt-0.5">
+                                                    {sectionSubject.subject.subject_name}
+                                                </p>
+                                                {sectionSubject.teacher && (
+                                                    <p className="text-xs text-gray-500 mt-1">
+                                                        Teacher: {sectionSubject.teacher.user.name}
+                                                    </p>
+                                                )}
+                                                <Badge variant="outline" className="text-xs bg-blue-100 text-blue-700 border-blue-200 mt-2">
+                                                    Already Credited
+                                                </Badge>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+
+                            {/* pagination controls */}
+                            {totalCreditedPages > 1 && (
+                                <div className="px-4 py-3 bg-gray-50 border-t flex items-center justify-between">
+                                    <div className="text-sm text-gray-600">
+                                        Showing {creditedStart + 1} to {creditedEnd} of {totalCredited} subjects
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <button
+                                            onClick={() => setCreditedPage(prev => Math.max(prev - 1, 1))}
+                                            disabled={creditedPage === 1}
+                                            className="px-2 py-1 text-xs rounded border hover:bg-gray-100 disabled:opacity-50"
+                                        >
+                                            Previous
+                                        </button>
+                                        <span className="text-xs">
+                                            Page {creditedPage} of {totalCreditedPages}
+                                        </span>
+                                        <button
+                                            onClick={() => setCreditedPage(prev => Math.min(prev + 1, totalCreditedPages))}
+                                            disabled={creditedPage === totalCreditedPages}
+                                            className="px-2 py-1 text-xs rounded border hover:bg-gray-100 disabled:opacity-50"
+                                        >
+                                            Next
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    )}
+
+                    {/* Subjects Already Enrolled in Other Sections */}
+                    {enrolledInOtherSections && enrolledInOtherSections.length > 0 && (
+                        <div className="bg-white rounded-lg shadow-sm border overflow-hidden mt-6">
+                            <div className="bg-orange-50 px-4 py-3 border-b border-orange-100">
+                                <div className="flex items-center gap-2">
+                                    <UserCheck className="h-4 w-4 text-orange-600" />
+                                    <h2 className="font-medium text-gray-900">
+                                        Subjects Already Enrolled in Other Sections ({enrolledInOtherSections.length})
+                                    </h2>
+                                </div>
+                                <p className="text-sm text-gray-600 mt-1">
+                                    These subjects are already enrolled in other sections and are excluded from this section's enrollment.
+                                </p>
+                            </div>
+                            <div className="p-4">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                    {enrolledInOtherSections.map((enrollment) => (
+                                        <div 
+                                            key={enrollment.id} 
+                                            className="flex items-start p-3 bg-orange-50 border border-orange-200 rounded"
+                                        >
+                                            <div className="flex-shrink-0 mr-3 mt-0.5">
+                                                <UserCheck className="h-4 w-4 text-orange-600" />
+                                            </div>
+                                            <div className="flex-1 min-w-0">
+                                                <p className="font-medium text-gray-900">
+                                                    {enrollment.subject?.subject_code || 'Unknown Subject'}
+                                                </p>
+                                                <p className="text-sm text-gray-600 mt-0.5">
+                                                    {enrollment.subject?.subject_name || 'Unknown Subject Name'}
+                                                </p>
+                                                {enrollment.teacher && (
+                                                    <p className="text-xs text-gray-500 mt-1">
+                                                        Teacher: {enrollment.teacher.user?.name || 'Unknown Teacher'}
+                                                    </p>
+                                                )}
+                                                <Badge variant="outline" className="text-xs bg-orange-100 text-orange-700 border-orange-200 mt-2">
+                                                    Enrolled in {enrollment.section?.formatted_name || enrollment.section?.section_name || 'Unknown Section'}
+                                                </Badge>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
+                    )}
                 </div>
             </div>
 

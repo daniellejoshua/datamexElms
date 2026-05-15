@@ -6,20 +6,22 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { ArrowLeft, FileText, AlertCircle, CheckCircle, XCircle } from 'lucide-react';
+import { ArrowLeft, FileText, AlertCircle, CheckCircle, XCircle, Edit as EditIcon } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { useEffect } from 'react';
 
-export default function Edit({ curriculum, programs }) {
+export default function EditCurriculum({ curriculum, programs, currentSemester, activeFirstYearEnrollments = 0 }) {
     const { data, setData, put, processing, errors } = useForm({
         program_id: curriculum.program_id,
         curriculum_code: curriculum.curriculum_code,
         curriculum_name: curriculum.curriculum_name,
-        status: curriculum.status || 'active',
         is_current: curriculum.is_current || false,
     });
+
+    const isAcademicYearOngoing = currentSemester === '1st' || currentSemester === '2nd';
+    const canSetAsCurrent = currentSemester !== '2nd' && activeFirstYearEnrollments === 0;
 
     const submit = (e) => {
         e.preventDefault();
@@ -29,16 +31,25 @@ export default function Edit({ curriculum, programs }) {
     return (
         <AuthenticatedLayout
             header={
-                <div className="flex items-center gap-4">
-                    <Link href={route('admin.curriculum.index')}>
-                        <Button variant="outline" size="sm">
-                            <ArrowLeft className="w-4 h-4 mr-2" />
-                            Back to Curriculum
+                <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                        <Button asChild variant="ghost" size="sm">
+                            <Link href={route('admin.curriculum.index')} className="flex items-center gap-2">
+                                <ArrowLeft className="w-4 h-4" />
+                                <span className="hidden sm:inline">Back to Curriculum</span>
+                            </Link>
                         </Button>
-                    </Link>
-                    <h2 className="font-semibold text-xl text-gray-800 leading-tight">
-                        Edit Curriculum
-                    </h2>
+                        <div className="hidden md:block h-6 w-px bg-gray-300"></div>
+                        <div className="flex items-center gap-2">
+                            <div className="bg-orange-100 p-1.5 rounded-md">
+                                <EditIcon className="w-4 h-4 text-orange-600" />
+                            </div>
+                            <div>
+                                <h2 className="text-lg font-semibold text-gray-900">Edit Curriculum</h2>
+                                <p className="text-xs text-gray-500 mt-0.5">Modify curriculum details</p>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             }
         >
@@ -76,22 +87,6 @@ export default function Edit({ curriculum, programs }) {
                                     </div>
                                 </div>
                                 <div className="space-y-4">
-                                    <div>
-                                        <Label className="text-sm font-medium text-gray-700">Status</Label>
-                                        <div className="flex items-center gap-2">
-                                            {curriculum.status === 'active' || curriculum.status === 1 || curriculum.status === true ? (
-                                                <Badge className="bg-green-500 text-white">
-                                                    <CheckCircle className="w-3 h-3 mr-1" />
-                                                    Active
-                                                </Badge>
-                                            ) : (
-                                                <Badge variant="destructive">
-                                                    <XCircle className="w-3 h-3 mr-1" />
-                                                    Inactive
-                                                </Badge>
-                                            )}
-                                        </div>
-                                    </div>
                                     <div>
                                         <Label className="text-sm font-medium text-gray-700">Current Status</Label>
                                         <div className="flex items-center gap-2">
@@ -170,36 +165,49 @@ export default function Edit({ curriculum, programs }) {
                                     )}
                                 </div>
 
-                                <div className="space-y-2">
-                                    <Label htmlFor="status">Status</Label>
-                                    <Select value={data.status} onValueChange={(value) => setData('status', value)}>
-                                        <SelectTrigger>
-                                            <SelectValue placeholder="Select status" />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            <SelectItem value="active">Active</SelectItem>
-                                            <SelectItem value="inactive">Inactive</SelectItem>
-                                        </SelectContent>
-                                    </Select>
-                                    {errors.status && (
-                                        <p className="text-sm text-red-600">{errors.status}</p>
-                                    )}
-                                </div>
+                                {curriculum.is_current ? (
+                                    <div className="flex items-center gap-3">
+                                        <Badge className="bg-gradient-to-r from-yellow-400 to-orange-500 text-white border-yellow-300">
+                                            Current Curriculum
+                                        </Badge>
+                                        <p className="text-sm text-gray-600">This curriculum is currently active for the program and cannot be unset from this edit form.</p>
+                                    </div>
+                                ) : (
+                                    <div className="flex items-center space-x-2">
+                                        <Checkbox
+                                            id="is_current"
+                                            checked={data.is_current}
+                                            onCheckedChange={(checked) => setData('is_current', checked)}
+                                            disabled={!canSetAsCurrent}
+                                        />
+                                        <Label htmlFor="is_current" className={`text-sm font-medium ${!canSetAsCurrent ? 'text-gray-400' : ''}`}>
+                                            Set as Current Curriculum for Program
+                                        </Label>
+                                    </div>
+                                )}
 
-                                <div className="flex items-center space-x-2">
-                                    <Checkbox
-                                        id="is_current"
-                                        checked={data.is_current}
-                                        onCheckedChange={(checked) => setData('is_current', checked)}
-                                    />
-                                    <Label htmlFor="is_current" className="text-sm font-medium">
-                                        Set as Current Curriculum for Program
-                                    </Label>
-                                </div>
+                                {activeFirstYearEnrollments > 0 && (
+                                    <Alert variant="destructive" className="mt-2">
+                                        <AlertCircle className="h-4 w-4" />
+                                        <AlertDescription>
+                                            <strong>Blocked:</strong> There are {activeFirstYearEnrollments} active enrollment(s) in first-year sections for this program and academic year. You cannot set a new curriculum as current while students are actively enrolled.
+                                        </AlertDescription>
+                                    </Alert>
+                                )}
+                                
+                                
+                                
                                 <p className="text-xs text-gray-500">
                                     When checked, all new students in this program will be assigned to this curriculum.
                                     Only one curriculum per program can be current at a time.
                                 </p>
+                                
+                                {errors.is_current && (
+                                    <Alert variant="destructive">
+                                        <AlertCircle className="h-4 w-4" />
+                                        <AlertDescription>{errors.is_current}</AlertDescription>
+                                    </Alert>
+                                )}
 
                                 <Alert>
                                     <AlertCircle className="h-4 w-4" />

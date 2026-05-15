@@ -2,7 +2,6 @@
 
 namespace App\Models;
 
-// use Illuminate\Contracts\Auth\MustVerifyEmail;
 use App\Traits\Auditable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
@@ -58,7 +57,7 @@ class User extends Authenticatable
      */
     public function getFormattedEmployeeNumberAttribute(): string
     {
-        return 'EMP-' . str_pad($this->id, 3, '0', STR_PAD_LEFT);
+        return 'EMP-'.str_pad($this->id, 3, '0', STR_PAD_LEFT);
     }
 
     /**
@@ -80,6 +79,7 @@ class User extends Authenticatable
     {
         return [
             'email_verified_at' => 'datetime',
+            'is_active' => 'boolean',
             'password' => 'hashed',
         ];
     }

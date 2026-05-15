@@ -1,12 +1,23 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Head, useForm, router, Link } from '@inertiajs/react';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
-import { ArrowLeft } from 'lucide-react';
+import TeacherScheduleModal from '@/Components/TeacherScheduleModal';
+import Modal from '@/Components/Modal';
+import { Button } from '@/components/ui/button';
+import { ArrowLeft,BookOpen } from 'lucide-react';
+import { toast } from 'sonner';
 
 const Subjects = ({ section, subjects, teachers }) => {
-    const [showAssignForm, setShowAssignForm] = useState(false);
     const [editingSubject, setEditingSubject] = useState(null);
-    const [openDropdown, setOpenDropdown] = useState(null);
+    const [showScheduleModal, setShowScheduleModal] = useState(false);
+    const [teacherSchedule, setTeacherSchedule] = useState([]);
+    const [proposedSchedule, setProposedSchedule] = useState(null);
+    const [selectedTeacherName, setSelectedTeacherName] = useState('');
+    const [checkingSchedule, setCheckingSchedule] = useState(false);
+    const [fieldErrors, setFieldErrors] = useState({});
+    const [showTimeErrorModal, setShowTimeErrorModal] = useState(false);
+    const [showUnitsErrorModal, setShowUnitsErrorModal] = useState(false);
+    const [unitsErrorMessage, setUnitsErrorMessage] = useState('');
     
     // Check if section is read-only (past academic year or past semester in current year)
     const isReadOnly = (() => {
@@ -17,21 +28,12 @@ const Subjects = ({ section, subjects, teachers }) => {
         if (sectionYear > currentYear) return false;
         
         // Same year, check semester
-        const semesterOrder = { '1st': 1, '2nd': 2, 'summer': 3 };
+        const semesterOrder = { '1st': 1, '2nd': 2,  };
         const sectionSemesterOrder = semesterOrder[section.semester] || 0;
         const currentSemesterOrder = semesterOrder[section.current_semester] || 0;
         
         return sectionSemesterOrder < currentSemesterOrder;
     })();
-    
-    const { data, setData, post, processing, errors, reset } = useForm({
-        subject_id: '',
-        teacher_id: '',
-        room: '',
-        schedule_days: [],
-        start_time: '',
-        end_time: '',
-    });
 
     const { data: editData, setData: setEditData, patch, processing: editProcessing, errors: editErrors, reset: resetEdit } = useForm({
         teacher_id: '',
@@ -41,33 +43,111 @@ const Subjects = ({ section, subjects, teachers }) => {
         end_time: '',
     });
 
-    const handleAssignSubject = (e) => {
-        e.preventDefault();
-        post(route('admin.sections.attach-subject', section.id), {
-            onSuccess: () => {
-                reset();
-                setShowAssignForm(false);
-            }
-        });
+    const fetchTeacherSchedule = async (teacherId, scheduleData) => {
+        if (!teacherId || !scheduleData.schedule_days?.length || !scheduleData.start_time || !scheduleData.end_time) {
+            return;
+        }
+
+        setCheckingSchedule(true);
+        try {
+            const params = new URLSearchParams();
+            params.append('teacher_id', teacherId);
+            params.append('schedule_days', JSON.stringify(scheduleData.schedule_days));
+            params.append('start_time', scheduleData.start_time);
+            params.append('end_time', scheduleData.end_time);
+
+            const response = await fetch(
+                route('admin.college.sections.teacher-schedule', section.id) + '?' + params.toString()
+            );
+            const responseData = await response.json();
+            
+            setTeacherSchedule(responseData.schedule);
+            setProposedSchedule(responseData.proposed);
+            const teacher = teachers.find(t => t.id === parseInt(teacherId));
+            const teacherName = teacher ? 
+                `${teacher.user?.first_name || teacher.first_name || 'Unknown'} ${teacher.user?.last_name || teacher.last_name || 'Teacher'}`.trim() : 
+                'Unknown Teacher';
+            setSelectedTeacherName(teacherName);
+            setShowScheduleModal(true);
+        } catch (error) {
+            console.error('Error fetching teacher schedule:', error);
+        } finally {
+            setCheckingSchedule(false);
+        }
     };
 
     const handleEditSubject = (sectionSubject) => {
         setEditingSubject(sectionSubject);
+        
+        // Extract time portion in HH:mm format for time input
+        const extractTime = (timeValue) => {
+            if (!timeValue) return '';
+            
+            const timeString = String(timeValue);
+            
+            // Handle datetime format: "2024-01-15 14:00:00"
+            if (timeString.includes(' ')) {
+                const timePart = timeString.split(' ')[1];
+                return timePart ? timePart.substring(0, 5) : ''; // Get HH:mm
+            }
+            
+            // Handle time format: "14:00:00" or "14:00"
+            if (timeString.includes(':')) {
+                return timeString.substring(0, 5); // Get HH:mm
+            }
+            
+            return '';
+        };
+        
         setEditData({
             teacher_id: sectionSubject.teacher_id || '',
             room: sectionSubject.room || '',
             schedule_days: sectionSubject.schedule_days || [],
-            start_time: sectionSubject.start_time || '',
-            end_time: sectionSubject.end_time || '',
+            start_time: extractTime(sectionSubject.start_time),
+            end_time: extractTime(sectionSubject.end_time),
         });
+        
+        // Clear any field errors when starting to edit
+        setFieldErrors({});
     };
 
     const handleUpdateSubject = (e) => {
         e.preventDefault();
-        patch(route('admin.sections.update-subject', [section.id, editingSubject.subject.id]), {
+        
+        // Validate time fields - both must be filled or both must be empty
+        if ((editData.start_time && !editData.end_time) || (!editData.start_time && editData.end_time)) {
+            setShowTimeErrorModal(true);
+            setFieldErrors({
+                start_time: !editData.start_time && editData.end_time,
+                end_time: editData.start_time && !editData.end_time
+            });
+            return;
+        }
+        
+        // Clear any previous field errors
+        setFieldErrors({});
+        
+        patch(route('admin.college.sections.update-subject', [section.id, editingSubject.subject.id]), {
             onSuccess: () => {
                 resetEdit();
                 setEditingSubject(null);
+                setFieldErrors({});
+            },
+            onError: (errors) => {
+                if (errors.teacher_id && errors.teacher_id.includes('conflict')) {
+                    // Clear the error and show modal instead
+                    delete errors.teacher_id;
+                    fetchTeacherSchedule(editData.teacher_id, {
+                        schedule_days: editData.schedule_days,
+                        start_time: editData.start_time,
+                        end_time: editData.end_time
+                    });
+                } else if (errors.teacher_id && errors.teacher_id.includes('requires') && errors.teacher_id.includes('hours per week')) {
+                    // Handle units validation error with modal
+                    setUnitsErrorMessage(errors.teacher_id);
+                    setShowUnitsErrorModal(true);
+                    delete errors.teacher_id;
+                }
             }
         });
     };
@@ -75,6 +155,7 @@ const Subjects = ({ section, subjects, teachers }) => {
     const handleCancelEdit = () => {
         setEditingSubject(null);
         resetEdit();
+        setFieldErrors({});
     };
 
     const handleDetachSubject = (subjectId) => {
@@ -82,11 +163,6 @@ const Subjects = ({ section, subjects, teachers }) => {
             router.delete(route('admin.sections.detach-subject', [section.id, subjectId]));
         }
     };
-
-    const assignedSubjectIds = section.section_subjects?.map(ss => ss.subject.id) || [];
-    const availableSubjects = subjects.filter(subject => 
-        !assignedSubjectIds.includes(subject.id)
-    );
 
     const dayOptions = [
         { value: 'monday', label: 'Monday', abbr: 'M' },
@@ -139,37 +215,63 @@ const Subjects = ({ section, subjects, teachers }) => {
     const formatTime = (time) => {
         if (!time) return 'Not set';
         
-        const [hours, minutes] = time.split(':');
-        const hour24 = parseInt(hours);
-        const hour12 = hour24 === 0 ? 12 : hour24 > 12 ? hour24 - 12 : hour24;
-        const ampm = hour24 >= 12 ? 'PM' : 'AM';
+        // Convert to string to handle different input types
+        const timeString = String(time);
         
-        return `${hour12}:${minutes} ${ampm}`;
+        // Handle different time formats: "14:00", "14:00:00", "2024-01-15 14:00:00"
+        let timeStr = timeString;
+        if (timeString.includes(' ')) {
+            timeStr = timeString.split(' ')[1]; // Extract time part from datetime
+        }
+        
+        if (timeStr && timeStr.includes(':')) {
+            const parts = timeStr.split(':');
+            const hours = parseInt(parts[0], 10);
+            const minutes = parts[1] ? parts[1].substring(0, 2) : '00';
+            
+            if (isNaN(hours)) return 'Not set';
+            
+            const hour12 = hours === 0 ? 12 : hours > 12 ? hours - 12 : hours;
+            const ampm = hours >= 12 ? 'PM' : 'AM';
+            
+            return `${hour12}:${minutes} ${ampm}`;
+        }
+        
+        return 'Not set';
     };
 
-    const toggleDropdown = (id) => {
-        setOpenDropdown(openDropdown === id ? null : id);
-    };
+
 
     return (
         <AuthenticatedLayout
             header={
                 <div className="flex items-center gap-2 sm:gap-3 min-h-[44px]">
-                    {/* Back Navigation - Icon only */}
-                    <button className="flex items-center justify-center w-8 h-8 sm:w-10 sm:h-10 rounded-md text-gray-600 hover:text-gray-900 hover:bg-gray-100 transition-colors flex-shrink-0">
-                        <Link href={route('admin.sections.index')} className="flex items-center justify-center w-full h-full">
-                            <ArrowLeft className="w-4 h-4" />
-                        </Link>
-                    </button>
+                    {/* Back Navigation */}
+                    <Button 
+                        variant="ghost" 
+                        size="sm" 
+                        className="flex-shrink-0"
+                        onClick={() => router.visit('/admin/college/sections')}
+                    >
+                        <ArrowLeft className="w-4 h-4" />
+                        <span className="hidden sm:inline ml-2">Back to College Sections</span>
+                    </Button>
 
                     {/* Title Section */}
-                    <div className="min-w-0 flex-1">
-                        <h2 className="text-lg sm:text-xl lg:text-2xl font-bold text-gray-900 truncate">
-                            {section.program?.program_code}-{section.year_level}{section.section_name}
-                        </h2>
-                        <p className="text-xs sm:text-sm text-red-600 font-medium mt-0.5 hidden sm:block">
-                            {section.academic_year} • {section.semester} Semester
-                        </p>
+                    <div className="flex items-center px-2 py-1">
+                        <div className="flex items-center gap-2">
+                            <div className="bg-green-100 p-1.5 rounded-md">
+                                <BookOpen className="w-4 h-4 text-green-600" />
+                            </div>
+                            <div>
+                                <h2 className="text-lg font-semibold text-gray-900 truncate">
+                                    {section.program?.program_code}-{section.year_level}{section.section_name}
+                                </h2>
+                                <p className="text-xs text-gray-500 mt-0.5">
+                                    {section.academic_year} • {section.semester} Semester
+                                </p>
+                            </div>
+                        </div>
                     </div>
                 </div>
             }
@@ -179,7 +281,7 @@ const Subjects = ({ section, subjects, teachers }) => {
             <div className="py-6 sm:py-12">
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-4 sm:space-y-6">
 
-                    {/* Header Actions */}
+                    {/* Header Info */}
                     <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
                         <div className="text-sm text-gray-600 dark:text-gray-400">
                             {section.section_subjects?.length || 0} subject{section.section_subjects?.length !== 1 ? 's' : ''} assigned
@@ -189,188 +291,7 @@ const Subjects = ({ section, subjects, teachers }) => {
                                 Read-only: Past academic year ({section.academic_year})
                             </div>
                         )}
-                        <button
-                            onClick={() => setShowAssignForm(!showAssignForm)}
-                            disabled={isReadOnly}
-                            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors duration-200 w-full sm:w-auto ${
-                                isReadOnly 
-                                    ? 'bg-gray-400 cursor-not-allowed text-gray-600' 
-                                    : 'bg-red-600 hover:bg-red-700 text-white'
-                            }`}
-                        >
-                            {showAssignForm ? 'Cancel Assignment' : '+ Assign Subject'}
-                        </button>
                     </div>
-                    
-                    {/* Assignment Form */}
-                    {showAssignForm && (
-                        <div className="bg-white dark:bg-gray-800 overflow-hidden shadow-sm sm:rounded-lg">
-                            <div className="p-6">
-                                <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100 mb-4">
-                                    Assign Subject to Section
-                                </h3>
-                                
-                                <form onSubmit={handleAssignSubject} className="space-y-6">
-                                    {/* Basic Information */}
-                                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                                        {/* Subject Selection */}
-                                        <div className="sm:col-span-2 lg:col-span-1">
-                                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                                                Subject *
-                                            </label>
-                                            <select
-                                                value={data.subject_id}
-                                                onChange={(e) => setData('subject_id', e.target.value)}
-                                                className="w-full rounded-md border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-                                                required
-                                            >
-                                                <option value="">Select a subject</option>
-                                                {availableSubjects.map((subject) => (
-                                                    <option key={subject.id} value={subject.id}>
-                                                        {subject.subject_code} - {subject.subject_name} ({subject.units}h/week)
-                                                    </option>
-                                                ))}
-                                            </select>
-                                            {errors.subject_id && (
-                                                <p className="mt-1 text-sm text-red-600 dark:text-red-400">{errors.subject_id}</p>
-                                            )}
-                                        </div>
-
-                                        {/* Teacher Selection */}
-                                        <div className="sm:col-span-2 lg:col-span-1">
-                                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                                                Teacher
-                                            </label>
-                                            <select
-                                                value={data.teacher_id}
-                                                onChange={(e) => setData('teacher_id', e.target.value)}
-                                                className="w-full rounded-md border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-                                            >
-                                                <option value="">Select a teacher</option>
-                                                {teachers.map((teacher) => (
-                                                    <option key={teacher.id} value={teacher.id}>
-                                                        {teacher.user.name}
-                                                    </option>
-                                                ))}
-                                            </select>
-                                            {errors.teacher_id && (
-                                                <p className="mt-1 text-sm text-red-600 dark:text-red-400">{errors.teacher_id}</p>
-                                            )}
-                                        </div>
-
-                                        {/* Room */}
-                                        <div className="sm:col-span-2 lg:col-span-1">
-                                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                                                Room
-                                            </label>
-                                            <input
-                                                type="text"
-                                                value={data.room}
-                                                onChange={(e) => setData('room', e.target.value)}
-                                                className="w-full rounded-md border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-                                                placeholder="e.g., Room 101, Lab-A"
-                                            />
-                                            {errors.room && (
-                                                <p className="mt-1 text-sm text-red-600 dark:text-red-400">{errors.room}</p>
-                                            )}
-                                        </div>
-                                    </div>
-
-                                    {/* Schedule Information */}
-                                    <div className="border-t pt-4">
-                                        <h4 className="text-md font-medium text-gray-900 dark:text-gray-100 mb-4">
-                                            Schedule Information
-                                        </h4>
-                                        
-                                        {/* Days of Week */}
-                                        <div className="mb-4">
-                                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
-                                                Days of Week
-                                            </label>
-                                            <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-2 sm:gap-4">
-                                                {dayOptions.map((day) => (
-                                                    <div key={day.value} 
-                                                         onClick={() => {
-                                                             const isSelected = data.schedule_days.includes(day.value);
-                                                             if (isSelected) {
-                                                                 setData('schedule_days', data.schedule_days.filter(d => d !== day.value));
-                                                             } else {
-                                                                 setData('schedule_days', [...data.schedule_days, day.value]);
-                                                             }
-                                                         }}
-                                                         className={`flex flex-col items-center space-y-1 sm:space-y-2 cursor-pointer p-2 sm:p-4 rounded-lg sm:rounded-xl border-2 transition-all duration-200 ${
-                                                        data.schedule_days.includes(day.value)
-                                                            ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-900/20'
-                                                            : 'border-gray-200 dark:border-gray-600 hover:border-indigo-300 dark:hover:border-indigo-500 hover:bg-gray-50 dark:hover:bg-gray-700'
-                                                    }`}>
-                                                        <span className={`text-lg sm:text-2xl font-bold transition-colors ${
-                                                            data.schedule_days.includes(day.value)
-                                                                ? 'text-indigo-700 dark:text-indigo-300'
-                                                                : 'text-gray-900 dark:text-gray-100'
-                                                        }`}>{day.abbr}</span>
-                                                        <span className={`text-xs sm:text-sm transition-colors ${
-                                                            data.schedule_days.includes(day.value)
-                                                                ? 'text-indigo-600 dark:text-indigo-400'
-                                                                : 'text-gray-500 dark:text-gray-400'
-                                                        }`}>{day.label}</span>
-                                                    </div>
-                                                ))}                               </div>
-                                            {errors.schedule_days && (
-                                                <p className="mt-1 text-sm text-red-600 dark:text-red-400">{errors.schedule_days}</p>
-                                            )}
-                                        </div>
-
-                                        {/* Time Range */}
-                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                            <div>
-                                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                                                    Start Time
-                                                </label>
-                                                <input
-                                                    type="time"
-                                                    value={data.start_time}
-                                                    onChange={(e) => setData('start_time', e.target.value)}
-                                                    className="w-full rounded-md border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-                                                />
-                                                {errors.start_time && (
-                                                    <p className="mt-1 text-sm text-red-600 dark:text-red-400">{errors.start_time}</p>
-                                                )}
-                                            </div>
-                                            
-                                            <div>
-                                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                                                    End Time
-                                                </label>
-                                                <input
-                                                    type="time"
-                                                    value={data.end_time}
-                                                    onChange={(e) => setData('end_time', e.target.value)}
-                                                    className="w-full rounded-md border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-                                                />
-                                                {errors.end_time && (
-                                                    <p className="mt-1 text-sm text-red-600 dark:text-red-400">{errors.end_time}</p>
-                                                )}
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    <div className="flex justify-end">
-                                        <button
-                                            type="submit"
-                                            disabled={processing || isReadOnly}
-                                            className={`px-4 py-2 rounded-md text-sm font-medium transition-colors duration-200 ${
-                                                isReadOnly 
-                                                    ? 'bg-gray-400 cursor-not-allowed text-gray-600' 
-                                                    : 'bg-indigo-600 hover:bg-indigo-700 text-white disabled:opacity-50'
-                                            }`}
-                                        >
-                                            {processing ? 'Assigning...' : 'Assign Subject'}
-                                        </button>
-                                    </div>
-                                </form>
-                            </div>
-                        </div>
-                    )}
 
                     {/* Edit Subject Form */}
                     {editingSubject && (
@@ -476,9 +397,21 @@ const Subjects = ({ section, subjects, teachers }) => {
                                                 </label>
                                                 <input
                                                     type="time"
+                                                    min="08:00"
+                                                    max="21:00"
                                                     value={editData.start_time}
-                                                    onChange={(e) => setEditData('start_time', e.target.value)}
-                                                    className="w-full rounded-md border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                                                    onChange={(e) => {
+                                                        setEditData('start_time', e.target.value);
+                                                        // Clear field error when user starts typing
+                                                        if (fieldErrors.start_time) {
+                                                            setFieldErrors(prev => ({ ...prev, start_time: false }));
+                                                        }
+                                                    }}
+                                                    className={`w-full rounded-md shadow-sm focus:ring-indigo-500 ${
+                                                        fieldErrors.start_time
+                                                            ? 'border-red-500 focus:border-red-500 bg-red-50 dark:bg-red-900/20'
+                                                            : 'border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 focus:border-indigo-500'
+                                                    }`}
                                                 />
                                                 {editErrors.start_time && (
                                                     <p className="mt-1 text-sm text-red-600 dark:text-red-400">{editErrors.start_time}</p>
@@ -491,9 +424,21 @@ const Subjects = ({ section, subjects, teachers }) => {
                                                 </label>
                                                 <input
                                                     type="time"
+                                                    min="08:00"
+                                                    max="21:00"
                                                     value={editData.end_time}
-                                                    onChange={(e) => setEditData('end_time', e.target.value)}
-                                                    className="w-full rounded-md border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                                                    onChange={(e) => {
+                                                        setEditData('end_time', e.target.value);
+                                                        // Clear field error when user starts typing
+                                                        if (fieldErrors.end_time) {
+                                                            setFieldErrors(prev => ({ ...prev, end_time: false }));
+                                                        }
+                                                    }}
+                                                    className={`w-full rounded-md shadow-sm focus:ring-indigo-500 ${
+                                                        fieldErrors.end_time
+                                                            ? 'border-red-500 focus:border-red-500 bg-red-50 dark:bg-red-900/20'
+                                                            : 'border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 focus:border-indigo-500'
+                                                    }`}
                                                 />
                                                 {editErrors.end_time && (
                                                     <p className="mt-1 text-sm text-red-600 dark:text-red-400">{editErrors.end_time}</p>
@@ -635,55 +580,18 @@ const Subjects = ({ section, subjects, teachers }) => {
                                                             {sectionSubject.status}
                                                         </span>
                                                     </td>
-                                                    <td className="px-4 sm:px-6 py-4 whitespace-nowrap text-right text-sm font-medium relative">
+                                                    <td className="px-4 sm:px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                                                         <button
-                                                            onClick={() => toggleDropdown(sectionSubject.id)}
+                                                            onClick={() => handleEditSubject(sectionSubject)}
                                                             disabled={isReadOnly}
-                                                            className={`p-2 transition-colors ${
-                                                                isReadOnly 
-                                                                    ? 'text-gray-300 cursor-not-allowed' 
-                                                                    : 'text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300'
-                                                            }`}
+                                                            className={`p-2 transition-colors ${isReadOnly ? 'text-gray-300 cursor-not-allowed' : 'text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300'}`}
+                                                            title="Edit"
                                                         >
-                                                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 5v.01M12 12v.01M12 19v.01" />
+                                                            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                                                             </svg>
                                                         </button>
-                                                        
-                                                        {openDropdown === sectionSubject.id && (
-                                                            <div className="absolute right-0 top-0 mt-8 w-48 bg-white dark:bg-gray-800 rounded-md shadow-lg border border-gray-200 dark:border-gray-700 z-50">
-                                                                <div className="py-1 flex">
-                                                                    <button
-                                                                        onClick={() => {
-                                                                            handleEditSubject(sectionSubject);
-                                                                            setOpenDropdown(null);
-                                                                        }}
-                                                                        disabled={isReadOnly}
-                                                                        className={`flex-1 px-4 py-2 text-sm transition-colors border-r border-gray-200 dark:border-gray-600 ${
-                                                                            isReadOnly 
-                                                                                ? 'text-gray-400 cursor-not-allowed' 
-                                                                                : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
-                                                                        }`}
-                                                                    >
-                                                                        Edit
-                                                                    </button>
-                                                                    <button
-                                                                        onClick={() => {
-                                                                            handleDetachSubject(sectionSubject.subject.id);
-                                                                            setOpenDropdown(null);
-                                                                        }}
-                                                                        disabled={isReadOnly}
-                                                                        className={`flex-1 px-4 py-2 text-sm transition-colors ${
-                                                                            isReadOnly 
-                                                                                ? 'text-red-300 cursor-not-allowed' 
-                                                                                : 'text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20'
-                                                                        }`}
-                                                                    >
-                                                                        Remove
-                                                                    </button>
-                                                                </div>
-                                                            </div>
-                                                        )}
                                                     </td>
                                                 </tr>
                                             ))}
@@ -704,13 +612,76 @@ const Subjects = ({ section, subjects, teachers }) => {
                 </div>
             </div>
 
-            {/* Click outside handler for dropdown */}
-            {openDropdown && (
-                <div 
-                    className="fixed inset-0 z-0" 
-                    onClick={() => setOpenDropdown(null)}
-                ></div>
-            )}
+
+
+            {/* Teacher Schedule Modal */}
+            <TeacherScheduleModal
+                show={showScheduleModal}
+                onClose={() => setShowScheduleModal(false)}
+                schedule={teacherSchedule}
+                proposedSchedule={proposedSchedule}
+                teacherName={selectedTeacherName}
+            />
+
+            {/* Time Error Modal */}
+            <Modal show={showTimeErrorModal} onClose={() => setShowTimeErrorModal(false)} maxWidth="md">
+                <div className="p-8">
+                    <div className="flex items-start space-x-4">
+                        <div className="flex-shrink-0">
+                            <svg className="h-8 w-8 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                            </svg>
+                        </div>
+                        <div className="flex-1">
+                            <h3 className="text-xl font-semibold text-gray-900 dark:text-gray-100 mb-3">
+                                Incomplete Schedule Time
+                            </h3>
+                            <p className="text-base text-gray-700 dark:text-gray-300 leading-relaxed">
+                                Both start time and end time must be filled, or leave both empty.
+                            </p>
+                        </div>
+                    </div>
+                    <div className="mt-8 flex justify-end space-x-3">
+                        <button
+                            type="button"
+                            onClick={() => setShowTimeErrorModal(false)}
+                            className="px-6 py-3 bg-gray-600 hover:bg-gray-700 text-white rounded-lg text-sm font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2"
+                        >
+                            Close
+                        </button>
+                    </div>
+                </div>
+            </Modal>
+
+            {/* Units Error Modal */}
+            <Modal show={showUnitsErrorModal} onClose={() => setShowUnitsErrorModal(false)} maxWidth="md">
+                <div className="p-8">
+                    <div className="flex items-start space-x-4">
+                        <div className="flex-shrink-0">
+                            <svg className="h-8 w-8 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                            </svg>
+                        </div>
+                        <div className="flex-1">
+                            <h3 className="text-xl font-semibold text-gray-900 dark:text-gray-100 mb-3">
+                                Schedule Hours Mismatch
+                            </h3>
+                            <p className="text-base text-gray-700 dark:text-gray-300 leading-relaxed">
+                                {unitsErrorMessage.replace(/\s*\([^)]*\)\./, '.')}
+                            </p>
+                        </div>
+                    </div>
+                    <div className="mt-8 flex justify-end space-x-3">
+                        <button
+                            type="button"
+                            onClick={() => setShowUnitsErrorModal(false)}
+                            className="px-6 py-3 bg-gray-600 hover:bg-gray-700 text-white rounded-lg text-sm font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2"
+                        >
+                            Close
+                        </button>
+                    </div>
+                </div>
+            </Modal>
         </AuthenticatedLayout>
     );
 };

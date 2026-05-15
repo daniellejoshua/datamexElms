@@ -13,8 +13,23 @@ class UserSeeder extends Seeder
      */
     public function run(): void
     {
+        // Create Super Admin
+        $superAdmin = User::updateOrCreate(
+            ['email' => 'superadmin@datamex.edu'],
+            [
+                'name' => 'Super Admin',
+                'password' => Hash::make('password'),
+                'role' => 'super_admin',
+                'is_active' => true,
+            ]
+        );
+
+        // Ensure email is verified even if not mass-assignable
+        $superAdmin->email_verified_at = now();
+        $superAdmin->save();
+
         // Create Head Teacher
-        User::updateOrCreate(
+        $headUser = User::updateOrCreate(
             ['email' => 'headteacher@datamex.edu'],
             [
                 'name' => 'Dr. Maria Santos',
@@ -22,6 +37,20 @@ class UserSeeder extends Seeder
                 'role' => 'head_teacher',
                 'is_active' => true,
                 'email_verified_at' => now(),
+            ]
+        );
+
+        // Ensure there's a Teacher profile for the seeded head teacher so SuperAdmin listings show it
+        \App\Models\Teacher::updateOrCreate(
+            ['user_id' => $headUser->id],
+            [
+                'employee_number' => $headUser->formatted_employee_number,
+                'first_name' => 'Maria',
+                'last_name' => 'Santos',
+                'middle_name' => null,
+                'department' => 'Administration',
+                'hire_date' => now()->toDateString(),
+                'status' => 'active',
             ]
         );
 

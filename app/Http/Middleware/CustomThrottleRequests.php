@@ -14,7 +14,6 @@ class CustomThrottleRequests extends ThrottleRequests
     /**
      * Create a new request throttler.
      *
-     * @param  \Illuminate\Cache\RateLimiter  $limiter
      * @return void
      */
     public function __construct(RateLimiter $limiter)
@@ -26,7 +25,6 @@ class CustomThrottleRequests extends ThrottleRequests
      * Handle an incoming request.
      *
      * @param  \Illuminate\Http\Request  $request
-     * @param  \Closure  $next
      * @param  int|string  $maxAttempts
      * @param  float|int  $decayMinutes
      * @param  string  $prefix
@@ -59,8 +57,6 @@ class CustomThrottleRequests extends ThrottleRequests
      * Handle an incoming request.
      *
      * @param  \Illuminate\Http\Request  $request
-     * @param  \Closure  $next
-     * @param  array  $limits
      * @return \Symfony\Component\HttpFoundation\Response
      */
     protected function handleRequest($request, Closure $next, array $limits)

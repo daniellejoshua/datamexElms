@@ -13,12 +13,12 @@ import { Plus, Eye, Edit, Search, Filter, BookOpen, Users, Calendar, GraduationC
 import { useState, useEffect } from 'react'
 import { Toaster, toast } from 'sonner'
 
-export default function SubjectsIndex({ subjects, programs, auth, filters = {} }) {
+export default function SubjectsIndex({ subjects, programs, auth, filters = {}, stats }) {
     const page = usePage();
 
     const [selectedProgram, setSelectedProgram] = useState(filters.program_id || '');
     const [selectedEducationLevel, setSelectedEducationLevel] = useState(filters.education_level || '');
-    const [selectedStatus, setSelectedStatus] = useState(filters.status || '');
+    const [selectedSubjectType, setSelectedSubjectType] = useState(filters.subject_type || '');
     const [searchQuery, setSearchQuery] = useState(filters.search || '');
     const [viewModalOpen, setViewModalOpen] = useState(false);
     const [editModalOpen, setEditModalOpen] = useState(false);
@@ -41,6 +41,14 @@ export default function SubjectsIndex({ subjects, programs, auth, filters = {} }
         { value: 'college', label: 'College' },
         { value: 'senior_high', label: 'Senior High School' },
     ];
+ 
+    const subjectTypes = [
+        { value: 'major', label: 'Major' },
+        { value: 'minor', label: 'Minor' },
+        { value: 'core', label: 'Core' },
+        { value: 'applied', label: 'Applied' },
+        { value: 'specialized', label: 'Specialized' },
+    ];
 
     const EditSubjectForm = ({ subject, programs, onClose }) => {
     const { data, setData, put, processing, errors } = useForm({
@@ -62,6 +70,15 @@ export default function SubjectsIndex({ subjects, programs, auth, filters = {} }
             }
         }, [data.program_id, programs]);
 
+        const subjectClassifications = data.education_level === 'senior_high' ? [
+            { value: 'core', label: 'Core Subject', description: 'General education subjects required for all SHS students' },
+            { value: 'applied', label: 'Applied Subject', description: 'Practical subjects with real-world applications' },
+            { value: 'specialized', label: 'Specialized Subject', description: 'Track-specific subjects for specialization' },
+        ] : [
+            { value: 'minor', label: 'Minor Subject', description: 'General subjects not tied to a specific program' },
+            { value: 'major', label: 'Major Subject', description: 'Specialized subjects for a specific program' },
+        ];
+
         const handleSubmit = (e) => {
             e.preventDefault();
             put(route('admin.subjects.update', subject.id), {
@@ -73,12 +90,12 @@ export default function SubjectsIndex({ subjects, programs, auth, filters = {} }
         };
 
         return (
-            <form onSubmit={handleSubmit}>
+            <form onSubmit={handleSubmit} className="mt-4">
                 <div className="space-y-6">
                     {/* Subject Classification */}
                     <div>
                         <Label className="text-base font-medium">Subject Classification *</Label>
-                        <p className="text-sm text-gray-600 mb-3">Choose whether this is a minor or major subject</p>
+                        <p className="text-sm text-gray-600 mb-3">Choose the appropriate subject classification</p>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             {subjectClassifications.map((classification) => (
                                 <div
@@ -90,8 +107,8 @@ export default function SubjectsIndex({ subjects, programs, auth, filters = {} }
                                     }`}
                                     onClick={() => {
                                         setData('subject_type', classification.value);
-                                        // Reset program_id when switching to minor
-                                        if (classification.value === 'minor') {
+                                        // Reset program_id when switching to minor/core/applied
+                                        if (classification.value === 'minor' || classification.value === 'core' || classification.value === 'applied') {
                                             setData('program_id', '');
                                         }
                                     }}
@@ -119,8 +136,8 @@ export default function SubjectsIndex({ subjects, programs, auth, filters = {} }
                         )}
                     </div>
 
-                    {/* Program Selection - Only show for major subjects */}
-                    {data.subject_type === 'major' && (
+                    {/* Program Selection - Only show for major/specialized subjects */}
+                    {(data.subject_type === 'major' || data.subject_type === 'specialized') && (
                         <div>
                             <Label htmlFor="program_id">Program *</Label>
                             <Select 
@@ -199,11 +216,16 @@ export default function SubjectsIndex({ subjects, programs, auth, filters = {} }
                             <Input
                                 id="units"
                                 type="number"
-                                min="0"
-                                max="10"
-                                step="0.5"
+                                min="1"
+                                max="9"
+                                maxLength="1"
                                 value={data.units}
                                 onChange={(e) => setData('units', e.target.value)}
+                                onKeyDown={(e) => {
+                                    if (e.key === 'e' || e.key === '+' || e.key === '-') {
+                                        e.preventDefault();
+                                    }
+                                }}
                                 placeholder="e.g., 3"
                                 className="mt-1"
                             />
@@ -219,7 +241,7 @@ export default function SubjectsIndex({ subjects, programs, auth, filters = {} }
                             <Label htmlFor="education_level">Education Level *</Label>
                             <Select
                                 value={data.education_level}
-                                disabled={data.subject_type === 'major' && data.program_id}
+                                disabled={!!data.program_id}
                                 onValueChange={(value) => {
                                     setData('education_level', value);
                                 }}
@@ -274,7 +296,7 @@ export default function SubjectsIndex({ subjects, programs, auth, filters = {} }
                     )}
                 </div>
 
-                <div className="flex justify-end gap-4 mt-6">
+                <div className="flex justify-end gap-4 mt-6 mb-4">
                     <Button
                         type="button"
                         variant="outline"
@@ -312,8 +334,8 @@ export default function SubjectsIndex({ subjects, programs, auth, filters = {} }
             setSelectedProgram(value === 'all' ? '' : value);
         } else if (type === 'education_level') {
             setSelectedEducationLevel(value === 'all' ? '' : value);
-        } else if (type === 'status') {
-            setSelectedStatus(value === 'all' ? '' : value);
+        } else if (type === 'subject_type') {
+            setSelectedSubjectType(value === 'all' ? '' : value);
         } else if (type === 'search') {
             setSearchQuery(value);
         }
@@ -340,8 +362,22 @@ export default function SubjectsIndex({ subjects, programs, auth, filters = {} }
             case 'major': return 'bg-blue-100 text-blue-800';
             case 'minor': return 'bg-green-100 text-green-800';
             case 'general': return 'bg-purple-100 text-purple-800';
-            case 'elective': return 'bg-orange-100 text-orange-800';
+            case 'core': return 'bg-indigo-100 text-indigo-800';
+            case 'applied': return 'bg-teal-100 text-teal-800';
+            case 'specialized': return 'bg-pink-100 text-pink-800';
             default: return 'bg-gray-100 text-gray-800';
+        }
+    };
+
+    const getSubjectTypeLabel = (type) => {
+        switch (type) {
+            case 'major': return 'Major';
+            case 'minor': return 'Minor';
+            case 'general': return 'General';
+            case 'core': return 'Core';
+            case 'applied': return 'Applied';
+            case 'specialized': return 'Specialized';
+            default: return type;
         }
     };
 
@@ -364,6 +400,56 @@ export default function SubjectsIndex({ subjects, programs, auth, filters = {} }
             <Head title="Subjects" />
 
             <div className="space-y-6 m-2">
+                {/* Overview Cards */}
+                {stats && (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                        <Card>
+                            <CardContent className="pt-6">
+                                <div className="flex items-center">
+                                    <BookOpen className="w-8 h-8 text-blue-600" />
+                                    <div className="ml-4">
+                                        <p className="text-sm font-medium text-gray-600">Total Subjects</p>
+                                        <p className="text-2xl font-bold text-gray-900">{stats.total}</p>
+                                    </div>
+                                </div>
+                            </CardContent>
+                        </Card>
+                        <Card>
+                            <CardContent className="pt-6">
+                                <div className="flex items-center">
+                                    <Users className="w-8 h-8 text-green-600" />
+                                    <div className="ml-4">
+                                        <p className="text-sm font-medium text-gray-600">Active Subjects</p>
+                                        <p className="text-2xl font-bold text-gray-900">{stats.active}</p>
+                                    </div>
+                                </div>
+                            </CardContent>
+                        </Card>
+                        <Card>
+                            <CardContent className="pt-6">
+                                <div className="flex items-center">
+                                    <GraduationCap className="w-8 h-8 text-purple-600" />
+                                    <div className="ml-4">
+                                        <p className="text-sm font-medium text-gray-600">College Subjects</p>
+                                        <p className="text-2xl font-bold text-gray-900">{stats.college}</p>
+                                    </div>
+                                </div>
+                            </CardContent>
+                        </Card>
+                        <Card>
+                            <CardContent className="pt-6">
+                                <div className="flex items-center">
+                                    <Building2 className="w-8 h-8 text-orange-600" />
+                                    <div className="ml-4">
+                                        <p className="text-sm font-medium text-gray-600">SHS Subjects</p>
+                                        <p className="text-2xl font-bold text-gray-900">{stats.senior_high}</p>
+                                    </div>
+                                </div>
+                            </CardContent>
+                        </Card>
+                    </div>
+                )}
+
                 {/* Filters */}
                 <Card className="m-222">
                     <CardContent className="pt-3 pb-3">
@@ -401,7 +487,7 @@ export default function SubjectsIndex({ subjects, programs, auth, filters = {} }
 
                                 {/* Program Filter */}
                                 <div className="space-y-1">
-                                    <label className="text-xs font-medium text-gray-600">Program Major Subjects</label>
+                                    <label className="text-xs font-medium text-gray-600">Program Specialized Subjects</label>
                                     <Select
                                         value={selectedProgram}
                                         onValueChange={(value) => handleFilterChange('program_id', value)}
@@ -443,21 +529,21 @@ export default function SubjectsIndex({ subjects, programs, auth, filters = {} }
                                     </Select>
                                 </div>
 
-                                {/* Status Filter */}
+                                {/* Subject Type Filter */}
                                 <div className="space-y-1">
-                                    <label className="text-xs font-medium text-gray-600">Status</label>
+                                    <label className="text-xs font-medium text-gray-600">Subject Type</label>
                                     <Select
-                                        value={selectedStatus}
-                                        onValueChange={(value) => handleFilterChange('status', value)}
+                                        value={selectedSubjectType}
+                                        onValueChange={(value) => handleFilterChange('subject_type', value)}
                                     >
                                         <SelectTrigger className="h-8 text-sm">
-                                            <SelectValue placeholder="All Status" />
+                                            <SelectValue placeholder="All Types" />
                                         </SelectTrigger>
                                         <SelectContent>
-                                            <SelectItem value="all">All Status</SelectItem>
-                                            {statusOptions.map(status => (
-                                                <SelectItem key={status.value} value={status.value}>
-                                                    {status.label}
+                                            <SelectItem value="all">All Types</SelectItem>
+                                            {subjectTypes.map(type => (
+                                                <SelectItem key={type.value} value={type.value}>
+                                                    {type.label}
                                                 </SelectItem>
                                             ))}
                                         </SelectContent>
@@ -538,21 +624,21 @@ export default function SubjectsIndex({ subjects, programs, auth, filters = {} }
                                         </Select>
                                     </div>
 
-                                    {/* Status Filter */}
+                                    {/* Subject Type Filter */}
                                     <div className="space-y-1">
-                                        <label className="text-xs font-medium text-gray-600">Status</label>
+                                        <label className="text-xs font-medium text-gray-600">Subject Type</label>
                                         <Select
-                                            value={selectedStatus}
-                                            onValueChange={(value) => handleFilterChange('status', value)}
+                                            value={selectedSubjectType}
+                                            onValueChange={(value) => handleFilterChange('subject_type', value)}
                                         >
                                             <SelectTrigger className="h-8 text-sm">
-                                                <SelectValue placeholder="All Status" />
+                                                <SelectValue placeholder="All Types" />
                                             </SelectTrigger>
                                             <SelectContent>
-                                                <SelectItem value="all">All Status</SelectItem>
-                                                {statusOptions.map(status => (
-                                                    <SelectItem key={status.value} value={status.value}>
-                                                        {status.label}
+                                                <SelectItem value="all">All Types</SelectItem>
+                                                {subjectTypes.map(type => (
+                                                    <SelectItem key={type.value} value={type.value}>
+                                                        {type.label}
                                                     </SelectItem>
                                                 ))}
                                             </SelectContent>
@@ -609,7 +695,7 @@ export default function SubjectsIndex({ subjects, programs, auth, filters = {} }
                                     <div className="flex items-center justify-between text-sm">
                                         <span className="text-gray-600">Type:</span>
                                         <Badge className={`text-xs ${getSubjectTypeColor(subject.subject_type)}`}>
-                                            {subject.subject_type}
+                                            {getSubjectTypeLabel(subject.subject_type)}
                                         </Badge>
                                     </div>
 
@@ -754,7 +840,7 @@ export default function SubjectsIndex({ subjects, programs, auth, filters = {} }
                                         <div className="flex items-center gap-3">
                                             <span className="text-sm font-medium text-gray-600 min-w-[120px]">Type:</span>
                                             <Badge className={`text-xs ${getSubjectTypeColor(selectedSubject.subject_type)}`}>
-                                                {selectedSubject.subject_type.charAt(0).toUpperCase() + selectedSubject.subject_type.slice(1)}
+                                                {getSubjectTypeLabel(selectedSubject.subject_type)}
                                             </Badge>
                                         </div>
                                         <div className="flex items-center gap-3">

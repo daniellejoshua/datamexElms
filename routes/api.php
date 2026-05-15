@@ -16,13 +16,19 @@ Route::middleware(['web', 'auth:web', 'throttle.api'])->group(function () {
         return $request->user();
     });
 
+    // Simple ping route for CSRF token refresh
+    Route::get('/ping', function () {
+        return response()->json(['status' => 'ok']);
+    });
+
     // Student check route for registrars (searches)
     Route::get('/students/check/{student_number}', function ($studentNumber) {
-        $student = \App\Models\Student::with(['user', 'program'])
+        $student = \App\Models\Student::with(['user', 'program', 'curriculum'])
             ->where('student_number', $studentNumber)
             ->first();
 
         if ($student) {
+
             // Check for unpaid balances from previous semesters
             $unpaidBalances = \App\Models\StudentSemesterPayment::where('student_id', $student->id)
                 ->where('balance', '>', 0)
@@ -48,13 +54,31 @@ Route::middleware(['web', 'auth:web', 'throttle.api'])->group(function () {
                     'first_name' => $student->first_name,
                     'last_name' => $student->last_name,
                     'middle_name' => $student->middle_name,
-                    'name' => $student->user->name,
-                    'email' => $student->user->email,
+                    'name' => $student->user?->name,
+                    'email' => $student->user?->email,
                     'student_number' => $student->student_number,
-                    'year_level' => $student->year_level,
+                    // Normalize year level for the frontend: prefer numeric/current_year_level when available
+                    'year_level' => (function () use ($student) {
+                        // If the student has a numeric current_year_level, map it to a label
+                        if (! empty($student->current_year_level)) {
+                            if ($student->education_level === 'senior_high') {
+                                return $student->current_year_level === 12 ? 'Grade 12' : 'Grade 11';
+                            }
+
+                            $map = [1 => '1st Year', 2 => '2nd Year', 3 => '3rd Year', 4 => '4th Year', 5 => '5th Year'];
+
+                            return $map[$student->current_year_level] ?? $student->year_level ?? (string) $student->current_year_level;
+                        }
+
+                        // Fallback to stored string value (legacy)
+                        return $student->year_level ?? null;
+                    })(),
                     'program' => $student->program,
+                    'curriculum' => $student->curriculum,
+                    'curriculum_id' => $student->curriculum_id,
                     'education_level' => $student->education_level,
                     'student_type' => $student->student_type,
+                    'gender' => $student->gender,
                     'birth_date' => $student->birth_date,
                     'phone' => $student->phone,
                     'parent_contact' => $student->parent_contact,
@@ -91,10 +115,24 @@ Route::middleware(['web', 'auth:web', 'throttle.api'])->group(function () {
                     'first_name' => $archivedStudent->first_name,
                     'last_name' => $archivedStudent->last_name,
                     'middle_name' => $archivedStudent->middle_name,
+                    'gender' => $archivedStudent->gender,
                     'name' => $archivedStudent->first_name.' '.$archivedStudent->last_name,
                     'email' => $archivedStudent->user?->email,
                     'student_number' => $archivedStudent->student_number,
-                    'year_level' => $archivedStudent->year_level,
+                    // Normalize archived year level (prefer numeric values when present)
+                    'year_level' => (function () use ($archivedStudent) {
+                        if (! empty($archivedStudent->current_year_level)) {
+                            if ($archivedStudent->education_level === 'senior_high') {
+                                return $archivedStudent->current_year_level === 12 ? 'Grade 12' : 'Grade 11';
+                            }
+
+                            $map = [1 => '1st Year', 2 => '2nd Year', 3 => '3rd Year', 4 => '4th Year', 5 => '5th Year'];
+
+                            return $map[$archivedStudent->current_year_level] ?? $archivedStudent->year_level ?? (string) $archivedStudent->current_year_level;
+                        }
+
+                        return $archivedStudent->year_level ?? null;
+                    })(),
                     'program' => $archivedStudent->program,
                     'education_level' => $archivedStudent->education_level,
                     'student_type' => 'returning',
@@ -110,6 +148,11 @@ Route::middleware(['web', 'auth:web', 'throttle.api'])->group(function () {
 
         return response()->json(['exists' => false, 'archived' => false]);
     })->middleware(['role:registrar', 'throttle.searches'])->name('api.students.check');
+
+    // Duplicate student check route (email + name + birthdate)
+    Route::post('/students/check-duplicate', [\App\Http\Controllers\RegistrarController::class, 'checkDuplicate'])
+        ->middleware(['role:registrar', 'throttle.searches'])
+        ->name('api.students.check-duplicate');
 
     // Archived student check route
     Route::get('/archived-students/check', function (\Illuminate\Http\Request $request) {
@@ -255,7 +298,6 @@ Route::middleware(['web', 'auth:web', 'throttle.api'])->group(function () {
 
         // Check for explicit year-level guide
         $guide = \App\Models\YearLevelCurriculumGuide::where('program_id', $program->id)
-            ->where('academic_year', $academicYear)
             ->where('year_level', $numeric)
             ->with('curriculum')
             ->first();
@@ -327,4 +369,13 @@ Route::middleware(['web', 'auth:web', 'throttle.api'])->group(function () {
 
         return response()->json(['curriculum' => null, 'source' => 'none']);
     })->middleware(['role:registrar', 'throttle.searches'])->name('api.programs.suggested-curriculum');
+
+    // Course shift subject comparison
+    Route::get('/students/{student}/course-shift-comparison', [
+        \App\Http\Controllers\Api\CourseShiftComparisonController::class,
+        'compare',
+    ])->middleware(['role:registrar'])->name('api.students.course-shift-comparison');
 });
+
+// Route used by LAN instance to push changes to cloud
+Route::post('/sync', [\App\Http\Controllers\Api\CloudSyncController::class, 'handle']);

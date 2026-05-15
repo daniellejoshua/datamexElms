@@ -3,6 +3,7 @@
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\DB;
 
 return new class extends Migration
 {
@@ -22,10 +23,29 @@ return new class extends Migration
      */
     public function down(): void
     {
+        Schema::disableForeignKeyConstraints();
+
+        // drop index directly in case foreign key requires it
+        try {
+            DB::statement('ALTER TABLE `subjects` DROP INDEX `subjects_program_id_education_level_status_index`');
+        } catch (\Exception $e) {
+            // ignore
+        }
+
         Schema::table('subjects', function (Blueprint $table) {
-            $table->dropIndex(['program_id', 'education_level', 'status']);
-            $table->dropForeign(['program_id']);
-            $table->dropColumn('program_id');
+            try {
+                $table->dropForeign(['program_id']);
+            } catch (\Exception $e) {
+                // ignore if not exists
+            }
+
+            try {
+                $table->dropColumn('program_id');
+            } catch (\Exception $e) {
+                // ignore
+            }
         });
+
+        Schema::enableForeignKeyConstraints();
     }
 };

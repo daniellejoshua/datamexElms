@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 
 class SuperAdminDashboardController extends Controller
@@ -78,21 +79,81 @@ class SuperAdminDashboardController extends Controller
 
     public function users(Request $request)
     {
-        $users = User::query()
-            ->when($request->search, function ($query, $search) {
-                $query->where('name', 'like', "%{$search}%")
-                    ->orWhere('email', 'like', "%{$search}%");
-            })
-            ->when($request->role, function ($query, $role) {
-                $query->where('role', $role);
-            })
-            ->with(['student', 'teacher'])
-            ->paginate(20);
+        $query = User::with(['teacher', 'student']);
+
+        if ($request->has('search') && $request->search) {
+            $search = $request->search;
+            $query->where(function ($q) use ($search) {
+                $q->where('name', 'like', '%'.$search.'%')
+                    ->orWhere('email', 'like', '%'.$search.'%')
+                    ->orWhere('role', 'like', '%'.$search.'%')
+                    ->orWhereHas('teacher', function ($t) use ($search) {
+                        $t->where('first_name', 'like', '%'.$search.'%')
+                            ->orWhere('last_name', 'like', '%'.$search.'%')
+                            ->orWhere('department', 'like', '%'.$search.'%')
+                            ->orWhere('employee_number', 'like', '%'.$search.'%');
+                    })
+                    ->orWhereHas('student', function ($s) use ($search) {
+                        $s->where('first_name', 'like', '%'.$search.'%')
+                            ->orWhere('last_name', 'like', '%'.$search.'%')
+                            ->orWhere('student_number', 'like', '%'.$search.'%');
+                    });
+            });
+        }
+
+        if ($request->has('status') && $request->status && $request->status !== 'all') {
+            $query->where('is_active', $request->status === 'active');
+        }
+
+        if ($request->has('role') && $request->role && $request->role !== 'all') {
+            $query->where('role', $request->role);
+        }
+
+        if ($request->has('department') && $request->department && $request->department !== 'all') {
+            $query->whereHas('teacher', function ($t) use ($request) {
+                $t->where('department', $request->department);
+            });
+        }
+
+        $users = $query->orderBy('name')->paginate(15)->withQueryString();
+
+        $departments = \App\Models\Teacher::whereNotNull('department')
+            ->distinct()
+            ->pluck('department')
+            ->sort()
+            ->values();
 
         return Inertia::render('SuperAdmin/Users', [
             'users' => $users,
-            'filters' => $request->only(['search', 'role']),
+            'departments' => $departments,
+            'filters' => $request->only(['search', 'status', 'role', 'department']),
         ]);
+    }
+
+    public function updateUserStatus(Request $request, User $user)
+    {
+        $validated = $request->validate([
+            'is_active' => 'required|boolean',
+        ]);
+
+        $user->update([
+            'is_active' => $validated['is_active'],
+        ]);
+
+        return redirect()->route('superadmin.users')->with('success', 'User status updated successfully.');
+    }
+
+    public function updateUserEmail(Request $request, User $user)
+    {
+        $validated = $request->validate([
+            'email' => ['required', 'email', 'max:255', Rule::unique('users', 'email')->ignore($user->id)],
+        ]);
+
+        $user->update([
+            'email' => $validated['email'],
+        ]);
+
+        return redirect()->route('superadmin.users')->with('success', 'User email updated successfully.');
     }
 
     public function systemLogs(Request $request)

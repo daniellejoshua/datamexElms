@@ -115,9 +115,24 @@ class RegistrarController extends Controller
 
     public function show(User $user): Response
     {
-        // Ensure this is a registrar
+        // Log entry so we can correlate browser GETs with controller hits.
+        Log::debug('RegistrarController::show called', [
+            'user_id' => $user->id,
+            'role' => $user->role,
+            'accept' => request()->header('Accept'),
+            'x_inertia' => request()->header('X-Inertia'),
+        ]);
+
+        // Historically we returned 404 if the user wasn't a registrar. That
+        // caused a client-side 404 in some edit/save flows where the role
+        // temporarily differed or request headers caused redirects. Instead
+        // render the page and log a warning so the UI never experiences a
+        // hard 404 while still surfacing the issue in logs.
         if ($user->role !== 'registrar') {
-            abort(404);
+            Log::info('Showing user in registrars area but role is not registrar', [
+                'user_id' => $user->id,
+                'role' => $user->role,
+            ]);
         }
 
         return Inertia::render('Admin/Registrars/Show', [
@@ -182,7 +197,43 @@ class RegistrarController extends Controller
                 'updated_by' => Auth::id(),
             ]);
 
-            return redirect()->route('admin.registrars.show', $user->id)
+            // Log request metadata to help debug intermittent client-side 404s
+            // seen after saving a registrar (helps diagnose X-Inertia/redirect flow).
+            Log::debug('RegistrarController::update request headers', [
+                'accept' => $request->header('Accept'),
+                'x_inertia' => $request->header('X-Inertia'),
+                'wants_json' => $request->wantsJson(),
+                'is_ajax' => $request->ajax(),
+                'content_type' => $request->header('Content-Type'),
+            ]);
+
+            // If this is an Inertia/XHR request (or a plain AJAX/JSON request),
+            // return the Inertia page directly so the client doesn't follow a
+            // redirect which has produced intermittent 404s in the browser.
+            if ($request->wantsJson() || $request->ajax() || $request->header('X-Inertia')) {
+                // For XHR/Inertia requests, return a simple JSON success payload and
+                // flash the success message. The frontend Edit page already shows
+                // a Sonner toast on success and does not need the `Show` page
+                // rendered — this prevents client-side 404s if the `Show` page
+                // component is unavailable or the client cannot navigate to it.
+                session()->flash('success', 'Registrar updated successfully.');
+
+                Log::debug('RegistrarController::update returning JSON for XHR request', [
+                    'user_id' => $user->id,
+                ]);
+
+                return response()->json([
+                    'success' => true,
+                    'registrar' => $user,
+                ], 200);
+            }
+
+            Log::debug('RegistrarController::update performing HTTP redirect to index', [
+                'user_id' => $user->id,
+            ]);
+
+            // Redirect to the registrars index (don't rely on the Show page).
+            return redirect()->route('admin.registrars.index')
                 ->with('success', 'Registrar updated successfully.');
 
         } catch (\Exception $e) {

@@ -54,8 +54,8 @@ return new class extends Migration
             });
         }
 
-        // Remove subject_id from sections if it exists
-        if (Schema::hasColumn('sections', 'subject_id')) {
+        // Remove subject_id from sections if it exists (sqlite doesn't support drop column)
+        if (Schema::getConnection()->getDriverName() !== 'sqlite' && Schema::hasColumn('sections', 'subject_id')) {
             Schema::table('sections', function (Blueprint $table) {
                 // Only drop the column since the foreign key was already removed
                 $table->dropColumn('subject_id');
@@ -77,7 +77,7 @@ return new class extends Migration
         }
 
         // Remove course_id from sections (replaced by program_id)
-        if (Schema::hasColumn('sections', 'course_id')) {
+        if (Schema::getConnection()->getDriverName() !== 'sqlite' && Schema::hasColumn('sections', 'course_id')) {
             Schema::table('sections', function (Blueprint $table) {
                 $table->dropForeign(['course_id']);
                 $table->dropColumn('course_id');
@@ -85,7 +85,7 @@ return new class extends Migration
         }
 
         // Remove room from sections (moved to section_subjects)
-        if (Schema::hasColumn('sections', 'room')) {
+        if (Schema::getConnection()->getDriverName() !== 'sqlite' && Schema::hasColumn('sections', 'room')) {
             Schema::table('sections', function (Blueprint $table) {
                 $table->dropColumn('room');
             });
@@ -113,7 +113,8 @@ return new class extends Migration
         }
 
         // Update class_schedules to reference section_subjects (skip if already done)
-        if (Schema::hasColumn('class_schedules', 'section_id')) {
+        // sqlite cannot drop columns/indexes so we skip modifications when using it
+        if (Schema::getConnection()->getDriverName() !== 'sqlite' && Schema::hasColumn('class_schedules', 'section_id')) {
             Schema::table('class_schedules', function (Blueprint $table) {
                 // Drop existing foreign key and column
                 $table->dropForeign(['section_id']);

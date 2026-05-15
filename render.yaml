@@ -1,0 +1,84 @@
+services:
+  - type: web
+    name: datamex-elms-web
+    runtime: php
+    plan: free
+    branch: Curriculum
+    preDeployCommand: |
+      php artisan migrate --force
+      php artisan storage:link || true
+      # Ensure package discovery runs after full app copy
+      php artisan package:discover --ansi || true
+      php artisan config:cache
+      php artisan route:cache
+    buildCommand: |
+      composer install --no-dev
+      php artisan migrate --force
+    startCommand: php artisan serve --host 0.0.0.0 --port $PORT
+    # Run migrations after the service is deployed (better network/context than build time)
+    releaseCommand: php artisan migrate --force --no-interaction
+    envVars:
+      - key: APP_NAME
+        value: Datamex_ELMS
+      - key: APP_ENV
+        value: production
+      - key: APP_DEBUG
+        value: "false"
+      - key: APP_URL
+        sync: false
+      - key: APP_KEY
+        sync: false
+      - key: APP_LOCALE
+        value: en
+      - key: APP_FALLBACK_LOCALE
+        value: en
+      - key: APP_FAKER_LOCALE
+        value: en_US
+      - key: DB_CONNECTION
+        value: mysql
+      - key: DB_HOST
+        value: serverless-europe-west4.sysp0000.db2.skysql.com
+      - key: DB_PORT
+        value: "4039"
+      - key: DB_DATABASE
+        value: danielle-joshua-andy
+      - key: DB_USERNAME
+        value: dbpgf19024625
+      - key: DB_PASSWORD
+        sync: false
+      - key: QUEUE_CONNECTION
+        value: redis
+      - key: CACHE_STORE
+        value: redis
+      - key: SESSION_DRIVER
+        value: redis
+      - key: FILESYSTEM_DISK
+        value: local
+      - key: MAIL_MAILER
+        value: smtp
+      - key: MAIL_HOST
+        value: smtp.sendgrid.net
+      - key: MAIL_PORT
+        value: "587"
+      - key: MAIL_USERNAME
+        value: apikey
+      - key: MAIL_PASSWORD
+        sync: false
+      - key: MAIL_ENCRYPTION
+        value: tls
+      - key: MAIL_FROM_ADDRESS
+        value: datamexvalenzuela2010@gmail.com
+      - key: MAIL_FROM_NAME
+        value: Datamex_ELMS
+      - key: BROADCAST_CONNECTION
+        value: log
+      - key: LOG_CHANNEL
+        value: stack
+      - key: LOG_STACK
+        value: single
+      - key: LOG_DEPRECATIONS_CHANNEL
+        value: null
+      - key: LOG_LEVEL
+        value: error
+
+    autoDeploy: true

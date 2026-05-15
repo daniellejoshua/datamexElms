@@ -43,7 +43,11 @@ export default function SubjectsCreate({ auth, programs }) {
         }
     }, [data.program_id, programs]);
 
-    const subjectClassifications = [
+    const subjectClassifications = data.education_level === 'senior_high' ? [
+        { value: 'core', label: 'Core Subject', description: 'General education subjects required for all SHS students' },
+        { value: 'applied', label: 'Applied Subject', description: 'Practical subjects with real-world applications' },
+        { value: 'specialized', label: 'Specialized Subject', description: 'Track-specific subjects for specialization' },
+    ] : [
         { value: 'minor', label: 'Minor Subject', description: 'General subjects not tied to a specific program' },
         { value: 'major', label: 'Major Subject', description: 'Specialized subjects for a specific program' },
     ];
@@ -83,7 +87,7 @@ export default function SubjectsCreate({ auth, programs }) {
             <Head title="Create Subject" />
 
             <div className="max-w-2xl mx-auto">
-                <form onSubmit={handleSubmit}>
+                <form onSubmit={handleSubmit} className="mt-6">
                     <Card>
                         <CardHeader>
                             <CardTitle>Subject Information</CardTitle>
@@ -107,8 +111,8 @@ export default function SubjectsCreate({ auth, programs }) {
                                             }`}
                                                 onClick={() => {
                                                 setData('subject_type', classification.value);
-                                                // Reset program_id when switching to minor
-                                                if (classification.value === 'minor') {
+                                                // Reset program_id when switching to minor/core/applied
+                                                if (classification.value === 'minor' || classification.value === 'core' || classification.value === 'applied') {
                                                     setData('program_id', '');
                                                 }
                                             }}
@@ -136,8 +140,8 @@ export default function SubjectsCreate({ auth, programs }) {
                                 )}
                             </div>
 
-                            {/* Program Selection - Only show for major subjects */}
-                            {data.subject_type === 'major' && (
+                            {/* Program Selection - Only show for major/specialized subjects */}
+                            {(data.subject_type === 'major' || data.subject_type === 'specialized') && (
                                 <div>
                                     <Label htmlFor="program_id">Program *</Label>
                                     <Select 
@@ -216,11 +220,16 @@ export default function SubjectsCreate({ auth, programs }) {
                                     <Input
                                         id="units"
                                         type="number"
-                                        min="0"
-                                        max="10"
-                                        step="0.5"
+                                        min="1"
+                                        max="9"
+                                        maxLength="1"
                                         value={data.units}
                                         onChange={(e) => setData('units', e.target.value)}
+                                        onKeyDown={(e) => {
+                                            if (e.key === 'e' || e.key === '+' || e.key === '-') {
+                                                e.preventDefault();
+                                            }
+                                        }}
                                         placeholder="e.g., 3"
                                         className="mt-1"
                                     />
@@ -236,7 +245,7 @@ export default function SubjectsCreate({ auth, programs }) {
                                     <Label htmlFor="education_level">Education Level *</Label>
                                     <Select
                                         value={data.education_level}
-                                        disabled={data.subject_type === 'major' && data.program_id}
+                                        disabled={!!data.program_id}
                                         onValueChange={(value) => {
                                             setData('education_level', value);
                                         }}
@@ -290,7 +299,7 @@ export default function SubjectsCreate({ auth, programs }) {
                         </CardContent>
                     </Card>
 
-                    <div className="flex justify-end gap-4 mt-6">
+                    <div className="flex justify-end gap-4 mt-6 mb-6">
                         <Button
                             type="button"
                             variant="outline"

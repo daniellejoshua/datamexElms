@@ -1,4 +1,5 @@
 import { Head, Link, useForm, router } from '@inertiajs/react'
+import { route } from 'ziggy-js';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -10,10 +11,17 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Loader2, Save } from 'lucide-react'
-import { Plus, Eye, Edit, BookOpen, Users, DollarSign, Filter, Search, GraduationCap, Building2, ChevronRight, Star } from 'lucide-react'
+import { Plus, Eye, Edit, BookOpen, Users, DollarSign, Filter, Search, GraduationCap, Building2, ChevronRight, Star, Menu, X } from 'lucide-react'
 import { useState, useEffect } from 'react'
 
 export default function ProgramsIndex({ programs, auth, filters = {} }) {
+    // Safely get programs array - handle both paginated and non-paginated data
+    const programsData = Array.isArray(programs?.data) 
+        ? programs.data 
+        : Array.isArray(programs) 
+        ? programs 
+        : [];
+
     const [editModalOpen, setEditModalOpen] = useState(false);
     const [selectedProgram, setSelectedProgram] = useState(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -28,6 +36,7 @@ export default function ProgramsIndex({ programs, auth, filters = {} }) {
     const [selectedEducationLevel, setSelectedEducationLevel] = useState(filters.education_level || '');
     const [selectedStatus, setSelectedStatus] = useState(filters.status || '');
     const [searchQuery, setSearchQuery] = useState(filters.search || '');
+    const [showMobileFilters, setShowMobileFilters] = useState(false);
 
     const { data, setData, put, processing, errors, reset } = useForm({
         program_name: '',
@@ -39,13 +48,32 @@ export default function ProgramsIndex({ programs, auth, filters = {} }) {
 
     const educationLevels = [
         { value: 'college', label: 'College' },
-        { value: 'shs', label: 'Senior High School' },
+        { value: 'senior_high', label: 'Senior High School' },
     ];
 
     const statusOptions = [
         { value: 'active', label: 'Active' },
         { value: 'inactive', label: 'Inactive' },
     ];
+
+    const normalizeProgramFees = (fees = []) => {
+        return (fees || []).map((fee) => {
+            const semesterFee = parseFloat(fee.semester_fee) || 0;
+            const tuitionFee = fee.tuition_fee !== undefined
+                ? (parseFloat(fee.tuition_fee) || 0)
+                : semesterFee;
+            const miscellaneousFee = fee.miscellaneous_fee !== undefined
+                ? (parseFloat(fee.miscellaneous_fee) || 0)
+                : 0;
+
+            return {
+                ...fee,
+                tuition_fee: tuitionFee,
+                miscellaneous_fee: miscellaneousFee,
+                semester_fee: tuitionFee + miscellaneousFee,
+            };
+        });
+    };
 
     const handleFilterChange = (type, value) => {
         const newFilters = { ...filters };
@@ -79,7 +107,7 @@ export default function ProgramsIndex({ programs, auth, filters = {} }) {
             program_code: program.program_code || program.code || '',
             description: program.description || '',
             education_level: program.education_level || '',
-            program_fees: program.program_fees || [],
+            program_fees: normalizeProgramFees(program.program_fees || []),
         });
         setEditModalOpen(true);
     };
@@ -88,13 +116,15 @@ export default function ProgramsIndex({ programs, auth, filters = {} }) {
     useEffect(() => {
         if (selectedProgram && (!data.program_fees || data.program_fees.length === 0)) {
             const defaultFees = [];
-            // Create fees for each year level (1-4 for bachelor's, 1-2 for master's)
-            const maxYears = data.education_level === 'masteral' ? 2 : 4;
+            // Create fees for each year level (1-4 for college, 1-2 for senior high)
+            const maxYears = data.education_level === 'senior_high' ? 2 : 4;
 
             for (let year = 1; year <= maxYears; year++) {
                 defaultFees.push({
                     year_level: year,
                     fee_type: 'regular',
+                    tuition_fee: 0,
+                    miscellaneous_fee: 0,
                     semester_fee: 0,
                 });
             }
@@ -102,11 +132,17 @@ export default function ProgramsIndex({ programs, auth, filters = {} }) {
         }
     }, [data.education_level, selectedProgram]);
 
-    const updateFee = (yearLevel, amount) => {
+    const updateFeeComponent = (yearLevel, feeKey, amount) => {
         const numericAmount = amount === '' ? 0 : parseFloat(amount) || 0;
         const updatedFees = data.program_fees.map(fee =>
             fee.year_level === yearLevel && fee.fee_type === 'regular'
-                ? { ...fee, semester_fee: numericAmount }
+                ? {
+                    ...fee,
+                    [feeKey]: numericAmount,
+                    semester_fee: feeKey === 'tuition_fee'
+                        ? numericAmount + (parseFloat(fee.miscellaneous_fee) || 0)
+                        : (parseFloat(fee.tuition_fee) || 0) + numericAmount,
+                }
                 : fee
         );
         setData('program_fees', updatedFees);
@@ -153,7 +189,7 @@ export default function ProgramsIndex({ programs, auth, filters = {} }) {
     return (
         <AuthenticatedLayout
             header={
-                <div className="flex items-center justify-between px-2 py-1">
+                <div className="flex items-center px-2 py-1">
                     <div className="flex items-center gap-2">
                         <div className="bg-purple-100 p-2 rounded-lg">
                             <GraduationCap className="w-6 h-6 text-purple-600" />
@@ -163,87 +199,180 @@ export default function ProgramsIndex({ programs, auth, filters = {} }) {
                             <p className="text-xs text-gray-500 mt-0.5">Manage academic programs and curriculum</p>
                         </div>
                     </div>
-                    <Button asChild size="sm" className="bg-red-600 hover:bg-red-700 text-white text-xs h-7 px-2">
-                        <Link href={route('registrar.programs.create')}>
-                            <Plus className="w-3 h-3 mr-1" />
-                            Create
-                        </Link>
-                    </Button>
                 </div>
             }
         >
             <Head title="Course Management" />
 
-            <div className="space-y-6">
+            <div className="space-y-6 m-2">
                 {/* Filters */}
-                <Card className="border-0 shadow-sm bg-gradient-to-r from-blue-50 to-indigo-50">
-                    <CardContent className="pt-4 pb-4">
-                        <div className="flex items-center gap-3 mb-3">
-                            <Filter className="w-4 h-4 text-blue-600" />
-                            <span className="text-sm font-medium text-blue-900">Filter Programs</span>
+                <Card className="m-222">
+                    <CardContent className="pt-3 pb-3">
+                        <div className="flex items-center justify-between mb-2">
+                            <div className="flex items-center gap-3 ml-1">
+                                <Filter className="w-4 h-4" />
+                                <span className="text-sm font-medium">Filter Programs</span>
+                            </div>
+                            <Button
+                                variant="ghost"
+                                size="sm"
+                                className="lg:hidden"
+                                onClick={() => setShowMobileFilters(!showMobileFilters)}
+                            >
+                                {showMobileFilters ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
+                            </Button>
                         </div>
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                            {/* Search Filter */}
-                            <div className="space-y-2">
-                                <label className="text-xs font-medium text-gray-600 flex items-center gap-1 h-4">
-                                    <Search className="w-3 h-3" />
-                                    Search Programs
-                                </label>
-                                <Input
-                                    placeholder="Search by name or code..."
-                                    value={searchQuery}
-                                    onChange={(e) => handleFilterChange('search', e.target.value)}
-                                    className="h-8 text-sm border-blue-200 hover:border-blue-400 focus:border-blue-500 focus:ring-blue-200"
-                                />
+                        <div className="hidden lg:flex items-end gap-3">
+                            {/* Filters Container */}
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 flex-1">
+                                {/* Search Filter */}
+                                <div className="space-y-1">
+                                    <label className="text-xs font-medium text-gray-600">Search</label>
+                                    <div className="relative">
+                                        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-3 h-3" />
+                                        <Input
+                                            type="text"
+                                            placeholder="Search by name or code..."
+                                            value={searchQuery}
+                                            onChange={(e) => handleFilterChange('search', e.target.value)}
+                                            className="pl-9 text-sm h-8"
+                                        />
+                                    </div>
+                                </div>
+
+                                {/* Education Level Filter */}
+                                <div className="space-y-1">
+                                    <label className="text-xs font-medium text-gray-600">Education Level</label>
+                                    <Select
+                                        value={selectedEducationLevel || 'all'}
+                                        onValueChange={(value) => handleFilterChange('education_level', value)}
+                                    >
+                                        <SelectTrigger className="h-8 text-sm">
+                                            <SelectValue placeholder="All Levels" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="all">All Education Levels</SelectItem>
+                                            {educationLevels.map((level) => (
+                                                <SelectItem key={level.value} value={level.value}>
+                                                    {level.label}
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+
+                                {/* Status Filter */}
+                                <div className="space-y-1">
+                                    <label className="text-xs font-medium text-gray-600">Status</label>
+                                    <Select
+                                        value={selectedStatus || 'all'}
+                                        onValueChange={(value) => handleFilterChange('status', value)}
+                                    >
+                                        <SelectTrigger className="h-8 text-sm">
+                                            <SelectValue placeholder="All Status" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="all">All Status</SelectItem>
+                                            {statusOptions.map((status) => (
+                                                <SelectItem key={status.value} value={status.value}>
+                                                    {status.label}
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
                             </div>
 
-                            {/* Education Level Filter */}
-                            <div className="space-y-2">
-                                <label className="text-xs font-medium text-gray-600 h-4 flex items-center">Education Level</label>
-                                <Select
-                                    value={selectedEducationLevel || 'all'}
-                                    onValueChange={(value) => handleFilterChange('education_level', value)}
-                                >
-                                    <SelectTrigger className="h-8 text-sm border-blue-200 hover:border-blue-400 focus:border-blue-500 focus:ring-blue-200">
-                                        <SelectValue placeholder="All Levels" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="all">All Education Levels</SelectItem>
-                                        {educationLevels.map((level) => (
-                                            <SelectItem key={level.value} value={level.value}>
-                                                {level.label}
-                                            </SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
-                            </div>
-
-                            {/* Status Filter */}
-                            <div className="space-y-2">
-                                <label className="text-xs font-medium text-gray-600 h-4 flex items-center">Status</label>
-                                <Select
-                                    value={selectedStatus || 'all'}
-                                    onValueChange={(value) => handleFilterChange('status', value)}
-                                >
-                                    <SelectTrigger className="h-8 text-sm border-blue-200 hover:border-blue-400 focus:border-blue-500 focus:ring-blue-200">
-                                        <SelectValue placeholder="All Status" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="all">All Status</SelectItem>
-                                        {statusOptions.map((status) => (
-                                            <SelectItem key={status.value} value={status.value}>
-                                                {status.label}
-                                            </SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
+                            <div className="flex items-end">
+                                {auth?.user?.role === 'head_teacher' && (
+                                    <Button asChild size="sm" className="bg-red-600 hover:bg-red-700 text-white h-8">
+                                        <Link href={route('registrar.programs.create')}>
+                                            <Plus className="w-3 h-3 mr-1" />
+                                            Create Program
+                                        </Link>
+                                    </Button>
+                                )}
                             </div>
                         </div>
+
+                        {/* Mobile Filters */}
+                        {showMobileFilters && (
+                            <div className="lg:hidden space-y-3 pt-3 border-t">
+                                <div className="grid grid-cols-1 gap-3">
+                                    {/* Search Filter */}
+                                    <div className="space-y-1">
+                                        <label className="text-xs font-medium text-gray-600">Search</label>
+                                        <div className="relative">
+                                            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-3 h-3" />
+                                            <Input
+                                                type="text"
+                                                placeholder="Search by name or code..."
+                                                value={searchQuery}
+                                                onChange={(e) => handleFilterChange('search', e.target.value)}
+                                                className="pl-9 text-sm h-8"
+                                            />
+                                        </div>
+                                    </div>
+
+                                    {/* Education Level Filter */}
+                                    <div className="space-y-1">
+                                        <label className="text-xs font-medium text-gray-600">Education Level</label>
+                                        <Select
+                                            value={selectedEducationLevel || 'all'}
+                                            onValueChange={(value) => handleFilterChange('education_level', value)}
+                                        >
+                                            <SelectTrigger className="h-8 text-sm">
+                                                <SelectValue placeholder="All Levels" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="all">All Education Levels</SelectItem>
+                                                {educationLevels.map((level) => (
+                                                    <SelectItem key={level.value} value={level.value}>
+                                                        {level.label}
+                                                    </SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+
+                                    {/* Status Filter */}
+                                    <div className="space-y-1">
+                                        <label className="text-xs font-medium text-gray-600">Status</label>
+                                        <Select
+                                            value={selectedStatus || 'all'}
+                                            onValueChange={(value) => handleFilterChange('status', value)}
+                                        >
+                                            <SelectTrigger className="h-8 text-sm">
+                                                <SelectValue placeholder="All Status" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="all">All Status</SelectItem>
+                                                {statusOptions.map((status) => (
+                                                    <SelectItem key={status.value} value={status.value}>
+                                                        {status.label}
+                                                    </SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+
+                                    {/* Create Button in Mobile */}
+                                    <div className="pt-2 flex justify-end">
+                                        <Button asChild size="sm" className="bg-red-600 hover:bg-red-700 text-white h-8">
+                                            <Link href={route('registrar.programs.create')}>
+                                                <Plus className="w-3 h-3 mr-1" />
+                                                Create Program
+                                            </Link>
+                                        </Button>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
                     </CardContent>
                 </Card>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 px-4 ">
-                    {programs.data.map((program) => (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {programsData.map((program) => (
                         <Card key={program.id} className="group hover:shadow-xl transition-all duration-300 border-2 hover:border-blue-300 relative overflow-hidden">
                             {/* Status Badge */}
                             <div className="absolute top-4 right-4">
@@ -291,7 +420,7 @@ export default function ProgramsIndex({ programs, auth, filters = {} }) {
                                             <div className="flex flex-col items-center">
                                                 <BookOpen className="w-4 h-4 text-orange-600 mb-1" />
                                                 <span className="text-xs font-semibold text-gray-700">
-                                                    {program.subjects.length}
+                                                    {program.curriculum_subjects_count || 0}
                                                 </span>
                                                 <span className="text-xs text-gray-600">Subjects</span>
                                             </div>
@@ -313,7 +442,9 @@ export default function ProgramsIndex({ programs, auth, filters = {} }) {
                                         <div className="flex items-center text-sm">
                                             <DollarSign className="w-4 h-4 text-blue-600 mr-3 flex-shrink-0" />
                                             <div className="flex-1">
-                                                <span className="text-gray-700 font-medium">Semester Fees (per semester)</span>
+                                                <span className="text-gray-700 font-medium">
+                                                    {program.education_level === 'senior_high' ? 'Year Level Fees (per year level)' : 'Semester Fees (per semester)'}
+                                                </span>
                                                 <div className="mt-1 space-y-1">
                                                     {program.program_fees
                                                         ?.filter(fee => fee.fee_type === 'regular')
@@ -321,7 +452,9 @@ export default function ProgramsIndex({ programs, auth, filters = {} }) {
                                                         ?.slice(0, 2) // Show only first 2 years for brevity
                                                         ?.map(fee => (
                                                         <div key={fee.id} className="flex justify-between text-xs">
-                                                            <span>Year {fee.year_level}:</span>
+                                                            <span>
+                                                                {program.education_level === 'senior_high' ? `Grade ${fee.year_level + 10}` : `Year ${fee.year_level}`}:
+                                                            </span>
                                                             <span className="font-semibold text-green-600">
                                                                 {formatCurrency(fee.semester_fee)}
                                                             </span>
@@ -329,7 +462,7 @@ export default function ProgramsIndex({ programs, auth, filters = {} }) {
                                                     ))}
                                                     {program.program_fees?.filter(fee => fee.fee_type === 'regular').length > 2 && (
                                                         <div className="text-xs text-gray-500">
-                                                            +{program.program_fees.filter(fee => fee.fee_type === 'regular').length - 2} more years
+                                                            +{program.program_fees.filter(fee => fee.fee_type === 'regular').length - 2} more {program.education_level === 'senior_high' ? 'grades' : 'years'}
                                                         </div>
                                                     )}
                                                 </div>
@@ -356,10 +489,12 @@ export default function ProgramsIndex({ programs, auth, filters = {} }) {
                                                 View
                                             </Link>
                                         </Button>
-                                        <Button variant="outline" className="border-2 border-gray-300 text-gray-700 hover:bg-gray-50 font-medium" onClick={() => openEditModal(program)}>
-                                            <Edit className="w-3 h-3 mr-1" />
-                                            Edit
-                                        </Button>
+                                        {auth?.user?.role === 'head_teacher' && (
+                                            <Button variant="outline" className="border-2 border-gray-300 text-gray-700 hover:bg-gray-50 font-medium" onClick={() => openEditModal(program)}>
+                                                <Edit className="w-3 h-3 mr-1" />
+                                                Edit
+                                            </Button>
+                                        )}
                                     </div>
                                 </div>
                             </CardContent>
@@ -367,7 +502,7 @@ export default function ProgramsIndex({ programs, auth, filters = {} }) {
                     ))}
                 </div>
 
-                {programs.data.length === 0 && (
+                {programsData.length === 0 && (
                     <div className="col-span-full">
                         <Card className="p-16 text-center border-2 border-dashed border-gray-300 hover:border-blue-400 transition-colors bg-gradient-to-br from-gray-50 to-blue-50">
                             <div className="space-y-6">
@@ -532,32 +667,53 @@ export default function ProgramsIndex({ programs, auth, filters = {} }) {
                             </p>
 
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                {Array.from({ length: data.education_level === 'masteral' ? 2 : 4 }, (_, i) => i + 1).map((year) => {
+                                {Array.from({ length: data.education_level === 'senior_high' ? 2 : 4 }, (_, i) => i + 1).map((year) => {
                                     const fee = data.program_fees.find(
                                         f => f.year_level === year && f.fee_type === 'regular'
                                     );
-                                    const amount = fee ? fee.semester_fee : 0;
+                                    const tuitionAmount = fee ? (fee.tuition_fee ?? fee.semester_fee ?? 0) : 0;
+                                    const miscellaneousAmount = fee ? (fee.miscellaneous_fee ?? 0) : 0;
+                                    const totalAmount = (parseFloat(tuitionAmount) || 0) + (parseFloat(miscellaneousAmount) || 0);
 
                                     return (
-                                        <div key={year} className="flex items-center gap-3 p-3 border rounded-lg bg-gray-50">
+                                        <div key={year} className="p-3 border rounded-lg bg-gray-50 space-y-2">
                                             <Label className="text-sm font-medium w-24 flex-shrink-0">
-                                                {year}{year === 1 ? 'st' : year === 2 ? 'nd' : year === 3 ? 'rd' : 'th'} Year:
+                                                {data.education_level === 'senior_high' ? `Grade ${year + 10}` : `${year}${year === 1 ? 'st' : year === 2 ? 'nd' : year === 3 ? 'rd' : 'th'} Year`}:
                                             </Label>
-                                            <div className="relative flex-1 max-w-32">
-                                                <span className="absolute left-2 top-1/2 transform -translate-y-1/2 text-gray-500 text-xs">
-                                                    ₱
-                                                </span>
-                                                <Input
-                                                    type="number"
-                                                    step="0.01"
-                                                    min="0"
-                                                    value={amount || ''}
-                                                    onChange={(e) => updateFee(year, e.target.value)}
-                                                    className="pl-6 h-8 text-sm"
-                                                    placeholder="0.00"
-                                                />
+                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                                <div className="relative">
+                                                    <span className="absolute left-2 top-1/2 transform -translate-y-1/2 text-gray-500 text-xs z-10">
+                                                        ₱
+                                                    </span>
+                                                    <Input
+                                                        type="number"
+                                                        min="0"
+                                                        step="0.01"
+                                                        value={tuitionAmount || ''}
+                                                        onChange={(e) => updateFeeComponent(year, 'tuition_fee', e.target.value)}
+                                                        className="pl-6 h-8 text-sm"
+                                                        placeholder="Tuition fee"
+                                                    />
+                                                </div>
+                                                <div className="relative">
+                                                    <span className="absolute left-2 top-1/2 transform -translate-y-1/2 text-gray-500 text-xs z-10">
+                                                        ₱
+                                                    </span>
+                                                    <Input
+                                                        type="number"
+                                                        min="0"
+                                                        step="0.01"
+                                                        value={miscellaneousAmount || ''}
+                                                        onChange={(e) => updateFeeComponent(year, 'miscellaneous_fee', e.target.value)}
+                                                        className="pl-6 h-8 text-sm"
+                                                        placeholder="Miscellaneous fee"
+                                                    />
+                                                </div>
                                             </div>
-                                            <span className="text-xs text-gray-500">per semester</span>
+                                            <div className="flex justify-between text-xs text-gray-600">
+                                                <span>{data.education_level === 'senior_high' ? 'per year level' : 'per semester'}</span>
+                                                <span className="font-semibold text-green-700">Total: {formatCurrency(totalAmount)}</span>
+                                            </div>
                                         </div>
                                     );
                                 })}

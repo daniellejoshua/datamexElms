@@ -14,25 +14,41 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->web(append: [
             \App\Http\Middleware\HandleInertiaRequests::class,
+            \App\Http\Middleware\RequestLogger::class,
             \Illuminate\Http\Middleware\AddLinkHeadersForPreloadedAssets::class,
         ]);
 
         // Register role middleware
         $middleware->alias([
             'role' => \App\Http\Middleware\RoleMiddleware::class,
-        'throttle.api' => \App\Http\Middleware\CustomThrottleRequests::class.':120,1',
-        'throttle.searches' => \App\Http\Middleware\CustomThrottleRequests::class.':30,1',
-        'throttle.uploads' => \App\Http\Middleware\CustomThrottleRequests::class.':10,1',
-        'throttle.data-heavy' => \App\Http\Middleware\CustomThrottleRequests::class.':50,1',
+            'throttle.api' => \App\Http\Middleware\CustomThrottleRequests::class.':120,1',
+            'throttle.searches' => \App\Http\Middleware\CustomThrottleRequests::class.':30,1',
+            'throttle.uploads' => \App\Http\Middleware\CustomThrottleRequests::class.':10,1',
+            'throttle.data-heavy' => \App\Http\Middleware\CustomThrottleRequests::class.':50,1',
+            'throttle.password_updates' => \Illuminate\Routing\Middleware\ThrottleRequests::class.':5,10',
+            'throttle.pin_verification' => \Illuminate\Routing\Middleware\ThrottleRequests::class.':10,1',
         ]);
 
         // Exempt API authentication endpoints from CSRF protection
         $middleware->validateCsrfTokens(except: [
             'api/login',
             'api/logout',
+            'password',
+            'password/verify-pin',
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
+        // Handle token mismatch exceptions (Page Expired)
+        $exceptions->render(function (\Illuminate\Session\TokenMismatchException $e, $request) {
+            if ($request->header('X-Inertia')) {
+                // Force full page reload for Inertia requests to get fresh CSRF token
+                return redirect()->back()
+                    ->header('X-Inertia-Location', $request->url());
+            }
+
+            return redirect()->back()->with('error', 'Page expired. Please try again.');
+        });
+
         $exceptions->render(function (\Illuminate\Http\Exceptions\ThrottleRequestsException $e, $request) {
             // For API requests, return custom JSON response
             if ($request->is('api/*') || $request->expectsJson()) {
@@ -43,12 +59,19 @@ return Application::configure(basePath: dirname(__DIR__))
                 ], 429, $e->getHeaders());
             }
 
-            // For web requests (non-Inertia), return custom HTML page
-            if (!$request->header('X-Inertia')) {
-                return response()->view('errors.429', [
+            // For Inertia requests, return JSON response that Inertia can handle
+            if ($request->header('X-Inertia')) {
+                return response()->json([
                     'message' => 'Too many requests. Please try again later.',
+                    'error' => 'rate_limit_exceeded',
                     'retry_after' => $e->getHeaders()['Retry-After'] ?? 60,
-                ], 429)->withHeaders($e->getHeaders());
+                ], 429, $e->getHeaders());
             }
+
+            // For web requests (non-Inertia), return custom HTML page
+            return response()->view('errors.429', [
+                'message' => 'Too many requests. Please try again later.',
+                'retry_after' => $e->getHeaders()['Retry-After'] ?? 60,
+            ], 429)->withHeaders($e->getHeaders());
         });
     })->create();

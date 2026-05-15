@@ -21,6 +21,13 @@ return new class extends Migration
      */
     public function down(): void
     {
+        // ensure no nulls exist before making the column not nullable
+        // assign a unique placeholder for each null employee number to
+        // avoid violating the unique index when we make the column not null.
+        DB::table('teachers')
+            ->whereNull('employee_number')
+            ->update(['employee_number' => DB::raw("CONCAT('T', id)")]);
+
         Schema::table('teachers', function (Blueprint $table) {
             $table->string('employee_number')->nullable(false)->change();
         });

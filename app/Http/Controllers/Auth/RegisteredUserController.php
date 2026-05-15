@@ -46,6 +46,13 @@ class RegisteredUserController extends Controller
 
         Auth::login($user);
 
-        return redirect(route('dashboard', absolute: false));
+        $redirect = redirect(route('dashboard', absolute: false))
+            ->with('success', "Welcome, {$user->name}!");
+
+        if ($request->header('X-Inertia')) {
+            return $redirect->header('X-Inertia-Location', $redirect->getTargetUrl());
+        }
+
+        return $redirect;
     }
 }

@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\PaymentTransaction;
+use App\Models\FeeAdjustment;
 use App\Models\Student;
 use App\Models\StudentEnrollment;
 use App\Models\StudentSemesterPayment;
@@ -31,6 +32,23 @@ class StudentPaymentService
             return $existingPayment;
         }
 
+        $earlyEnrollmentDiscount = $this->getEarlyEnrollmentDiscountAmount($student);
+        $adjustments = collect();
+        if ($earlyEnrollmentDiscount > 0) {
+            $adjustments = FeeAdjustment::query()
+                ->where('type', 'early_enrollment')
+                ->where('college_only', true)
+                ->where(function ($query) {
+                    $today = now()->toDateString();
+                    $query->whereDate('effective_date', $today)
+                        ->orWhere(function ($periodQuery) use ($today) {
+                            $periodQuery->whereDate('start_date', '<=', $today)
+                                ->whereDate('end_date', '>=', $today);
+                        });
+                })
+                ->get();
+        }
+
         // Calculate fees based on student enrollment type
         $enrollment = $this->getStudentEnrollment($student, $academicYear, $semester);
         $subjectEnrollments = $this->getStudentSubjectEnrollments($student, $academicYear, $semester);
@@ -38,23 +56,43 @@ class StudentPaymentService
         $isIrregular = $subjectEnrollments->where('enrollment_type', 'irregular')->count() > 0;
         $irregularSubjectsCount = $subjectEnrollments->where('enrollment_type', 'irregular')->count();
 
-        // Base rates (these could come from a settings table)
-        $baseSemesterFee = $customRates['base_semester_fee'] ?? 12000.00;
+        // Get base fee from program_fees table
+        $currentYearLevel = $student->current_year_level ?? $student->year_level;
+        if (is_string($currentYearLevel)) {
+            // Extract number from string like "1st Year" -> 1
+            preg_match('/\d+/', $currentYearLevel, $matches);
+            $currentYearLevel = isset($matches[0]) ? (int) $matches[0] : 1;
+        }
+
+        $programFee = \App\Models\ProgramFee::where('program_id', $student->program_id)
+            ->where('year_level', $currentYearLevel)
+            ->where('education_level', $student->education_level)
+            ->where('fee_type', 'regular')
+            ->first();
+
+        $baseSemesterFee = $customRates['base_semester_fee'] ?? $programFee->semester_fee ?? $student->program->semester_fee ?? 12000.00;
         $enrollmentFeePercentage = $customRates['enrollment_fee_percentage'] ?? 0.25; // 25% as downpayment
         $irregularSubjectFee = $customRates['irregular_subject_fee'] ?? 300.00;
 
-        // Calculate enrollment fee (downpayment)
-        $enrollmentFee = $baseSemesterFee * $enrollmentFeePercentage;
-
         // Add irregular subject fees
         $irregularFees = $irregularSubjectsCount * $irregularSubjectFee;
-        $totalSemesterFee = $baseSemesterFee + $irregularFees;
+        $grossSemesterFee = $baseSemesterFee + $irregularFees;
+        $totalSemesterFee = max(0, $grossSemesterFee - $earlyEnrollmentDiscount);
 
-        // Calculate remaining balance to be divided among terms
-        $remainingBalance = $totalSemesterFee - $enrollmentFee;
-        $termPayment = $remainingBalance / 4; // Divide among 4 terms
+        // For SHS, fees are annual, so pay full amount at enrollment
+        if ($student->program->education_level === 'senior_high') {
+            $enrollmentFee = $totalSemesterFee;
+            $termPayment = 0;
+        } else {
+            // Calculate enrollment fee (downpayment)
+            $enrollmentFee = $totalSemesterFee * $enrollmentFeePercentage;
 
-        return StudentSemesterPayment::create([
+            // Calculate remaining balance to be divided among terms
+            $remainingBalance = max(0, $totalSemesterFee - $enrollmentFee);
+            $termPayment = $remainingBalance / 4; // Divide among 4 terms
+        }
+
+        $payment = StudentSemesterPayment::create([
             'student_id' => $student->id,
             'academic_year' => $academicYear,
             'semester' => $semester,
@@ -75,7 +113,28 @@ class StudentPaymentService
             'balance' => $totalSemesterFee,
             'payment_plan' => $isIrregular ? 'custom' : 'installment',
             'status' => 'pending',
+            // Mark payments for past/future (non-current) academic periods as finalized
+            // so subsequent program fee updates do not alter historical records.
+            'fee_finalized' => (
+                $academicYear !== \App\Models\SchoolSetting::getCurrentAcademicYear() ||
+                $semester !== \App\Models\SchoolSetting::getCurrentSemester()
+            ),
         ]);
+
+        // attach adjustments for use by caller/front end (not persisted)
+        $payment->setRelation('adjustments', $adjustments);
+
+        // if the student is irregular or a transferee we calculate and persist
+        // their balance immediately. this prevents later program fee updates
+        // (or viewing the page for a dropped student) from recomputing the
+        // fee using the current program rate.
+        if ($student->student_type === 'irregular' ||
+            $student->creditTransfers()->exists() ||
+            $student->previous_school) {
+            $this->calculateIrregularBalance($payment);
+        }
+
+        return $payment;
     }
 
     /**
@@ -242,5 +301,173 @@ class StudentPaymentService
         $irregularSubjectsCount = $subjectEnrollments->where('enrollment_type', 'irregular')->count();
 
         return $irregularSubjectsCount * 300.00; // 300 pesos per irregular subject
+    }
+
+    /**
+     * Calculate detailed balance for irregular students.
+     *
+     * Formula:
+     * - For each subject from past year levels: +300
+     * - Plus base fee from program_fees (program, year_level, semester)
+     * - For each credited subject aligned with current semester/year level: -300
+     *
+     * @return array with breakdown
+     */
+    public function calculateIrregularBalance(StudentSemesterPayment $payment): array
+    {
+        $student = $payment->student;
+        $academicYear = $payment->academic_year;
+        $semester = $payment->semester;
+
+        // Determine the student's year level for the payment's academic period.
+        // Use the enrollment record for that academic year/semester if available,
+        // otherwise fall back to the student's current/year_level values.
+        $enrollmentForPeriod = $this->getStudentEnrollment($student, $academicYear, $semester);
+        $currentYearLevel = $enrollmentForPeriod->year_level ?? $student->current_year_level ?? $student->year_level;
+        if (is_string($currentYearLevel)) {
+            // Extract number from string like "1st Year" -> 1
+            preg_match('/\d+/', $currentYearLevel, $matches);
+            $currentYearLevel = isset($matches[0]) ? (int) $matches[0] : 1;
+        }
+
+        // Get all subject enrollments for this student in the current academic period
+        // Include both active (current) and completed (archived) enrollments
+        $subjectEnrollments = \App\Models\StudentSubjectEnrollment::with([
+            'sectionSubject.subject',
+            'sectionSubject.section',
+        ])
+            ->where('student_id', $student->id)
+            ->where('academic_year', $academicYear)
+            ->where('semester', $semester)
+            ->whereIn('status', ['active', 'completed'])
+            ->get();
+
+        // Count subjects from past year levels (+300 each)
+        $pastYearSubjectsCount = 0;
+        $pastYearSubjects = [];
+
+        foreach ($subjectEnrollments as $enrollment) {
+            // only count subjects that were taken irregularly; regular past subjects
+            // should not incur extra fees even if the student later becomes
+            // irregular/transfer.  this keeps the calculation aligned with
+            // registrar behavior.
+            if (($enrollment->enrollment_type ?? null) !== 'irregular') {
+                continue;
+            }
+
+            $subjectYearLevel = $enrollment->sectionSubject->section->year_level ?? $currentYearLevel;
+
+            // If subject is from a past/lower year level
+            if ($subjectYearLevel < $currentYearLevel) {
+                $pastYearSubjectsCount++;
+                $pastYearSubjects[] = [
+                    'code' => $enrollment->sectionSubject->subject->subject_code,
+                    'name' => $enrollment->sectionSubject->subject->subject_name,
+                    'year_level' => $subjectYearLevel,
+                ];
+            }
+        }
+
+        $pastYearSubjectsFee = $pastYearSubjectsCount * 300;
+
+        // Get base fee from program_fees table for this program, year level, and semester
+        $programFee = \App\Models\ProgramFee::where('program_id', $student->program_id)
+            ->where('year_level', $currentYearLevel)
+            ->where('education_level', $student->education_level)
+            ->where('fee_type', 'regular') // Use 'regular' fee type
+            ->first();
+
+        $baseFee = $programFee->semester_fee ?? $student->program->semester_fee ?? 12000.00;
+
+        // Get credited subjects aligned with current year level and semester (-300 each)
+        $creditedSubjectsCount = 0;
+        $creditedSubjects = [];
+
+        $credits = \App\Models\StudentSubjectCredit::with('subject')
+            ->where('student_id', $student->id)
+            ->where('year_level', $currentYearLevel)
+            ->where('semester', $semester)
+            ->where('credit_status', 'credited')
+            ->where('credit_type', 'transfer') // Only count transfer credits, not regular grading credits
+            ->get();
+
+        foreach ($credits as $credit) {
+            $creditedSubjectsCount++;
+            $creditedSubjects[] = [
+                'code' => $credit->subject_code,
+                'name' => $credit->subject_name,
+                'units' => $credit->units,
+            ];
+        }
+
+        $creditedSubjectsDeduction = $creditedSubjectsCount * 300;
+
+        // Calculate final balance
+        $grossBalance = $pastYearSubjectsFee + $baseFee - $creditedSubjectsDeduction;
+
+        // Apply early enrollment discount for college students even when base fee
+        // becomes zero so irregular students still receive the discount.
+        $earlyEnrollmentDiscount = $this->getEarlyEnrollmentDiscountAmount($student);
+        $calculatedBalance = $grossBalance - $earlyEnrollmentDiscount;
+
+        // Ensure balance is not negative
+        $calculatedBalance = max($calculatedBalance, 0);
+
+        // Store the calculated balance in the payment record for future reference
+        $payment->update([
+            'calculated_total_amount' => $calculatedBalance,
+            'irregular_balance_breakdown' => [
+                'past_year_subjects_count' => $pastYearSubjectsCount,
+                'past_year_subjects_fee' => $pastYearSubjectsFee,
+                'past_year_subjects' => $pastYearSubjects,
+                'base_fee' => $baseFee,
+                'credited_subjects_count' => $creditedSubjectsCount,
+                'credited_subjects_deduction' => $creditedSubjectsDeduction,
+                'credited_subjects' => $creditedSubjects,
+                'current_year_level' => $currentYearLevel,
+                'early_enrollment_discount' => $earlyEnrollmentDiscount,
+                'breakdown' => "({$pastYearSubjectsCount} past subjects × ₱300) + ₱".number_format($baseFee, 2)." - ({$creditedSubjectsCount} credits × ₱300) - ₱".number_format($earlyEnrollmentDiscount, 2),
+            ],
+            'is_balance_calculated' => true,
+        ]);
+
+        return [
+            'past_year_subjects_count' => $pastYearSubjectsCount,
+            'past_year_subjects_fee' => $pastYearSubjectsFee,
+            'past_year_subjects' => $pastYearSubjects,
+            'base_fee' => $baseFee,
+            'credited_subjects_count' => $creditedSubjectsCount,
+            'credited_subjects_deduction' => $creditedSubjectsDeduction,
+            'credited_subjects' => $creditedSubjects,
+            'early_enrollment_discount' => $earlyEnrollmentDiscount,
+            'calculated_balance' => $calculatedBalance,
+            'current_year_level' => $currentYearLevel,
+            'breakdown' => "({$pastYearSubjectsCount} past subjects × ₱300) + ₱".number_format($baseFee, 2)." - ({$creditedSubjectsCount} credits × ₱300) - ₱".number_format($earlyEnrollmentDiscount, 2),
+        ];
+    }
+
+    private function getEarlyEnrollmentDiscountAmount(Student $student): float
+    {
+        if ($student->education_level !== 'college') {
+            return 0;
+        }
+
+        $today = now()->toDateString();
+
+        $adjustment = FeeAdjustment::query()
+            ->where('type', 'early_enrollment')
+            ->where('college_only', true)
+            ->where(function ($query) use ($today) {
+                $query->whereDate('effective_date', $today)
+                    ->orWhere(function ($periodQuery) use ($today) {
+                        $periodQuery->whereDate('start_date', '<=', $today)
+                            ->whereDate('end_date', '>=', $today);
+                    });
+            })
+            ->orderByRaw('COALESCE(start_date, effective_date) ASC')
+            ->orderByDesc('id')
+            ->first();
+
+        return (float) ($adjustment->amount ?? 0);
     }
 }

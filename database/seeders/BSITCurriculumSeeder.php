@@ -15,8 +15,9 @@ class BSITCurriculumSeeder extends Seeder
     {
         // Get the BSIT program ID dynamically
         $bsitProgram = \App\Models\Program::where('program_code', 'BSIT')->first();
-        if (!$bsitProgram) {
+        if (! $bsitProgram) {
             $this->command->error('BSIT program not found. Please run ProgramSeeder first.');
+
             return;
         }
         $bsitProgramId = $bsitProgram->id;
@@ -101,6 +102,12 @@ class BSITCurriculumSeeder extends Seeder
         ];
 
         foreach ($curriculumSubjects as $subjectData) {
+            // ensure code is uppercase, then try to get the human name from subjects table
+            $subjectData['subject_code'] = strtoupper(trim($subjectData['subject_code']));
+            $subjectData['subject_name'] = \App\Models\Subject::where('subject_code', $subjectData['subject_code'])->value('subject_name')
+                ? strtoupper(\App\Models\Subject::where('subject_code', $subjectData['subject_code'])->value('subject_name'))
+                : $subjectData['subject_code'];
+
             $subject = \App\Models\Subject::where('subject_code', $subjectData['subject_code'])->first();
 
             if ($subject) {
@@ -110,8 +117,8 @@ class BSITCurriculumSeeder extends Seeder
                         'subject_id' => $subject->id,
                     ],
                     [
-                        'subject_code' => $subject->subject_code,
-                        'subject_name' => $subject->subject_name,
+                        'subject_code' => strtoupper($subject->subject_code),
+                        'subject_name' => strtoupper($subject->subject_name),
                         'year_level' => $subjectData['year_level'],
                         'semester' => $subjectData['semester'],
                         'subject_type' => $subject->subject_type,

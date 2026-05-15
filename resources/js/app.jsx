@@ -9,8 +9,30 @@ import { toast } from 'sonner';
 
 const appName = import.meta.env.VITE_APP_NAME || 'Laravel';
 
+// Refresh CSRF token before each request
+router.on('before', () => {
+    const token = document.head.querySelector('meta[name="csrf-token"]');
+    if (token && window.axios) {
+        window.axios.defaults.headers.common['X-CSRF-TOKEN'] = token.content;
+    }
+});
+
 // Global Inertia error handling (rate limiting is now handled by middleware)
 router.on('error', (event) => {
+    // Handle CSRF token expiry
+    if (event.detail?.response?.status === 419) {
+        toast.error('Your session has expired. Please refresh the page.', {
+            duration: 2000,
+        });
+        // Refresh the page to get a new CSRF token
+        setTimeout(() => {
+            window.location.reload();
+        }, 2000);
+        // Prevent the default error handling
+        event.preventDefault();
+        return;
+    }
+
     // Handle rate limiting errors
     if (event.detail?.response?.status === 429) {
         const message = 'Rate limit exceeded. Please wait a moment before trying again.';
@@ -49,7 +71,6 @@ createInertiaApp({
 
         root.render(<App {...props} />);
     },
-    progress: {
-        color: '#4B5563',
-    },
+    // disable the automatic progress bar/modal since we use toasts for feedback
+    progress: false,
 });

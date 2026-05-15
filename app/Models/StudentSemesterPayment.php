@@ -28,11 +28,17 @@ class StudentSemesterPayment extends Model
         'final_payment_date',
         'irregular_subject_fee',
         'irregular_subjects_count',
+        'credit_transfer_deduction',
+        'credit_transfer_subjects_count',
         'total_semester_fee',
         'total_paid',
         'balance',
+        'calculated_total_amount',
+        'irregular_balance_breakdown',
+        'is_balance_calculated',
         'payment_plan',
         'status',
+        'fee_finalized',
     ];
 
     protected function casts(): array
@@ -58,6 +64,11 @@ class StudentSemesterPayment extends Model
             'prefinal_payment_date' => 'date',
             'final_payment_date' => 'date',
             'irregular_subjects_count' => 'integer',
+            'credit_transfer_subjects_count' => 'integer',
+            'calculated_total_amount' => 'decimal:2',
+            'irregular_balance_breakdown' => 'array',
+            'is_balance_calculated' => 'boolean',
+            'fee_finalized' => 'boolean',
         ];
     }
 
@@ -136,7 +147,7 @@ class StudentSemesterPayment extends Model
      */
     public function calculateBalance(): float
     {
-        $totalFee = (float) $this->total_semester_fee;
+        $totalFee = (float) ($this->calculated_total_amount ?? $this->total_semester_fee);
         $totalPaid = (float) $this->calculateTotalPaid();
 
         return max(0, $totalFee - $totalPaid);
@@ -170,11 +181,13 @@ class StudentSemesterPayment extends Model
      */
     public function getPaymentProgress(): float
     {
-        if ($this->total_semester_fee <= 0) {
+        $effectiveTotalFee = (float) ($this->calculated_total_amount ?? $this->total_semester_fee);
+
+        if ($effectiveTotalFee <= 0) {
             return 0;
         }
 
-        return ($this->calculateTotalPaid() / $this->total_semester_fee) * 100;
+        return ($this->calculateTotalPaid() / $effectiveTotalFee) * 100;
     }
 
     /**
@@ -245,6 +258,24 @@ class StudentSemesterPayment extends Model
     protected static function booted(): void
     {
         static::saving(function (StudentSemesterPayment $payment) {
+            // If the payment has been finalized, prevent changes to fee-related fields
+            if ($payment->fee_finalized) {
+                $feeFields = [
+                    'total_semester_fee',
+                    'irregular_subject_fee',
+                    'irregular_subjects_count',
+                    'credit_transfer_deduction',
+                    'calculated_total_amount',
+                    'balance',
+                ];
+
+                foreach ($feeFields as $field) {
+                    if ($payment->isDirty($field)) {
+                        $payment->{$field} = $payment->getOriginal($field);
+                    }
+                }
+            }
+
             $payment->total_paid = $payment->calculateTotalPaid();
             $payment->balance = $payment->calculateBalance();
 

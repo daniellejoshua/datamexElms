@@ -22,6 +22,11 @@ return new class extends Migration
      */
     public function down(): void
     {
+        // convert any super_admin users to a valid fallback before changing enum
+        DB::table('users')
+            ->where('role', 'super_admin')
+            ->update(['role' => 'student']);
+
         Schema::table('users', function (Blueprint $table) {
             // Revert to original roles
             $table->enum('role', ['student', 'teacher', 'registrar', 'head_teacher'])->change();

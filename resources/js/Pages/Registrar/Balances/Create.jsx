@@ -46,7 +46,7 @@ export default function CreateBalance({ students, auth }) {
         setForm(prev => ({
             ...prev,
             student_id: studentId,
-            education_level: student ? (student.year_level <= 12 ? 'shs' : 'college') : '',
+            education_level: student ? (student.year_level <= 12 ? 'senior_high' : 'college') : '',
             academic_year: academicYears[1] // Default to current academic year
         }))
     }

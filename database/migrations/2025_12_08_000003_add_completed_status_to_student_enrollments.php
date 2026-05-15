@@ -19,6 +19,11 @@ return new class extends Migration
      */
     public function down(): void
     {
+        // convert any 'completed' entries before shrinking the enum
+        DB::table('student_enrollments')
+            ->where('status', 'completed')
+            ->update(['status' => 'active']);
+
         DB::statement("ALTER TABLE student_enrollments MODIFY `status` ENUM('active','dropped','transferred') NOT NULL DEFAULT 'active'");
     }
 };

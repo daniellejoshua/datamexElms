@@ -3,9 +3,14 @@
 namespace App\Services;
 
 use App\Models\ArchivedStudentEnrollment;
+use App\Models\ArchivedStudentSubject;
+use App\Models\CurriculumSubject;
 use App\Models\SemesterFinalization;
+use App\Models\ShsStudentGrade;
 use App\Models\Student;
 use App\Models\StudentEnrollment;
+use App\Models\StudentGrade;
+use App\Models\StudentSubjectCredit;
 use App\Models\StudentSemesterPayment;
 use Illuminate\Support\Facades\DB;
 
@@ -65,6 +70,9 @@ class StudentProgressionService
         if ($unpaidBalances > 0) {
             throw new \Exception("Cannot progress student {$student->user->name} due to unpaid balance of ₱".number_format($unpaidBalances, 2));
         }
+
+        // SHS gate: Grade 11 -> Grade 12 requires complete/passing Grade 11 curriculum.
+        $this->assertShsPromotionEligibility($student);
 
         DB::transaction(function () use ($student, $newAcademicYear) {
             // Archive current enrollment
@@ -207,6 +215,117 @@ class StudentProgressionService
     }
 
     /**
+     * Prevent SHS Grade 11 students from moving to Grade 12
+     * if they still have missing or failed Grade 11 curriculum subjects.
+     */
+    private function assertShsPromotionEligibility(Student $student): void
+    {
+        $educationLevel = strtolower((string) ($student->education_level ?? $student->program?->education_level ?? ''));
+        $isShs = in_array($educationLevel, ['shs', 'senior_high'], true);
+        $currentYearRaw = (string) ($student->current_year_level ?? '');
+        $currentYear = str_contains($currentYearRaw, '11') ? 11 : (str_contains($currentYearRaw, '12') ? 12 : (int) $currentYearRaw);
+
+        // Only enforce when moving from Grade 11.
+        if (! $isShs || $currentYear !== 11) {
+            return;
+        }
+
+        if (empty($student->curriculum_id)) {
+            throw new \Exception('Cannot promote to Grade 12: student has no assigned curriculum.');
+        }
+
+        $grade11Curriculum = CurriculumSubject::query()
+            ->where('curriculum_id', $student->curriculum_id)
+            ->where(function ($q) {
+                $q->whereIn('year_level', [11, '11', 'Grade 11', 'grade 11', 1, '1']);
+            })
+            ->get();
+
+        if ($grade11Curriculum->isEmpty()) {
+            throw new \Exception('Cannot promote to Grade 12: no Grade 11 curriculum subjects found.');
+        }
+
+        $requiredSubjectCodes = $grade11Curriculum
+            ->pluck('subject_code')
+            ->filter()
+            ->map(fn ($code) => strtoupper(trim((string) $code)))
+            ->unique()
+            ->values();
+
+        $requiredSubjectIds = $grade11Curriculum
+            ->pluck('subject_id')
+            ->filter()
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values();
+
+        $passedCodes = collect();
+
+        // SHS grade rows (primary source).
+        $shsPassed = ShsStudentGrade::query()
+            ->whereHas('studentEnrollment', fn ($q) => $q->where('student_id', $student->id))
+            ->whereNotNull('final_grade')
+            ->where('final_grade', '>=', 75)
+            ->with('sectionSubject.subject')
+            ->get()
+            ->pluck('sectionSubject.subject.subject_code')
+            ->filter()
+            ->map(fn ($code) => strtoupper(trim((string) $code)));
+        $passedCodes = $passedCodes->merge($shsPassed);
+
+        // StudentGrade fallback.
+        $collegeStylePassed = StudentGrade::query()
+            ->whereHas('studentEnrollment', fn ($q) => $q->where('student_id', $student->id))
+            ->whereNotNull('final_grade')
+            ->where('final_grade', '>=', 75)
+            ->with('sectionSubject.subject')
+            ->get()
+            ->pluck('sectionSubject.subject.subject_code')
+            ->filter()
+            ->map(fn ($code) => strtoupper(trim((string) $code)));
+        $passedCodes = $passedCodes->merge($collegeStylePassed);
+
+        // Archived grades.
+        $archivedPassed = ArchivedStudentSubject::query()
+            ->where('student_id', $student->id)
+            ->where(function ($q) {
+                $q->where('semester_grade', '>=', 75)
+                    ->orWhere('final_grade', '>=', 75);
+            })
+            ->pluck('subject_code')
+            ->filter()
+            ->map(fn ($code) => strtoupper(trim((string) $code)));
+        $passedCodes = $passedCodes->merge($archivedPassed);
+
+        // Credited subjects count as completed.
+        $creditedCodes = StudentSubjectCredit::query()
+            ->where('student_id', $student->id)
+            ->where('credit_status', 'credited')
+            ->get(['subject_id', 'subject_code'])
+            ->filter(function ($row) use ($requiredSubjectIds, $requiredSubjectCodes) {
+                $code = strtoupper(trim((string) ($row->subject_code ?? '')));
+                return $requiredSubjectIds->contains((int) $row->subject_id)
+                    || ($code !== '' && $requiredSubjectCodes->contains($code));
+            })
+            ->pluck('subject_code')
+            ->filter()
+            ->map(fn ($code) => strtoupper(trim((string) $code)));
+        $passedCodes = $passedCodes->merge($creditedCodes);
+
+        $passedCodes = $passedCodes->unique()->values();
+
+        $missingOrFailed = $requiredSubjectCodes
+            ->filter(fn ($required) => ! $passedCodes->contains($required))
+            ->values();
+
+        if ($missingOrFailed->isNotEmpty()) {
+            $sample = $missingOrFailed->take(5)->implode(', ');
+            $extra = $missingOrFailed->count() > 5 ? ' ...' : '';
+            throw new \Exception("Cannot promote to Grade 12: incomplete or failed Grade 11 curriculum subjects ({$sample}{$extra}).");
+        }
+    }
+
+    /**
      * Get graduation candidates for a given period.
      */
     public function getGraduationCandidates(string $academicYear, string $semester, string $educationLevel): \Illuminate\Database\Eloquent\Collection
@@ -266,14 +385,9 @@ class StudentProgressionService
                     throw new \Exception("Semester {$semester} {$academicYear} is already finalized for {$student->education_level}");
                 }
 
-                // Determine if student should graduate or progress
-                $isGraduating = $this->shouldGraduate($student, $academicYear, $semester);
-
-                if ($isGraduating) {
-                    $this->graduateStudent($student);
-                } else {
-                    $this->progressToNextSemester($student, $this->getNextAcademicPeriod($academicYear, $semester)['year'], $this->getNextAcademicPeriod($academicYear, $semester)['semester']);
-                }
+                // Note: Graduation is now handled automatically during archiving
+                // Only progress to next semester for continuing students
+                $this->progressToNextSemester($student, $this->getNextAcademicPeriod($academicYear, $semester)['year'], $this->getNextAcademicPeriod($academicYear, $semester)['semester']);
 
                 $results['success']++;
             } catch (\Exception $e) {
@@ -290,8 +404,8 @@ class StudentProgressionService
      */
     private function shouldGraduate(Student $student, string $academicYear, string $semester): bool
     {
-        $maxYearLevel = $student->education_level === 'shs' ? '12' : '4';
-        $finalSemester = $student->education_level === 'shs' ? '2nd' : '2nd';
+        $maxYearLevel = $student->education_level === 'senior_high' ? '12' : '4';
+        $finalSemester = $student->education_level === 'senior_high' ? '2nd' : '2nd';
 
         return $student->current_year_level == $maxYearLevel &&
                $semester === $finalSemester &&

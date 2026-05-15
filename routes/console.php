@@ -19,3 +19,14 @@ Schedule::command('announcements:publish-scheduled')
     ->everyMinute()
     ->name('publish-scheduled-announcements')
     ->description('Publish scheduled announcements and handle expired ones');
+
+// when the machine has connectivity, push any offline changes to the cloud
+Schedule::command('sync:push')
+    ->everyMinute()
+    ->name('sync-push')
+    ->description('Push pending offline records up to the cloud instance');
+
+Schedule::command('backup:run-automatic')
+    ->hourly()
+    ->name('automatic-backup')
+    ->description('Run automatic database backups when due');

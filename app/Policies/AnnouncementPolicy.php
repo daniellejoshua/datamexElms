@@ -21,7 +21,7 @@ class AnnouncementPolicy
     public function view(User $user, Announcement $announcement): bool
     {
         // Check visibility
-        if (in_array($user->role, ['super_admin', 'registrar'])) {
+        if (in_array($user->role, ['super_admin', 'registrar', 'head_teacher'])) {
             return true;
         }
 
@@ -37,7 +37,7 @@ class AnnouncementPolicy
             return true;
         }
 
-        if ($announcement->visibility === 'admins_only' && $user->role === 'super_admin') {
+        if ($announcement->visibility === 'admins_only' && in_array($user->role, ['super_admin', 'head_teacher'])) {
             return true;
         }
 

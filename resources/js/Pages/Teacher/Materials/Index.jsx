@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Head, Link, useForm, router } from '@inertiajs/react';
+import { route } from 'ziggy-js';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -29,7 +30,13 @@ import {
 export default function MaterialsIndex({ section, materials, sectionSubject }) {
     const [showUploadDialog, setShowUploadDialog] = useState(false);
     const [isDragOver, setIsDragOver] = useState(false);
+    const [searchTerm, setSearchTerm] = useState('');
+    const [currentPage, setCurrentPage] = useState(1);
+    const [showDeleteModal, setShowDeleteModal] = useState(false);
+    const [materialToDelete, setMaterialToDelete] = useState(null);
     const fileInputRef = React.useRef(null);
+
+    const itemsPerPage = 8;
 
     const { data, setData, post, processing, errors, reset } = useForm({
         title: '',
@@ -41,10 +48,13 @@ export default function MaterialsIndex({ section, materials, sectionSubject }) {
 
     const handleSubmit = (e) => {
         e.preventDefault();
-        post(route('teacher.materials.store', section.id), {
+        post(route('teacher.materials.store', sectionSubject.id), {
             onSuccess: () => {
                 reset();
                 setShowUploadDialog(false);
+            },
+            onError: (errors) => {
+                toast.error('Failed to upload learning material. Please try again.');
             },
         });
     };
@@ -84,9 +94,31 @@ export default function MaterialsIndex({ section, materials, sectionSubject }) {
     };
 
     const handleDelete = (materialId) => {
-        if (confirm('Are you sure you want to delete this material?')) {
-            router.delete(route('teacher.materials.destroy', [section.id, materialId]));
+        const material = materials.find(m => m.id === materialId);
+        setMaterialToDelete(material);
+        setShowDeleteModal(true);
+    };
+
+    const confirmDelete = () => {
+        if (materialToDelete) {
+            router.delete(route('teacher.materials.destroy', [sectionSubject.id, materialToDelete.id]), {
+                onSuccess: () => {
+                    setShowDeleteModal(false);
+                    setMaterialToDelete(null);
+                    // Flash message will be handled by AuthenticatedLayout
+                },
+                onError: (errors) => {
+                    toast.error('Failed to delete learning material. Please try again.');
+                    setShowDeleteModal(false);
+                    setMaterialToDelete(null);
+                },
+            });
         }
+    };
+
+    const cancelDelete = () => {
+        setShowDeleteModal(false);
+        setMaterialToDelete(null);
     };
 
     const getCategoryColor = (category) => {
@@ -101,14 +133,14 @@ export default function MaterialsIndex({ section, materials, sectionSubject }) {
 
     const getFileIcon = (fileType) => {
         const types = {
-            pdf: '📄',
-            doc: '📝', docx: '📝',
-            ppt: '📊', pptx: '📊',
-            xls: '📊', xlsx: '📊',
-            txt: '📄',
-            jpg: '🖼️', jpeg: '🖼️', png: '🖼️'
+            pdf: 'PDF',
+            doc: 'DOC', docx: 'DOC',
+            ppt: 'PPT', pptx: 'PPT',
+            xls: 'XLS', xlsx: 'XLS',
+            txt: 'TXT',
+            jpg: 'IMG', jpeg: 'IMG', png: 'IMG'
         };
-        return types[fileType] || '📁';
+        return types[fileType] || 'FILE';
     };
 
     // Create simplified section name format
@@ -131,39 +163,77 @@ export default function MaterialsIndex({ section, materials, sectionSubject }) {
         return section.section_name;
     };
 
+    // Filter materials based on search term
+    const filteredMaterials = materials.filter(material =>
+        material.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        material.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        material.category.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        material.original_name.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+
+    // Pagination logic
+    const totalPages = Math.ceil(filteredMaterials.length / itemsPerPage);
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    const endIndex = startIndex + itemsPerPage;
+    const currentMaterials = filteredMaterials.slice(startIndex, endIndex);
+
+    // Reset to first page when search changes
+    React.useEffect(() => {
+        setCurrentPage(1);
+    }, [searchTerm]);
+
     return (
         <AuthenticatedLayout
             header={
-                <div className="flex items-center gap-3">
+                <div className="flex items-center justify-between">
                     <Button
                         asChild
                         variant="ghost"
                         size="sm"
                         className="text-gray-600 hover:text-gray-900"
                     >
-                        <Link href={route('teacher.sections.college')}>
-                            <ArrowLeft className="w-4 h-4 mr-1" />
-                            Back to Sections
+                        <Link href={route('teacher.sections.college')} className="flex items-center">
+                            <ArrowLeft className="w-4 h-4 flex-shrink-0" />
+                            <span className="hidden sm:inline ml-1">Back to Sections</span>
                         </Link>
                     </Button>
-                    <div className="h-6 w-px bg-gray-300"></div>
-                  
-                    <div>
-                        <h2 className="text-2xl font-bold text-gray-900">{sectionSubject.subject.subject_name}</h2>
-                        <p className="text-sm text-blue-600">{getSimplifiedSectionName()} • {sectionSubject.subject.subject_code} • Learning Materials</p>
+                    <div className="flex items-center gap-2 min-w-0 flex-1">
+                        <div className="bg-blue-100 p-1.5 rounded-md flex-shrink-0">
+                            <BookOpen className="w-4 h-4 text-blue-600" />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                            <h2 className="text-base sm:text-lg font-semibold text-gray-900 truncate">{sectionSubject.subject.subject_name}</h2>
+                            <p className="text-xs text-gray-500 mt-0.5 truncate">{getSimplifiedSectionName()} • {sectionSubject.subject.subject_code} • Learning Materials</p>
+                        </div>
                     </div>
                 </div>
             }
         >
             <Head title={`Materials - ${getSimplifiedSectionName()}`} />
             
-            <div className="p-6">
-                {/* Section Header with Add Button */}
-                <div className="flex items-right justify-end mb-6">
-                  
-                    <Button 
+            <div className="p-4 sm:p-6">
+                {/* Section Header with Search and Add Button */}
+                <div className="flex flex-col lg:flex-row gap-4 lg:items-center justify-between mb-6">
+                    {/* Search Input */}
+                    <div className="relative flex-1 max-w-md w-full lg:w-auto">
+                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                            <svg className="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                            </svg>
+                        </div>
+                        <Input
+                            type="text"
+                            placeholder="Search materials..."
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                            className="pl-10 pr-4 py-2 w-full border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        />
+                    </div>
+
+                    {/* Add Material Button */}
+                    <Button
                         onClick={() => setShowUploadDialog(true)}
-                        className="bg-blue-600 hover:bg-blue-700 text-white"
+                        className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg shadow-sm hover:shadow-md transition-all duration-200 w-full sm:w-auto"
                     >
                         <Plus className="w-4 h-4 mr-2" />
                         Add Material
@@ -331,79 +401,139 @@ export default function MaterialsIndex({ section, materials, sectionSubject }) {
                     </div>
                 )}
 
+                {/* Delete Confirmation Modal */}
+                {showDeleteModal && materialToDelete && (
+                    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+                        <div className="bg-white rounded-xl shadow-2xl max-w-md w-full">
+                            <div className="flex items-center justify-between p-6 border-b">
+                                <div>
+                                    <h2 className="text-xl font-bold text-gray-900">Delete Learning Material</h2>
+                                    <p className="text-gray-500 text-sm mt-1">This action cannot be undone</p>
+                                </div>
+                                <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={cancelDelete}
+                                    className="text-gray-400 hover:text-gray-600 h-8 w-8 p-0"
+                                >
+                                    ✕
+                                </Button>
+                            </div>
+                            <div className="p-6">
+                                <div className="flex items-start gap-4">
+                                    <div className="bg-red-50 border border-red-200 p-3 rounded-lg">
+                                        <AlertCircle className="w-6 h-6 text-red-600" />
+                                    </div>
+                                    <div className="flex-1">
+                                        <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                                            Are you sure you want to delete this material?
+                                        </h3>
+                                        <div className="bg-gray-50 p-4 rounded-lg border">
+                                            <p className="font-medium text-gray-900 mb-1">{materialToDelete.title}</p>
+                                            <p className="text-sm text-gray-600">{materialToDelete.original_name}</p>
+                                            <p className="text-xs text-gray-500 mt-2">
+                                                Category: {materialToDelete.category} • Size: {materialToDelete.formatted_file_size}
+                                            </p>
+                                        </div>
+                                        <p className="text-sm text-gray-600 mt-4">
+                                            This will permanently delete the file and remove it from all student access.
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+                            <div className="flex items-center justify-end gap-3 px-6 py-4 border-t bg-gray-50">
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    onClick={cancelDelete}
+                                    className="px-4 py-2 text-gray-700 border-gray-300 hover:bg-gray-50"
+                                >
+                                    Cancel
+                                </Button>
+                                <Button
+                                    onClick={confirmDelete}
+                                    className="px-6 py-2 bg-red-600 hover:bg-red-700 text-white font-medium rounded-md transition-colors"
+                                >
+                                    <Trash2 className="w-4 h-4 mr-2" />
+                                    Delete Material
+                                </Button>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
                 {/* Materials Grid */}
-                {materials.length > 0 ? (
+                {filteredMaterials.length > 0 ? (
                     <>
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                            {materials.map((material) => (
-                                <Card key={material.id} className="group hover:shadow-lg transition-all duration-300 border-gray-200 hover:border-blue-300">
-                                    {/* Header */}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6">
+                            {currentMaterials.map((material) => (
+                                <Card key={material.id} className="group border border-gray-200 hover:border-blue-300 hover:shadow-md transition-all duration-200 bg-white">
                                     <CardHeader className="pb-3">
-                                        <div className="flex items-start justify-between">
+                                        <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
                                             <div className="flex items-center gap-3 flex-1 min-w-0">
-                                                <div className="bg-blue-50 group-hover:bg-blue-100 p-2 rounded-lg transition-colors border border-blue-200">
-                                                    <div className="text-blue-600 text-sm font-bold">{getFileIcon(material.file_type)}</div>
+                                                <div className="bg-blue-50 border border-blue-200 p-2 rounded-lg flex-shrink-0">
+                                                    <div className="text-blue-700 text-xs font-bold">{getFileIcon(material.file_type)}</div>
                                                 </div>
                                                 <div className="flex-1 min-w-0">
-                                                    <CardTitle className="text-sm font-semibold text-gray-900 group-hover:text-blue-700 truncate transition-colors">
+                                                    <CardTitle className="text-sm font-semibold text-gray-900 truncate leading-tight">
                                                         {material.title}
                                                     </CardTitle>
-                                                    <CardDescription className="text-gray-600 text-xs truncate mt-0.5">
+                                                    <CardDescription className="text-gray-600 text-xs truncate mt-1">
                                                         {material.original_name}
                                                     </CardDescription>
                                                 </div>
                                             </div>
-                                            <Badge className={`${getCategoryColor(material.category)} text-xs font-medium shrink-0`}>
+                                            <Badge
+                                                className={`${getCategoryColor(material.category)} text-xs font-medium px-2 py-1 border-0 flex-shrink-0`}
+                                            >
                                                 {material.category}
                                             </Badge>
                                         </div>
                                     </CardHeader>
 
-                                    {/* Content */}
                                     <CardContent className="space-y-4">
                                         {/* Description */}
                                         {material.description && (
-                                            <div className="p-3 bg-gray-50 dark:bg-gray-800 rounded-lg border-l-4 border-blue-500">
-                                                <p className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed line-clamp-3">
+                                            <div className="p-3 bg-gray-50 rounded-lg border border-gray-200">
+                                                <p className="text-sm text-gray-700 leading-relaxed line-clamp-3">
                                                     {material.description}
                                                 </p>
                                             </div>
                                         )}
 
                                         {/* Material Info */}
-                                        <div className="flex items-center gap-4 text-sm text-gray-600 dark:text-gray-400">
+                                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 sm:gap-4 text-sm text-gray-600">
                                             <div className="flex items-center gap-1">
-                                                <Calendar className="w-4 h-4" />
-                                                <span>{new Date(material.upload_date).toLocaleDateString('en-US', { 
+                                                <Calendar className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                                                <span className="truncate">{new Date(material.upload_date).toLocaleDateString('en-US', { 
                                                     month: 'short', 
                                                     day: 'numeric',
                                                     year: 'numeric' 
                                                 })}</span>
                                             </div>
                                             <div className="flex items-center gap-1">
-                                                <File className="w-4 h-4" />
-                                                <span className="font-medium">{material.formatted_file_size}</span>
+                                                <File className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                                                <span className="text-gray-700 truncate">{material.formatted_file_size}</span>
                                             </div>
                                         </div>
 
                                         {/* Action Buttons */}
-                                        <div className="flex gap-2 pt-2">
+                                        <div className="flex flex-col sm:flex-row gap-2 pt-2">
                                             <Button
                                                 size="sm"
                                                 variant="outline"
-                                                asChild
-                                                className="flex-1 text-sm font-medium"
+                                                onClick={() => window.open(route('teacher.materials.download', [sectionSubject.id, material.id]), '_blank')}
+                                                className="flex-1 text-sm border-gray-300 hover:border-blue-300 hover:bg-blue-50"
                                             >
-                                                <Link href={route('teacher.materials.download', [section.id, material.id])}>
-                                                    <Download className="w-4 h-4 mr-2" />
-                                                    Download
-                                                </Link>
+                                                <Download className="w-4 h-4 mr-2" />
+                                                Download
                                             </Button>
                                             <Button
                                                 size="sm"
                                                 variant="destructive"
                                                 onClick={() => handleDelete(material.id)}
-                                                className="px-3"
+                                                className="flex-1 sm:flex-none px-3"
                                             >
                                                 <Trash2 className="w-4 h-4" />
                                             </Button>
@@ -413,33 +543,93 @@ export default function MaterialsIndex({ section, materials, sectionSubject }) {
                             ))}
                         </div>
 
-                        {/* Pagination placeholder */}
-                        {materials.length > 12 && (
-                            <div className="text-center">
-                                <p className="text-sm text-gray-500">Showing {materials.length} materials</p>
+                        {/* Pagination Controls */}
+                        {totalPages > 1 && (
+                            <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mt-8 pt-6 border-t border-gray-200">
+                                <div className="text-sm text-gray-600">
+                                    Showing {startIndex + 1} to {Math.min(endIndex, filteredMaterials.length)} of {filteredMaterials.length} materials
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                                        disabled={currentPage === 1}
+                                        className="px-3 py-1 h-8"
+                                    >
+                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                                        </svg>
+                                        Previous
+                                    </Button>
+
+                                    <div className="flex items-center gap-1">
+                                        {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
+                                            <Button
+                                                key={page}
+                                                variant={currentPage === page ? "default" : "outline"}
+                                                size="sm"
+                                                onClick={() => setCurrentPage(page)}
+                                                className={`px-3 py-1 h-8 min-w-[32px] ${
+                                                    currentPage === page 
+                                                        ? 'bg-blue-600 hover:bg-blue-700 text-white' 
+                                                        : 'hover:bg-gray-50'
+                                                }`}
+                                            >
+                                                {page}
+                                            </Button>
+                                        ))}
+                                    </div>
+
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                                        disabled={currentPage === totalPages}
+                                        className="px-3 py-1 h-8"
+                                    >
+                                        Next
+                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                                        </svg>
+                                    </Button>
+                                </div>
                             </div>
                         )}
                     </>
                 ) : (
-                    <Card className="p-8 text-center">
+                    <Card className="p-8 text-center border-2 border-dashed border-gray-300">
                         <div className="flex flex-col items-center gap-4">
                             <div className="bg-gray-100 p-4 rounded-full">
                                 <FileText className="w-8 h-8 text-gray-500" />
                             </div>
                             <div>
                                 <h3 className="text-lg font-bold text-gray-900 mb-2">
-                                    No materials uploaded yet
+                                    {searchTerm ? 'No materials found' : 'No materials uploaded yet'}
                                 </h3>
                                 <p className="text-gray-600 mb-4 max-w-sm mx-auto text-sm">
-                                    Start sharing learning materials with your students.
+                                    {searchTerm 
+                                        ? 'Try adjusting your search terms or clear the search to see all materials.' 
+                                        : 'Start sharing learning materials with your students.'
+                                    }
                                 </p>
-                                <Button 
-                                    onClick={() => setShowUploadDialog(true)}
-                                    className="bg-blue-600 hover:bg-blue-700 text-white"
-                                >
-                                    <Plus className="w-4 h-4 mr-2" />
-                                    Upload Material
-                                </Button>
+                                {searchTerm ? (
+                                    <Button 
+                                        onClick={() => setSearchTerm('')}
+                                        variant="outline"
+                                        className="mr-2"
+                                    >
+                                        Clear Search
+                                    </Button>
+                                ) : (
+                                    <Button 
+                                        onClick={() => setShowUploadDialog(true)}
+                                        className="bg-blue-600 hover:bg-blue-700 text-white"
+                                    >
+                                        <Plus className="w-4 h-4 mr-2" />
+                                        Upload Material
+                                    </Button>
+                                )}
                             </div>
                         </div>
                     </Card>

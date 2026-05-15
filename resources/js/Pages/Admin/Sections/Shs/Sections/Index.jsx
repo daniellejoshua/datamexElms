@@ -91,17 +91,15 @@ const Index = ({
     return (
         <AuthenticatedLayout
             header={
-                <div className="flex items-center gap-2 sm:gap-3 min-h-[44px]">
-                    <div className="bg-blue-100 p-1.5 sm:p-2 rounded-md flex-shrink-0">
-                        <School className="w-4 h-4 sm:w-5 sm:h-5 text-blue-600" />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                        <h2 className="text-lg sm:text-xl lg:text-2xl font-bold text-gray-900 truncate">
-                            SHS Sections
-                        </h2>
-                        <p className="text-xs sm:text-sm text-gray-600 mt-0.5 hidden sm:block">
-                            Manage Senior High School program sections and student enrollments
-                        </p>
+                <div className="flex items-center px-2 py-1">
+                    <div className="flex items-center gap-2">
+                        <div className="bg-green-100 p-1.5 rounded-md">
+                            <School className="w-4 h-4 text-green-600" />
+                        </div>
+                        <div>
+                            <h2 className="text-lg font-semibold text-gray-900">SHS Sections</h2>
+                            <p className="text-xs text-gray-500 mt-0.5">Manage Senior High School program sections and student enrollments</p>
+                        </div>
                     </div>
                 </div>
             }
@@ -287,7 +285,7 @@ const Index = ({
                         </div>
                     </CardContent>
                 </Card>                {/* Sections Grid */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3 gap-4">
                     {sections?.data?.length > 0 ? (
                         sections.data.map((section) => {
                             return (

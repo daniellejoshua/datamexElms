@@ -14,7 +14,7 @@ return new class extends Migration
         Schema::table('archived_sections', function (Blueprint $table) {
             // Only add year_level since program_id and curriculum_id already exist
             if (! Schema::hasColumn('archived_sections', 'year_level')) {
-                $table->integer('year_level')->nullable()->after('curriculum_id');
+                $table->integer('year_level')->nullable();
             }
         });
     }

@@ -4,7 +4,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion'
-import { ArrowLeft, User, Mail, Phone, MapPin, GraduationCap, Calendar, FileText, DollarSign, CreditCard } from 'lucide-react'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
+import { ArrowLeft, User, Mail, Phone, MapPin, GraduationCap, Calendar, FileText, DollarSign, CreditCard, Calculator, X, Loader2 } from 'lucide-react'
+import { useState } from 'react'
+import axios from 'axios'
+import { toast } from 'sonner'
 
 // Helper function to format section name
 const formatSectionName = (section) => {
@@ -43,6 +47,32 @@ export default function CollegePaymentShow({ student, payments, auth }) {
         return colors[status] || 'bg-gray-100 text-gray-800 border-gray-200'
     }
 
+    // Modal states for balance calculation
+    const [showCalculationModal, setShowCalculationModal] = useState(false)
+    const [calculationData, setCalculationData] = useState(null)
+    const [isCalculating, setIsCalculating] = useState(false)
+    const [selectedPayment, setSelectedPayment] = useState(null)
+
+    const handleShowCalculation = async (payment) => {
+        setSelectedPayment(payment)
+        setIsCalculating(true)
+        setShowCalculationModal(true)
+
+        try {
+            const response = await axios.get(route('registrar.payments.college.calculate-irregular', payment.id))
+            if (response.data.success) {
+                setCalculationData(response.data)
+            } else {
+                toast.error('Failed to load calculation details')
+            }
+        } catch (error) {
+            console.error('Error loading calculation:', error)
+            toast.error('Error loading calculation details')
+        } finally {
+            setIsCalculating(false)
+        }
+    }
+
     return (
         <AuthenticatedLayout
             header={
@@ -70,7 +100,7 @@ export default function CollegePaymentShow({ student, payments, auth }) {
 
             <div className="space-y-6">
                 {/* Student Information Card */}
-                <Card>
+                <Card className="mx-6 mt-6">
                     <CardHeader className="bg-gradient-to-r from-blue-50 to-indigo-50 py-4">
                         <div className="flex items-center gap-3">
                             <div className="p-1.5 bg-blue-500 rounded-lg">
@@ -82,8 +112,8 @@ export default function CollegePaymentShow({ student, payments, auth }) {
                             </div>
                         </div>
                     </CardHeader>
-                    <CardContent className="pt-4">
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    <CardContent className="pt-2">
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2">
                             <div className="flex items-start gap-2 p-2 rounded-lg hover:bg-gray-50 transition-colors">
                                 <div className="p-1.5 bg-blue-100 rounded-lg">
                                     <User className="w-4 h-4 text-blue-600" />
@@ -111,11 +141,9 @@ export default function CollegePaymentShow({ student, payments, auth }) {
                                 <div className="flex-1">
                                     <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Program</p>
                                     <p className="font-semibold text-gray-900 mt-0.5">
-                                        {student.program?.program_name || student.program?.name || 'N/A'}
+                                        {student.program?.program_code || student.program?.name || 'N/A'}
                                     </p>
-                                    <p className="text-xs text-gray-500 mt-0.5">
-                                        {student.program?.program_code || ''}
-                                    </p>
+                                 
                                 </div>
                             </div>
 
@@ -153,7 +181,7 @@ export default function CollegePaymentShow({ student, payments, auth }) {
                 </Card>
 
                 {/* Payment Records */}
-                <Card>
+                <Card className="mx-6">
                     <CardHeader>
                         <CardTitle className="flex items-center gap-2">
                             <CreditCard className="w-5 h-5" />
@@ -168,7 +196,7 @@ export default function CollegePaymentShow({ student, payments, auth }) {
                             {payments.map(payment => (
                                 <AccordionItem key={payment.id} value={`payment-${payment.id}`}>
                                     <AccordionTrigger className="hover:no-underline">
-                                        <div className="flex items-center justify-between w-full mr-4">
+                                        <div className="flex items-center justify-between w-full mr-2">
                                             <div className="flex items-center gap-3">
                                                 <div className="p-2 bg-green-100 rounded-lg">
                                                     <CreditCard className="w-4 h-4 text-green-600" />
@@ -178,7 +206,7 @@ export default function CollegePaymentShow({ student, payments, auth }) {
                                                         {payment.academic_year} - {payment.semester} Semester
                                                     </p>
                                                     <p className="text-sm text-gray-500">
-                                                        Total: {formatCurrency(payment.total_semester_fee)} • Paid: {formatCurrency(payment.total_paid)}
+                                                        Total: {formatCurrency(payment.calculated_total_amount ?? payment.total_semester_fee)} • Paid: {formatCurrency(payment.total_paid)}
                                                     </p>
                                                 </div>
                                             </div>
@@ -187,13 +215,13 @@ export default function CollegePaymentShow({ student, payments, auth }) {
                                             </Badge>
                                         </div>
                                     </AccordionTrigger>
-                                    <AccordionContent className="pt-4">
-                                        <div className="space-y-6">
+                                    <AccordionContent className="pt-2">
+                                        <div className="space-y-4">
                                             {/* Payment Summary */}
-                                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-2">
                                                 <div>
                                                     <p className="text-sm text-gray-500">Total Fee</p>
-                                                    <p className="text-lg font-bold">{formatCurrency(payment.total_semester_fee)}</p>
+                                                    <p className="text-lg font-bold">{formatCurrency(payment.calculated_total_amount ?? payment.total_semester_fee)}</p>
                                                 </div>
                                                 <div>
                                                     <p className="text-sm text-gray-500">Total Paid</p>
@@ -209,9 +237,23 @@ export default function CollegePaymentShow({ student, payments, auth }) {
                                                 </div>
                                             </div>
 
+                                            {/* Balance Calculation Button - show for irregular students OR transferees with creditTransfers/previous_school */}
+                                            {(student.student_type === 'irregular' || student.previous_school || (student.creditTransfers && student.creditTransfers.length > 0)) && (
+                                                <div className="flex justify-center">
+                                                    <Button
+                                                        onClick={() => handleShowCalculation(payment)}
+                                                        variant="outline"
+                                                        className="bg-orange-50 border-orange-200 text-orange-700 hover:bg-orange-100"
+                                                    >
+                                                        <Calculator className="w-4 h-4 mr-2" />
+                                                        View Balance Calculation
+                                                    </Button>
+                                                </div>
+                                            )}
+
                                             {/* Transaction History */}
-                                            <div>
-                                                <div className="flex items-center gap-2 mb-4">
+                                            <div className="mx-4">
+                                                <div className="flex items-center gap-2 mb-3">
                                                     <div className="p-1.5 bg-blue-100 rounded">
                                                         <CreditCard className="w-4 h-4 text-blue-600" />
                                                     </div>
@@ -227,23 +269,23 @@ export default function CollegePaymentShow({ student, payments, auth }) {
                                                         <table className="w-full">
                                                             <thead className="bg-gray-50">
                                                                 <tr className="border-b">
-                                                                    <th className="text-left py-3 px-4 text-sm font-medium text-gray-700">Date</th>
-                                                                    <th className="text-left py-3 px-4 text-sm font-medium text-gray-700">OR Number</th>
-                                                                    <th className="text-left py-3 px-4 text-sm font-medium text-gray-700">Description</th>
-                                                                    <th className="text-right py-3 px-4 text-sm font-medium text-gray-700">Amount</th>
-                                                                    <th className="text-center py-3 px-4 text-sm font-medium text-gray-700">Status</th>
+                                                                    <th className="text-left py-2 px-3 text-sm font-medium text-gray-700">Date</th>
+                                                                    <th className="text-left py-2 px-3 text-sm font-medium text-gray-700">OR Number</th>
+                                                                    <th className="text-left py-2 px-3 text-sm font-medium text-gray-700">Description</th>
+                                                                    <th className="text-right py-2 px-3 text-sm font-medium text-gray-700">Amount</th>
+                                                                    <th className="text-center py-2 px-3 text-sm font-medium text-gray-700">Status</th>
                                                                 </tr>
                                                             </thead>
                                                             <tbody>
                                                                 {payment.payment_transactions.map(transaction => (
                                                                     <tr key={transaction.id} className="border-b hover:bg-gray-50">
-                                                                        <td className="py-3 px-4 text-sm">
+                                                                        <td className="py-2 px-3 text-sm">
                                                                             {formatDate(transaction.payment_date)}
                                                                         </td>
-                                                                        <td className="py-3 px-4">
+                                                                        <td className="py-2 px-3">
                                                                             <span className="font-mono text-sm">{transaction.reference_number}</span>
                                                                         </td>
-                                                                        <td className="py-3 px-4 text-sm">
+                                                                        <td className="py-2 px-3 text-sm">
                                                                             <div>
                                                                                 <p className="font-medium">{transaction.description}</p>
                                                                                 {transaction.notes && (
@@ -251,10 +293,10 @@ export default function CollegePaymentShow({ student, payments, auth }) {
                                                                                 )}
                                                                             </div>
                                                                         </td>
-                                                                        <td className="py-3 px-4 text-right font-medium text-green-600">
+                                                                        <td className="py-2 px-3 text-right font-medium text-green-600">
                                                                             {formatCurrency(transaction.amount)}
                                                                         </td>
-                                                                        <td className="py-3 px-4 text-center">
+                                                                        <td className="py-2 px-3 text-center">
                                                                             <Badge className={getStatusColor(transaction.status)}>
                                                                                 {transaction.status}
                                                                             </Badge>
@@ -289,6 +331,158 @@ export default function CollegePaymentShow({ student, payments, auth }) {
                     </Card>
                 )}
             </div>
+
+            {/* Balance Calculation Modal */}
+            <Dialog open={showCalculationModal} onOpenChange={setShowCalculationModal}>
+                <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+                    <DialogHeader>
+                        <DialogTitle className="flex items-center gap-3">
+                            <div className="p-2 bg-orange-100 rounded-lg">
+                                <Calculator className="w-5 h-5 text-orange-600" />
+                            </div>
+                            <div>
+                                <p className="text-lg font-bold">Balance Calculation Breakdown</p>
+                                <p className="text-sm text-gray-500">
+                                    {selectedPayment && `${selectedPayment.academic_year} - ${selectedPayment.semester} Semester`}
+                                </p>
+                            </div>
+                        </DialogTitle>
+                    </DialogHeader>
+
+                    <div className="space-y-6">
+                        {isCalculating ? (
+                            <div className="flex items-center justify-center py-12">
+                                <div className="text-center">
+                                    <Loader2 className="w-8 h-8 animate-spin mx-auto mb-4 text-orange-600" />
+                                    <p className="text-gray-600">Calculating balance breakdown...</p>
+                                </div>
+                            </div>
+                        ) : calculationData ? (
+                            <div className="space-y-6">
+                                {/* Student Info */}
+                                <div className="bg-gray-50 rounded-lg p-4">
+                                    <div className="flex items-center gap-3">
+                                        <div className="p-2 bg-blue-100 rounded-lg">
+                                            <User className="w-4 h-4 text-blue-600" />
+                                        </div>
+                                        <div>
+                                            <p className="font-semibold text-gray-900">{student.user.name}</p>
+                                            <p className="text-sm text-gray-600">Student Number: {student.student_number}</p>
+                                            <p className="text-sm text-gray-600">Current Year Level: {calculationData.details?.current_year_level || 'N/A'}</p>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Calculation Components */}
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                    {/* Past Year Subjects */}
+                                    <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                                        <div className="flex items-center gap-2 mb-3">
+                                            <div className="p-1.5 bg-red-100 rounded">
+                                                <FileText className="w-4 h-4 text-red-600" />
+                                            </div>
+                                            <h3 className="font-semibold text-red-800">Past Year Subjects</h3>
+                                        </div>
+                                        <div className="space-y-2">
+                                            <p className="text-sm text-red-700">
+                                                <span className="font-medium">{calculationData.details?.past_year_subjects_count || 0}</span> subjects × ₱300
+                                            </p>
+                                            <p className="text-lg font-bold text-red-800">
+                                                +{formatCurrency(calculationData.details?.past_year_subjects_fee || 0)}
+                                            </p>
+                                            {calculationData.details?.past_year_subjects?.length > 0 && (
+                                                <div className="mt-3 space-y-1">
+                                                    {calculationData.details.past_year_subjects.map((subject, idx) => (
+                                                        <div key={idx} className="text-xs text-red-700 bg-red-100 px-2 py-1 rounded">
+                                                            {subject.code}: {subject.name} (Year {subject.year_level})
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+
+                                    {/* Base Fee */}
+                                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                                        <div className="flex items-center gap-2 mb-3">
+                                            <div className="p-1.5 bg-blue-100 rounded">
+                                                <DollarSign className="w-4 h-4 text-blue-600" />
+                                            </div>
+                                            <h3 className="font-semibold text-blue-800">
+                                                {student.education_level === 'senior_high' ? 'Base Year Level Fee' : 'Base Semester Fee'}
+                                            </h3>
+                                        </div>
+                                        <div className="space-y-2">
+                                            <p className="text-sm text-blue-700">
+                                                {student.education_level === 'senior_high' ? 'Regular year level tuition' : 'Regular semester tuition'}
+                                            </p>
+                                            <p className="text-lg font-bold text-blue-800">
+                                                +{formatCurrency(calculationData.details?.base_fee || 0)}
+                                            </p>
+                                        </div>
+                                    </div>
+
+                                    {/* Credited Subjects */}
+                                    <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                                        <div className="flex items-center gap-2 mb-3">
+                                            <div className="p-1.5 bg-green-100 rounded">
+                                                <GraduationCap className="w-4 h-4 text-green-600" />
+                                            </div>
+                                            <h3 className="font-semibold text-green-800">
+                                                Already Credited Subjects on This {student.education_level === 'senior_high' ? 'Year Level' : 'Semester'}
+                                            </h3>
+                                        </div>
+                                        <div className="space-y-2">
+                                            <p className="text-sm text-green-700">
+                                                <span className="font-medium">{calculationData.details?.credited_subjects_count || 0}</span> credits × ₱300
+                                            </p>
+                                            <p className="text-lg font-bold text-green-800">
+                                                -{formatCurrency(calculationData.details?.credited_subjects_deduction || 0)}
+                                            </p>
+                                            {calculationData.details?.credited_subjects?.length > 0 && (
+                                                <div className="mt-3 space-y-1">
+                                                    {calculationData.details.credited_subjects.map((subject, idx) => (
+                                                        <div key={idx} className="text-xs text-green-700 bg-green-100 px-2 py-1 rounded">
+                                                            {subject.code}: {subject.name} ({subject.units} units)
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Final Calculation */}
+                                <div className="bg-gradient-to-r from-purple-50 to-blue-50 border border-purple-200 rounded-lg p-6">
+                                    <div className="text-center">
+                                        <h3 className="text-xl font-bold text-gray-900 mb-4">Final Balance Calculation</h3>
+                                        <div className="bg-white rounded-lg p-4 border-2 border-dashed border-purple-300">
+                                            <p className="text-lg text-gray-700 mb-2">{calculationData.breakdown || 'N/A'}</p>
+                                            <p className="text-3xl font-bold text-purple-800">
+                                                = {formatCurrency(calculationData.calculated_balance || 0)}
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        ) : (
+                            <div className="text-center py-12 text-gray-500">
+                                <Calculator className="w-12 h-12 mx-auto mb-4 text-gray-300" />
+                                <p>Failed to load calculation details</p>
+                            </div>
+                        )}
+                    </div>
+
+                    <DialogFooter>
+                        <Button
+                            onClick={() => setShowCalculationModal(false)}
+                            variant="outline"
+                        >
+                            Close
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </AuthenticatedLayout>
     )
 }

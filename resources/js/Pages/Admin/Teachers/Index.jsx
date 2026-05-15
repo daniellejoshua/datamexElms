@@ -8,6 +8,12 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import {
     Users,
     Plus,
     Search,
@@ -18,7 +24,8 @@ import {
     Filter,
     Mail,
     GraduationCap,
-    FileText
+    FileText,
+    Menu
 } from 'lucide-react';
 
 // Debounce utility function
@@ -37,6 +44,7 @@ function debounce(func, wait) {
 const Index = ({ teachers, departments, filters }) => {
     const [searchTerm, setSearchTerm] = useState(filters.search || '');
     const [statusFilter, setStatusFilter] = useState(filters.status || 'all');
+    const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
     // Debounced search function
     const debouncedSearch = useCallback(
@@ -98,20 +106,56 @@ const Index = ({ teachers, departments, filters }) => {
                                     Teachers ({teachers.total || 0})
                                 </CardTitle>
                                 <div className="flex gap-2">
-                                    <Button
-                                        onClick={() => window.open(route('admin.teachers.pdf'), '_blank')}
-                                        variant="outline"
-                                        className="border-blue-600 text-blue-600 hover:bg-blue-50"
-                                    >
-                                        <FileText className="w-4 h-4 mr-2" />
-                                        Export PDF
-                                    </Button>
-                                    <Button asChild className="bg-blue-600 hover:bg-blue-700">
-                                        <Link href={route('admin.teachers.create')}>
-                                            <Plus className="w-4 h-4 mr-2" />
-                                            Add Teacher
-                                        </Link>
-                                    </Button>
+                                    {/* Desktop buttons - hidden on mobile */}
+                                    <div className="hidden md:flex gap-2">
+                                        <Button
+                                            onClick={() => window.open(route('admin.teachers.pdf'), '_blank')}
+                                            variant="outline"
+                                            className="border-blue-600 text-blue-600 hover:bg-blue-50"
+                                        >
+                                            <FileText className="w-4 h-4 mr-2" />
+                                            Export PDF
+                                        </Button>
+                                        <Button asChild className="bg-blue-600 hover:bg-blue-700">
+                                            <Link href={route('admin.teachers.create')}>
+                                                <Plus className="w-4 h-4 mr-2" />
+                                                Add Teacher
+                                            </Link>
+                                        </Button>
+                                    </div>
+
+                                    {/* Mobile menu - hidden on desktop */}
+                                    <div className="md:hidden">
+                                        <DropdownMenu open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
+                                            <DropdownMenuTrigger asChild>
+                                                <Button variant="outline" size="sm">
+                                                    <Menu className="w-4 h-4" />
+                                                </Button>
+                                            </DropdownMenuTrigger>
+                                            <DropdownMenuContent align="end" className="w-48">
+                                                <DropdownMenuItem
+                                                    onClick={() => {
+                                                        window.open(route('admin.teachers.pdf'), '_blank');
+                                                        setMobileMenuOpen(false);
+                                                    }}
+                                                    className="cursor-pointer"
+                                                >
+                                                    <FileText className="w-4 h-4 mr-2" />
+                                                    Export PDF
+                                                </DropdownMenuItem>
+                                                <DropdownMenuItem asChild className="cursor-pointer">
+                                                    <Link
+                                                        href={route('admin.teachers.create')}
+                                                        className="flex items-center w-full"
+                                                        onClick={() => setMobileMenuOpen(false)}
+                                                    >
+                                                        <Plus className="w-4 h-4 mr-2" />
+                                                        Add Teacher
+                                                    </Link>
+                                                </DropdownMenuItem>
+                                            </DropdownMenuContent>
+                                        </DropdownMenu>
+                                    </div>
                                 </div>
                             </div>
 

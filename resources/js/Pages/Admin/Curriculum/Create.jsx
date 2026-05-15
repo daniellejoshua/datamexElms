@@ -12,6 +12,7 @@ import { ArrowLeft, FileText, AlertCircle, ChevronRight, ChevronLeft, BookOpen, 
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { useState, useEffect } from 'react';
+import { Toaster, toast } from 'sonner';
 
 export default function Create({ programs, subjects: initialSubjects }) {
     const [currentStep, setCurrentStep] = useState(1);
@@ -32,12 +33,49 @@ export default function Create({ programs, subjects: initialSubjects }) {
         description: '',
         status: 'active',
         curriculum_subjects: [],
+    }, {
+        onSuccess: () => {
+            toast.success(`Curriculum "${data.curriculum_name}" created successfully!`);
+            router.visit(route('admin.curriculum.index'));
+        },
+        onError: () => {
+            toast.error('Failed to create curriculum. Please check the errors.');
+        }
     });
 
     // Constants
     const semesters = ['1st', '2nd'];
-    const selectedProgram = programs?.find(p => p.id.toString() === data.program_id);
-    const years = selectedProgram ? Array.from({ length: selectedProgram.total_years }, (_, i) => i + 1) : [];
+    const selectedProgram = programs?.find(p => String(p.id) === String(data.program_id));
+    const normalizedEducationLevel = String(selectedProgram?.education_level || '').toLowerCase().replace(/\s+/g, '_').replace(/-/g, '_');
+    const isShsProgram = ['senior_high', 'shs'].includes(normalizedEducationLevel);
+    const foundationTypes = isShsProgram ? ['core', 'applied'] : ['minor'];
+    const specializationTypes = isShsProgram ? ['specialized'] : ['major'];
+    const foundationLabel = isShsProgram ? 'Core & Applied Subjects' : 'Minor Subjects';
+    const specializationLabel = isShsProgram ? 'Specialized Subjects' : 'Major Subjects';
+    const foundationShortLabel = isShsProgram ? 'Core/Applied' : 'Minor';
+    const specializationShortLabel = isShsProgram ? 'Specialized' : 'Major';
+    const isFoundationSubject = (subject) => foundationTypes.includes(subject?.subject_type);
+    const isSpecializationSubject = (subject) => specializationTypes.includes(subject?.subject_type);
+    const years = selectedProgram
+        ? (isShsProgram
+            ? [11, 12].slice(0, selectedProgram.total_years || 2)
+            : Array.from({ length: selectedProgram.total_years }, (_, i) => i + 1))
+        : [];
+    const formatYearLabel = (yearLevel) => (isShsProgram ? `Grade ${yearLevel}` : `Year ${yearLevel}`);
+
+    // Show toast when validation errors occur
+    useEffect(() => {
+        if (Object.keys(errors).length > 0) {
+            const firstError = Object.values(errors)[0];
+            toast.error(firstError);
+        }
+    }, [errors]);
+
+    useEffect(() => {
+        if (subjectsError) {
+            toast.error(subjectsError);
+        }
+    }, [subjectsError]);
 
     // Load subjects when program is selected
     useEffect(() => {
@@ -58,51 +96,59 @@ export default function Create({ programs, subjects: initialSubjects }) {
                     }
                     return response.json();
                 })
-                .then(majorSubjects => {
-                    // Filter minor subjects based on program's education level
-                    let filteredMinorSubjects = initialSubjects;
+                .then(programSpecificSubjects => {
+                    // Filter base subjects (minor/core/applied) by program education level
+                    let filteredBaseSubjects = initialSubjects;
                     if (selectedProgram) {
-                        if (selectedProgram.education_level === 'senior_high') {
-                            // For senior high programs, only show senior high minor subjects
-                            filteredMinorSubjects = initialSubjects.filter(subject =>
-                                subject.education_level === 'senior_high'
+                        if (isShsProgram) {
+                            // For SHS programs, only show SHS core/applied subjects
+                            filteredBaseSubjects = initialSubjects.filter(subject =>
+                                ['core', 'applied'].includes(subject.subject_type)
                             );
-                        } else if (selectedProgram.education_level === 'college') {
+                        } else if (normalizedEducationLevel === 'college') {
                             // For college programs, only show college minor subjects
-                            filteredMinorSubjects = initialSubjects.filter(subject =>
-                                subject.education_level === 'college'
+                            filteredBaseSubjects = initialSubjects.filter(subject =>
+                                subject.education_level === 'college' &&
+                                subject.subject_type === 'minor'
                             );
                         }
-                        // For other education levels, show all minor subjects as fallback
+                        // For other education levels, keep the initial base subjects
                     }
 
-                    // Combine filtered minor subjects with major subjects for the selected program
-                    const combinedSubjects = [
-                        ...filteredMinorSubjects,
-                        ...majorSubjects.filter(major => major.subject_type === 'major') // Only add major subjects
-                    ];
+                    // Combine base subjects with program-specific specialization subjects, deduped by id
+                    const combinedSubjects = [...filteredBaseSubjects, ...programSpecificSubjects]
+                        .filter(subject => {
+                            const allowedTypes = isShsProgram
+                                ? ['core', 'applied', 'specialized']
+                                : ['minor', 'major'];
+                            return allowedTypes.includes(subject.subject_type);
+                        })
+                        .filter((subject, index, all) => all.findIndex(s => s.id === subject.id) === index);
+
                     setSubjects(combinedSubjects);
                     setLoadingSubjects(false);
                 })
                 .catch(error => {
                     console.error('Error loading subjects:', error);
-                    setSubjectsError('Failed to load major subjects for the selected program.');
+                    setSubjectsError('Failed to load subjects for the selected program.');
                     setLoadingSubjects(false);
                 });
         } else if (currentStep === 2) {
-            // If no program selected but in step 2, show only minor subjects
+            // If no program selected but in step 2, show base subjects
             setSubjects(initialSubjects);
             setSubjectsError(null);
         }
-    }, [data.program_id, currentStep, initialSubjects]);
+    }, [data.program_id, currentStep, initialSubjects, isShsProgram, selectedProgram]);
 
     const nextStep = () => {
         if (currentStep === 1) {
             // Validate step 1
             if (!data.program_id || !data.curriculum_code || !data.curriculum_name) {
+                toast.error('Please complete Program, Curriculum Code, and Curriculum Name before proceeding.');
                 return;
             }
             setCurrentStep(2);
+            toast.success('Step 1 complete. You can now assign subjects.');
         }
     };
 
@@ -114,6 +160,10 @@ export default function Create({ programs, subjects: initialSubjects }) {
 
     const submit = (e) => {
         e.preventDefault();
+        if (curriculumSubjects.length === 0) {
+            toast.error('Please assign at least one subject before creating the curriculum.');
+            return;
+        }
         data.curriculum_subjects = curriculumSubjects;
         post(route('admin.curriculum.store'));
     };
@@ -139,6 +189,11 @@ export default function Create({ programs, subjects: initialSubjects }) {
     };
 
     const saveSubjectSelection = () => {
+        if (!selectedSubjectIds.length) {
+            toast.error('Please select at least one subject.');
+            return;
+        }
+
         // Remove existing subjects for this semester/year
         setCurriculumSubjects(prev => prev.filter(cs => 
             !(cs.year_level === selectedYear && cs.semester === selectedSemester)
@@ -154,10 +209,12 @@ export default function Create({ programs, subjects: initialSubjects }) {
         setCurriculumSubjects(prev => [...prev, ...newSubjects]);
         setSubjectModalOpen(false);
         setSelectedSubjectIds([]);
+        toast.success(`${newSubjects.length} subject(s) saved for ${formatYearLabel(selectedYear)} - ${selectedSemester} Semester.`);
     };
 
     const removeSubject = (index) => {
         setCurriculumSubjects(prev => prev.filter((_, i) => i !== index));
+        toast.success('Subject removed from this semester.');
     };
 
     const filteredSubjects = subjects.filter(subject => {
@@ -174,6 +231,7 @@ export default function Create({ programs, subjects: initialSubjects }) {
     });
 
     return (
+        <>
         <AuthenticatedLayout
             header={
                 <div className="flex items-center justify-between">
@@ -181,10 +239,10 @@ export default function Create({ programs, subjects: initialSubjects }) {
                         <Button asChild variant="ghost" size="sm">
                             <Link href={route('admin.curriculum.index')} className="flex items-center gap-2">
                                 <ArrowLeft className="w-4 h-4" />
-                                Back to Curriculum
+                                <span className="hidden sm:inline">Back to Curriculum</span>
                             </Link>
                         </Button>
-                        <div className="h-6 w-px bg-gray-300"></div>
+                        <div className="hidden md:block h-6 w-px bg-gray-300"></div>
                         <div className="flex items-center gap-2">
                             <div className="bg-blue-100 p-1.5 rounded-md">
                                 <FileText className="w-4 h-4 text-blue-600" />
@@ -307,7 +365,7 @@ export default function Create({ programs, subjects: initialSubjects }) {
                                                         <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
                                                             <span className="text-sm font-semibold text-blue-700">{year}</span>
                                                         </div>
-                                                        <h3 className="font-semibold text-gray-800">Year {year}</h3>
+                                                        <h3 className="font-semibold text-gray-800">{formatYearLabel(year)}</h3>
                                                         <div className="flex-1 h-px bg-gray-300"></div>
                                                     </div>
                                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -333,17 +391,17 @@ export default function Create({ programs, subjects: initialSubjects }) {
                                                                             const subject = subjects.find(s => s.id === cs.subject_id);
                                                                             return (
                                                                                 <div key={index} className={`p-2 rounded flex justify-between items-center border ${
-                                                                                    subject?.subject_type === 'major' 
+                                                                                    isSpecializationSubject(subject)
                                                                                         ? 'bg-blue-100 border-blue-200' 
                                                                                         : 'bg-green-100 border-green-200'
                                                                                 }`}>
                                                                                     <div className="flex items-center gap-2">
                                                                                         <Badge className={`text-xs ${
-                                                                                            subject?.subject_type === 'major'
+                                                                                            isSpecializationSubject(subject)
                                                                                                 ? 'bg-blue-200 text-blue-800'
                                                                                                 : 'bg-green-200 text-green-800'
                                                                                         }`}>
-                                                                                            {subject?.subject_type === 'major' ? 'Major' : 'Minor'}
+                                                                                            {isSpecializationSubject(subject) ? specializationShortLabel : foundationShortLabel}
                                                                                         </Badge>
                                                                                         <span className="text-sm font-medium">{subject?.subject_code}</span>
                                                                                         <span className="text-sm text-gray-600">-</span>
@@ -406,7 +464,7 @@ export default function Create({ programs, subjects: initialSubjects }) {
                         <DialogTitle className="flex items-center gap-3">
                             <BookOpen className="w-5 h-5 text-blue-600" />
                             <span>
-                                Select Subjects for <Badge variant="secondary" className="font-semibold">Year {selectedYear}</Badge> - <Badge variant="outline" className="font-semibold">{selectedSemester} Semester</Badge>
+                            Select Subjects for <Badge variant="secondary" className="font-semibold">{formatYearLabel(selectedYear)}</Badge> - <Badge variant="outline" className="font-semibold">{selectedSemester} Semester</Badge>
                             </span>
                         </DialogTitle>
                         <DialogDescription>
@@ -425,29 +483,29 @@ export default function Create({ programs, subjects: initialSubjects }) {
                                 className="pl-10"
                             />
                         </div>
-                        {/* Minor Subjects */}
-                        {filteredSubjects.filter(s => s.subject_type === 'minor').length > 0 ? (
+                        {/* Foundation Subjects */}
+                        {filteredSubjects.filter(isFoundationSubject).length > 0 ? (
                             <div>
                                 <div className="flex items-center gap-2 mb-3">
                                     <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                                    <h4 className="font-semibold text-green-700">Minor Subjects</h4>
+                                    <h4 className="font-semibold text-green-700">{foundationLabel}</h4>
                                     <Badge variant="outline" className="text-xs bg-green-50 text-green-700 border-green-200">
-                                        {filteredSubjects.filter(s => s.subject_type === 'minor').length}
+                                        {filteredSubjects.filter(isFoundationSubject).length}
                                     </Badge>
                                 </div>
                                 <div className="grid grid-cols-1 gap-2 max-h-60 overflow-y-auto">
-                                    {filteredSubjects.filter(s => s.subject_type === 'minor').map(subject => (
+                                    {filteredSubjects.filter(isFoundationSubject).map(subject => (
                                         <div key={subject.id} className="flex items-center space-x-3 p-3 border border-gray-200 rounded-lg hover:bg-gray-50">
                                             <Checkbox
-                                                id={`minor-${subject.id}`}
+                                                id={`foundation-${subject.id}`}
                                                 checked={selectedSubjectIds.includes(subject.id)}
                                                 onCheckedChange={(checked) => handleSubjectSelection(subject.id, checked)}
                                             />
-                                            <label htmlFor={`minor-${subject.id}`} className="flex-1 cursor-pointer">
+                                            <label htmlFor={`foundation-${subject.id}`} className="flex-1 cursor-pointer">
                                                 <div className="flex items-center gap-2">
                                                     <span className="font-mono font-semibold text-green-800">{subject.subject_code}</span>
                                                     <Badge className="text-xs bg-green-100 text-green-800 border-green-300">
-                                                        Minor
+                                                        {subject.subject_type === 'applied' ? 'Applied' : subject.subject_type === 'core' ? 'Core' : foundationShortLabel}
                                                     </Badge>
                                                 </div>
                                                 <div className="text-sm text-gray-700 font-medium">{subject.subject_name}</div>
@@ -463,38 +521,38 @@ export default function Create({ programs, subjects: initialSubjects }) {
                             <div>
                                 <div className="flex items-center gap-2 mb-3">
                                     <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                                    <h4 className="font-semibold text-green-700">Minor Subjects</h4>
+                                    <h4 className="font-semibold text-green-700">{foundationLabel}</h4>
                                 </div>
                                 <div className="text-center py-8 text-gray-500">
                                     <BookOpen className="w-12 h-12 mx-auto mb-3 text-gray-300" />
-                                    <p className="text-sm">No minor subjects available for this program</p>
+                                    <p className="text-sm">No {foundationLabel.toLowerCase()} available for this program</p>
                                 </div>
                             </div>
                         )}
 
-                        {/* Major Subjects */}
-                        {filteredSubjects.filter(s => s.subject_type === 'major').length > 0 ? (
+                        {/* Specialization Subjects */}
+                        {filteredSubjects.filter(isSpecializationSubject).length > 0 ? (
                             <div>
                                 <div className="flex items-center gap-2 mb-3">
                                     <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-                                    <h4 className="font-semibold text-blue-700">Major Subjects</h4>
+                                    <h4 className="font-semibold text-blue-700">{specializationLabel}</h4>
                                     <Badge variant="outline" className="text-xs bg-blue-50 text-blue-700 border-blue-200">
-                                        {filteredSubjects.filter(s => s.subject_type === 'major').length}
+                                        {filteredSubjects.filter(isSpecializationSubject).length}
                                     </Badge>
                                 </div>
                                 <div className="grid grid-cols-1 gap-2 max-h-60 overflow-y-auto">
-                                    {filteredSubjects.filter(s => s.subject_type === 'major').map(subject => (
+                                    {filteredSubjects.filter(isSpecializationSubject).map(subject => (
                                         <div key={subject.id} className="flex items-center space-x-3 p-3 border border-gray-200 rounded-lg hover:bg-gray-50">
                                             <Checkbox
-                                                id={`major-${subject.id}`}
+                                                id={`specialization-${subject.id}`}
                                                 checked={selectedSubjectIds.includes(subject.id)}
                                                 onCheckedChange={(checked) => handleSubjectSelection(subject.id, checked)}
                                             />
-                                            <label htmlFor={`major-${subject.id}`} className="flex-1 cursor-pointer">
+                                            <label htmlFor={`specialization-${subject.id}`} className="flex-1 cursor-pointer">
                                                 <div className="flex items-center gap-2">
                                                     <span className="font-mono font-semibold text-blue-800">{subject.subject_code}</span>
                                                     <Badge className="text-xs bg-blue-100 text-blue-800 border-blue-300">
-                                                        Major
+                                                        {specializationShortLabel}
                                                     </Badge>
                                                 </div>
                                                 <div className="text-sm text-gray-700 font-medium">{subject.subject_name}</div>
@@ -510,11 +568,11 @@ export default function Create({ programs, subjects: initialSubjects }) {
                             <div>
                                 <div className="flex items-center gap-2 mb-3">
                                     <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-                                    <h4 className="font-semibold text-blue-700">Major Subjects</h4>
+                                    <h4 className="font-semibold text-blue-700">{specializationLabel}</h4>
                                 </div>
                                 <div className="text-center py-8 text-gray-500">
                                     <BookOpen className="w-12 h-12 mx-auto mb-3 text-gray-300" />
-                                    <p className="text-sm">No major subjects available for this program</p>
+                                    <p className="text-sm">No {specializationLabel.toLowerCase()} available for this program</p>
                                 </div>
                             </div>
                         )}
@@ -531,5 +589,7 @@ export default function Create({ programs, subjects: initialSubjects }) {
                 </DialogContent>
             </Dialog>
         </AuthenticatedLayout>
+        <Toaster position="top-right" richColors />
+        </>
     );
 }

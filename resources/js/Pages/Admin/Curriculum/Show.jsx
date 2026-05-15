@@ -71,15 +71,17 @@ export default function Show({ curriculum, subjectsByYearSemester, totalSubjects
                             </div>
                         </div>
                         <div className="flex items-center gap-2">
-                            {(curriculum.is_current === 1 || curriculum.is_current === true || curriculum.is_current === '1') && (
+                            {(curriculum.is_current === 1 || curriculum.is_current === true || curriculum.is_current === '1') ? (
                                 <Badge className="flex items-center gap-1.5 bg-gradient-to-r from-amber-400 to-orange-500 hover:from-amber-500 hover:to-orange-600 text-white px-3 py-1.5 text-xs font-bold shadow-md border-0">
                                     <Star className="w-3 h-3 fill-white" />
                                     Current
                                 </Badge>
+                            ) : (
+                                <Badge className="bg-gray-100 text-gray-600 border-gray-300 font-semibold px-3 py-1.5 text-xs flex items-center gap-1">
+                                    <FileText className="w-3 h-3" />
+                                    Old
+                                </Badge>
                             )}
-                            <Badge className={curriculum.status === 'active' ? 'bg-green-100 text-green-800 hover:bg-green-200 border border-green-300 font-semibold' : 'bg-gray-100 text-gray-700 hover:bg-gray-200 border border-gray-300 font-semibold'}>
-                                {curriculum.status}
-                            </Badge>
                             <Badge className="bg-white text-gray-700 hover:bg-gray-50 border border-gray-300 font-medium">
                                 {curriculum.program.education_level.toUpperCase()}
                             </Badge>

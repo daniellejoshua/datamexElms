@@ -14,7 +14,7 @@ class ProgramController extends Controller
      */
     public function index(Request $request)
     {
-        $query = Program::with(['subjects', 'programFees', 'curriculums' => function ($query) {
+        $query = Program::with(['programFees', 'curriculums' => function ($query) {
             $query->active()->orderBy('is_current', 'desc')->orderBy('created_at', 'desc');
         }, 'curriculums.curriculumSubjects.subject'])->withCount('students');
 
@@ -30,12 +30,35 @@ class ProgramController extends Controller
         if ($request->filled('search')) {
             $search = $request->search;
             $query->where(function ($q) use ($search) {
-                $q->where('program_name', 'like', "%{$search}%")
-                    ->orWhere('program_code', 'like', "%{$search}%");
+                $q->where('program_name', 'LIKE', "%{$search}%")
+                    ->orWhere('program_code', 'LIKE', "%{$search}%");
             });
         }
 
-        $programs = $query->paginate(6)->appends($request->query());
+        $programs = $query->paginate(6)->withPath(request()->getPathInfo());
+
+        // Load subjects and calculate correct counts for each program
+        $programs->getCollection()->each(function ($program) {
+            $program->load('subjects');
+
+            // Get the current/active curriculum for this program
+            $currentCurriculum = $program->curriculums->first();
+
+            // For SHS programs, include core and applied subjects that are available to all SHS students
+            if ($program->education_level === 'senior_high') {
+                $coreAppliedSubjects = \App\Models\Subject::where('education_level', 'senior_high')
+                    ->whereIn('subject_type', ['core', 'applied'])
+                    ->whereNull('program_id')
+                    ->get();
+
+                // Merge program's specialized subjects with core/applied subjects
+                $allSubjects = $program->subjects->merge($coreAppliedSubjects);
+                $program->setRelation('subjects', $allSubjects->unique('id'));
+            }
+
+            // Add curriculum subjects count for display
+            $program->curriculum_subjects_count = $currentCurriculum ? $currentCurriculum->curriculumSubjects->count() : 0;
+        });
 
         return Inertia::render('Registrar/Programs/Index', [
             'programs' => $programs,
@@ -48,6 +71,10 @@ class ProgramController extends Controller
      */
     public function create()
     {
+        if (auth()->user()->role !== 'head_teacher') {
+            abort(403);
+        }
+
         return Inertia::render('Registrar/Programs/Create');
     }
 
@@ -56,18 +83,67 @@ class ProgramController extends Controller
      */
     public function store(Request $request)
     {
+        if (auth()->user()->role !== 'head_teacher') {
+            abort(403);
+        }
+
         $validated = $request->validate([
             'program_code' => 'required|string|max:20|unique:programs',
             'program_name' => 'required|string|max:255',
             'description' => 'nullable|string',
-            'education_level' => 'required|in:college,shs',
+            'education_level' => 'required|in:college,senior_high',
             'track' => 'nullable|string|max:255',
             'total_years' => 'required|integer|min:1|max:6',
-            'semester_fee' => 'required|numeric|min:0',
+            'semester_fee' => 'nullable|numeric|min:0',
+            'program_fees' => 'nullable|array',
+            'program_fees.*.year_level' => 'required_with:program_fees|integer|min:1|max:6',
+            'program_fees.*.fee_type' => 'required_with:program_fees|in:regular',
+            'program_fees.*.tuition_fee' => 'nullable|numeric|min:0',
+            'program_fees.*.miscellaneous_fee' => 'nullable|numeric|min:0',
+            'program_fees.*.semester_fee' => 'nullable|numeric|min:0',
             'status' => 'required|in:active,inactive',
         ]);
 
-        Program::create($validated);
+        if (! empty($validated['program_fees'])) {
+            $validated['program_fees'] = collect($validated['program_fees'])->map(function ($fee) {
+                $tuitionFee = isset($fee['tuition_fee']) ? (float) $fee['tuition_fee'] : null;
+                $miscellaneousFee = isset($fee['miscellaneous_fee']) ? (float) $fee['miscellaneous_fee'] : null;
+                $semesterFee = isset($fee['semester_fee']) ? (float) $fee['semester_fee'] : 0.0;
+
+                if ($tuitionFee !== null || $miscellaneousFee !== null) {
+                    $semesterFee = ($tuitionFee ?? 0) + ($miscellaneousFee ?? 0);
+                }
+
+                return array_merge($fee, ['semester_fee' => $semesterFee]);
+            })->toArray();
+        }
+
+        // If program_fees provided, use first regular fee as the program's base semester_fee when not explicitly set
+        if (empty($validated['semester_fee']) && ! empty($validated['program_fees'])) {
+            $firstFee = collect($validated['program_fees'])->first();
+            $validated['semester_fee'] = $firstFee['semester_fee'] ?? 0;
+        }
+
+        // Persist program and associated program_fees (if any)
+        \DB::transaction(function () use ($validated) {
+            $programFees = $validated['program_fees'] ?? null;
+
+            // ensure semester_fee is set (default to 0)
+            $programData = array_merge($validated, ['program_fees' => null]);
+            $programData['semester_fee'] = $programData['semester_fee'] ?? 0;
+
+            $program = Program::create($programData);
+
+            if ($programFees) {
+                foreach ($programFees as $fee) {
+                    $program->programFees()->create([
+                        'year_level' => $fee['year_level'],
+                        'fee_type' => $fee['fee_type'],
+                        'semester_fee' => $fee['semester_fee'],
+                    ]);
+                }
+            }
+        });
 
         return redirect()->route('registrar.programs.index')
             ->with('success', 'Program created successfully.');
@@ -78,7 +154,24 @@ class ProgramController extends Controller
      */
     public function show(Program $program)
     {
-        $program->load(['subjects', 'sections', 'students', 'programFees']);
+        $program->load(['subjects', 'sections', 'students', 'programFees', 'curriculums' => function ($query) {
+            $query->active()->orderBy('is_current', 'desc')->orderBy('created_at', 'desc');
+        }, 'curriculums.curriculumSubjects']);
+
+        // For SHS programs, include core and applied subjects that are available to all SHS students
+        if ($program->education_level === 'senior_high') {
+            $coreAppliedSubjects = \App\Models\Subject::where('education_level', 'senior_high')
+                ->whereIn('subject_type', ['core', 'applied'])
+                ->whereNull('program_id')
+                ->get();
+
+            // Merge program's specialized subjects with core/applied subjects
+            $allSubjects = $program->subjects->merge($coreAppliedSubjects);
+            $program->setRelation('subjects', $allSubjects->unique('id'));
+        }
+
+        // Get the current/active curriculum for this program
+        $currentCurriculum = $program->curriculums->first();
 
         // Count only currently enrolled students (with enrollments for current academic year/semester)
         $currentAcademicYear = \App\Models\SchoolSetting::getCurrentAcademicYear();
@@ -95,6 +188,7 @@ class ProgramController extends Controller
         return Inertia::render('Registrar/Programs/Show', [
             'program' => $program,
             'enrolled_students_count' => $enrolledStudentsCount,
+            'curriculum_subjects_count' => $currentCurriculum ? $currentCurriculum->curriculumSubjects->count() : 0,
         ]);
     }
 
@@ -103,18 +197,38 @@ class ProgramController extends Controller
      */
     public function update(Request $request, Program $program)
     {
+        if (auth()->user()->role !== 'head_teacher') {
+            abort(403);
+        }
+
         $validated = $request->validate([
             'program_name' => 'required|string|max:255',
             'program_code' => 'required|string|max:20|unique:programs,program_code,'.$program->id,
             'description' => 'nullable|string',
-            'education_level' => 'required|in:college,masteral,shs',
+            'education_level' => 'required|in:college,masteral,senior_high',
             'semester_fee' => 'nullable|numeric|min:0',
             'program_fees' => 'required|array',
-            'program_fees.*.year_level' => 'required|integer|min:1|max:4',
+            'program_fees.*.year_level' => 'required|integer|min:1|max:6',
             'program_fees.*.fee_type' => 'required|in:regular',
-            'program_fees.*.semester_fee' => 'required|numeric|min:0',
+            'program_fees.*.tuition_fee' => 'nullable|numeric|min:0',
+            'program_fees.*.miscellaneous_fee' => 'nullable|numeric|min:0',
+            'program_fees.*.semester_fee' => 'nullable|numeric|min:0',
             'modal' => 'sometimes|boolean',
         ]);
+
+        if (! empty($validated['program_fees'])) {
+            $validated['program_fees'] = collect($validated['program_fees'])->map(function ($fee) {
+                $tuitionFee = isset($fee['tuition_fee']) ? (float) $fee['tuition_fee'] : null;
+                $miscellaneousFee = isset($fee['miscellaneous_fee']) ? (float) $fee['miscellaneous_fee'] : null;
+                $semesterFee = isset($fee['semester_fee']) ? (float) $fee['semester_fee'] : 0.0;
+
+                if ($tuitionFee !== null || $miscellaneousFee !== null) {
+                    $semesterFee = ($tuitionFee ?? 0) + ($miscellaneousFee ?? 0);
+                }
+
+                return array_merge($fee, ['semester_fee' => $semesterFee]);
+            })->toArray();
+        }
 
         // Update program basic info
         $program->update([
@@ -140,10 +254,26 @@ class ProgramController extends Controller
             );
         }
 
+        // After changing fees, freeze any existing student payments for this
+        // program that belong to past academic years/semesters.  This ensures
+        // irregular students created before the freeze logic won't see their
+        // stored amounts change when we recalc or touch them elsewhere.
+        $currentYear = \App\Models\SchoolSetting::getCurrentAcademicYear();
+        $currentSemester = \App\Models\SchoolSetting::getCurrentSemester();
+
+        \App\Models\StudentSemesterPayment::whereHas('student', function ($q) use ($program) {
+            $q->where('program_id', $program->id);
+        })
+            ->where(function ($q) use ($currentYear, $currentSemester) {
+                $q->where('academic_year', '!=', $currentYear)
+                    ->orWhere('semester', '!=', $currentSemester);
+            })
+            ->update(['fee_finalized' => true]);
+
         if ($request->has('modal')) {
             return response()->json([
                 'program' => $program->load(['subjects', 'sections', 'students', 'programFees']),
-                'message' => 'Program updated successfully.'
+                'message' => 'Program updated successfully.',
             ]);
         }
 
@@ -156,6 +286,10 @@ class ProgramController extends Controller
      */
     public function edit(Program $program)
     {
+        if (auth()->user()->role !== 'head_teacher') {
+            abort(403);
+        }
+
         $program->load(['subjects', 'programFees']);
 
         return Inertia::render('Registrar/Programs/Edit', [
@@ -168,6 +302,10 @@ class ProgramController extends Controller
      */
     public function destroy(Program $program)
     {
+        if (auth()->user()->role !== 'head_teacher') {
+            abort(403);
+        }
+
         // Check if program has students or sections
         if ($program->students()->count() > 0 || $program->sections()->count() > 0) {
             return redirect()->route('registrar.programs.index')

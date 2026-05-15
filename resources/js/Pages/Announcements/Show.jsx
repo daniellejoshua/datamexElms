@@ -1,5 +1,6 @@
 import React from 'react';
 import { Head, Link, router } from '@inertiajs/react';
+import { route } from 'ziggy-js';
 import { format } from 'date-fns';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Button } from '@/Components/ui/button';
@@ -141,7 +142,7 @@ export default function Show({ announcement, recentAnnouncements, auth, readStat
                             <div className="flex items-center justify-between mb-6">
                                 <div className="flex items-center space-x-3">
                                     <Avatar className="w-10 h-10">
-                                        <AvatarImage src="" />
+                                        <AvatarImage src={announcement.creator.profile_picture} />
                                         <AvatarFallback className="bg-gradient-to-br from-blue-500 to-purple-600 text-white font-semibold">
                                             {getInitials(announcement.creator.name)}
                                         </AvatarFallback>

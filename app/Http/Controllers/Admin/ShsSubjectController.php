@@ -103,7 +103,7 @@ class ShsSubjectController extends Controller
 
     public function update(Request $request, Subject $subject): RedirectResponse
     {
-        if ($subject->education_level !== 'shs') {
+        if ($subject->education_level !== 'senior_high') {
             abort(404);
         }
 

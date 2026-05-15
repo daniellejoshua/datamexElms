@@ -7,6 +7,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\StoreSectionRequest;
 use App\Http\Requests\Admin\UpdateSectionRequest;
 use App\Models\ArchivedSection;
+use App\Models\CurriculumSubject;
 use App\Models\Program;
 use App\Models\SchoolSetting;
 use App\Models\Section;
@@ -14,6 +15,7 @@ use App\Models\Student;
 use App\Models\StudentEnrollment;
 use App\Models\Subject;
 use App\Models\Teacher;
+use App\Models\YearLevelCurriculumGuide;
 use App\Rules\TeacherScheduleConflict;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -29,7 +31,14 @@ class ShsSectionController extends Controller
         $currentAcademicYear = SchoolSetting::getCurrentAcademicYear();
         $currentSemester = SchoolSetting::getCurrentSemester();
 
-        $query = Section::with(['program', 'subjects', 'sectionSubjects.teacher.user'])
+        $query = Section::with([
+            'program',
+            'subjects',
+            'sectionSubjects' => function ($query) {
+                $query->where('status', 'active')
+                    ->with('teacher.user');
+            },
+        ])
             ->whereHas('program', function ($programQuery) {
                 $programQuery->where('education_level', 'senior_high');
             })
@@ -153,14 +162,54 @@ class ShsSectionController extends Controller
             return back()->withErrors(['program_id' => 'Selected program is not an SHS program.']);
         }
 
-        $section = Section::create($request->validated());
+        // Automatically determine curriculum based on year level guide
+        $curriculumId = $request->curriculum_id;
+        if (! $curriculumId) {
+            // Try to find a year level guide for this program and year level (not filtered by academic year)
+            $guide = YearLevelCurriculumGuide::where('program_id', $request->program_id)
+                ->where('year_level', $request->year_level)
+                ->with('curriculum')
+                ->first();
+
+            if ($guide && $guide->curriculum) {
+                $curriculumId = $guide->curriculum->id;
+            } else {
+                // Fallback to program's current curriculum
+                $curriculumId = $program->current_curriculum?->id;
+            }
+        }
+
+        if (! $curriculumId) {
+            return back()->withErrors(['curriculum_id' => 'No curriculum found for this program and year level. Please create a year level guide or select a curriculum manually.']);
+        }
+
+        $sectionData = $request->validated();
+        $sectionData['curriculum_id'] = $curriculumId;
+
+        $section = Section::create($sectionData);
+
+        // Automatically attach subjects from the curriculum that match the section's year level and semester
+        $curriculumSubjects = CurriculumSubject::where('curriculum_id', $curriculumId)
+            ->whereIn('year_level', $this->getYearLevelAliases((int) $request->year_level))
+            ->whereIn('semester', $this->getSemesterAliases($request->semester))
+            ->where('status', 'active')
+            ->get();
+
+        foreach ($curriculumSubjects as $curriculumSubject) {
+            $section->sectionSubjects()->create([
+                'subject_id' => $curriculumSubject->subject_id,
+                'status' => 'active',
+            ]);
+        }
 
         return redirect()->route('admin.shs.sections.index')
-            ->with('success', 'SHS section created successfully.');
+            ->with('success', 'SHS section created successfully with subjects attached.');
     }
 
     public function show(Section $section): Response
     {
+        $section->load('program');
+
         if ($section->program->education_level !== 'senior_high') {
             abort(404);
         }
@@ -174,6 +223,8 @@ class ShsSectionController extends Controller
 
     public function edit(Section $section): Response
     {
+        $section->load('program');
+
         if ($section->program->education_level !== 'senior_high') {
             abort(404);
         }
@@ -194,6 +245,8 @@ class ShsSectionController extends Controller
 
     public function update(UpdateSectionRequest $request, Section $section): RedirectResponse
     {
+        $section->load('program');
+
         if ($section->program->education_level !== 'senior_high') {
             abort(404);
         }
@@ -212,6 +265,8 @@ class ShsSectionController extends Controller
 
     public function destroy(Section $section): RedirectResponse
     {
+        $section->load('program');
+
         if ($section->program->education_level !== 'senior_high') {
             abort(404);
         }
@@ -224,17 +279,29 @@ class ShsSectionController extends Controller
 
     public function subjects(Section $section): Response
     {
+        $section->load('program');
+
         if ($section->program->education_level !== 'senior_high') {
             abort(404);
         }
 
-        $section->load(['program', 'sectionSubjects.subject', 'sectionSubjects.teacher.user']);
+        $section->load([
+            'program',
+            'sectionSubjects' => function ($query) {
+                $query->where('status', 'active')
+                    ->with(['subject', 'teacher.user']);
+            },
+        ]);
 
         $subjects = Subject::where('education_level', 'senior_high')
             ->orderBy('subject_code')
             ->get();
 
-        $teachers = Teacher::with('user')->get();
+        $teachers = Teacher::with('user')
+            ->whereHas('user', function ($query) {
+                $query->where('role', 'teacher');
+            })
+            ->get();
 
         return Inertia::render('Admin/Sections/Shs/Sections/Subjects', [
             'section' => $section,
@@ -245,6 +312,8 @@ class ShsSectionController extends Controller
 
     public function attachSubject(Request $request, Section $section)
     {
+        $section->load('program');
+
         if ($section->program->education_level !== 'senior_high') {
             abort(404);
         }
@@ -258,10 +327,46 @@ class ShsSectionController extends Controller
             'end_time' => 'nullable|date_format:H:i|after:start_time',
         ]);
 
+        if ($request->teacher_id) {
+            $isTeacherRole = Teacher::query()
+                ->whereKey($request->teacher_id)
+                ->whereHas('user', function ($query) {
+                    $query->where('role', 'teacher');
+                })
+                ->exists();
+
+            if (! $isTeacherRole) {
+                return back()->withErrors(['teacher_id' => 'Only teacher accounts can be assigned to subjects.'])->withInput();
+            }
+        }
+
         // Validate subject is SHS level
         $subject = Subject::findOrFail($request->subject_id);
         if ($subject->education_level !== 'senior_high') {
             return back()->withErrors(['subject_id' => 'Selected subject is not an SHS subject.']);
+        }
+
+        // Additional teacher schedule conflict validation if teacher and schedule are provided
+        if ($request->teacher_id && $request->schedule_days && $request->start_time && $request->end_time) {
+            $teacherConflictRule = new TeacherScheduleConflict(
+                $request->teacher_id,
+                $request->subject_id,
+                $section->id,
+                $request->schedule_days,
+                $request->start_time,
+                $request->end_time,
+                null,
+                $section->academic_year,
+                $section->semester
+            );
+
+            $validator = validator($request->all(), [
+                'teacher_id' => [$teacherConflictRule],
+            ]);
+
+            if ($validator->fails()) {
+                return back()->withErrors($validator)->withInput();
+            }
         }
 
         $section->sectionSubjects()->create([
@@ -326,7 +431,7 @@ class ShsSectionController extends Controller
             'student_ids.*' => 'exists:students,id',
         ]);
 
-        $archivedSection = ArchivedSection::with(['archivedEnrollments.student'])->findOrFail($request->archived_section_id);
+        $archivedSection = ArchivedSection::with(['archivedEnrollments.student', 'program'])->findOrFail($request->archived_section_id);
 
         // Use program and curriculum from archived section
         if (! $archivedSection->program_id || ! $archivedSection->curriculum_id) {
@@ -401,6 +506,8 @@ class ShsSectionController extends Controller
 
     public function updateSubject(Request $request, Section $section, Subject $subject): RedirectResponse
     {
+        $section->load('program');
+
         if ($section->program->education_level !== 'senior_high') {
             abort(404);
         }
@@ -414,8 +521,21 @@ class ShsSectionController extends Controller
             'end_time' => 'nullable|date_format:H:i|after:start_time',
         ]);
 
-        // Get the current section subject for exclusion in conflict check
-        $sectionSubject = $section->subjects()->where('subject_id', $subject->id)->firstOrFail();
+        if (! empty($validated['teacher_id'])) {
+            $isTeacherRole = Teacher::query()
+                ->whereKey($validated['teacher_id'])
+                ->whereHas('user', function ($query) {
+                    $query->where('role', 'teacher');
+                })
+                ->exists();
+
+            if (! $isTeacherRole) {
+                return back()->withErrors(['teacher_id' => 'Only teacher accounts can be assigned to subjects.'])->withInput();
+            }
+        }
+
+        // Get the current section subject pivot record for exclusion in conflict check
+        $sectionSubject = $section->sectionSubjects()->where('subject_id', $subject->id)->firstOrFail();
 
         // Additional teacher schedule conflict validation if teacher and schedule are provided
         if ($validated['teacher_id'] && $validated['schedule_days'] && $validated['start_time'] && $validated['end_time']) {
@@ -426,7 +546,9 @@ class ShsSectionController extends Controller
                 $validated['schedule_days'],
                 $validated['start_time'],
                 $validated['end_time'],
-                $sectionSubject->id // Exclude current assignment from conflict check
+                $sectionSubject->id, // Exclude current assignment from conflict check
+                $section->academic_year,
+                $section->semester
             );
 
             $validator = validator($validated, [
@@ -451,6 +573,8 @@ class ShsSectionController extends Controller
 
     public function detachSubject(Section $section, Subject $subject): RedirectResponse
     {
+        $section->load('program');
+
         if ($section->program->education_level !== 'senior_high') {
             abort(404);
         }
@@ -458,5 +582,39 @@ class ShsSectionController extends Controller
         $section->subjects()->detach($subject->id);
 
         return back()->with('success', 'Subject removed from section successfully.');
+    }
+
+    /**
+     * Normalize semester values to support legacy values (e.g., 1/2, first/second).
+     */
+    private function getSemesterAliases(?string $semester): array
+    {
+        $normalized = strtolower(trim((string) $semester));
+
+        if (in_array($normalized, ['1', '1st', 'first'], true)) {
+            return ['1', 1, '1st', 'first'];
+        }
+
+        if (in_array($normalized, ['2', '2nd', 'second'], true)) {
+            return ['2', 2, '2nd', 'second'];
+        }
+
+        return [$semester];
+    }
+
+    /**
+     * Normalize year-level values for SHS legacy curricula (e.g., 1/2 instead of 11/12).
+     */
+    private function getYearLevelAliases(int $yearLevel): array
+    {
+        if ($yearLevel === 11) {
+            return [11, 1];
+        }
+
+        if ($yearLevel === 12) {
+            return [12, 2];
+        }
+
+        return [$yearLevel];
     }
 }

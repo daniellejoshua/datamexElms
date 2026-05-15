@@ -1,4 +1,5 @@
 import { Head, Link, router } from '@inertiajs/react'
+import { route } from 'ziggy-js';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -138,7 +139,7 @@ export default function StudentBalances({ balances, students, auth }) {
                         </CardHeader>
                         <CardContent>
                             <div className="text-2xl font-bold text-green-600">
-                                {balances.filter(b => b.education_level === 'shs').length}
+                                {balances.filter(b => b.education_level === 'senior_high').length}
                             </div>
                             <p className="text-xs text-muted-foreground">
                                 SHS balances

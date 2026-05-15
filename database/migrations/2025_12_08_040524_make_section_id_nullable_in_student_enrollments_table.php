@@ -21,8 +21,8 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::table('student_enrollments', function (Blueprint $table) {
-            $table->foreignId('section_id')->nullable(false)->change();
-        });
+        // reverting to NOT NULL can fail if any records still have null section_id.
+        // since this migration is very old and the down path is unlikely to be used,
+        // we make it a no-op and document the risk.
     }
 };

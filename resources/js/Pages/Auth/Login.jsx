@@ -16,7 +16,23 @@ export default function Login({ status, canResetPassword }) {
     const submit = (e) => {
         e.preventDefault();
 
+        // capture CSRF token so we can force reload if it isn't refreshed
+        const beforeCsrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || null
+
         post(route('login'), {
+            onSuccess: () => {
+                // set a small flag for the destination page to show the toast
+                // after the refresh. do NOT show a client toast here to avoid
+                // duplicate toasts after reload.
+                try { sessionStorage.setItem('justLoggedInAt', Date.now().toString()) } catch (e) {}
+
+                setTimeout(() => {
+                    const afterCsrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || null
+                    if (beforeCsrf && afterCsrf === beforeCsrf) {
+                        window.location.reload()
+                    }
+                }, 300)
+            },
             onFinish: () => reset('password'),
         });
     };

@@ -3,10 +3,12 @@
 namespace App\Http\Controllers\Teacher;
 
 use App\Http\Controllers\Controller;
+use App\Models\SchoolSetting;
 use App\Models\SectionSubject;
 use App\Models\StudentSubjectEnrollment;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Cache;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -16,18 +18,25 @@ class SectionController extends Controller
     {
         $teacher = Auth::user()->teacher;
 
-        // Get subjects that this teacher teaches for college programs
+        // Clear any cached data to ensure fresh results
+        Cache::forget('teacher_sections_college_'.$teacher->id);
+
+        // Get current academic period
+        $currentAcademicYear = SchoolSetting::getCurrentAcademicYear();
+        $currentSemester = SchoolSetting::getCurrentSemester();
+
+        // Get subjects that this teacher teaches for college programs (current period only)
         $query = SectionSubject::with([
             'subject',
             'section.program',
-            'section' => function ($q) {
-                $q->whereHas('program', function ($programQuery) {
-                    $programQuery->where('education_level', 'college');
-                });
-            },
+            'section',
         ])
             ->where('teacher_id', $teacher->id)
             ->where('section_subjects.status', 'active')
+            ->whereHas('section', function ($q) use ($currentAcademicYear, $currentSemester) {
+                $q->where('academic_year', $currentAcademicYear)
+                    ->where('semester', $currentSemester);
+            })
             ->whereHas('section.program', function ($q) {
                 $q->where('education_level', 'college');
             });
@@ -106,20 +115,23 @@ class SectionController extends Controller
     {
         $teacher = Auth::user()->teacher;
 
+        // Clear any cached data to ensure fresh results
+        Cache::forget('teacher_sections_shs_'.$teacher->id);
+
         // Get subjects that this teacher teaches for SHS programs
         $query = SectionSubject::with([
             'subject',
             'section.program',
             'section' => function ($q) {
                 $q->whereHas('program', function ($programQuery) {
-                    $programQuery->where('education_level', 'shs');
+                    $programQuery->where('education_level', 'senior_high');
                 });
             },
         ])
             ->where('teacher_id', $teacher->id)
             ->where('section_subjects.status', 'active')
             ->whereHas('section.program', function ($q) {
-                $q->where('education_level', 'shs');
+                $q->where('education_level', 'senior_high');
             });
 
         // Apply search filter if provided
@@ -243,8 +255,17 @@ class SectionController extends Controller
                     ->distinct('student_id')
                     ->count('student_id');
 
-                // Get the teacher's subject for this section (just pick the first one for now)
-                $teacherSubject = $subjectGroup->first();
+                // Get all teacher's subjects for this section
+                $teacherSubjects = $subjectGroup->map(function ($subject) {
+                    return [
+                        'id' => $subject->id,
+                        'subject' => $subject->subject,
+                        'schedule_days' => $subject->schedule_days,
+                        'start_time' => $subject->start_time ? substr($subject->start_time, 0, 5) : null,
+                        'end_time' => $subject->end_time ? substr($subject->end_time, 0, 5) : null,
+                        'room' => $subject->room,
+                    ];
+                });
 
                 return [
                     'id' => $section->id,
@@ -254,13 +275,7 @@ class SectionController extends Controller
                     'semester' => $section->semester,
                     'academic_year' => $section->academic_year,
                     'enrolled_count' => $enrolledCount,
-                    'teacher_subject' => [
-                        'subject' => $teacherSubject->subject,
-                        'schedule_days' => $teacherSubject->schedule_days,
-                        'start_time' => $teacherSubject->start_time ? $teacherSubject->start_time->format('H:i') : null,
-                        'end_time' => $teacherSubject->end_time ? $teacherSubject->end_time->format('H:i') : null,
-                        'room' => $teacherSubject->room,
-                    ],
+                    'teacher_subjects' => $teacherSubjects,
                 ];
             })
             ->values();
@@ -292,13 +307,21 @@ class SectionController extends Controller
     {
         $teacher = Auth::user()->teacher;
 
-        // Get sections that this teacher teaches for SHS programs
+        // Get current academic period
+        $currentAcademicYear = SchoolSetting::getCurrentAcademicYear();
+        $currentSemester = SchoolSetting::getCurrentSemester();
+
+        // Get sections that this teacher teaches for SHS programs (current period only)
         $query = SectionSubject::with([
             'subject',
             'section.program',
         ])
             ->where('teacher_id', $teacher->id)
             ->where('section_subjects.status', 'active')
+            ->whereHas('section', function ($q) use ($currentAcademicYear, $currentSemester) {
+                $q->where('academic_year', $currentAcademicYear)
+                    ->where('semester', $currentSemester);
+            })
             ->whereHas('section.program', function ($q) {
                 $q->where('education_level', 'senior_high');
             });
@@ -336,8 +359,17 @@ class SectionController extends Controller
                     ->distinct('student_id')
                     ->count('student_id');
 
-                // Get the teacher's subject for this section (just pick the first one for now)
-                $teacherSubject = $subjectGroup->first();
+                // Get all teacher's subjects for this section
+                $teacherSubjects = $subjectGroup->map(function ($subject) {
+                    return [
+                        'id' => $subject->id,
+                        'subject' => $subject->subject,
+                        'schedule_days' => $subject->schedule_days,
+                        'start_time' => $subject->start_time ? substr($subject->start_time, 0, 5) : null,
+                        'end_time' => $subject->end_time ? substr($subject->end_time, 0, 5) : null,
+                        'room' => $subject->room,
+                    ];
+                });
 
                 return [
                     'id' => $section->id,
@@ -347,13 +379,7 @@ class SectionController extends Controller
                     'semester' => $section->semester,
                     'academic_year' => $section->academic_year,
                     'enrolled_count' => $enrolledCount,
-                    'teacher_subject' => [
-                        'subject' => $teacherSubject->subject,
-                        'schedule_days' => $teacherSubject->schedule_days,
-                        'start_time' => $teacherSubject->start_time ? $teacherSubject->start_time->format('H:i') : null,
-                        'end_time' => $teacherSubject->end_time ? $teacherSubject->end_time->format('H:i') : null,
-                        'room' => $teacherSubject->room,
-                    ],
+                    'teacher_subjects' => $teacherSubjects,
                 ];
             })
             ->values();

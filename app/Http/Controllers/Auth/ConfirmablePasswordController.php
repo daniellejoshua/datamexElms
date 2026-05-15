@@ -3,12 +3,12 @@
 namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
-use Inertia\Response;
 
 class ConfirmablePasswordController extends Controller
 {
@@ -37,5 +37,33 @@ class ConfirmablePasswordController extends Controller
         $request->session()->put('auth.password_confirmed_at', time());
 
         return redirect()->intended(route('dashboard', absolute: false));
+    }
+
+    /**
+     * Verify the user's password for session extension.
+     */
+    public function verify(Request $request): JsonResponse
+    {
+        $request->validate([
+            'password' => 'required|string',
+        ]);
+
+        if (! Auth::guard('web')->validate([
+            'email' => $request->user()->email,
+            'password' => $request->password,
+        ])) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Incorrect password.',
+            ], 422);
+        }
+
+        // Update the password confirmed timestamp
+        $request->session()->put('auth.password_confirmed_at', time());
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Password verified successfully.',
+        ]);
     }
 }

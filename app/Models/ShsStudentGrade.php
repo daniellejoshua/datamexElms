@@ -27,11 +27,11 @@ class ShsStudentGrade extends Model
     protected function casts(): array
     {
         return [
-            'first_quarter_grade' => 'decimal:2',
-            'second_quarter_grade' => 'decimal:2',
-            'third_quarter_grade' => 'decimal:2',
-            'fourth_quarter_grade' => 'decimal:2',
-            'final_grade' => 'decimal:2',
+            'first_quarter_grade' => 'float',
+            'second_quarter_grade' => 'float',
+            'third_quarter_grade' => 'float',
+            'fourth_quarter_grade' => 'float',
+            'final_grade' => 'float',
             'first_quarter_submitted_at' => 'datetime',
             'second_quarter_submitted_at' => 'datetime',
             'third_quarter_submitted_at' => 'datetime',
@@ -44,24 +44,27 @@ class ShsStudentGrade extends Model
         return $this->belongsTo(StudentEnrollment::class);
     }
 
+    public function sectionSubject(): BelongsTo
+    {
+        return $this->belongsTo(SectionSubject::class);
+    }
+
     public function teacher(): BelongsTo
     {
         return $this->belongsTo(Teacher::class);
     }
 
     /**
-     * Calculate final grade as average of 4 quarters
+     * Calculate final grade as average of 2 quarters (Q1 and Q2 only)
      */
     public function calculateFinalGrade(): ?float
     {
         $quarters = collect([
             $this->first_quarter_grade,
             $this->second_quarter_grade,
-            $this->third_quarter_grade,
-            $this->fourth_quarter_grade,
         ])->filter();
 
-        if ($quarters->count() === 4) {
+        if ($quarters->count() === 2) {
             return round($quarters->average(), 2);
         }
 
@@ -74,7 +77,10 @@ class ShsStudentGrade extends Model
     protected static function booted(): void
     {
         static::saving(function (ShsStudentGrade $grade) {
-            $grade->final_grade = $grade->calculateFinalGrade();
+            // Only auto-calculate if final_grade hasn't been set manually
+            if ($grade->final_grade === null) {
+                $grade->final_grade = $grade->calculateFinalGrade();
+            }
         });
     }
 }

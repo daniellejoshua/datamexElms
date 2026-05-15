@@ -1,4 +1,5 @@
 import { Head, Link, router } from '@inertiajs/react'
+import { route } from 'ziggy-js';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -8,15 +9,22 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { toast } from 'sonner'
-import { Users, Search, Eye, Edit, Filter, UserPlus, Mail, Phone, MapPin, Calendar, GraduationCap, User, CreditCard } from 'lucide-react'
+import { Users, Search, Eye, Edit, Filter, UserPlus, Mail, Phone, MapPin, Calendar, GraduationCap, User, CreditCard, BookOpen } from 'lucide-react'
 import { useState, useEffect } from 'react'
 import { ChevronDown, ChevronUp } from 'lucide-react'
 
 // Helper function to format section name
-const formatSectionName = (section, isCurrentlyEnrolled) => {
-    if (!section) {
-        return isCurrentlyEnrolled ? 'Enrolled (No Section)' : 'Not Enrolled';
+// `studentYearLevel` is optional but when provided we treat a section with a
+// different year level as if there is no section (see irregular students).
+const formatSectionName = (section, isCurrentlyEnrolled, studentYearLevel) => {
+    // If there is no section *or* the section year doesn't match the student's
+    // current year level then display the enrolled/not enrolled message. This
+    // covers the case where irregular students may be assigned an old section
+    // that doesn't correspond to their current year.
+    if (!section || (studentYearLevel && section.year_level != String(studentYearLevel))) {
+        return isCurrentlyEnrolled ? '(No Section)' : 'Not Enrolled';
     }
+
     if (section.program?.program_code && section.year_level) {
         const identifier = section.section_name;
         return `${section.program.program_code}-${section.year_level}${identifier}`;
@@ -39,13 +47,41 @@ const truncateText = (text, maxLength = 25) => {
     return text.substring(0, maxLength - 3) + '...';
 };
 
+// Helper function to get ordinal suffix (1st, 2nd, 3rd, etc.)
+const getOrdinalSuffix = (num) => {
+    if (!num || isNaN(num)) return '';
+    const number = parseInt(num);
+    const lastDigit = number % 10;
+    const lastTwoDigits = number % 100;
+
+    if (lastTwoDigits >= 11 && lastTwoDigits <= 13) {
+        return 'th';
+    }
+
+    switch (lastDigit) {
+        case 1: return 'st';
+        case 2: return 'nd';
+        case 3: return 'rd';
+        default: return 'th';
+    }
+};
+
 export default function StudentsIndex({ students, programs, filters, auth, on_hold_count, current_academic_period }) {
     const [searchTerm, setSearchTerm] = useState('')
     const [educationLevel, setEducationLevel] = useState(filters?.education_level || 'all')
     const [status, setStatus] = useState(filters?.status || 'all')
-    const [yearLevel, setYearLevel] = useState(filters?.year_level || 'all')
+    const [yearLevel, setYearLevel] = useState(() => {
+        // Map backend year level values to frontend values
+        const backendYearLevel = filters?.year_level || 'all';
+        if (backendYearLevel === '11' && (filters?.education_level === 'senior_high' || educationLevel === 'senior_high')) {
+            return 'grade_11';
+        } else if (backendYearLevel === '12' && (filters?.education_level === 'senior_high' || educationLevel === 'senior_high')) {
+            return 'grade_12';
+        }
+        return backendYearLevel;
+    })
     const [studentType, setStudentType] = useState(filters?.student_type || 'all')
-    const [enrollmentStatus, setEnrollmentStatus] = useState(filters?.enrollment_status || 'enrolled')
+    const [enrollmentStatus, setEnrollmentStatus] = useState(filters?.enrollment_status || 'all')
     const [selectedStudent, setSelectedStudent] = useState(null)
     const [isViewModalOpen, setIsViewModalOpen] = useState(false)
     const [isEditMode, setIsEditMode] = useState(false)
@@ -59,10 +95,16 @@ export default function StudentsIndex({ students, programs, filters, auth, on_ho
 
     const handleFilterChange = () => {
         setIsApplyingFilters(true)
+        
+        // Map frontend year level values to backend values
+        const mappedYearLevel = yearLevel === 'grade_11' ? '11' : 
+                               yearLevel === 'grade_12' ? '12' : 
+                               yearLevel;
+        
         router.get(route('registrar.students'), {
             education_level: educationLevel,
             status: status,
-            year_level: yearLevel,
+            year_level: mappedYearLevel,
             student_type: studentType,
             enrollment_status: enrollmentStatus,
         }, {
@@ -77,7 +119,7 @@ export default function StudentsIndex({ students, programs, filters, auth, on_ho
         setStatus('all')
         setYearLevel('all')
         setStudentType('all')
-        setEnrollmentStatus('enrolled')
+        setEnrollmentStatus('all')
         setIsApplyingFilters(true)
         router.get(route('registrar.students'), {}, {
             onFinish: () => setIsApplyingFilters(false),
@@ -142,6 +184,18 @@ export default function StudentsIndex({ students, programs, filters, auth, on_ho
         return () => clearTimeout(timeoutId)
     }, [educationLevel, status, yearLevel, studentType, enrollmentStatus])
 
+    // Dynamic education level based on year level selection
+    useEffect(() => {
+        if (yearLevel === 'grade_11' || yearLevel === 'grade_12') {
+            setEducationLevel('senior_high')
+        } else if (yearLevel === '1' || yearLevel === '2' || yearLevel === '3' || yearLevel === '4') {
+            setEducationLevel('college')
+        } else if (yearLevel === 'all') {
+            setEducationLevel('all')
+        }
+        // If year level is 'all', don't change education level automatically
+    }, [yearLevel])
+
     const handleViewStudent = (studentId) => {
         const student = filteredStudents.find(s => s.id === studentId)
         if (student) {
@@ -150,6 +204,7 @@ export default function StudentsIndex({ students, programs, filters, auth, on_ho
                 first_name: student.first_name || '',
                 last_name: student.last_name || '',
                 middle_name: student.middle_name || '',
+                gender: student.gender || '',
                 birth_date: student.birth_date || '',
                 address: student.address || '',
                 street: student.street || '',
@@ -175,6 +230,7 @@ export default function StudentsIndex({ students, programs, filters, auth, on_ho
                 first_name: student.first_name || '',
                 last_name: student.last_name || '',
                 middle_name: student.middle_name || '',
+                gender: student.gender || '',
                 suffix: student.suffix || '',
                 birth_date: student.birth_date ? new Date(student.birth_date).toISOString().split('T')[0] : '',
                 address: student.address || '',
@@ -260,14 +316,14 @@ export default function StudentsIndex({ students, programs, filters, auth, on_ho
             <TooltipProvider>
             <Head title="Student Management" />
 
-            <div className="space-y-6">
+            <div className="p-2 sm:p-3 lg:p-4">
                 {/* Search and Filters - Collapsible */}
-                <Card>
-                    <CardHeader className="pb-3">
-                        <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-2">
-                                <Filter className="w-5 h-5 text-purple-600" />
-                                <CardTitle className="text-lg">Search & Filter Students</CardTitle>
+                <Card className="mb-4">
+                    <CardContent className="pt-3 pb-3">
+                        <div className="flex items-center justify-between mb-2">
+                            <div className="flex items-center gap-3">
+                                <Filter className="w-4 h-4" />
+                                <span className="text-sm font-medium">Filter Students</span>
                             </div>
                             <div className="flex items-center gap-2">
                                 <Link href={route('registrar.students.create')}>
@@ -305,7 +361,7 @@ export default function StudentsIndex({ students, programs, filters, auth, on_ho
                                 </Button>
                             </div>
                         </div>
-                    </CardHeader>
+                    </CardContent>
                     {isFiltersExpanded && (
                         <CardContent className="pt-0">
                             <div className="space-y-6">
@@ -351,12 +407,7 @@ export default function StudentsIndex({ students, programs, filters, auth, on_ho
                                                             Active
                                                         </div>
                                                     </SelectItem>
-                                                    <SelectItem value="inactive">
-                                                        <div className="flex items-center gap-2">
-                                                            <div className="w-2 h-2 bg-red-500 rounded-full"></div>
-                                                            Inactive
-                                                        </div>
-                                                    </SelectItem>
+                                                   
                                                     <SelectItem value="graduated">
                                                         <div className="flex items-center gap-2">
                                                             <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
@@ -395,8 +446,10 @@ export default function StudentsIndex({ students, programs, filters, auth, on_ho
                                                 </SelectTrigger>
                                                 <SelectContent>
                                                     <SelectItem value="all">All Years</SelectItem>
-                                                    <SelectItem value="1">1st Year / Grade 11</SelectItem>
-                                                    <SelectItem value="2">2nd Year / Grade 12</SelectItem>
+                                                    <SelectItem value="grade_11">Grade 11</SelectItem>
+                                                    <SelectItem value="grade_12">Grade 12</SelectItem>
+                                                    <SelectItem value="1">1st Year</SelectItem>
+                                                    <SelectItem value="2">2nd Year</SelectItem>
                                                     <SelectItem value="3">3rd Year</SelectItem>
                                                     <SelectItem value="4">4th Year</SelectItem>
                                                 </SelectContent>
@@ -409,7 +462,7 @@ export default function StudentsIndex({ students, programs, filters, auth, on_ho
                                             </label>
                                             <Select value={enrollmentStatus} onValueChange={setEnrollmentStatus}>
                                                 <SelectTrigger className="w-full h-8">
-                                                    <SelectValue placeholder="Currently Enrolled" />
+                                                    <SelectValue placeholder="All Students" />
                                                 </SelectTrigger>
                                                 <SelectContent>
                                                     <SelectItem value="enrolled">Currently Enrolled</SelectItem>
@@ -426,7 +479,7 @@ export default function StudentsIndex({ students, programs, filters, auth, on_ho
                 </Card>
 
                 {/* Students List */}
-                <Card>
+                <Card className="mb-4">
                     <CardHeader>
                         <div className="flex justify-between items-center">
                             <div>
@@ -467,7 +520,7 @@ export default function StudentsIndex({ students, programs, filters, auth, on_ho
                                     </thead>
                                     <tbody>
                                         {filteredStudents.map((student) => (
-                                            <tr key={student.id} className="border-b hover:bg-gray-50 transition-colors">
+                                            <tr key={student.id} className={`border-b transition-colors ${student.is_currently_enrolled ? 'hover:bg-gray-50' : 'hover:bg-gray-50'}`}>
                                                 <td className="py-3 px-6">
                                                     <div>
                                                         <div className="font-semibold text-gray-900">
@@ -488,43 +541,26 @@ export default function StudentsIndex({ students, programs, filters, auth, on_ho
                                                     </div>
                                                 </td>
                                                 <td className="py-3 px-4">
-                                                    <span className="font-mono text-sm font-medium bg-gray-100 px-2 py-1 rounded">
+                                                    <span className="font-mono text-sm font-medium px-2 py-1 rounded bg-gray-100 text-gray-800">
                                                         {student.student_number}
                                                     </span>
                                                 </td>
                                                 <td className="py-3 px-4">
-                                                    {student.archived_enrollments?.length > 0 ? (
-                                                        <div>
-                                                            <div className="font-medium text-blue-600">
-                                                                {formatSectionName(student.current_section, student.is_currently_enrolled)}
-                                                            </div>
-                                                            {student.current_section && (
-                                                                <div className="text-xs text-gray-500">
-                                                                    {student.current_section.academic_year} - {student.current_section.semester}
-                                                                </div>
-                                                            )}
-                                                            <div className="text-xs text-purple-600 mt-1">
-                                                                {student.archived_enrollments.length} archived grade{student.archived_enrollments.length > 1 ? 's' : ''}
-                                                            </div>
+                                                    <div>
+                                                        <div className={`font-medium ${!student.is_currently_enrolled ? 'text-red-600' : 'text-blue-600'}`}>
+                                                            {formatSectionName(student.current_section, student.is_currently_enrolled, student.year_level)}
                                                         </div>
-                                                    ) : (
-                                                        <div>
-                                                            <div className="font-medium text-blue-600">
-                                                                {formatSectionName(student.current_section, student.is_currently_enrolled)}
-                                                            </div>
-                                                            {student.current_section && (
-                                                                <div className="text-xs text-gray-500">
-                                                                    {student.current_section.academic_year} - {student.current_section.semester}
-                                                                </div>
-                                                            )}
-                                                        </div>
-                                                    )}
+                                                    </div>
                                                 </td>
                                                 <td className="py-3 px-4">
                                                     <Badge variant="outline" className="font-medium">
-                                                        {student.education_level === 'college' 
-                                                            ? `${student.current_year_level || student.year_level} Year`
-                                                            : `Grade ${student.year_level}`
+                                                        {student.education_level === 'college'
+                                                            ? student.year_level.startsWith('1st') || student.year_level.startsWith('2nd') || student.year_level.startsWith('3rd') || student.year_level.startsWith('4th')
+                                                                ? student.year_level
+                                                                : `${student.year_level} Year`
+                                                            : student.year_level.startsWith('Grade ')
+                                                                ? student.year_level
+                                                                : `Grade ${student.year_level}`
                                                         }
                                                     </Badge>
                                                 </td>
@@ -532,10 +568,10 @@ export default function StudentsIndex({ students, programs, filters, auth, on_ho
                                                     {student.student_type && (
                                                         <Badge 
                                                             variant="secondary"
-                                                            className={student.student_type === 'regular' 
+                                                            className={`${student.student_type === 'regular' 
                                                                 ? 'bg-blue-100 text-blue-800' 
                                                                 : 'bg-orange-100 text-orange-800'
-                                                            }
+                                                            }`}
                                                         >
                                                             {student.student_type}
                                                         </Badge>
@@ -545,7 +581,7 @@ export default function StudentsIndex({ students, programs, filters, auth, on_ho
                                                     <div className="flex items-center gap-2">
                                                         <Badge 
                                                             variant="secondary"
-                                                            className={getStatusColor(student.status)}
+                                                            className={`${getStatusColor(student.status)} font-medium`}
                                                         >
                                                             {getStatusText(student.status)}
                                                         </Badge>
@@ -599,26 +635,40 @@ export default function StudentsIndex({ students, programs, filters, auth, on_ho
                                     Showing {students.from} to {students.to} of {students.total} results
                                 </p>
                                 <div className="flex gap-1">
-                                    {students.links.map((link, index) => (
-                                        link.url ? (
+                                    {students.links.map((link, index) => {
+                                        if (!link.url) {
+                                            return (
+                                                <span
+                                                    key={index}
+                                                    className="px-3 py-1 text-sm text-gray-400 border border-gray-300 rounded"
+                                                    dangerouslySetInnerHTML={{ __html: link.label }}
+                                                />
+                                            )
+                                        }
+                                        
+                                        // Parse URL and add filter parameters
+                                        const url = new URL(link.url, window.location.origin)
+                                        url.searchParams.set('education_level', educationLevel)
+                                        url.searchParams.set('status', status)
+                                        url.searchParams.set('year_level', yearLevel)
+                                        url.searchParams.set('student_type', studentType)
+                                        url.searchParams.set('enrollment_status', enrollmentStatus)
+                                        
+                                        return (
                                             <Link
                                                 key={index}
-                                                href={link.url}
+                                                href={url.pathname + url.search}
                                                 className={`px-3 py-1 text-sm border rounded ${
                                                     link.active 
                                                         ? 'bg-blue-500 text-white border-blue-500' 
                                                         : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
                                                 }`}
                                                 dangerouslySetInnerHTML={{ __html: link.label }}
-                                            />
-                                        ) : (
-                                            <span
-                                                key={index}
-                                                className="px-3 py-1 text-sm text-gray-400 border border-gray-300 rounded"
-                                                dangerouslySetInnerHTML={{ __html: link.label }}
+                                                preserveState
+                                                preserveScroll
                                             />
                                         )
-                                    ))}
+                                    })}
                                 </div>
                             </div>
                         )}
@@ -675,12 +725,16 @@ export default function StudentsIndex({ students, programs, filters, auth, on_ho
                     {selectedStudent && (
                         <div className="space-y-6">
                             {/* Quick Stats Bar */}
-                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 p-4 bg-gradient-to-r from-blue-50 to-purple-50 rounded-lg border">
+                            <div className="grid grid-cols-2 md:grid-cols-3 gap-4 p-4 bg-gradient-to-r from-blue-50 to-purple-50 rounded-lg border">
                                 <div className="text-center">
                                     <div className="text-2xl font-bold text-blue-600">
                                         {selectedStudent.education_level === 'college'
-                                            ? `${selectedStudent.current_year_level || selectedStudent.year_level}Y`
-                                            : `G${selectedStudent.year_level}`
+                                            ? selectedStudent.year_level.startsWith('1st') || selectedStudent.year_level.startsWith('2nd') || selectedStudent.year_level.startsWith('3rd') || selectedStudent.year_level.startsWith('4th')
+                                                ? selectedStudent.year_level
+                                                : `${selectedStudent.year_level} Year`
+                                            : selectedStudent.year_level.startsWith('Grade ')
+                                                ? selectedStudent.year_level
+                                                : `Grade ${selectedStudent.year_level}`
                                         }
                                     </div>
                                     <div className="text-xs text-gray-600 uppercase tracking-wide">Year Level</div>
@@ -697,18 +751,12 @@ export default function StudentsIndex({ students, programs, filters, auth, on_ho
                                     </div>
                                     <div className="text-xs text-gray-600 uppercase tracking-wide">Enrolled</div>
                                 </div>
-                                <div className="text-center">
-                                    <div className="text-2xl font-bold text-orange-600">
-                                        {selectedStudent.archived_enrollments?.length || 0}
-                                    </div>
-                                    <div className="text-xs text-gray-600 uppercase tracking-wide">Past Semesters</div>
-                                </div>
                             </div>
 
                             {/* Main Information Grid */}
                             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                                 {/* Personal Information Card */}
-                                <Card className="border-l-4 border-l-blue-500">
+                                <Card>
                                     <CardHeader className="pb-3">
                                         <CardTitle className="text-lg flex items-center gap-2 text-blue-700">
                                             <User className="w-5 h-5" />
@@ -791,6 +839,21 @@ export default function StudentsIndex({ students, programs, filters, auth, on_ho
                                                         />
                                                     </div>
                                                     <div>
+                                                        <label className="text-sm font-medium text-gray-700 mb-1 block">Gender</label>
+                                                        <Select
+                                                            value={editFormData.gender || ''}
+                                                            onValueChange={(value) => setEditFormData({...editFormData, gender: value})}
+                                                        >
+                                                            <SelectTrigger className="h-9">
+                                                                <SelectValue placeholder="Select" />
+                                                            </SelectTrigger>
+                                                            <SelectContent>
+                                                                <SelectItem value="male">Male</SelectItem>
+                                                                <SelectItem value="female">Female</SelectItem>
+                                                            </SelectContent>
+                                                        </Select>
+                                                    </div>
+                                                    <div>
                                                         <label className="text-sm font-medium text-gray-700 mb-1 block">Phone</label>
                                                         <Input
                                                             value={editFormData.phone}
@@ -853,6 +916,16 @@ export default function StudentsIndex({ students, programs, filters, auth, on_ho
                                                     </div>
                                                 )}
 
+                                                {selectedStudent.gender && (
+                                                    <div className="flex items-center justify-between p-3 bg-indigo-50 rounded-lg">
+                                                        <div className="flex items-center gap-3">
+                                                            <User className="w-5 h-5 text-indigo-600" />
+                                                            <span className="text-sm font-medium text-gray-700">Gender</span>
+                                                        </div>
+                                                        <span className="text-sm text-gray-900 capitalize">{selectedStudent.gender}</span>
+                                                    </div>
+                                                )}
+
                                                 {selectedStudent.phone && (
                                                     <div className="flex items-center justify-between p-3 bg-orange-50 rounded-lg">
                                                         <div className="flex items-center gap-3">
@@ -878,7 +951,7 @@ export default function StudentsIndex({ students, programs, filters, auth, on_ho
                                 </Card>
 
                                 {/* Academic Information Card */}
-                                <Card className="border-l-4 border-l-green-500">
+                                <Card>
                                     <CardHeader className="pb-3">
                                         <CardTitle className="text-lg flex items-center gap-2 text-green-700">
                                             <GraduationCap className="w-5 h-5" />
@@ -911,8 +984,10 @@ export default function StudentsIndex({ students, programs, filters, auth, on_ho
                                                             <span className="text-sm font-medium text-gray-600">Year Level</span>
                                                             <div className="font-semibold text-gray-900">
                                                                 {selectedStudent.education_level === 'college'
-                                                                    ? `${selectedStudent.current_year_level || selectedStudent.year_level} Year`
-                                                                    : `Grade ${selectedStudent.year_level}`
+                                                                    ? `${selectedStudent.year_level} Year`
+                                                                    : selectedStudent.year_level.startsWith('Grade ') 
+                                                                        ? selectedStudent.year_level 
+                                                                        : `Grade ${selectedStudent.year_level}`
                                                                 }
                                                             </div>
                                                         </div>
@@ -947,18 +1022,6 @@ export default function StudentsIndex({ students, programs, filters, auth, on_ho
                                                                     Active
                                                                 </div>
                                                             </SelectItem>
-                                                            <SelectItem value="inactive">
-                                                                <div className="flex items-center gap-2">
-                                                                    <div className="w-2 h-2 bg-red-500 rounded-full"></div>
-                                                                    Inactive
-                                                                </div>
-                                                            </SelectItem>
-                                                            <SelectItem value="graduated">
-                                                                <div className="flex items-center gap-2">
-                                                                    <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-                                                                    Graduated
-                                                                </div>
-                                                            </SelectItem>
                                                             <SelectItem value="dropped">
                                                                 <div className="flex items-center gap-2">
                                                                     <div className="w-2 h-2 bg-yellow-500 rounded-full"></div>
@@ -988,7 +1051,9 @@ export default function StudentsIndex({ students, programs, filters, auth, on_ho
                                                     <div className="p-3 bg-gradient-to-r from-green-50 to-emerald-50 rounded-lg border border-green-200">
                                                         <div className="flex items-center gap-2 mb-1">
                                                             <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                                                            <span className="text-xs font-medium text-green-700 uppercase tracking-wide">Program</span>
+                                                            <span className="text-xs font-medium text-green-700 uppercase tracking-wide">
+                                                                Program
+                                                            </span>
                                                         </div>
                                                         <div className="font-semibold text-green-900">
                                                             {selectedStudent.program?.program_code || 'N/A'}
@@ -1012,8 +1077,10 @@ export default function StudentsIndex({ students, programs, filters, auth, on_ho
                                                         </div>
                                                         <div className="font-semibold text-purple-900">
                                                             {selectedStudent.education_level === 'college'
-                                                                ? `${selectedStudent.current_year_level || selectedStudent.year_level} Year`
-                                                                : `Grade ${selectedStudent.year_level}`
+                                                                ? `${selectedStudent.year_level} Year`
+                                                                : selectedStudent.year_level.startsWith('Grade ') 
+                                                                    ? selectedStudent.year_level 
+                                                                    : `Grade ${selectedStudent.year_level}`
                                                             }
                                                         </div>
                                                     </div>
@@ -1034,16 +1101,6 @@ export default function StudentsIndex({ students, programs, filters, auth, on_ho
                                                         </Badge>
                                                     </div>
                                                 </div>
-
-                                                {selectedStudent.track && (
-                                                    <div className="p-3 bg-gradient-to-r from-cyan-50 to-teal-50 rounded-lg border border-cyan-200">
-                                                        <div className="flex items-center gap-2 mb-1">
-                                                            <div className="w-2 h-2 bg-cyan-500 rounded-full"></div>
-                                                            <span className="text-xs font-medium text-cyan-700 uppercase tracking-wide">Track</span>
-                                                        </div>
-                                                        <div className="font-semibold text-cyan-900">{selectedStudent.track}</div>
-                                                    </div>
-                                                )}
 
                                                 {selectedStudent.strand && (
                                                     <div className="p-3 bg-gradient-to-r from-pink-50 to-rose-50 rounded-lg border border-pink-200">
@@ -1087,124 +1144,123 @@ export default function StudentsIndex({ students, programs, filters, auth, on_ho
                                                         </div>
                                                     </div>
                                                 )}
+
+                                                {/* Voucher Information - Only show for SHS students */}
+                                                {selectedStudent.education_level === 'senior_high' && (
+                                                    <div className="p-4 bg-gradient-to-r from-yellow-50 to-amber-50 rounded-lg border border-yellow-200">
+                                                                {
+                                                                    // Treat transferees as not eligible for voucher display regardless of stored flags
+                                                                    (() => {
+                                                                        // Detect transferee by previous_school or previous_program_id (enrollment_type isn't persisted)
+                                                                        const isTransferee = Boolean(selectedStudent?.previous_school || selectedStudent?.previous_program_id);
+                                                                        const colorClass = isTransferee
+                                                                            ? 'bg-gray-400'
+                                                                            : (selectedStudent?.has_voucher && selectedStudent?.voucher_status === 'active')
+                                                                                ? 'bg-green-500'
+                                                                                : selectedStudent?.has_voucher && selectedStudent?.voucher_status === 'invalid'
+                                                                                    ? 'bg-red-500'
+                                                                                    : 'bg-gray-400';
+
+                                                                        return (
+                                                                            <div className="flex items-center gap-2 mb-2">
+                                                                                <div className={`w-3 h-3 rounded-full ${colorClass}`}></div>
+                                                                                <span className="text-sm font-medium text-yellow-800 uppercase tracking-wide">SHS Voucher</span>
+                                                                            </div>
+                                                                        )
+                                                                    })()
+                                                                }
+                                                        <div className="space-y-1">
+                                                            { (selectedStudent?.previous_school || selectedStudent?.previous_program_id) ? (
+                                                                <div className="space-y-2">
+                                                                    <div className="flex items-center justify-between">
+                                                                        <span className="text-sm text-yellow-900">Voucher Eligibility:</span>
+                                                                        <Badge variant="secondary" className={'bg-gray-100 text-gray-800'}>Not eligible (Transferee)</Badge>
+                                                                    </div>
+                                                                    <div className="p-2 bg-yellow-50 rounded border border-yellow-100 text-sm text-yellow-800">
+                                                                        Transferees are not eligible for the SHS voucher program; fees should be collected normally.
+                                                                    </div>
+                                                                </div>
+                                                            ) : selectedStudent.has_voucher ? (
+                                                                <div className="space-y-2">
+                                                                    <div className="flex items-center justify-between">
+                                                                        <span className="text-sm text-yellow-900">Status:</span>
+                                                                        <Badge
+                                                                            variant="secondary"
+                                                                            className={
+                                                                                selectedStudent.voucher_status === 'active'
+                                                                                    ? 'bg-green-100 text-green-800'
+                                                                                    : 'bg-red-100 text-red-800'
+                                                                            }
+                                                                        >
+                                                                            {selectedStudent.voucher_status === 'active' ? 'Active' : 'Invalid'}
+                                                                        </Badge>
+                                                                    </div>
+                                                                    {selectedStudent.voucher_id && (
+                                                                        <div className="p-2 bg-yellow-100 rounded border border-yellow-300">
+                                                                            <span className="text-xs text-yellow-800 font-medium">
+                                                                                Voucher ID: <span className="font-mono">{selectedStudent.voucher_id}</span>
+                                                                            </span>
+                                                                        </div>
+                                                                    )}
+                                                                </div>
+                                                            ) : (
+                                                                <div className="text-sm text-yellow-900">
+                                                                    <span className="font-medium">No voucher assigned</span>
+                                                                </div>
+                                                            )}
+                                                            <div className="text-xs text-yellow-700 mt-1">
+                                                                SHS students are eligible for tuition fee vouchers through the program.
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                )}
                                             </div>
                                         )}
                                     </CardContent>
                                 </Card>
                             </div>
 
-                            {/* Archived Grades - Only show for students with archived enrollments */}
-                            {selectedStudent.archived_enrollments?.length > 0 && (
-                                <Card className="border-l-4 border-l-purple-500">
-                                    <CardHeader className="pb-3">
-                                        <CardTitle className="text-lg flex items-center gap-2 text-purple-700">
-                                            <GraduationCap className="w-5 h-5" />
-                                            Academic History
-                                            <Badge variant="secondary" className="ml-2">
-                                                {selectedStudent.archived_enrollments.length} Semester{selectedStudent.archived_enrollments.length !== 1 ? 's' : ''}
-                                            </Badge>
-                                        </CardTitle>
-                                        <p className="text-sm text-gray-600">Previous semester enrollments and grades</p>
-                                    </CardHeader>
-                                    <CardContent>
-                                        <div className="space-y-4">
-                                            {selectedStudent.archived_enrollments.map((enrollment, index) => (
-                                                <div key={index} className="relative">
-                                                    {/* Timeline connector */}
-                                                    {index < selectedStudent.archived_enrollments.length - 1 && (
-                                                        <div className="absolute left-6 top-16 w-0.5 h-8 bg-purple-200"></div>
-                                                    )}
-
-                                                    <div className="bg-gradient-to-r from-purple-50 to-indigo-50 rounded-lg p-5 border border-purple-200">
-                                                        {/* Semester Header */}
-                                                        <div className="flex items-center gap-3 mb-4">
-                                                            <div className="w-12 h-12 bg-purple-100 rounded-full flex items-center justify-center">
-                                                                <span className="text-sm font-bold text-purple-700">
-                                                                    {enrollment.semester === '1st' ? '1' : enrollment.semester === '2nd' ? '2' : 'S'}
-                                                                </span>
-                                                            </div>
-                                                            <div className="flex-1">
-                                                                <div className="flex items-center gap-2 mb-1">
-                                                                    <h4 className="font-semibold text-purple-900">
-                                                                        {enrollment.academic_year} - {enrollment.semester} Semester
-                                                                    </h4>
-                                                                    <Badge
-                                                                        variant="secondary"
-                                                                        className={enrollment.final_status === 'completed'
-                                                                            ? 'bg-green-100 text-green-800'
-                                                                            : enrollment.final_status === 'dropped'
-                                                                            ? 'bg-yellow-100 text-yellow-800'
-                                                                            : 'bg-red-100 text-red-800'
-                                                                        }
-                                                                    >
-                                                                        {enrollment.final_status}
-                                                                    </Badge>
-                                                                </div>
-                                                                <p className="text-sm text-purple-700">
-                                                                    Section: {enrollment.archived_section?.section_name || 'N/A'}
-                                                                </p>
-                                                            </div>
-                                                        </div>
-
-                                                        {/* Grades Summary */}
-                                                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
-                                                            <div className="bg-white p-3 rounded-lg border border-purple-200">
-                                                                <div className="text-xs font-medium text-purple-700 uppercase tracking-wide">Final Grade</div>
-                                                                <div className="text-lg font-bold text-purple-900">
-                                                                    {enrollment.final_semester_grade || 'N/A'}
-                                                                </div>
-                                                            </div>
-                                                            <div className="bg-white p-3 rounded-lg border border-purple-200">
-                                                                <div className="text-xs font-medium text-purple-700 uppercase tracking-wide">Letter Grade</div>
-                                                                <div className="text-lg font-bold text-purple-900">
-                                                                    {enrollment.letter_grade || 'N/A'}
-                                                                </div>
-                                                            </div>
-                                                            <div className="bg-white p-3 rounded-lg border border-purple-200">
-                                                                <div className="text-xs font-medium text-purple-700 uppercase tracking-wide">GWA</div>
-                                                                <div className="text-lg font-bold text-purple-900">
-                                                                    {enrollment.gwa || 'N/A'}
-                                                                </div>
-                                                            </div>
-                                                            <div className="bg-white p-3 rounded-lg border border-purple-200">
-                                                                <div className="text-xs font-medium text-purple-700 uppercase tracking-wide">Units</div>
-                                                                <div className="text-lg font-bold text-purple-900">
-                                                                    {enrollment.total_units || 'N/A'}
-                                                                </div>
-                                                            </div>
-                                                        </div>
-
-                                                        {/* Subject Grades */}
-                                                        {enrollment.final_grades && Object.keys(enrollment.final_grades).length > 0 && (
-                                                            <div>
-                                                                <h5 className="text-sm font-medium text-purple-700 mb-3 flex items-center gap-2">
-                                                                    <BookOpen className="w-4 h-4" />
-                                                                    Subject Grades
-                                                                </h5>
-                                                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                                                                    {Object.entries(enrollment.final_grades).map(([subject, grade]) => (
-                                                                        <div key={subject} className="bg-white p-3 rounded-lg border border-purple-200 hover:border-purple-300 transition-colors">
-                                                                            <div className="text-xs font-medium text-gray-600 truncate" title={subject}>
-                                                                                {subject}
-                                                                            </div>
-                                                                            <div className="text-lg font-bold text-purple-900 mt-1">
-                                                                                {grade}
-                                                                            </div>
-                                                                        </div>
-                                                                    ))}
-                                                                </div>
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                </div>
-                                            ))}
+                            {/* Academic History - Show for all students */}
+                            <Card>
+                                <CardHeader className="pb-3">
+                                    <CardTitle className="text-lg flex items-center gap-2 text-purple-700">
+                                        <GraduationCap className="w-5 h-5" />
+                                        Academic History
+                                    </CardTitle>
+                                    <p className="text-sm text-gray-600">
+                                        View academic history and curriculum progress
+                                    </p>
+                                </CardHeader>
+                                <CardContent>
+                                    <div className="flex items-center justify-between p-6 bg-gradient-to-r from-purple-50 to-indigo-50 rounded-lg border border-purple-200">
+                                        <div className="flex items-center gap-4">
+                                            <div className="w-12 h-12 bg-purple-100 rounded-full flex items-center justify-center">
+                                                <BookOpen className="w-6 h-6 text-purple-600" />
+                                            </div>
+                                            <div>
+                                                <h4 className="font-semibold text-purple-900 mb-1">
+                                                    Academic History
+                                                </h4>
+                                                <p className="text-sm text-purple-700">
+                                                    View curriculum progress and completed subjects
+                                                </p>
+                                            </div>
                                         </div>
-                                    </CardContent>
-                                </Card>
-                            )}
+                                        <Link
+                                            href={route('registrar.students.academic-history', selectedStudent.id)}
+                                            className="inline-block"
+                                        >
+                                            <Button className="bg-purple-600 hover:bg-purple-700">
+                                                View History
+                                                <GraduationCap className="w-4 h-4 ml-2" />
+                                            </Button>
+                                        </Link>
+                                    </div>
+                                </CardContent>
+                            </Card>
 
                             {/* Current Enrollment Information */}
-                            <Card className="border-l-4 border-l-emerald-500">
+                            <Card>
                                 <CardHeader className="pb-3">
                                     <CardTitle className="text-lg flex items-center gap-2 text-emerald-700">
                                         <User className="w-5 h-5" />
@@ -1235,8 +1291,8 @@ export default function StudentsIndex({ students, programs, filters, auth, on_ho
                                                 <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
                                                 <span className="text-sm font-medium text-blue-700 uppercase tracking-wide">Current Section</span>
                                             </div>
-                                            <div className="text-lg font-bold text-blue-900 mb-1">
-                                                {formatSectionName(selectedStudent.current_section, selectedStudent.is_currently_enrolled)}
+                                            <div className="text-sm font-bold text-blue-900 mb-1">
+                                                {formatSectionName(selectedStudent.current_section, selectedStudent.is_currently_enrolled, selectedStudent.year_level)}
                                             </div>
                                             {selectedStudent.current_section && (
                                                 <div className="text-sm text-blue-700">
